@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyAppearanceToHtml, faviconHrefForTheme, scaleToFactor } from './appearance'
+import { applyAppearanceToHtml, faviconHrefForTheme, xLogoHrefForTheme, scaleToFactor } from './appearance'
 
 describe('appearance', () => {
   it('scaleToFactor converts percent steps to a multiplier', () => {
@@ -13,6 +13,12 @@ describe('appearance', () => {
     expect(faviconHrefForTheme('venice')).toBe('/logo-dark.svg?v=10')
     expect(faviconHrefForTheme('dark')).toBe('/logo-dark.svg?v=10')
     expect(faviconHrefForTheme('grey')).toBe('/logo-dark.svg?v=10')
+  })
+
+  it('xLogoHrefForTheme uses black X logo on light theme', () => {
+    expect(xLogoHrefForTheme('light')).toBe('/x-logo-light.svg')
+    expect(xLogoHrefForTheme('dark')).toBe('/x-logo.svg')
+    expect(xLogoHrefForTheme('venice')).toBe('/x-logo.svg')
   })
 
   it('applyAppearanceToHtml maps legacy zoom to ui-scale', () => {

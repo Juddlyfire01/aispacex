@@ -31,6 +31,10 @@ export function faviconHrefForTheme(_theme: string): string {
   return `/logo-dark.svg?v=${FAVICON_VERSION}`
 }
 
+export function xLogoHrefForTheme(theme: string): string {
+  return theme === 'light' ? '/x-logo-light.svg' : '/x-logo.svg'
+}
+
 export function applyFaviconForTheme(theme: string, doc: Document = document) {
   const href = faviconHrefForTheme(theme)
   let link = doc.querySelector<HTMLLinkElement>('link[rel="icon"]')

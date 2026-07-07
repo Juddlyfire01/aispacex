@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { xLogoHrefForTheme } from '../../lib/appearance'
 import { gatherSelf, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { linkify } from '../../lib/x-intel/linkify'
@@ -33,13 +35,14 @@ function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; exp
 }
 
 function ConnectCta() {
+  const theme = useSettingsStore((s) => s.theme)
   return (
     <div className="grid h-full min-h-0 grid-rows-[1fr_auto_1fr] px-6 animate-fade-in">
       <div aria-hidden />
       <div className="relative flex items-center justify-center">
         <SignInWithXButton onClick={beginSelfLogin} />
         <div className="absolute bottom-full left-1/2 mb-5 flex w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 flex-col items-center gap-5 text-center">
-          <img src="/x-logo.svg" alt="" className="h-7 w-auto opacity-90" aria-hidden />
+          <img src={xLogoHrefForTheme(theme)} alt="" className="h-7 w-auto opacity-90" aria-hidden />
           <h2 className="text-[16px] font-semibold text-white/90">Analyze Your Profile</h2>
         </div>
         <div className="absolute top-full left-1/2 z-10 mt-2 w-80 max-w-[calc(100vw-3rem)] -translate-x-1/2">
