@@ -57,7 +57,7 @@ export function TargetRail() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
-          placeholder={connected ? '+ Add target (@username)' : 'Connect X first'}
+          placeholder={connected ? '+ Add target (@username)' : 'Connect X to add targets'}
           disabled={!connected}
           className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors placeholder:text-[var(--color-text-placeholder)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)]"
         />

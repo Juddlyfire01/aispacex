@@ -12,6 +12,7 @@ import { SelfFeed } from './self-feed'
 import { SelfNetwork } from './self-network'
 import { runGather } from '../../lib/x-intel/orchestrate'
 import { refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
+import { isDemoTarget } from '../../lib/x-intel/fields'
 import { syncComposeContextFromActiveTarget } from '../../lib/compose/open-compose'
 import { SubTabs } from '../ui/sub-tabs'
 
@@ -57,14 +58,16 @@ export function IntelView() {
 
   useEffect(() => {
     let cancelled = false
-    // Shares the app-level session probe; auto-refresh watched targets once connected.
+    // Auto-refresh watched targets; @AskVenice demo works without OAuth.
     void refreshSelfSession()
       .then((isConnected) => {
-        if (cancelled || !isConnected) return
+        if (cancelled) return
         const { targets, reports } = useXIntelStore.getState()
         for (const t of targets) {
           const key = findReportKey(reports, t) ?? t
-          if (reports[key]?.watch) runGather(key).catch(() => { /* surfaced on manual gather */ })
+          if (!reports[key]?.watch) continue
+          if (!isConnected && !isDemoTarget(t)) continue
+          runGather(key).catch(() => { /* surfaced on manual gather */ })
         }
       })
       .catch(() => { /* session probe failure = treated as disconnected */ })

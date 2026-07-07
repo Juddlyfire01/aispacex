@@ -40,7 +40,7 @@ export function SelfFeed() {
       refreshError={refreshError}
       onRefresh={runRefresh}
       lastGatheredIso={lastGathered}
-      connected={connected}
+      canRefresh={connected}
       emptyTitle="No posts gathered yet"
       emptyHint={connected
         ? `Fetch @${account.username}'s recent posts (up to 50 per pull).`

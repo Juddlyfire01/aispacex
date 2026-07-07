@@ -1,4 +1,4 @@
-import { xapi } from './x-client'
+import { xapi, type GatherAuth } from './x-client'
 import { USER_FIELDS, POST_FIELDS, POST_EXPANSIONS, COST_PER_POST, COST_PER_USER, COST_PER_LIKE } from './fields'
 import { normalizeProfile, normalizePost } from './normalize'
 import type { Profile, Post, XUserRaw, XPostRaw, XSingleResponse, XPaginatedResponse } from './types'
@@ -20,16 +20,17 @@ export interface GatherResult<T> {
   cost: number
 }
 
-export async function gatherProfile(username: string): Promise<GatherResult<Profile>> {
+export async function gatherProfile(username: string, auth: GatherAuth): Promise<GatherResult<Profile>> {
   const resp = await xapi<XSingleResponse<XUserRaw>>(`/users/by/username/${encodeURIComponent(username)}`, {
     'user.fields': USER_FIELDS.join(','),
-  })
+  }, auth)
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? `User @${username} not found`)
   return { data: normalizeProfile(resp.data), cost: estimateCost('users', 1) }
 }
 
 export async function gatherPosts(
   userId: string,
+  auth: GatherAuth,
   opts: { sinceId?: string; maxResults?: number } = {},
 ): Promise<GatherResult<Post[]>> {
   const params: Record<string, string> = {
@@ -39,7 +40,7 @@ export async function gatherPosts(
   }
   if (opts.sinceId) params.since_id = opts.sinceId
 
-  const resp = await xapi<XPaginatedResponse<XPostRaw>>(`/users/${encodeURIComponent(userId)}/tweets`, params)
+  const resp = await xapi<XPaginatedResponse<XPostRaw>>(`/users/${encodeURIComponent(userId)}/tweets`, params, auth)
   if (!resp.data && resp.errors?.length) {
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
@@ -49,6 +50,7 @@ export async function gatherPosts(
 
 export async function gatherMentions(
   userId: string,
+  auth: GatherAuth,
   opts: { sinceId?: string; maxResults?: number } = {},
 ): Promise<GatherResult<Post[]>> {
   const params: Record<string, string> = {
@@ -58,7 +60,7 @@ export async function gatherMentions(
   }
   if (opts.sinceId) params.since_id = opts.sinceId
 
-  const resp = await xapi<XPaginatedResponse<XPostRaw>>(`/users/${encodeURIComponent(userId)}/mentions`, params)
+  const resp = await xapi<XPaginatedResponse<XPostRaw>>(`/users/${encodeURIComponent(userId)}/mentions`, params, auth)
   if (!resp.data && resp.errors?.length) {
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
@@ -66,10 +68,10 @@ export async function gatherMentions(
   return { data: posts, cost: estimateCost('posts', posts.length) }
 }
 
-export async function resolveUser(userId: string): Promise<GatherResult<Profile>> {
+export async function resolveUser(userId: string, auth: GatherAuth): Promise<GatherResult<Profile>> {
   const resp = await xapi<XSingleResponse<XUserRaw>>(`/users/${encodeURIComponent(userId)}`, {
     'user.fields': USER_FIELDS.join(','),
-  })
+  }, auth)
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? `User ${userId} not found`)
   return { data: normalizeProfile(resp.data), cost: estimateCost('users', 1) }
 }

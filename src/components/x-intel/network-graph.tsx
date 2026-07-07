@@ -5,6 +5,7 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { runGather, refreshPosts, refreshNetworkWithMentions } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
+import { canGatherTarget } from '../../lib/x-intel/fields'
 import type { Edge, Profile } from '../../lib/x-intel/types'
 import { cn } from '../../lib/utils'
 
@@ -27,6 +28,7 @@ export interface NetworkGraphInnerProps {
   /** Active subject label for empty-state copy (e.g. "@username"). */
   subjectLabel: string
   connected: boolean
+  canGather: boolean
   refreshing: null | 'posts' | 'mentions'
   refreshError: string | null
   onRefresh: (mode: 'posts' | 'mentions') => void
@@ -40,11 +42,11 @@ export interface NetworkGraphInnerProps {
 /** Presentational network graph — props-driven so it can be wired to either a
  *  target or the connected self account. */
 export function NetworkGraphInner({
-  profile, edges, subjectLabel, connected, refreshing, refreshError,
+  profile, edges, subjectLabel, connected, canGather, refreshing, refreshError,
   onRefresh, onAddTarget, canAddTargets, lastGatheredIso,
 }: NetworkGraphInnerProps) {
   const [kindFilter, setKindFilter] = useState<Set<Edge['kind']>>(new Set(KINDS))
-  const [minWeight, setMinWeight] = useState(1)
+  const [minWeight, setMinWeight] = useState(2)
 
   const filteredEdges = useMemo(
     () => edges.filter((e) => kindFilter.has(e.kind) && e.weight >= minWeight),
@@ -101,13 +103,13 @@ export function NetworkGraphInner({
     return (
       <SectionEmpty
         title="No network gathered yet"
-        hint={connected
+        hint={canGather
           ? `Build ${subjectLabel}'s graph from their posts, or pull who's mentioning them.`
           : 'Connect your X account first (header → Connect X).'}
         actionLabel="Gather from posts"
         onAction={() => onRefresh('posts')}
         busy={refreshing === 'posts'}
-        disabled={!connected}
+        disabled={!canGather}
         error={refreshError}
         secondaryLabel="+ Mentions"
         onSecondary={() => onRefresh('mentions')}
@@ -167,7 +169,7 @@ export function NetworkGraphInner({
         {canAddTargets && (
           <button
             onClick={() => onRefresh('mentions')}
-            disabled={!!refreshing || !connected}
+            disabled={!!refreshing || !canGather}
             title="Pull who's mentioning this subject"
             className="text-[10px] font-medium px-2 py-1 rounded-md border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
@@ -177,7 +179,7 @@ export function NetworkGraphInner({
         <SectionRefresh
           onClick={() => onRefresh('posts')}
           busy={refreshing === 'posts'}
-          disabled={!connected}
+          disabled={!canGather}
           lastGatheredIso={lastGatheredIso}
           error={refreshError}
         />
@@ -221,6 +223,8 @@ export function NetworkGraph() {
     }
   }
 
+  const canGather = canGatherTarget(activeTarget, connected)
+
   if (!activeTarget || !report) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
   }
@@ -238,6 +242,7 @@ export function NetworkGraph() {
       edges={report.edges ?? []}
       subjectLabel={`@${activeTarget}`}
       connected={connected}
+      canGather={canGather}
       refreshing={refreshing}
       refreshError={refreshError}
       onRefresh={runRefresh}

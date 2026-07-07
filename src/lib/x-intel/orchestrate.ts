@@ -1,4 +1,5 @@
 import { gatherProfile, gatherPosts, gatherMentions } from './gather'
+import { resolveGatherAuth } from './gather-auth'
 import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
@@ -38,9 +39,10 @@ export async function runGather(username: string, opts: { backfill?: number } = 
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
+  const auth = resolveGatherAuth(apiUsername)
 
   // 1. Profile — always refresh (cheap, metrics change)
-  const profileResult = await gatherProfile(apiUsername)
+  const profileResult = await gatherProfile(apiUsername, auth)
   addCost(key, profileResult.cost)
   const profile = profileResult.data
   updateReport(key, { profile })
@@ -52,8 +54,8 @@ export async function runGather(username: string, opts: { backfill?: number } = 
     ? currentReport.profile?.mostRecentPostId ?? undefined
     : undefined
   const [postsResult, mentionsResult] = await Promise.all([
-    gatherPosts(profile.id, { sinceId, maxResults: opts.backfill ?? 50 }),
-    gatherMentions(profile.id).catch(() => ({ data: [] as Post[], cost: 0 })),
+    gatherPosts(profile.id, auth, { sinceId, maxResults: opts.backfill ?? 50 }),
+    gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
   ])
   addCost(key, postsResult.cost)
   addCost(key, mentionsResult.cost)
@@ -76,8 +78,9 @@ export async function refreshProfile(username: string): Promise<void> {
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
+  const auth = resolveGatherAuth(apiUsername)
 
-  const result = await gatherProfile(apiUsername)
+  const result = await gatherProfile(apiUsername, auth)
   addCost(key, result.cost)
   updateReport(key, { profile: result.data, refreshedAt: markRefreshed(key, 'profile') })
 }
@@ -91,18 +94,19 @@ export async function refreshPosts(username: string): Promise<void> {
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
+  const auth = resolveGatherAuth(apiUsername)
 
   // Need a profile id to query posts; fetch it first if we don't have one yet.
   let profileId = report.profile?.id
   if (!profileId) {
-    const profileResult = await gatherProfile(apiUsername)
+    const profileResult = await gatherProfile(apiUsername, auth)
     addCost(key, profileResult.cost)
     updateReport(key, { profile: profileResult.data, refreshedAt: markRefreshed(key, 'profile') })
     profileId = profileResult.data.id
   }
 
   const sinceId = report.posts.length > 0 ? report.profile?.mostRecentPostId ?? undefined : undefined
-  const postsResult = await gatherPosts(profileId, { sinceId })
+  const postsResult = await gatherPosts(profileId, auth, { sinceId })
   addCost(key, postsResult.cost)
 
   const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
@@ -123,16 +127,17 @@ export async function refreshNetworkWithMentions(username: string): Promise<void
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
+  const auth = resolveGatherAuth(apiUsername)
 
   let profileId = report.profile?.id
   if (!profileId) {
-    const profileResult = await gatherProfile(apiUsername)
+    const profileResult = await gatherProfile(apiUsername, auth)
     addCost(key, profileResult.cost)
     updateReport(key, { profile: profileResult.data, refreshedAt: markRefreshed(key, 'profile') })
     profileId = profileResult.data.id
   }
 
-  const mentionsResult = await gatherMentions(profileId)
+  const mentionsResult = await gatherMentions(profileId, auth)
   addCost(key, mentionsResult.cost)
 
   const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []

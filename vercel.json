@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/x/proxy/(.*)", "destination": "/api/x/proxy?path=$1" },
+    { "source": "/api/x/demo/(.*)", "destination": "/api/x/demo?path=$1" },
     { "source": "/api/venice/proxy/(.*)", "destination": "/api/venice/proxy?path=$1" },
     { "source": "/api/venicestats/proxy/(.*)", "destination": "/api/venicestats/proxy?path=$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

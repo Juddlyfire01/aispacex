@@ -18,7 +18,7 @@ import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { toast } from '../../stores/toast-store'
 import { runGather } from './orchestrate'
-import { DEFAULT_TARGET } from './fields'
+import { DEFAULT_TARGET, isDemoTarget } from './fields'
 import type { IntelReportSnapshot, ChangeSummary, Post } from './types'
 
 let sessionRefreshPromise: Promise<boolean> | null = null
@@ -175,15 +175,15 @@ function ensureDefaultTarget(): string | null {
     ?? useXIntelStore.getState().targets.find((t) => t.toLowerCase() === DEFAULT_TARGET.toLowerCase())
     ?? DEFAULT_TARGET
   const report = useXIntelStore.getState().reports[key]
-  if (report && !report.watch) {
+  const connected = useXSelfStore.getState().connected
+  if (report && connected && !report.watch) {
     useXIntelStore.getState().updateReport(key, { watch: true })
   }
   return key
 }
 
-/** Pull a fresh profile/posts/network for the default target when X is connected. */
+/** Pull a fresh profile/posts/network for the default target (demo path when disconnected). */
 export function refreshDefaultTarget(): void {
-  if (!useXSelfStore.getState().connected) return
   const key = ensureDefaultTarget()
   if (!key) return
   runGather(key).catch(() => { /* surfaced in the target rail */ })

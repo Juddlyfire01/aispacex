@@ -3,6 +3,7 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { refreshPosts } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
+import { canGatherTarget } from '../../lib/x-intel/fields'
 import type { Post } from '../../lib/x-intel/types'
 import { cn, formatTokens } from '../../lib/utils'
 
@@ -17,7 +18,7 @@ export interface ActivityFeedInnerProps {
   refreshError: string | null
   onRefresh: () => void
   lastGatheredIso?: string
-  connected: boolean
+  canRefresh: boolean
   /** Shown when no posts gathered yet. */
   emptyTitle?: string
   emptyHint: string
@@ -28,7 +29,7 @@ export interface ActivityFeedInnerProps {
  *  target (via useXIntelStore) or the connected self account (via useXSelfStore). */
 export function ActivityFeedInner({
   posts, watch, onToggleWatch, refreshing, refreshError, onRefresh,
-  lastGatheredIso, connected, emptyTitle = 'No posts gathered yet', emptyHint,
+  lastGatheredIso, canRefresh, emptyTitle = 'No posts gathered yet', emptyHint,
   emptyActionLabel = 'Gather posts',
 }: ActivityFeedInnerProps) {
   const [filter, setFilter] = useState<KindFilter>('all')
@@ -41,7 +42,7 @@ export function ActivityFeedInner({
         actionLabel={emptyActionLabel}
         onAction={onRefresh}
         busy={refreshing}
-        disabled={!connected}
+        disabled={!canRefresh}
         error={refreshError}
       />
     )
@@ -80,7 +81,7 @@ export function ActivityFeedInner({
         <SectionRefresh
           onClick={onRefresh}
           busy={refreshing}
-          disabled={!connected}
+          disabled={!canRefresh}
           lastGatheredIso={lastGatheredIso}
           error={refreshError}
         />
@@ -140,6 +141,8 @@ export function ActivityFeed() {
     }
   }
 
+  const canGather = canGatherTarget(activeTarget, connected)
+
   if (!activeTarget || !report) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
   }
@@ -157,8 +160,10 @@ export function ActivityFeed() {
       refreshError={refreshError}
       onRefresh={runRefresh}
       lastGatheredIso={lastGathered}
-      connected={connected}
-      emptyHint={connected ? `Fetch @${activeTarget}'s recent posts (up to 50 per pull).` : 'Connect your X account first (header → Connect X).'}
+      canRefresh={canGather}
+      emptyHint={canGather
+        ? `Fetch @${activeTarget}'s recent posts (up to 50 per pull).`
+        : 'Connect your X account first (header → Connect X).'}
     />
   )
 }

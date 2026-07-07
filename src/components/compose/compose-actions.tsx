@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
+import { useXSelfStore } from '../../stores/x-self-store'
 import { classifyPostability } from '../../lib/compose/postability'
 import { serializeDraftForCopy } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
@@ -19,6 +20,7 @@ interface ComposeActionsProps {
 export function ComposeActions({ context, copied, setCopied }: ComposeActionsProps) {
   const session = useComposeStore((s) => s.sessions[context])
   const resetDraft = useComposeStore((s) => s.resetDraft)
+  const connected = useXSelfStore((s) => s.connected)
   const [posting, setPosting] = useState(false)
   const [postedUrl, setPostedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -89,8 +91,9 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
         {postability.mode === 'api' ? (
           <button
             onClick={post}
-            disabled={blocked || posting}
-            className="px-3 py-1.5 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30"
+            disabled={!connected || blocked || posting}
+            title={!connected ? 'Connect your X account (header → Connect X)' : undefined}
+            className="px-3 py-1.5 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {posting ? 'Posting…' : draft.segments.length > 1 ? 'Post thread' : 'Post to X'}
           </button>

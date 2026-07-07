@@ -5,8 +5,9 @@ import { refreshProfile, runGather } from '../../lib/x-intel/orchestrate'
 import { linkify } from '../../lib/x-intel/linkify'
 import { ensureProfileShape, profileNeedsLinkRefresh } from '../../lib/x-intel/normalize'
 import { computeActivity } from '../../lib/x-intel/activity'
-import { ProfileOverview } from './profile-overview'
 import type { Profile } from '../../lib/x-intel/types'
+import { ProfileOverview } from './profile-overview'
+import { canGatherTarget, isDemoTarget } from '../../lib/x-intel/fields'
 
 /**
  * Render a bio with clickable URLs, @mentions and #hashtags. URLs and hashtags
@@ -105,6 +106,8 @@ export function ProfileCard() {
     })
   }, [connected, activeTarget, profile])
 
+  const canGather = canGatherTarget(activeTarget, connected)
+
   if (!activeTarget || !report) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
   }
@@ -116,11 +119,16 @@ export function ProfileCard() {
     <ProfileOverview
       profile={profile}
       connected={connected}
+      canRefresh={canGather}
       refreshing={refreshing}
       refreshError={refreshError}
       lastGatheredIso={report.refreshedAt?.profile ?? profile?.gatheredAt}
       onRefresh={runRefresh}
-      emptyHint={connected ? `Fetch @${activeTarget}'s profile, posts & network in one pull.` : 'Connect your X account first (header → Connect X).'}
+      emptyHint={canGather
+        ? (isDemoTarget(activeTarget) && !connected
+          ? `Fetch @${activeTarget}'s profile, posts & network — no X account needed. Connect X to analyze anyone else.`
+          : `Fetch @${activeTarget}'s profile, posts & network in one pull.`)
+        : 'Connect your X account first (header → Connect X).'}
       renderBio={(p: Profile) => <BioText text={p.bio ?? ''} bioUrls={p.bioUrls} />}
       activity={activity}
       synthesisSettings={synthesisSettings}

@@ -27,3 +27,13 @@ export const COST_PER_LIKE = 0.001
 // lookup targets this account, so validating the token also fetches its
 // profile in the same request (no extra cost).
 export const DEFAULT_TARGET = 'AskVenice'
+
+/** Gratis demo intel target — gatherable without user OAuth via /api/x/demo. */
+export function isDemoTarget(username: string): boolean {
+  return username.toLowerCase() === DEFAULT_TARGET.toLowerCase()
+}
+
+export function canGatherTarget(username: string | null | undefined, connected: boolean): boolean {
+  if (!username) return false
+  return connected || isDemoTarget(username)
+}

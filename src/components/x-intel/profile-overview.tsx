@@ -10,8 +10,10 @@ import type { ActivitySummary } from '../../lib/x-intel/activity'
 export interface ProfileOverviewProps {
   /** Shaped profile, or null to render the actionable empty state. */
   profile: Profile | null
-  /** Whether the X account is connected (gates refresh). */
+  /** Whether the X account is connected (gates add-target affordances on self). */
   connected: boolean
+  /** Whether refresh/gather actions are enabled (OAuth, or gratis @AskVenice demo). */
+  canRefresh?: boolean
   refreshing: boolean
   refreshError: string | null
   lastGatheredIso?: string
@@ -48,7 +50,7 @@ const GearIcon = () => (
  * block (bookmarks/likes) that targets simply omit.
  */
 export function ProfileOverview({
-  profile, connected, refreshing, refreshError, lastGatheredIso, onRefresh,
+  profile, connected, canRefresh = connected, refreshing, refreshError, lastGatheredIso, onRefresh,
   emptyHint, showYouBadge, renderBio, extraSection, activity,
   synthesisSettings, onSynthesisChange, footerAction,
 }: ProfileOverviewProps) {
@@ -74,7 +76,7 @@ export function ProfileOverview({
             actionLabel="Refresh profile"
             onAction={onRefresh}
             busy={refreshing}
-            disabled={!connected}
+            disabled={!canRefresh}
             error={refreshError}
           />
         </div>
@@ -93,7 +95,7 @@ export function ProfileOverview({
           label="Refresh profile"
           onClick={onRefresh}
           busy={refreshing}
-          disabled={!connected}
+          disabled={!canRefresh}
           lastGatheredIso={lastGatheredIso}
           error={refreshError}
         />

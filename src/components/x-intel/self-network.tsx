@@ -45,6 +45,7 @@ export function SelfNetwork() {
       edges={account.edges}
       subjectLabel={`@${account.username}`}
       connected={connected}
+      canGather={connected}
       refreshing={refreshing}
       refreshError={refreshError}
       onRefresh={runRefresh}
