@@ -154,6 +154,7 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   } else if (oauthReturn && connected) {
     useSettingsStore.getState().setActiveTab('intel')
     toast.success('Connected to X')
+    refreshDefaultTarget()
   } else if (oauthReturn && !connected) {
     toast.error('X connect failed', 'Session could not be established after redirect.')
   }
@@ -161,19 +162,38 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   return { connected, oauthReturn, oauthError }
 }
 
+/** Ensure @AskVenice is in the Others rail (when empty) and set to auto-refresh when connected. */
+function ensureDefaultTarget(): string | null {
+  const intel = useXIntelStore.getState()
+  const onRail = intel.targets.some((t) => t.toLowerCase() === DEFAULT_TARGET.toLowerCase())
+  if (!onRail) {
+    if (intel.targets.length > 0) return null
+    intel.addTarget(DEFAULT_TARGET)
+  }
+  const key =
+    findReportKey(useXIntelStore.getState().reports, DEFAULT_TARGET)
+    ?? useXIntelStore.getState().targets.find((t) => t.toLowerCase() === DEFAULT_TARGET.toLowerCase())
+    ?? DEFAULT_TARGET
+  const report = useXIntelStore.getState().reports[key]
+  if (report && !report.watch) {
+    useXIntelStore.getState().updateReport(key, { watch: true })
+  }
+  return key
+}
+
+/** Pull a fresh profile/posts/network for the default target when X is connected. */
+export function refreshDefaultTarget(): void {
+  if (!useXSelfStore.getState().connected) return
+  const key = ensureDefaultTarget()
+  if (!key) return
+  runGather(key).catch(() => { /* surfaced in the target rail */ })
+}
+
 /** Add @AskVenice as the first target in the Others rail (and gather when X is connected). */
 function seedDefaultTarget(): void {
   const trySeed = () => {
-    const intel = useXIntelStore.getState()
-    if (intel.targets.length === 0) {
-      intel.addTarget(DEFAULT_TARGET)
-    }
-    if (!useXSelfStore.getState().connected) return
-    const reports = useXIntelStore.getState().reports
-    const key = findReportKey(reports, DEFAULT_TARGET) ?? DEFAULT_TARGET
-    if (!reports[key]?.profile) {
-      runGather(key).catch(() => { /* surfaced in the target rail */ })
-    }
+    ensureDefaultTarget()
+    refreshDefaultTarget()
   }
 
   if (useXIntelStore.persist.hasHydrated()) {

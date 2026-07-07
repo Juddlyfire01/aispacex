@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useXIntelStore } from '../../stores/x-intel-store'
+import { useXIntelStore, findReportKey } from '../../stores/x-intel-store'
 import { TargetRail } from './target-rail'
 import { ActivityFeed } from './activity-feed'
 import { ProfileCard } from './profile-card'
@@ -63,7 +63,8 @@ export function IntelView() {
         if (cancelled || !isConnected) return
         const { targets, reports } = useXIntelStore.getState()
         for (const t of targets) {
-          if (reports[t]?.watch) runGather(t).catch(() => { /* surfaced on manual gather */ })
+          const key = findReportKey(reports, t) ?? t
+          if (reports[key]?.watch) runGather(key).catch(() => { /* surfaced on manual gather */ })
         }
       })
       .catch(() => { /* session probe failure = treated as disconnected */ })
