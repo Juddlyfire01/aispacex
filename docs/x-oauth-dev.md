@@ -97,7 +97,7 @@ After deploy, open the preview → Intel → Connect X. If X shows “redirect_u
 Register:
 
 ```text
-https://aispacex.vercel.app/api/x/oauth/callback
+https://aispacex-aispace-team.vercel.app/api/x/oauth/callback
 ```
 
 (Replace with your custom domain if you use one.)

@@ -42,8 +42,10 @@ Register `http://localhost:5173/api/x/oauth/callback` in the [X developer portal
 Production callback (after deploy):
 
 ```text
-https://aispacex.vercel.app/api/x/oauth/callback
+https://aispacex-aispace-team.vercel.app/api/x/oauth/callback
 ```
+
+If you add a custom domain, register `{your-domain}/api/x/oauth/callback` instead. The bare `aispacex.vercel.app` subdomain may be owned by another Vercel project globally — use the team URL above or your own domain.
 
 ## Self-hosting
 
