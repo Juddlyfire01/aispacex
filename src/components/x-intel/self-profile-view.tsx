@@ -1,0 +1,237 @@
+import { useEffect, useState } from 'react'
+import { useXSelfStore } from '../../stores/x-self-store'
+import { gatherSelf, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
+import { beginSelfLogin } from '../../lib/x-intel/self-client'
+import { linkify } from '../../lib/x-intel/linkify'
+import { formatTokens } from '../../lib/utils'
+import { computeActivity } from '../../lib/x-intel/activity'
+import { ProfileOverview } from './profile-overview'
+import { SelfReport } from './self-report'
+import { Spinner } from '../ui/spinner'
+import { SignInWithXButton } from './sign-in-with-x-button'
+import { XDataPrivacyDisclosure } from './x-data-privacy-disclosure'
+import type { Profile } from '../../lib/x-intel/types'
+
+/** Bio with clickable URLs / mentions / hashtags (mentions open on X here —
+ *  the self view has no target concept to add into). */
+function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; expanded: string; display: string }[] }) {
+  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  return (
+    <p className="text-[12px] text-white/50 mt-1.5 break-words">
+      {linkify(text, bioUrls).map((tok, i) => {
+        if (tok.type === 'url' || tok.type === 'hashtag') {
+          const href = tok.type === 'url' ? tok.href : `https://x.com/hashtag/${encodeURIComponent(tok.tag)}`
+          return <a key={i} href={href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+        }
+        if (tok.type === 'mention') {
+          return <a key={i} href={`https://x.com/${tok.username}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+        }
+        return <span key={i}>{tok.value}</span>
+      })}
+    </p>
+  )
+}
+
+function ConnectCta() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center gap-5 px-6 animate-fade-in">
+      <img src="/x-logo.svg" alt="" className="h-7 w-auto opacity-90" aria-hidden />
+      <div className="space-y-1.5 max-w-sm">
+        <h2 className="text-[16px] font-semibold text-white/90">Analyze your X profile</h2>
+        <p className="text-[12px] text-white/45 leading-relaxed">
+          Posts, network, and AI reports — private to this device.
+        </p>
+      </div>
+      <SignInWithXButton onClick={beginSelfLogin} />
+      <p className="text-[10px] text-white/30">Private · disconnect anytime</p>
+      <XDataPrivacyDisclosure />
+    </div>
+  )
+}
+
+/**
+ * Informational loading screen shown during the OAuth round-trip and the
+ * post-redirect profile gather. Replaces the dead-end "Connect button reappears
+ * then profile pops in" sequence with explicit phase copy so the user always
+ * knows what's happening.
+ *
+ * - phase="authorizing": OAuth redirect in flight (click → x.com → return) or
+ *   the session probe is still resolving after the callback.
+ * - phase="syncing": session is connected but the first profile/posts/bookmarks
+ *   gather is running. Can surface a retry button if that gather fails.
+ */
+function XConnectFlow({
+  phase,
+  busy,
+  error,
+  onRetry,
+}: {
+  phase: 'authorizing' | 'syncing'
+  busy?: boolean
+  error?: string | null
+  onRetry?: () => void
+}) {
+  const title = phase === 'authorizing' ? 'Connecting to X…' : 'Syncing your profile…'
+  const subtitle = phase === 'authorizing'
+    ? 'Authorizing your account with X. You’ll be back here in a moment.'
+    : 'Fetching your profile, posts, bookmarks & likes.'
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-6 animate-fade-in">
+      <Spinner size="md" />
+      <div className="space-y-1 max-w-sm">
+        <h2 className="text-[15px] font-semibold text-white/85">{title}</h2>
+        <p className="text-[12px] text-white/40 leading-relaxed">{subtitle}</p>
+      </div>
+      {phase === 'syncing' && error && (
+        <div className="space-y-2 max-w-sm">
+          <p className="text-[11px] text-red-400/70">{error}</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              disabled={busy}
+              className="px-3 py-1.5 text-[12px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {busy ? 'Retrying…' : 'Retry gather'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** "No account selected" — accounts exist in the rail but none is active (e.g.
+ *  just disconnected the last active one and the server hasn't picked a
+ *  successor yet). Prompts the user to pick one from the rail. */
+function NoActiveAccount() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center gap-2 px-6">
+      <p className="text-[13px] text-white/50 font-medium">No account selected</p>
+      <p className="text-[11px] text-white/30 max-w-xs">Pick an account from the rail, or connect a new one.</p>
+    </div>
+  )
+}
+
+/** Profile sub-tab content for the self ("me") top tab. Renders the two-column
+ *  ProfileOverview + SelfReport split for the active connected account. The
+ *  rail + Profile/Feed/Network sub-tab bar live in IntelView; this component
+ *  is just the "Profile" sub-tab's body. Empty/connecting states overlay the
+ *  whole area. */
+export function SelfProfileView() {
+  const connected = useXSelfStore((s) => s.connected)
+  const connecting = useXSelfStore((s) => s.connecting)
+  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
+  const accountCount = useXSelfStore((s) => s.accountOrder.length)
+  const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
+  const setSynthesisSettings = useXSelfStore((s) => s.setSynthesisSettings)
+
+  // The zustand persist middleware hydrates from localStorage asynchronously.
+  // On a fresh page load (incl. the OAuth redirect return) the store starts with
+  // empty defaults and then re-hydrates a frame or two later. Without tracking
+  // this we'd flash "No account" and kick off a redundant gather even when a
+  // cached profile exists on disk.
+  const [hydrated, setHydrated] = useState(useXSelfStore.persist.hasHydrated())
+  useEffect(() => {
+    if (hydrated) return
+    const unsub = useXSelfStore.persist.onFinishHydration(() => setHydrated(true))
+    if (useXSelfStore.persist.hasHydrated()) setHydrated(true)
+    return unsub
+  }, [hydrated])
+
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const profile = account?.profile ?? null
+  const posts = account?.posts ?? []
+  const bookmarks = account?.bookmarks ?? []
+  const likes = account?.likes ?? []
+
+  const runRefresh = async () => {
+    setBusy(true); setError(null)
+    try { await gatherSelf() }
+    catch (e) { setError(e instanceof Error ? e.message : 'Gather failed') }
+    finally { setBusy(false) }
+  }
+
+  // After the shared session probe, gather the active account's data — but only
+  // once the persist layer has hydrated, otherwise we'd gather even when a
+  // cached profile is about to reappear from localStorage.
+  useEffect(() => {
+    if (!hydrated || !connected || !activeAccountId) return
+    const acc = useXSelfStore.getState().accounts[activeAccountId]
+    if (acc?.profile) return
+    let cancelled = false
+    setBusy(true)
+    setError(null)
+    gatherSelf()
+      .catch((e) => setError(e instanceof Error ? e.message : 'Gather failed'))
+      .finally(() => { if (!cancelled) setBusy(false) })
+    return () => { cancelled = true }
+  }, [hydrated, connected, activeAccountId])
+
+  // OAuth round-trip in flight (click → x.com → return, or session probe still
+  // resolving after the callback). Show the authorizing screen instead of the
+  // Connect CTA so the user sees the connection process has begun.
+  if (connecting) return <XConnectFlow phase="authorizing" />
+
+  // No accounts at all → connect CTA. This covers both the first-time case and
+  // the "just deleted my last account" case: zero accounts means there is
+  // nothing to select, so show Connect regardless of the `connected` flag (which
+  // lags behind removal until the next session probe resolves). Reads the
+  // reactive accountCount so this re-evaluates the moment the last one is removed.
+  if (accountCount === 0) return <ConnectCta />
+
+  // Accounts exist but none is active yet (genuine transient pick-one state).
+  if (!activeAccountId || !account) return <NoActiveAccount />
+
+  // Connected but no profile yet. If we're still waiting on persist hydration,
+  // the profile may well be sitting in localStorage about to reappear — show the
+  // syncing screen rather than flashing the empty state. Once hydrated (and
+  // still no profile), this is the genuine first-gather phase right after OAuth.
+  if (!profile) {
+    return (
+      <XConnectFlow
+        phase="syncing"
+        busy={busy || !hydrated}
+        error={hydrated ? error : null}
+        onRetry={runRefresh}
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row h-full min-h-0">
+      {/* Left: identity + metrics (shared with the Targets tab) */}
+      <div className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] lg:h-full min-h-0 overflow-hidden">
+        <ProfileOverview
+          profile={profile}
+          connected={connected}
+          refreshing={busy}
+          refreshError={error}
+          lastGatheredIso={account.refreshedAt.profile ?? profile.gatheredAt}
+          onRefresh={runRefresh}
+          emptyHint="Fetch your profile, posts, bookmarks & likes in one pull."
+          showYouBadge
+          renderBio={(p: Profile) => <SelfBio text={p.bio ?? ''} bioUrls={p.bioUrls} />}
+          extraSection={
+            <div className="pt-3 border-t border-white/[0.04] grid grid-cols-2 gap-2 text-[11px] text-white/30 font-mono">
+              <span><b className="text-white/60">{formatTokens(bookmarks.length)}</b> bookmarks</span>
+              <span><b className="text-white/60">{formatTokens(likes.length)}</b> likes gathered</span>
+            </div>
+          }
+          activity={profile ? computeActivity(profile, posts) : null}
+          synthesisSettings={account.synthesisSettings}
+          onSynthesisChange={(patch) => setSynthesisSettings(activeAccountId, patch)}
+          footerAction={connected ? { label: 'Disconnect account', onClick: () => { void disconnectActiveAccount() } } : undefined}
+        />
+      </div>
+
+      {/* Right: report (reuses the target analytics + narrative pipeline).
+          `syncing` = a gather is in flight, so the report panel shows a spinner
+          instead of "No report yet" until posts land and analytics can compute. */}
+      <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+        <SelfReport syncing={busy && posts.length === 0} />
+      </div>
+    </div>
+  )
+}

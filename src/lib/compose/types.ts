@@ -1,0 +1,74 @@
+// The PostDraft is the single source of truth for the Compose workspace: the
+// chat writes into it, the composer edits it, and the Post action serializes it
+// to X. It models exactly what X's composer supports — nothing more (parity,
+// not creativity) — so a draft is always postable-by-construction.
+
+export const TWEET_LIMIT = 280
+export const LONGFORM_LIMIT = 25000
+
+/** A single attached media item. `dataUrl` is the local preview; `mediaId` is
+ * populated once uploaded to X (native posting). */
+export interface MediaItem {
+  id: string
+  kind: 'image' | 'video' | 'gif'
+  dataUrl?: string
+  mediaId?: string
+  altText?: string
+}
+
+/** A poll attached to a segment. X allows 2–4 options. */
+export interface Poll {
+  options: string[]
+  durationMinutes: number
+}
+
+/** One post in a (possibly single-post) thread. */
+export interface PostSegment {
+  id: string
+  text: string
+  media: MediaItem[]
+  poll?: Poll
+}
+
+/** What the draft is relative to X: a standalone post, a reply, or a quote. */
+export type PostTarget =
+  | { kind: 'original' }
+  | { kind: 'reply'; toPostId: string; toUsername: string }
+  | { kind: 'quote'; postId: string; username: string }
+
+export type ReplySettings = 'everyone' | 'following' | 'mentionedUsers' | 'subscribers' | 'verified'
+
+export interface PostDraft {
+  id: string
+  segments: PostSegment[]
+  target: PostTarget
+  /** When true, segments may run up to LONGFORM_LIMIT (Premium renders these). */
+  longform: boolean
+  /** Sets X's `made_with_ai` label on the created post. */
+  madeWithAi: boolean
+  replySettings?: ReplySettings
+  createdAt: string
+  updatedAt: string
+}
+
+function newId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function emptySegment(): PostSegment {
+  return { id: newId(), text: '', media: [] }
+}
+
+export function emptyDraft(target: PostTarget = { kind: 'original' }): PostDraft {
+  const now = new Date().toISOString()
+  return {
+    id: newId(),
+    segments: [emptySegment()],
+    target,
+    longform: false,
+    madeWithAi: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
