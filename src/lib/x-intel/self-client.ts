@@ -15,6 +15,9 @@
 // auth cookies ride along.
 import { XAPIError } from './x-client'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { useXIntelStore } from '../../stores/x-intel-store'
+
+export const X_OAUTH_INTEL_TAB_KEY = 'x_oauth_intel_top_tab'
 
 const PROXY_BASE = '/api/x/proxy'
 
@@ -48,7 +51,10 @@ export async function getSelfSession(): Promise<SelfSession> {
  *  browser navigates away. */
 export function beginSelfLogin(): void {
   useXSelfStore.getState().setConnecting(true)
-  try { sessionStorage.setItem('x_oauth_in_progress', '1') } catch { /* private mode / disabled */ }
+  try {
+    sessionStorage.setItem('x_oauth_in_progress', '1')
+    sessionStorage.setItem(X_OAUTH_INTEL_TAB_KEY, useXIntelStore.getState().activeTopTab)
+  } catch { /* private mode / disabled */ }
   requestAnimationFrame(() => requestAnimationFrame(() => {
     window.location.href = '/api/x/oauth/login'
   }))

@@ -8,17 +8,18 @@
 // generateSelfReport operate on the active account id; the server-side
 // x_active_account cookie already routes /api/x/proxy calls to that account.
 import { gatherSelfProfile, gatherSelfPosts, gatherSelfBookmarks, gatherSelfLikes } from './self-gather'
-import { getSelfSession, selfLogout, switchActiveAccount } from './self-client'
+import { getSelfSession, selfLogout, switchActiveAccount, X_OAUTH_INTEL_TAB_KEY } from './self-client'
 import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
+import type { IntelTopTab } from '../../stores/x-intel-store'
 import { findReportKey, mergePosts, newReportId, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { toast } from '../../stores/toast-store'
 import { runGather } from './orchestrate'
-import { DEFAULT_TARGET, isDemoTarget } from './fields'
+import { DEFAULT_TARGET } from './fields'
 import type { IntelReportSnapshot, ChangeSummary, Post } from './types'
 
 let sessionRefreshPromise: Promise<boolean> | null = null
@@ -113,6 +114,14 @@ export function bootstrapXOAuthReturn(): Promise<OAuthBootstrapResult> {
   return oauthBootstrapPromise
 }
 
+function readOAuthIntelTopTab(): IntelTopTab | null {
+  try {
+    const saved = sessionStorage.getItem(X_OAUTH_INTEL_TAB_KEY)
+    if (saved === 'me' || saved === 'targets' || saved === 'post') return saved
+  } catch { /* private mode */ }
+  return null
+}
+
 async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   const params = new URLSearchParams(window.location.search)
   const oauthError = params.get('x_error')
@@ -137,12 +146,15 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
     connected = false
   }
 
+  const savedIntelTab = oauthReturn ? readOAuthIntelTopTab() : null
+
   // The round-trip is over — clear the bridge and drop the connecting flag so the
   // real connected/disconnected state can render. Only clear `connecting` if THIS
   // bootstrap owned it (inProgress): otherwise a probe that resolves during the
   // pre-redirect frames of a fresh Connect click would stomp the spinner the
   // click just turned on, flashing back to the Connect button before redirect.
   try { sessionStorage.removeItem('x_oauth_in_progress') } catch { /* private mode */ }
+  try { sessionStorage.removeItem(X_OAUTH_INTEL_TAB_KEY) } catch { /* private mode */ }
   if (inProgress) useXSelfStore.getState().setConnecting(false)
 
   if (oauthReturn) {
@@ -153,6 +165,7 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
     toast.error('X connect failed', oauthError)
   } else if (oauthReturn && connected) {
     useSettingsStore.getState().setActiveTab('intel')
+    useXIntelStore.getState().setActiveTopTab(savedIntelTab ?? 'me')
     toast.success('Connected to X')
     refreshDefaultTarget()
   } else if (oauthReturn && !connected) {

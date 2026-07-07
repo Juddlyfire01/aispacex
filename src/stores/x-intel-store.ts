@@ -383,6 +383,7 @@ export const useXIntelStore = create<XIntelState>()(
         targets: s.targets,
         reports: s.reports,
         activeTarget: s.activeTarget,
+        activeTopTab: s.activeTopTab,
         lifetimeTotal: s.lifetimeTotal,
         defaultSynthesisSettings: s.defaultSynthesisSettings,
         activeSelfSubTab: s.activeSelfSubTab,
