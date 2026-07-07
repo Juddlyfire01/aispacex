@@ -1,6 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
-import { venice } from '../lib/venice-client'
-import type { ModelsResponse } from '../types/venice'
+import { fetchModelsBundle } from '../lib/venice-model-utils'
 
 export type ModelCatalog = {
   text: string[]
@@ -12,29 +11,21 @@ export type ModelCatalog = {
 
 const TYPES: (keyof ModelCatalog)[] = ['text', 'image', 'tts', 'music', 'video']
 
-function extractIds(resp: ModelsResponse | undefined): string[] {
-  if (!resp) return []
-  return resp.data
-    .filter((m) => !m.model_spec?.offline)
-    .map((m) => m.id)
-    .sort()
-}
-
 export function useModelCatalog() {
   const queries = useQueries({
     queries: TYPES.map((type) => ({
       queryKey: ['models', type],
-      queryFn: () => venice<ModelsResponse>(`/models?type=${type}`, { noAuth: true }),
+      queryFn: () => fetchModelsBundle(type),
       staleTime: 5 * 60 * 1000,
     })),
   })
 
   const catalog: ModelCatalog = {
-    text: extractIds(queries[0].data),
-    image: extractIds(queries[1].data),
-    tts: extractIds(queries[2].data),
-    music: extractIds(queries[3].data),
-    video: extractIds(queries[4].data),
+    text: queries[0].data?.models.map((m) => m.id) ?? [],
+    image: queries[1].data?.models.map((m) => m.id) ?? [],
+    tts: queries[2].data?.models.map((m) => m.id) ?? [],
+    music: queries[3].data?.models.map((m) => m.id) ?? [],
+    video: queries[4].data?.models.map((m) => m.id) ?? [],
   }
 
   const isLoading = queries.some((q) => q.isLoading)

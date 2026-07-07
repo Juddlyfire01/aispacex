@@ -11,8 +11,8 @@ const PREVIEW_COUNT = 100
 export function EmbeddingsView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.embeddings)
-  const { data: models } = useModels('embedding')
-  const model = selectedModel || models?.[0]?.id || 'bge-m3'
+  const { data: models, defaultModelId } = useModels('embedding')
+  const model = selectedModel || defaultModelId
 
   const [input, setInput] = useState('')
   const [expanded, setExpanded] = useState(false)

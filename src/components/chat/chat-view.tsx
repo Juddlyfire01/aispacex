@@ -24,8 +24,8 @@ export function ChatView() {
   })
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.chat)
-  const { data: models } = useModels('text')
-  const model = selectedModel || models?.[0]?.id || 'llama-3.3-70b'
+  const { data: models, defaultModelId } = useModels('text')
+  const model = selectedModel || defaultModelId
   const { send, stop, regenerate, isStreaming } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 

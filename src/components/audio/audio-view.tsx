@@ -54,8 +54,8 @@ const FORMATS = ['mp3', 'opus', 'aac', 'flac', 'wav'] as const
 export function AudioView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.audio)
-  const { data: models } = useModels('tts')
-  const model = selectedModel || models?.[0]?.id || 'tts-kokoro'
+  const { data: models, defaultModelId } = useModels('tts')
+  const model = selectedModel || defaultModelId
 
   const [tab, setTab] = useState<'tts' | 'transcribe'>('tts')
   const [text, setText] = useState('')

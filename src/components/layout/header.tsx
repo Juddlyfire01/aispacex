@@ -62,8 +62,8 @@ export function Header({ onOpenApiKey, onOpenMobileSidebar }: Props) {
   const xConnecting = useXSelfStore((s) => s.connecting)
   const hasOwnSelector = noModelSelector.has(activeTab)
   const modelType = modelTypeMap[activeTab] || 'text'
-  const { data: models } = useModels(hasOwnSelector ? undefined : modelType)
-  const currentModel = hasOwnSelector ? '' : (selectedModels[activeTab] || models?.[0]?.id || '')
+  const { data: models, defaultModelId } = useModels(hasOwnSelector ? undefined : modelType)
+  const currentModel = hasOwnSelector ? '' : (selectedModels[activeTab] || defaultModelId)
   const modelOptions = hasOwnSelector ? [] : (models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [])
 
   return (

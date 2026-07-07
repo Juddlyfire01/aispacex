@@ -43,9 +43,9 @@ const DEFAULT_SIZE_MAP = [
 export function ImageView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.image)
-  const { data: models } = useModels('image')
+  const { data: models, defaultModelId } = useModels('image')
   const { data: styles } = useStyles()
-  const model = selectedModel || models?.[0]?.id || 'z-image-turbo'
+  const model = selectedModel || defaultModelId
 
   // Get constraints for the selected model
   const modelData = models?.find((m) => m.id === model)

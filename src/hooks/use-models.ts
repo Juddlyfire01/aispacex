@@ -1,21 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
-import { venice } from '../lib/venice-client'
-import type { ModelsResponse, VeniceModel, VideoConstraints } from '../types/venice'
+import {
+  fallbackModelId,
+  fetchModelsBundle,
+  type ModelsQueryResult,
+} from '../lib/venice-model-utils'
+import type { VeniceModel, VideoConstraints } from '../types/venice'
 
 export function useModels(type?: string) {
-  return useQuery({
+  const query = useQuery<ModelsQueryResult>({
     queryKey: ['models', type],
-    queryFn: () =>
-      venice<ModelsResponse>(
-        `/models${type ? `?type=${type}` : ''}`,
-        { noAuth: true },
-      ),
+    enabled: Boolean(type),
+    queryFn: () => fetchModelsBundle(type!),
     staleTime: 5 * 60 * 1000,
-    select: (data) =>
-      data.data
-        .filter((m) => !m.model_spec?.offline)
-        .sort((a, b) => a.id.localeCompare(b.id)),
   })
+
+  return {
+    ...query,
+    data: query.data?.models,
+    defaultModelId: query.data?.defaultModelId ?? fallbackModelId(type),
+  }
 }
 
 export interface VideoModelGroup {
@@ -42,7 +45,6 @@ export function useVideoModels() {
       const group = map.get(key)!
       if (c.model_type === 'text-to-video') group.textModel = m
       else if (c.model_type === 'image-to-video') group.imageModel = m
-      // Merge sets
       const newSets = m.model_spec?.model_sets || []
       for (const s of newSets) {
         if (!group.sets.includes(s)) group.sets.push(s)

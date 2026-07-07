@@ -18,8 +18,8 @@ function clamp(value: number, min: number, max: number) {
 export function MusicView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.music)
-  const { data: models } = useModels('music')
-  const model = selectedModel || models?.[0]?.id || ''
+  const { data: models, defaultModelId } = useModels('music')
+  const model = selectedModel || defaultModelId
   const modelObj = models?.find((m) => m.id === model)
   const caps = getMusicCapabilities(modelObj)
 
