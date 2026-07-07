@@ -2,19 +2,22 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { cn } from '../../lib/utils'
 
 const BULLETS = [
-  'Your access token stays on the server — never exposed to the browser.',
-  'Gathered data is encrypted at rest on this device.',
-  'Disconnect anytime; clear cached data permanently when you choose.',
-  'Connect multiple accounts and switch between them from the left rail.',
+  'Connecting loads your profile, posts, bookmarks, and likes.',
+  'In Intel → Others, any @username you add is fetched and cached here too.',
+  'Venice.ai processes post text for AI reports — nothing is stored there.',
+  'Disconnect or clear cached data anytime in Settings.',
 ] as const
 
-/** Collapsible privacy copy for the Intel connect empty state (Option B). */
+const LEAD =
+  'Your data stays here. When you connect X, profile and posts are cached encrypted on this device — not on our servers. AI reports send post text to Venice.ai for analysis only. Disconnect or clear everything anytime in Settings.'
+
+/** Collapsible privacy copy for the Intel connect empty state. */
 export function XDataPrivacyDisclosure({ className }: { className?: string }) {
   const openSettings = useSettingsStore((s) => s.openSettings)
 
   return (
-    <details className={cn('group max-w-sm text-left', className)}>
-      <summary className="list-none cursor-pointer text-[11px] text-white/35 hover:text-white/55 transition-colors select-none [&::-webkit-details-marker]:hidden">
+    <details className={cn('group relative w-full text-left', className)}>
+      <summary className="list-none cursor-pointer text-[11px] text-white/35 hover:text-white/55 transition-colors select-none text-center whitespace-nowrap [&::-webkit-details-marker]:hidden">
         <span className="inline-flex items-center gap-1">
           How we handle your data
           <svg
@@ -31,23 +34,26 @@ export function XDataPrivacyDisclosure({ className }: { className?: string }) {
           </svg>
         </span>
       </summary>
-      <ul className="mt-2.5 space-y-1.5 text-[11px] text-white/40 leading-relaxed pl-0.5">
-        {BULLETS.map((line) => (
-          <li key={line} className="flex gap-2">
-            <span className="text-white/20 shrink-0">·</span>
-            <span>{line}</span>
+      <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] px-3 py-2.5">
+        <p className="text-[11px] text-white/45 leading-relaxed">{LEAD}</p>
+        <ul className="mt-2.5 space-y-1.5 text-[11px] text-white/40 leading-relaxed">
+          {BULLETS.map((line) => (
+            <li key={line} className="flex gap-2">
+              <span className="text-white/20 shrink-0">·</span>
+              <span>{line}</span>
+            </li>
+          ))}
+          <li className="pt-1">
+            <button
+              type="button"
+              onClick={() => openSettings('data')}
+              className="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
+            >
+              Open Settings → Data &amp; privacy
+            </button>
           </li>
-        ))}
-        <li className="pt-1">
-          <button
-            type="button"
-            onClick={() => openSettings('data')}
-            className="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
-          >
-            Manage in Settings → Data &amp; privacy
-          </button>
-        </li>
-      </ul>
+        </ul>
+      </div>
     </details>
   )
 }

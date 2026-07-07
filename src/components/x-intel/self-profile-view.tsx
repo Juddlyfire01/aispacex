@@ -34,17 +34,19 @@ function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; exp
 
 function ConnectCta() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center gap-5 px-6 animate-fade-in">
-      <img src="/x-logo.svg" alt="" className="h-7 w-auto opacity-90" aria-hidden />
-      <div className="space-y-1.5 max-w-sm">
-        <h2 className="text-[16px] font-semibold text-white/90">Analyze your X profile</h2>
-        <p className="text-[12px] text-white/45 leading-relaxed">
-          Posts, network, and AI reports — private to this device.
-        </p>
+    <div className="grid h-full min-h-0 grid-rows-[1fr_auto_1fr] px-6 animate-fade-in">
+      <div aria-hidden />
+      <div className="relative flex items-center justify-center">
+        <SignInWithXButton onClick={beginSelfLogin} />
+        <div className="absolute bottom-full left-1/2 mb-5 flex w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 flex-col items-center gap-5 text-center">
+          <img src="/x-logo.svg" alt="" className="h-7 w-auto opacity-90" aria-hidden />
+          <h2 className="text-[16px] font-semibold text-white/90">Analyze Your Profile</h2>
+        </div>
+        <div className="absolute top-full left-1/2 z-10 mt-2 w-80 max-w-[calc(100vw-3rem)] -translate-x-1/2">
+          <XDataPrivacyDisclosure />
+        </div>
       </div>
-      <SignInWithXButton onClick={beginSelfLogin} />
-      <p className="text-[10px] text-white/30">Private · disconnect anytime</p>
-      <XDataPrivacyDisclosure />
+      <div aria-hidden />
     </div>
   )
 }

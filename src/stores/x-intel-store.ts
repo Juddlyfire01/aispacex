@@ -140,7 +140,7 @@ export const useXIntelStore = create<XIntelState>()(
       activeTarget: null,
       activeSubTab: 'profile',
       activeSelfSubTab: 'profile',
-      activeTopTab: 'me',
+      activeTopTab: 'targets',
       sessionCost: 0,
       lifetimeTotal: 0,
       defaultSynthesisSettings: DEFAULT_SYNTHESIS_SETTINGS,

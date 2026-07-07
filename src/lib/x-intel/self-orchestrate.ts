@@ -13,7 +13,7 @@ import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
-import { mergePosts, newReportId, useXIntelStore } from '../../stores/x-intel-store'
+import { findReportKey, mergePosts, newReportId, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { toast } from '../../stores/toast-store'
@@ -68,7 +68,7 @@ async function probeSelfSession(): Promise<boolean> {
   // server-truth account list / active account we're about to set.
   const [session] = await Promise.all([getSelfSession(), awaitSelfHydration()])
   reconcileAccounts(session)
-  if (session.connected) seedDefaultTarget()
+  seedDefaultTarget()
   return session.connected
 }
 
@@ -161,13 +161,19 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   return { connected, oauthReturn, oauthError }
 }
 
-/** Add @AskVenice as the first target (and gather it) when none exist yet. */
+/** Add @AskVenice as the first target in the Others rail (and gather when X is connected). */
 function seedDefaultTarget(): void {
   const trySeed = () => {
     const intel = useXIntelStore.getState()
-    if (intel.targets.length > 0) return
-    intel.addTarget(DEFAULT_TARGET)
-    runGather(DEFAULT_TARGET).catch(() => { /* surfaced in the target rail */ })
+    if (intel.targets.length === 0) {
+      intel.addTarget(DEFAULT_TARGET)
+    }
+    if (!useXSelfStore.getState().connected) return
+    const reports = useXIntelStore.getState().reports
+    const key = findReportKey(reports, DEFAULT_TARGET) ?? DEFAULT_TARGET
+    if (!reports[key]?.profile) {
+      runGather(key).catch(() => { /* surfaced in the target rail */ })
+    }
   }
 
   if (useXIntelStore.persist.hasHydrated()) {

@@ -1,6 +1,6 @@
 import { cn } from '../../lib/utils'
 
-/** X-branded OAuth entry point — black pill, white 𝕏 mark, official copy. */
+/** X OAuth entry point — theme-aware primary pill. */
 export function SignInWithXButton({
   onClick,
   className,
@@ -15,17 +15,18 @@ export function SignInWithXButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label="Connect to X"
       className={cn(
-        'inline-flex items-center justify-center gap-2.5 min-w-[220px] px-5 py-2.5',
-        'text-[13px] font-bold tracking-[0.01em] bg-black text-white rounded-full',
-        'hover:bg-neutral-900 transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2',
+        'inline-flex items-center justify-center min-w-[220px] px-5 py-2.5',
+        'text-[13px] font-bold tracking-[0.01em] rounded-full',
+        'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]',
+        'hover:opacity-90 transition-opacity',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         className,
       )}
     >
-      <img src="/x-logo.svg" alt="" className="h-[15px] w-auto shrink-0" aria-hidden />
-      Sign in with X
+      connect
     </button>
   )
 }
