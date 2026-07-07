@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import type { VeniceModel } from '../types/venice'
+import type { ModelTrait, VeniceModel } from '../types/venice'
 import { filterModelsForPicker, resolveDefaultModelId } from './venice-model-utils'
 
-const model = (id: string, traits: string[] = []): VeniceModel => ({
+const model = (id: string, traits: ModelTrait[] = []): VeniceModel => ({
   id,
   object: 'model',
   created: 0,
@@ -26,7 +26,7 @@ describe('filterModelsForPicker', () => {
 })
 
 describe('resolveDefaultModelId', () => {
-  const models = [model('bria-bg-remover'), model('z-image-turbo', ['default', 'fastest'])]
+  const models = [model('bria-bg-remover'), model('z-image-turbo', ['default'])]
 
   it('prefers traits map default when model is in the list', () => {
     expect(resolveDefaultModelId(models, { default: 'z-image-turbo' }, 'image')).toBe('z-image-turbo')
