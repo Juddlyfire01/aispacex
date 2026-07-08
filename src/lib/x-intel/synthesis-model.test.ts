@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { pickSynthesisModel, shouldUpgradeSynthesisModel, LEGACY_SYNTHESIS_DEFAULT } from './synthesis-model'
-import type { VeniceModel } from '../../types/venice'
+import type { ModelTrait, VeniceModel } from '../../types/venice'
 
 function model(
   id: string,
-  opts?: { traits?: string[]; created?: number },
+  opts?: { traits?: ModelTrait[]; created?: number },
 ): VeniceModel {
   return {
     id,
