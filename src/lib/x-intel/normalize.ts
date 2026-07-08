@@ -19,13 +19,34 @@ function mapWebsite(raw: XUserRaw): Profile['website'] {
   return null
 }
 
-export function normalizeProfile(raw: XUserRaw): Profile {
+function affiliationUserIds(raw: XUserRaw): string[] {
+  const ids = raw.affiliation?.user_id
+  if (!ids) return []
+  return (Array.isArray(ids) ? ids : [ids]).map(String)
+}
+
+function mapAutomatedBy(raw: XUserRaw, includedUsers?: XUserRaw[]): Profile['automatedBy'] {
+  const aff = raw.affiliation
+  if (!aff || aff.badge_url) return null
+
+  const ids = affiliationUserIds(raw)
+  const parent = ids.length ? includedUsers?.find((u) => u.id === ids[0]) : undefined
+  if (!parent?.username) return null
+
+  const description = aff.description?.trim() ?? ''
+  if (description && !/automated/i.test(description)) return null
+
+  return { username: parent.username }
+}
+
+export function normalizeProfile(raw: XUserRaw, includes?: { users?: XUserRaw[] }): Profile {
   const m = raw.public_metrics
   return {
     id: raw.id,
     username: raw.username,
     displayName: raw.name,
     avatarUrl: raw.profile_image_url ?? '',
+    bannerUrl: raw.profile_banner_url ?? null,
     bio: raw.description || null,
     bioUrls: mapBioUrls(raw),
     website: mapWebsite(raw),
@@ -35,6 +56,7 @@ export function normalizeProfile(raw: XUserRaw): Profile {
       legacy: raw.verified ?? false,
       type: raw.verified_type && raw.verified_type !== 'none' ? raw.verified_type : null,
     },
+    automatedBy: mapAutomatedBy(raw, includes?.users),
     metrics: {
       followers: m?.followers_count ?? 0,
       following: m?.following_count ?? 0,
@@ -56,6 +78,8 @@ export function ensureProfileShape(profile: Profile): Profile {
     ...profile,
     bioUrls: profile.bioUrls ?? [],
     website: profile.website ?? null,
+    bannerUrl: profile.bannerUrl ?? null,
+    automatedBy: profile.automatedBy ?? null,
   }
 }
 

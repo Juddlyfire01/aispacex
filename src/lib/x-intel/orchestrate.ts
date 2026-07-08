@@ -159,7 +159,7 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   const { appendReport } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   if (!report.profile) throw new Error('Gather the profile first')
-  if (report.posts.length === 0) throw new Error('Gather posts first (re-gather from the target rail)')
+  if (report.posts.length === 0) throw new Error('Gather posts first (re-gather from the profile rail)')
 
   const analytics = computeAnalytics(report.profile, report.posts, report.edges)
   const prevSnapshot = report.reportHistory[0] ?? null

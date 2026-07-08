@@ -32,17 +32,17 @@ export function MentionLink({
 
   const addAsTarget = () => {
     if (!connected) {
-      alert('Connect your X account (header → Connect X) to add targets from a mention.')
+      alert('Connect your X account (header → Connect X) to add profiles from a mention.')
       return
     }
-    if (confirm(`Add @${username} as a new intel target?`)) {
+    if (confirm(`Add @${username} as a new profile to analyze?`)) {
       addTarget(username)
       runGather(username).catch(() => { /* surfaced in target rail */ })
     }
   }
 
   const items: PopoverItem[] = [
-    ...(canAddTarget ? [{ kind: 'action', label: 'Add as intel target', onClick: addAsTarget } as PopoverItem] : []),
+    ...(canAddTarget ? [{ kind: 'action', label: 'Add profile', onClick: addAsTarget } as PopoverItem] : []),
     { kind: 'link', label: 'Open profile on X', href: `https://x.com/${username}` },
   ]
 

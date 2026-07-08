@@ -2,7 +2,7 @@
 // gather.ts (targets) but sources from /users/me and the user-context-only
 // endpoints (bookmarks, likes) that an app-only bearer token cannot reach.
 import { selfApi } from './self-client'
-import { USER_FIELDS, POST_FIELDS, POST_EXPANSIONS } from './fields'
+import { USER_FIELDS, POST_FIELDS, POST_EXPANSIONS, USER_EXPANSIONS } from './fields'
 import { normalizeProfile, normalizePost } from './normalize'
 import type { Profile, Post, XUserRaw, XPostRaw, XSingleResponse, XPaginatedResponse } from './types'
 
@@ -10,9 +10,10 @@ import type { Profile, Post, XUserRaw, XPostRaw, XSingleResponse, XPaginatedResp
 export async function gatherSelfProfile(): Promise<Profile> {
   const resp = await selfApi<XSingleResponse<XUserRaw>>('users/me', {
     'user.fields': USER_FIELDS.join(','),
+    expansions: USER_EXPANSIONS.join(','),
   })
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? 'Could not load your profile')
-  return normalizeProfile(resp.data)
+  return normalizeProfile(resp.data, resp.includes)
 }
 
 async function gatherSelfPostLike(

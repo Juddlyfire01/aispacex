@@ -22,6 +22,8 @@ function profile(verifiedType: Profile['verified']['type']): Profile {
     location: null,
     url: null,
     avatarUrl: '',
+    bannerUrl: null,
+    automatedBy: null,
     pinnedPostId: null,
     mostRecentPostId: null,
     accountCreated: '2020-01-01T00:00:00Z',

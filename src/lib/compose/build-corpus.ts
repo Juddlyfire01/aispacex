@@ -70,7 +70,7 @@ export function buildCorpus({ selfAccounts, reports }: CorpusInput): string {
 
   for (const r of reports) {
     if (!r.profile && r.posts.length === 0) continue
-    blocks.push(subjectBlock(`### TARGET: @${r.username}`, r.profile, r.posts))
+    blocks.push(subjectBlock(`### PROFILE: @${r.username}`, r.profile, r.posts))
   }
 
   if (blocks.length === 0) return ''
@@ -80,7 +80,7 @@ export function buildCorpus({ selfAccounts, reports }: CorpusInput): string {
     reports.reduce((n, r) => n + r.posts.length, 0)
 
   const header =
-    `Corpus summary: ${selfAccounts.length} connected account(s), ${reports.length} analyzed target(s), ` +
+    `Corpus summary: ${selfAccounts.length} connected account(s), ${reports.length} analyzed profile(s), ` +
     `${totalPosts} total gathered posts.`
 
   return `${header}\n\n${blocks.join('\n\n')}`

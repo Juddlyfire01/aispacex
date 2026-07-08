@@ -95,7 +95,7 @@ export function ProfileCard() {
   const canGather = canGatherTarget(activeTarget, connected)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
 
   const { synthesisSettings } = report
@@ -123,7 +123,7 @@ export function ProfileCard() {
       edges={report.edges}
       reportHistory={report.reportHistory}
       onSynthesisChange={(patch) => updateReport(activeTarget, { synthesisSettings: { ...synthesisSettings, ...patch } })}
-      footerAction={{ label: 'Remove from rail', onClick: handleRemove }}
+      footerAction={{ label: 'Remove profile', onClick: handleRemove }}
     />
   )
 }

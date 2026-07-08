@@ -1,7 +1,7 @@
 export const USER_FIELDS = [
   'id', 'name', 'username', 'verified', 'verified_type',
-  'description', 'location', 'url', 'profile_image_url',
-  'pinned_tweet_id', 'most_recent_tweet_id',
+  'description', 'location', 'url', 'profile_image_url', 'profile_banner_url',
+  'affiliation', 'pinned_tweet_id', 'most_recent_tweet_id',
   'public_metrics', 'entities', 'created_at',
 ] as const
 
@@ -16,7 +16,7 @@ export const POST_EXPANSIONS = [
   'author_id', 'attachments.media_keys', 'referenced_tweets.id',
 ] as const
 
-export const USER_EXPANSIONS = ['pinned_tweet_id'] as const
+export const USER_EXPANSIONS = ['pinned_tweet_id', 'affiliation.user_id'] as const
 
 // Read-operation rate card (USD per returned resource), Feb 2026 pay-per-use
 export const COST_PER_POST = 0.005

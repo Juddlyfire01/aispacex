@@ -7,7 +7,6 @@ import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
 import { MentionLink } from './mention-link'
-import { formatTokens } from '../../lib/utils'
 import { computeActivity } from '../../lib/x-intel/activity'
 import { ProfileOverview } from './profile-overview'
 import { SelfReport } from './self-report'
@@ -223,14 +222,8 @@ export function SelfProfileView() {
           lastGatheredIso={account.refreshedAt.profile ?? profile.gatheredAt}
           onRefresh={runRefresh}
           emptyHint="Fetch your profile, posts, bookmarks & likes in one pull."
-          showYouBadge
           renderBio={(p: Profile) => <SelfBio text={p.bio ?? ''} bioUrls={p.bioUrls} />}
-          extraSection={
-            <div className="pt-3 border-t border-white/[0.04] grid grid-cols-2 gap-2 text-[11px] text-white/30 font-mono">
-              <span><b className="text-white/60">{formatTokens(bookmarks.length)}</b> bookmarks</span>
-              <span><b className="text-white/60">{formatTokens(likes.length)}</b> likes gathered</span>
-            </div>
-          }
+          gatherExtras={{ bookmarks: bookmarks.length, likes: likes.length }}
           activity={profile ? computeActivity(profile, posts) : null}
           synthesisSettings={account.synthesisSettings}
           postCount={posts.length}

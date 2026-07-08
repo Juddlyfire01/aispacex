@@ -32,12 +32,36 @@ describe('normalizeProfile', () => {
     expect(p.id).toBe('42')
     expect(p.username).toBe('ErikVoorhees')
     expect(p.verified).toEqual({ legacy: false, type: 'blue' })
+    expect(p.bannerUrl).toBeNull()
+    expect(p.automatedBy).toBeNull()
     expect(p.metrics.followers).toBe(700000)
     expect(p.pinnedPostId).toBe('900')
     expect(p.mostRecentPostId).toBe('999')
     expect(p.gatheredAt).toBeTruthy()
     expect(p.bioUrls).toEqual([])
     expect(p.website).toEqual({ href: 'https://t.co/abc', display: 'https://t.co/abc' })
+  })
+
+  it('maps banner and automated affiliation from includes', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      profile_banner_url: 'https://pbs.twimg.com/profile_banners/42/1',
+      affiliation: { user_id: ['99'], description: 'Automated by @parent' },
+    }, {
+      users: [{ id: '99', name: 'Parent', username: 'parent' }],
+    })
+    expect(p.bannerUrl).toBe('https://pbs.twimg.com/profile_banners/42/1')
+    expect(p.automatedBy).toEqual({ username: 'parent' })
+  })
+
+  it('skips org affiliation badges that ship badge_url', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      affiliation: { user_id: ['99'], badge_url: 'https://pbs.twimg.com/badge.png' },
+    }, {
+      users: [{ id: '99', name: 'Org', username: 'org' }],
+    })
+    expect(p.automatedBy).toBeNull()
   })
 
   it('maps description and profile url entities for condensed display', () => {

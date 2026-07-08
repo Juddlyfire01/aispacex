@@ -126,10 +126,10 @@ export function NetworkGraphInner({
     if (!canAddTargets || !onAddTarget) return
     const username = label.slice(1)
     if (!connected) {
-      alert('Connect your X account (header → Connect X) to add new targets from the network graph.')
+      alert('Connect your X account (header → Connect X) to add profiles from the network graph.')
       return
     }
-    if (confirm(`Add @${username} as a new intel target?`)) {
+    if (confirm(`Add @${username} as a new profile to analyze?`)) {
       onAddTarget(username)
     }
   }
@@ -164,7 +164,7 @@ export function NetworkGraphInner({
         </label>
         <div className="flex-1" />
         {unresolved.length > 0 && (
-          <span className="text-[var(--color-text-tertiary)]">{unresolved.length} unresolved (quote/reply targets need a post lookup — future)</span>
+          <span className="text-[var(--color-text-tertiary)]">{unresolved.length} unresolved (quote/reply accounts need a post lookup — future)</span>
         )}
         {canAddTargets && (
           <button
@@ -226,7 +226,7 @@ export function NetworkGraph() {
   const canGather = canGatherTarget(activeTarget, connected)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
 
   const lastGathered = report.refreshedAt?.network ?? report.posts[0]?.gatheredAt

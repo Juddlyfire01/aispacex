@@ -4,6 +4,7 @@ import { beginSelfLogin, selfLogout } from '../../lib/x-intel/self-client'
 import { selectSelfAccount, refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
 import { openComposeForTarget } from '../../lib/compose/open-compose'
 import { CostMeter } from './cost-meter'
+import { RailTopConnectButton } from './rail-top-control'
 import { cn } from '../../lib/utils'
 
 function relativeTime(iso: string | undefined): string {
@@ -69,12 +70,7 @@ export function SelfRail() {
   return (
     <div className="w-52 shrink-0 border-r border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col">
       <div className="p-2">
-        <button
-          onClick={beginSelfLogin}
-          className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors"
-        >
-          + Connect account
-        </button>
+        <RailTopConnectButton onClick={beginSelfLogin} />
         {error && <p className="text-[10px] text-red-400/70 mt-1 px-0.5">{error}</p>}
       </div>
 

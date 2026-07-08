@@ -97,8 +97,8 @@ const FILTER_OPTIONS: { key: FeedFilterKey; label: string; title?: string }[] = 
   { key: 'reply', label: 'Reply' },
   { key: 'quote', label: 'Quote' },
   { key: 'retweet', label: 'RT' },
-  { key: 'mention-in', label: 'Mentions in', title: 'Others @mentioning the target' },
-  { key: 'mention-out', label: 'Mentions out', title: 'Target @mentioning someone' },
+  { key: 'mention-in', label: 'Mentions in', title: 'Others @mentioning this profile' },
+  { key: 'mention-out', label: 'Mentions out', title: 'This profile @mentioning someone' },
 ]
 
 const ALL_FILTER_KEYS = FILTER_OPTIONS.map((o) => o.key)
@@ -153,7 +153,7 @@ function PostTypeBadges({
               ? 'text-[10px] text-white/25'
               : 'px-1.5 py-px rounded-full font-medium bg-cyan-400/10 text-cyan-300/60',
           )}
-          title="Target @mentioned someone"
+          title="This profile @mentioned someone"
         >
           {muted ? '· mentions out' : '@out'}
         </span>
@@ -357,7 +357,7 @@ export function ActivityFeed() {
   const canGather = canGatherTarget(activeTarget, connected)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
 
   // Per-section refresh timestamp (bumps even on a zero-new-posts pull), falling

@@ -3,6 +3,8 @@ export interface Profile {
   username: string
   displayName: string
   avatarUrl: string
+  /** Profile header banner from profile_banner_url. */
+  bannerUrl: string | null
   bio: string | null
   /** Parsed URL entities from the bio (for condensed link labels per X display rules). */
   bioUrls: { url: string; expanded: string; display: string; start?: number; end?: number }[]
@@ -11,6 +13,8 @@ export interface Profile {
   location: string | null
   url: string | null
   verified: { legacy: boolean; type: 'blue' | 'business' | 'government' | null }
+  /** Parent account for X automated-account label (affiliation.user_id). */
+  automatedBy: { username: string } | null
   metrics: { followers: number; following: number; posts: number; likes: number; listed: number; media: number }
   accountCreated: string  // ISO
   pinnedPostId: string | null
@@ -234,6 +238,13 @@ export interface XUserRaw {
   location?: string
   url?: string
   profile_image_url?: string
+  profile_banner_url?: string
+  affiliation?: {
+    badge_url?: string
+    description?: string
+    url?: string
+    user_id?: string | string[]
+  }
   pinned_tweet_id?: string
   most_recent_tweet_id?: string
   created_at?: string
@@ -290,5 +301,6 @@ export interface XPaginatedResponse<T> {
 
 export interface XSingleResponse<T> {
   data?: T
+  includes?: { users?: XUserRaw[]; tweets?: XPostRaw[] }
   errors?: { title: string; detail: string }[]
 }

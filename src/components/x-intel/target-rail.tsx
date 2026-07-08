@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { runGather } from '../../lib/x-intel/orchestrate'
+import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { CostMeter } from './cost-meter'
+import { RailTopAddProfileInput, RailTopConnectButton } from './rail-top-control'
 import { cn } from '../../lib/utils'
 
 function relativeTime(iso: string | undefined): string {
@@ -53,21 +55,22 @@ export function TargetRail() {
   return (
     <div className="w-52 shrink-0 border-r border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col">
       <div className="p-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
-          placeholder={connected ? '+ Add target (@username)' : 'Connect X to add targets'}
-          disabled={!connected}
-          className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors placeholder:text-[var(--color-text-placeholder)] disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)]"
-        />
+        {connected ? (
+          <RailTopAddProfileInput
+            value={input}
+            onChange={setInput}
+            onSubmit={handleAdd}
+          />
+        ) : (
+          <RailTopConnectButton onClick={beginSelfLogin} />
+        )}
         {error && <p className="text-[10px] text-red-400/70 mt-1 px-0.5">{error}</p>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {targets.length === 0 ? (
           <div className="px-2 py-5 text-[11px] text-[var(--color-text-tertiary)] text-center">
-            Add a target to start gathering intel
+            Add a profile to start gathering intel
             <div className="mt-2 text-[var(--color-text-quaternary)]">e.g. ErikVoorhees · venice_ai</div>
           </div>
         ) : (
@@ -113,7 +116,7 @@ export function TargetRail() {
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleRemove(t) }}
-                  title="Remove from rail"
+                  title="Remove profile"
                   className="opacity-0 group-hover:opacity-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all shrink-0 p-0.5"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>

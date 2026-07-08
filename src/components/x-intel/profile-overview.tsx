@@ -28,12 +28,10 @@ export interface ProfileOverviewProps {
   onRefresh: () => void
   /** Empty-state hint copy. */
   emptyHint: string
-  /** "you" pill next to the display name (self view only). */
-  showYouBadge?: boolean
   /** Bio renderer — differs by surface (targets: add-as-target on mention; self: open on X). */
   renderBio: (profile: Profile) => ReactNode
-  /** Optional extra metrics block (self: bookmarks/likes). Omitted for targets. */
-  extraSection?: ReactNode
+  /** Self-profile gather extras appended after X-order stats. */
+  gatherExtras?: { bookmarks: number; likes: number }
   /** At-a-glance activity summary (shared self/target). */
   activity: ActivitySummary | null
   synthesisSettings: SynthesisSettings
@@ -54,6 +52,37 @@ const GearIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h.01a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h.01a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.01a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+  </svg>
+)
+
+function hiResAvatar(url: string): string {
+  return url.replace('_normal', '_400x400')
+}
+
+function bannerImageSrc(url: string): string {
+  if (/\/profile_banners\//.test(url) && !/\/\d+x\d+$/.test(url)) return `${url}/600x200`
+  return url
+}
+
+function formatJoined(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `Joined ${d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+}
+
+function ProfileStat({ value, label, capitalize }: { value: string; label: string; capitalize?: boolean }) {
+  return (
+    <span className="text-[11px] text-white/30">
+      <b className="text-white/80 font-semibold">{value}</b>
+      {' '}
+      <span className={capitalize ? 'capitalize' : undefined}>{label}</span>
+    </span>
+  )
+}
+
+const BotIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="text-white/35 shrink-0">
+    <path d="M17 8h1a4 4 0 010 8h-1v1a2 2 0 01-2 2H8a2 2 0 01-2-2v-1H5a4 4 0 110-8h1V6a4 4 0 014-4h6a4 4 0 014 4v2zM9 6v2h6V6a2 2 0 00-2-2h-2a2 2 0 00-2 2zm-1 8a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
   </svg>
 )
 
@@ -194,14 +223,12 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
 /**
  * Shared identity / overview column for a single X subject — used by both the
  * self Profile tab and the Targets tab so the two stay visually identical.
- * Order: refresh bar → identity + metrics → optional extras → latest report →
- * synthesis settings (collapsible, open by default; Model → Context cap →
- * Temperature) → fixed footer action. Self carries an extra metrics block
- * (bookmarks/likes) that targets simply omit.
+ * Order: refresh bar → banner + avatar → identity (X order) → stats → activity →
+ * synthesis settings → footer. Self appends bookmarks/likes to stats via gatherExtras.
  */
 export function ProfileOverview({
   profile, connected, canRefresh = connected, refreshing, refreshError, lastGatheredIso, onRefresh,
-  emptyHint, showYouBadge, renderBio, extraSection, activity,
+  emptyHint, renderBio, gatherExtras, activity,
   synthesisSettings, onSynthesisChange, footerAction, postCount,
   posts, edges, reportHistory,
 }: ProfileOverviewProps) {
@@ -274,9 +301,9 @@ export function ProfileOverview({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {/* Refresh bar */}
-      <div className="pb-3 border-b border-white/[0.04]">
+      <div className="px-5 pt-4 pb-3 border-b border-white/[0.04]">
         <SectionRefresh
           layout="bar"
           label="Refresh profile"
@@ -288,47 +315,87 @@ export function ProfileOverview({
         />
       </div>
 
-      {/* Header strip */}
-      <div className="flex items-start gap-3">
-        {profile.avatarUrl && <img src={profile.avatarUrl} alt="" className="w-12 h-12 rounded-full" />}
-        <div className="flex-1 min-w-0">
+      {/* Banner */}
+      <div className="relative h-[88px] bg-[#17202a]">
+        {profile.bannerUrl && (
+          <img
+            src={bannerImageSrc(profile.bannerUrl)}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+      </div>
+
+      {/* Avatar overlapping banner */}
+      <div className="px-5 relative -mt-[26px]">
+        {profile.avatarUrl && (
+          <img
+            src={hiResAvatar(profile.avatarUrl)}
+            alt=""
+            className="w-14 h-14 rounded-full border-4 border-[var(--color-bg-base)] bg-[var(--color-bg-base)] object-cover"
+          />
+        )}
+      </div>
+
+      <div className="px-5 pb-4 pt-2 space-y-3">
+        <div>
           <div className="flex items-center gap-1.5">
             <h2 className="text-[15px] font-semibold text-white/90 truncate">{profile.displayName}</h2>
-            {profile.verified.type && (
-              <VerifiedBadge type={profile.verified.type} />
-            )}
-            {showYouBadge && (
-              <span className="text-[9px] px-1.5 py-px rounded-full font-medium bg-[var(--color-accent)]/15 text-[var(--color-accent)]/80">you</span>
-            )}
+            {profile.verified.type && <VerifiedBadge type={profile.verified.type} />}
           </div>
-          <div className="text-[11px] text-white/25">
-            @{profile.username}
-            {profile.location && <> · {profile.location}</>}
-            {profile.website && (
-              <>
-                {' · '}
-                <a href={profile.website.href} target="_blank" rel="noopener noreferrer nofollow" className="text-[var(--color-accent)] hover:underline">
-                  {profile.website.display}
+          <div className="text-[11px] text-white/40 mt-0.5">@{profile.username}</div>
+          {profile.automatedBy && (
+            <div className="flex items-center gap-1.5 text-[11px] text-white/40 mt-1.5">
+              <BotIcon />
+              <span>
+                Automated by{' '}
+                <a
+                  href={`https://x.com/${profile.automatedBy.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--color-accent)] hover:underline"
+                >
+                  @{profile.automatedBy.username}
                 </a>
-              </>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {profile.bio && renderBio(profile)}
+
+        {(profile.location || profile.website || profile.accountCreated) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/35">
+            {profile.location && <span>{profile.location}</span>}
+            {profile.website && (
+              <a
+                href={profile.website.href}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="text-[var(--color-accent)] hover:underline"
+              >
+                {profile.website.display}
+              </a>
             )}
-            {profile.accountCreated && <> · joined {new Date(profile.accountCreated).getFullYear()}</>}
+            {profile.accountCreated && <span>{formatJoined(profile.accountCreated)}</span>}
           </div>
-          {profile.bio && renderBio(profile)}
+        )}
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          <ProfileStat value={formatTokens(profile.metrics.following)} label="Following" capitalize />
+          <ProfileStat value={formatTokens(profile.metrics.followers)} label="Followers" capitalize />
+          <ProfileStat value={formatTokens(profile.metrics.posts)} label="posts" />
+          <ProfileStat value={formatTokens(profile.metrics.listed)} label="listed" />
+          {gatherExtras && (
+            <>
+              <ProfileStat value={formatTokens(gatherExtras.bookmarks)} label="bookmarks" />
+              <ProfileStat value={formatTokens(gatherExtras.likes)} label="likes gathered" />
+            </>
+          )}
         </div>
       </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 gap-2 text-[11px] text-white/30 font-mono">
-        <span><b className="text-white/60">{formatTokens(profile.metrics.followers)}</b> followers</span>
-        <span><b className="text-white/60">{formatTokens(profile.metrics.following)}</b> following</span>
-        <span><b className="text-white/60">{formatTokens(profile.metrics.posts)}</b> posts</span>
-        <span><b className="text-white/60">{formatTokens(profile.metrics.listed)}</b> listed</span>
-      </div>
-
-      {/* Optional extra metrics (self: bookmarks/likes; targets omit) */}
-      {extraSection}
-
+      <div className="px-5 pb-4 space-y-4">
       {/* At-a-glance activity / situational awareness */}
       <ActivityGlance activity={activity} />
 
@@ -399,6 +466,7 @@ export function ProfileOverview({
             </div>
           </div>
         )}
+      </div>
       </div>
       </div>
       {actionFooter}

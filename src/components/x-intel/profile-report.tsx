@@ -204,7 +204,7 @@ function UsernameRow({ username, count, max, onAdd }: {
     <div className="flex items-center gap-2 py-[3px] group/urow">
       <button
         onClick={() => onAdd(username)}
-        title={`Add @${username} as a target`}
+        title={`Add @${username} as a profile`}
         className="text-[11px] text-white/55 hover:text-[var(--color-accent)] transition-colors truncate w-24 shrink-0 text-left"
       >
         @{username}
@@ -606,17 +606,17 @@ export function ProfileReport() {
   // Add an engaged account (from mentions/replies) as a new intel target.
   const addAsTarget = (username: string) => {
     if (!connected) {
-      alert('Connect your X account (header → Connect X) to add targets from the network.')
+      alert('Connect your X account (header → Connect X) to add profiles from the network.')
       return
     }
-    if (confirm(`Add @${username} as a new intel target?`)) {
+    if (confirm(`Add @${username} as a new profile to analyze?`)) {
       addTarget(username)
       runGather(username).catch(() => { /* surfaced in target rail */ })
     }
   }
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No target selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
 
   const { profile, posts, edges, reportHistory, activeReportId } = report
@@ -700,7 +700,7 @@ export function ProfileReport() {
           <p className="text-[11px] text-white/25 max-w-xs">
             {hasPosts
               ? 'Generate a comprehensive intelligence report from the gathered posts.'
-              : connected ? 'Gather posts from the target rail first, then generate a report.' : 'Connect your X account, gather posts, then generate a report.'}
+              : connected ? 'Gather posts from the profile rail first, then generate a report.' : 'Connect your X account, gather posts, then generate a report.'}
           </p>
         </div>
       )}

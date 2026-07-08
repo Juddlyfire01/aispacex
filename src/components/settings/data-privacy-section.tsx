@@ -65,7 +65,7 @@ export function DataPrivacySection() {
       <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
         All gathered X data (profiles, posts, bookmarks, likes, and generated reports) is
         stored only on this device, encrypted at rest with a device-bound key. Disconnecting
-        an account or removing a target from the Others rail keeps its data cached — use the
+        an account or removing a profile from the Others rail keeps its data cached — use the
         controls below to permanently erase it.
       </p>
 
@@ -122,7 +122,7 @@ export function DataPrivacySection() {
           )}
         </div>
         {targetKeys.length === 0 ? (
-          <p className="text-[11px] text-[var(--color-text-tertiary)]">No cached target data.</p>
+          <p className="text-[11px] text-[var(--color-text-tertiary)]">No cached profile data.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {targetKeys.map((key) => {

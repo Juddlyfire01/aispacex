@@ -13,7 +13,7 @@ export function CostMeter() {
           <span className="font-mono tabular-nums">${sessionCost.toFixed(3)}</span>
         </div>
         <div className="flex h-[15px] items-center justify-between gap-1.5 text-[11px] leading-none text-[var(--color-text-secondary)]">
-          <span className="shrink-0" title="All-time API spend across all targets">Total</span>
+          <span className="shrink-0" title="All-time API spend across all profiles">Total</span>
           <span className="font-mono shrink-0 tabular-nums">${lifetimeTotal.toFixed(3)}</span>
         </div>
       </div>
