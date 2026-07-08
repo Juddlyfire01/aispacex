@@ -11,6 +11,7 @@ import { partitionPosts } from '../../lib/x-intel/activity'
 import { splitEvidence, postUrl, profileUrl } from '../../lib/x-intel/evidence'
 import type { IntelReportSnapshot, ReportAnalytics, ChangeSummary, Post, Profile } from '../../lib/x-intel/types'
 import { formatTokens, cn } from '../../lib/utils'
+import { ReportExportButton } from './report-export-button'
 
 /** Compact markdown renderer reusing the shared prose styling. Strips any
  * leaked "markdown:" label so older persisted reports render cleanly too. */
@@ -649,6 +650,14 @@ export function ProfileReport() {
           {storedPostsLabel(profile, posts)}
         </span>
         <div className="flex-1" />
+        {active && (
+          <ReportExportButton
+            snapshot={active}
+            username={activeTarget}
+            profile={profile}
+            posts={posts}
+          />
+        )}
         <button
           onClick={run}
           disabled={busy || !hasPosts || !profile}

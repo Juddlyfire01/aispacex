@@ -6,6 +6,7 @@ import { computeAnalytics } from '../../lib/x-intel/analytics'
 import { AnalyticsPanels, ChangeSummaryPanel, NarrativePanels, ReportTimeline } from './profile-report'
 import { postUrl } from '../../lib/x-intel/evidence'
 import { formatTokens } from '../../lib/utils'
+import { ReportExportButton } from './report-export-button'
 import { LoadingState } from '../ui/spinner'
 import type { Post } from '../../lib/x-intel/types'
 
@@ -98,6 +99,14 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
         <h2 className="text-[13px] font-semibold text-white/80">Your intelligence report</h2>
         <span className="text-[10px] text-white/25 font-mono">{hasPosts ? `${posts.length} posts stored` : 'no posts yet'}</span>
         <div className="flex-1" />
+        {active && account && (
+          <ReportExportButton
+            snapshot={active}
+            username={account.username}
+            profile={profile}
+            posts={posts}
+          />
+        )}
         <button
           onClick={run}
           disabled={busy || !hasPosts || !profile}
