@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import type { Profile, Post, Edge, CharacterProfile, SynthesisSettings, IntelReportSnapshot } from '../lib/x-intel/types'
 import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
+import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
 import { computeAnalytics, postDateRange } from '../lib/x-intel/analytics'
 
 /** Small id generator; crypto.randomUUID where available, else a random fallback. */
@@ -114,6 +115,10 @@ interface XIntelState {
   updateReport: (username: string, patch: Partial<IntelReport>) => void
   addCost: (username: string, cost: number) => void
   setDefaultSynthesisSettings: (s: SynthesisSettings) => void
+  /** Set synthesis model on the default + every target (other settings stay per-target). */
+  setGlobalSynthesisModel: (model: string) => void
+  /** Upgrade legacy / missing model ids after the live catalog loads. */
+  upgradeSynthesisModelDefaults: (model: string, models: { id: string }[]) => void
   appendReport: (username: string, snapshot: IntelReportSnapshot) => void
   deleteReport: (username: string, reportId: string) => void
   setActiveReport: (username: string, reportId: string) => void
@@ -300,6 +305,43 @@ export const useXIntelStore = create<XIntelState>()(
       },
 
       setDefaultSynthesisSettings: (settings) => set({ defaultSynthesisSettings: settings }),
+
+      setGlobalSynthesisModel: (model) =>
+        set((s) => ({
+          defaultSynthesisSettings: { ...s.defaultSynthesisSettings, model },
+          reports: Object.fromEntries(
+            Object.entries(s.reports).map(([key, report]) => [
+              key,
+              {
+                ...report,
+                synthesisSettings: { ...report.synthesisSettings, model },
+              },
+            ]),
+          ),
+        })),
+
+      upgradeSynthesisModelDefaults: (model, models) =>
+        set((s) => {
+          const nextDefault = shouldUpgradeSynthesisModel(s.defaultSynthesisSettings.model, models)
+            ? model
+            : s.defaultSynthesisSettings.model
+          return {
+            defaultSynthesisSettings: { ...s.defaultSynthesisSettings, model: nextDefault },
+            reports: Object.fromEntries(
+              Object.entries(s.reports).map(([key, report]) => {
+                const current = report.synthesisSettings.model
+                const next = shouldUpgradeSynthesisModel(current, models) ? model : current
+                return [
+                  key,
+                  {
+                    ...report,
+                    synthesisSettings: { ...report.synthesisSettings, model: next },
+                  },
+                ]
+              }),
+            ),
+          }
+        }),
 
       appendReport: (username, snapshot) => {
         set((s) => {

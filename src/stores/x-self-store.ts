@@ -13,6 +13,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import type { Profile, Post, Edge, IntelReportSnapshot, SynthesisSettings } from '../lib/x-intel/types'
 import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
+import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
 
 export interface SelfSectionsRefreshed {
   profile?: string
@@ -83,6 +84,8 @@ interface XSelfState {
   setConnecting: (connecting: boolean) => void
   setConnected: (connected: boolean) => void
   setDefaultSynthesisSettings: (s: SynthesisSettings) => void
+  setGlobalSynthesisModel: (model: string) => void
+  upgradeSynthesisModelDefaults: (model: string, models: { id: string }[]) => void
 
   // Per-account mutations (operate on the active account when id omitted)
   updateAccount: (id: string, patch: Partial<SelfAccount>) => void
@@ -162,6 +165,43 @@ export const useXSelfStore = create<XSelfState>()(
       setConnecting: (connecting) => set({ connecting }),
       setConnected: (connected) => set({ connected }),
       setDefaultSynthesisSettings: (settings) => set({ defaultSynthesisSettings: settings }),
+
+      setGlobalSynthesisModel: (model) =>
+        set((s) => ({
+          defaultSynthesisSettings: { ...s.defaultSynthesisSettings, model },
+          accounts: Object.fromEntries(
+            Object.entries(s.accounts).map(([id, account]) => [
+              id,
+              {
+                ...account,
+                synthesisSettings: { ...account.synthesisSettings, model },
+              },
+            ]),
+          ),
+        })),
+
+      upgradeSynthesisModelDefaults: (model, models) =>
+        set((s) => {
+          const nextDefault = shouldUpgradeSynthesisModel(s.defaultSynthesisSettings.model, models)
+            ? model
+            : s.defaultSynthesisSettings.model
+          return {
+            defaultSynthesisSettings: { ...s.defaultSynthesisSettings, model: nextDefault },
+            accounts: Object.fromEntries(
+              Object.entries(s.accounts).map(([id, account]) => {
+                const current = account.synthesisSettings.model
+                const next = shouldUpgradeSynthesisModel(current, models) ? model : current
+                return [
+                  id,
+                  {
+                    ...account,
+                    synthesisSettings: { ...account.synthesisSettings, model: next },
+                  },
+                ]
+              }),
+            ),
+          }
+        }),
 
       updateAccount: (id, patch) =>
         set((s) => {

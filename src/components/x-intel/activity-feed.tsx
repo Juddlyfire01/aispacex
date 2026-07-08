@@ -91,6 +91,54 @@ function ExpandablePostText({ text }: { text: string }) {
   )
 }
 
+function FeedCheckbox({
+  checked,
+  onChange,
+  tick = 'accent',
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  tick?: 'accent' | 'muted'
+}) {
+  return (
+    <>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'w-3 h-3 shrink-0 rounded-sm border border-[var(--color-border-strong)] bg-[var(--color-bg-input)]',
+          'flex items-center justify-center',
+          'peer-checked:border-white/20 peer-checked:bg-white/[0.08]',
+          'peer-focus-visible:outline-2 peer-focus-visible:outline-[var(--color-accent-soft)] peer-focus-visible:outline-offset-1',
+          'peer-checked:[&_svg]:opacity-100',
+        )}
+      >
+        <svg
+          viewBox="0 0 12 12"
+          fill="none"
+          className={cn(
+            'w-2.5 h-2.5 opacity-0',
+            tick === 'accent' ? 'text-[var(--color-accent)]' : 'text-white/55',
+          )}
+        >
+          <path
+            d="M2 6.5 5 9.5 10 3.5"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    </>
+  )
+}
+
 const FILTER_OPTIONS: { key: FeedFilterKey; label: string; title?: string }[] = [
   { key: 'original', label: 'Original' },
   { key: 'reply', label: 'Reply' },
@@ -264,11 +312,9 @@ export function ActivityFeedInner({
               title={title}
               className="flex items-center gap-1.5 text-[10px] text-white/40 hover:text-white/60 cursor-pointer select-none"
             >
-              <input
-                type="checkbox"
+              <FeedCheckbox
                 checked={selected.has(key)}
                 onChange={() => toggleFilter(key)}
-                className="w-3 h-3 accent-[var(--color-accent)]"
               />
               {label}
             </label>
@@ -276,12 +322,7 @@ export function ActivityFeedInner({
         ))}
         <div className="flex-1 min-w-[8px]" />
         <label className="flex items-center gap-1.5 text-[10px] text-white/25 cursor-pointer shrink-0">
-          <input
-            type="checkbox"
-            checked={watch}
-            onChange={(e) => onToggleWatch(e.target.checked)}
-            className="w-3 h-3 accent-white"
-          />
+          <FeedCheckbox checked={watch} onChange={onToggleWatch} tick="muted" />
           Watch
         </label>
         <SectionRefresh

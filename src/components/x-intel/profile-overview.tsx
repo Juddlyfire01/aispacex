@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, useEffect, type ReactNode } from 'react'
 import { useModels } from '../../hooks/use-models'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
@@ -8,6 +8,7 @@ import { computeAnalytics } from '../../lib/x-intel/analytics'
 import { partitionPosts } from '../../lib/x-intel/activity'
 import { buildReportMessages } from '../../lib/x-intel/synthesize'
 import { estimateMessagesTokens } from '../../lib/x-intel/token-estimate'
+import { resolveDefaultSynthesisModel, syncSynthesisModelGlobally } from '../../lib/x-intel/sync-synthesis-model'
 import type { Profile, Post, Edge, SynthesisSettings, IntelReportSnapshot } from '../../lib/x-intel/types'
 import type { ActivitySummary } from '../../lib/x-intel/activity'
 
@@ -205,6 +206,19 @@ export function ProfileOverview({
   const { data: models } = useModels('text')
   const [settingsOpen, setSettingsOpen] = useState(true)
 
+  useEffect(() => {
+    if (!models?.length) return
+    resolveDefaultSynthesisModel(models)
+  }, [models])
+
+  const handleSynthesisChange = (patch: Partial<SynthesisSettings>) => {
+    if (patch.model !== undefined) {
+      syncSynthesisModelGlobally(patch.model)
+      return
+    }
+    onSynthesisChange(patch)
+  }
+
   // Live payload estimate for the NEXT report. Rebuilds the exact main-call chat
   // messages (via the shared buildReportMessages) so the number tracks what will
   // actually ship, then estimates tokens heuristically. This is an ESTIMATE — the
@@ -350,7 +364,7 @@ export function ProfileOverview({
               Model
               <select
                 value={synthesisSettings.model}
-                onChange={(e) => onSynthesisChange({ model: e.target.value })}
+                onChange={(e) => handleSynthesisChange({ model: e.target.value })}
                 className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
               >
                 {(models ?? []).map((m) => (
@@ -364,14 +378,14 @@ export function ProfileOverview({
             <ContextCapControl
               value={synthesisSettings.contextCap}
               postCount={postCount}
-              onChange={(contextCap) => onSynthesisChange({ contextCap })}
+              onChange={(contextCap) => handleSynthesisChange({ contextCap })}
             />
             <label className="block text-[11px] text-white/40">
               Temperature: <b className="text-white/70 font-mono">{synthesisSettings.temperature.toFixed(1)}</b>
               <input
                 type="range" min={0} max={1} step={0.1}
                 value={synthesisSettings.temperature}
-                onChange={(e) => onSynthesisChange({ temperature: Number(e.target.value) })}
+                onChange={(e) => handleSynthesisChange({ temperature: Number(e.target.value) })}
                 className="w-full accent-white mt-1"
               />
             </label>
@@ -379,7 +393,7 @@ export function ProfileOverview({
             <ReportContextSelector
               reportHistory={reportHistory}
               includedIds={includedIds}
-              onChange={(ids) => onSynthesisChange({ includedReportIds: ids })}
+              onChange={(ids) => handleSynthesisChange({ includedReportIds: ids })}
             />
 
             {/* Live payload estimate — approximate, pre-send. */}

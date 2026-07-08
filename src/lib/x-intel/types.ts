@@ -56,7 +56,7 @@ export interface CharacterProfile {
 export interface SynthesisSettings {
   contextCap: number    // default 80, user-adjustable 10–200
   temperature: number   // default 0.3, user-adjustable 0.0–1.0
-  model: string         // default 'venice-uncensored-1-2'
+  model: string         // resolved from live catalog; legacy default venice-uncensored-1-2
   /**
    * Ids of prior report snapshots to feed into the next synthesis as prior-
    * analysis context (narrative only). Empty = none (default, backward-compatible
