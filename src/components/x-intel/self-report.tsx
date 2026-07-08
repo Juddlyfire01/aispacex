@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { useXIntelStore } from '../../stores/x-intel-store'
 import { generateSelfReport } from '../../lib/x-intel/self-orchestrate'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
 import { AnalyticsPanels, ChangeSummaryPanel, NarrativePanels, ReportTimeline } from './profile-report'
@@ -52,6 +53,7 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
   const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
   const setActiveReport = useXSelfStore((s) => s.setActiveReport)
   const deleteReport = useXSelfStore((s) => s.deleteReport)
+  const jumpToSelfFeedPost = useXIntelStore((s) => s.jumpToSelfFeedPost)
 
   const profile = account?.profile ?? null
   const posts = account?.posts ?? []
@@ -116,13 +118,18 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
 
       {active ? (
         <div className="space-y-5">
-          {active.changeSummary && <ChangeSummaryPanel change={active.changeSummary} />}
+          {active.changeSummary && <ChangeSummaryPanel change={active.changeSummary} canAddTarget={false} />}
           <AnalyticsPanels a={active.analytics} posts={posts} onAddTarget={noAdd} />
           <div className="border-t border-white/[0.05] pt-4">
-            <NarrativePanels snapshot={active} posts={posts} onJumpToPost={() => { /* no feed sub-tab in self view */ }} />
+            <NarrativePanels snapshot={active} posts={posts} onJumpToPost={jumpToSelfFeedPost} canAddTarget={false} />
           </div>
           <p className="text-[10px] text-white/12 font-mono pt-2">
             Report {relDate(active.createdAt)} · {active.model} · {active.meta.postCount} posts
+            {active.meta.tokenCost > 0 && ` · ${formatTokens(active.meta.tokenCost)} tokens`}
+            {active.meta.promptTokens != null && active.meta.completionTokens != null &&
+              ` (${formatTokens(active.meta.promptTokens)} in · ${formatTokens(active.meta.completionTokens)} out)`}
+            {(active.meta.includedReportIds?.length ?? 0) > 0 &&
+              ` · built on ${active.meta.includedReportIds!.length} prior report${active.meta.includedReportIds!.length === 1 ? '' : 's'}`}
           </p>
         </div>
       ) : liveAnalytics ? (

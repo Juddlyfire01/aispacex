@@ -1,5 +1,5 @@
 // src/lib/x-intel/normalize.ts
-import type { XUserRaw, XPostRaw, Profile, Post, Edge } from './types'
+import type { XUserRaw, XPostRaw, XPostEntities, Profile, Post, Edge } from './types'
 import { condenseUrlLabel } from './linkify'
 
 function mapBioUrls(raw: XUserRaw): Profile['bioUrls'] {
@@ -73,13 +73,32 @@ const KIND_MAP: Record<string, Post['kind']> = {
   retweeted: 'retweet',
 }
 
+function mapMentions(mentions: XPostEntities['mentions'] | undefined): Post['mentions'] {
+  return mentions?.map((mn) => ({
+    username: mn.username,
+    id: mn.id ?? '',
+    start: mn.start,
+    end: mn.end,
+  })) ?? []
+}
+
+/** Prefer note_tweet — root `text` is truncated for long-form posts. */
+function resolvePostBody(raw: XPostRaw): { text: string; entities: XPostRaw['entities'] | undefined } {
+  const note = raw.note_tweet
+  if (note?.text) {
+    return { text: note.text, entities: note.entities ?? raw.entities }
+  }
+  return { text: raw.text, entities: raw.entities }
+}
+
 export function normalizePost(raw: XPostRaw): Post {
   const m = raw.public_metrics
   const ref = raw.referenced_tweets?.[0]
+  const { text, entities } = resolvePostBody(raw)
   return {
     id: raw.id,
     authorId: raw.author_id ?? '',
-    text: raw.text,
+    text,
     lang: raw.lang ?? 'und',
     createdAt: raw.created_at ?? '',
     metrics: {
@@ -92,8 +111,8 @@ export function normalizePost(raw: XPostRaw): Post {
     },
     kind: ref ? (KIND_MAP[ref.type] ?? 'original') : 'original',
     referenced: raw.referenced_tweets?.map((r) => ({ id: r.id, type: r.type })) ?? [],
-    urls: raw.entities?.urls?.map((u) => ({ expanded: u.expanded_url, display: u.display_url, title: u.title })) ?? [],
-    mentions: raw.entities?.mentions?.map((mn) => ({ username: mn.username, id: mn.id ?? '' })) ?? [],
+    urls: entities?.urls?.map((u) => ({ expanded: u.expanded_url, display: u.display_url, title: u.title })) ?? [],
+    mentions: mapMentions(entities?.mentions),
     mediaKeys: raw.attachments?.media_keys ?? [],
     contextAnnotations: raw.context_annotations?.map((c) => ({ domain: c.domain.name, entity: c.entity.name })) ?? [],
     gatheredAt: new Date().toISOString(),

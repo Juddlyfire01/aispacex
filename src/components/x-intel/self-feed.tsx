@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfPosts } from '../../lib/x-intel/self-orchestrate'
 import { ActivityFeedInner } from './activity-feed'
 
@@ -30,10 +31,14 @@ export function SelfFeed() {
   }
 
   const lastGathered = account.refreshedAt.posts ?? account.posts[0]?.gatheredAt
+  const focusPostId = useXIntelStore((s) => s.feedFocusPostId)
+  const focusNonce = useXIntelStore((s) => s.feedFocusNonce)
+  const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   return (
     <ActivityFeedInner
       posts={account.posts}
+      profile={account.profile}
       watch={false}
       onToggleWatch={() => { /* self feed has no watch concept */ }}
       refreshing={refreshing}
@@ -41,6 +46,9 @@ export function SelfFeed() {
       onRefresh={runRefresh}
       lastGatheredIso={lastGathered}
       canRefresh={connected}
+      focusPostId={focusPostId}
+      focusNonce={focusNonce}
+      onFocusHandled={clearFeedFocus}
       emptyTitle="No posts gathered yet"
       emptyHint={connected
         ? `Fetch @${account.username}'s recent posts (up to 50 per pull).`

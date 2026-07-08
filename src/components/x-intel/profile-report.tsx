@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { MarkdownMessage } from '../chat/markdown-message'
+import { MentionLink } from './mention-link'
+import { EthAddressLink } from './eth-address-link'
+import { linkify } from '../../lib/x-intel/linkify'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { generateReport, runGather } from '../../lib/x-intel/orchestrate'
@@ -11,10 +14,39 @@ import { formatTokens, cn } from '../../lib/utils'
 
 /** Compact markdown renderer reusing the shared prose styling. Strips any
  * leaked "markdown:" label so older persisted reports render cleanly too. */
-function Prose({ children }: { children: string }) {
+function Prose({ children, canAddTarget = true }: { children: string; canAddTarget?: boolean }) {
   const clean = children?.replace(/^\s*(?:markdown|md)\s*:\s*/i, '') ?? ''
   if (!clean) return null
-  return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-white/70" />
+  return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-white/70" canAddTarget={canAddTarget} />
+}
+
+/**
+ * Render a plain-text narrative fragment with the same inline affordances as the
+ * rest of the app: @mentions open the add-target / view-profile popover, URLs and
+ * hashtags open on X, and on-chain identities open the block-explorer popover.
+ * Reuses the shared linkify() tokenizer (same as bios/feeds) so behaviour and
+ * styling stay identical everywhere. `canAddTarget` is off in the self report.
+ */
+function InlineText({ text, canAddTarget = true }: { text: string; canAddTarget?: boolean }) {
+  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  return (
+    <>
+      {linkify(text).map((tok, i) => {
+        switch (tok.type) {
+          case 'url':
+            return <a key={i} href={tok.href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+          case 'mention':
+            return <MentionLink key={i} username={tok.username} label={tok.value} canAddTarget={canAddTarget} />
+          case 'hashtag':
+            return <a key={i} href={`https://x.com/hashtag/${encodeURIComponent(tok.tag)}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+          case 'eth':
+            return <EthAddressLink key={i} identity={tok.value} />
+          default:
+            return <span key={i}>{tok.value}</span>
+        }
+      })}
+    </>
+  )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -47,7 +79,7 @@ const EVIDENCE_VISIBLE = 10  // rows shown before the list becomes a scroll area
  * The first EVIDENCE_VISIBLE rows show at full height; beyond that the list
  * scrolls so long reports stay compact.
  */
-function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Post[]; onJumpToPost: () => void }) {
+function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Post[]; onJumpToPost: (postId: string) => void }) {
   const [open, setOpen] = useState(false)
   if (ids.length === 0) return null
   return (
@@ -73,7 +105,7 @@ function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Pos
             return (
               <div key={id} className="flex items-start gap-1.5 text-[11px]">
                 {post ? (
-                  <button onClick={onJumpToPost} className="text-left flex-1 min-w-0 text-white/50 hover:text-white/75 transition-colors" title="View in Feed">
+                  <button onClick={() => onJumpToPost(id)} className="text-left flex-1 min-w-0 text-white/50 hover:text-white/75 transition-colors" title="View in Feed">
                     {post.text.slice(0, 120)}{post.text.length > 120 ? '…' : ''}
                     <span className="font-mono text-[9px] text-white/20"> · {formatTokens(post.metrics.likes)}L</span>
                   </button>
@@ -315,7 +347,7 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
   )
 }
 
-export function ChangeSummaryPanel({ change }: { change: ChangeSummary }) {
+export function ChangeSummaryPanel({ change, canAddTarget = true }: { change: ChangeSummary; canAddTarget?: boolean }) {
   const shifts = change.metricShifts.filter((m) => Math.abs(m.deltaPct) >= 1)
   const ownAdded = change.volumeAddedOwn ?? change.volumeAdded
   const inboundAdded = change.volumeAddedInbound ?? 0
@@ -330,7 +362,7 @@ export function ChangeSummaryPanel({ change }: { change: ChangeSummary }) {
         <SectionTitle>What changed since last report</SectionTitle>
         <span className="text-[10px] font-mono text-[var(--color-accent)]/80">{volumeLabel}</span>
       </div>
-      {change.narrative && <Prose>{change.narrative}</Prose>}
+      {change.narrative && <Prose canAddTarget={canAddTarget}>{change.narrative}</Prose>}
       {shifts.length > 0 && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono">
           {shifts.map((m) => (
@@ -359,10 +391,11 @@ export function ChangeSummaryPanel({ change }: { change: ChangeSummary }) {
   )
 }
 
-export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
+export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = true }: {
   snapshot: IntelReportSnapshot
   posts: Post[]
-  onJumpToPost: () => void
+  onJumpToPost: (postId: string) => void
+  canAddTarget?: boolean
 }) {
   const n = snapshot.narrative
   return (
@@ -370,13 +403,13 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
       {n.executiveSummary && (
         <section>
           <SectionTitle>Executive summary</SectionTitle>
-          <Prose>{n.executiveSummary}</Prose>
+          <Prose canAddTarget={canAddTarget}>{n.executiveSummary}</Prose>
         </section>
       )}
       {n.strategicAssessment && (
         <section>
           <SectionTitle>Strategic assessment</SectionTitle>
-          <Prose>{n.strategicAssessment}</Prose>
+          <Prose canAddTarget={canAddTarget}>{n.strategicAssessment}</Prose>
         </section>
       )}
       {n.themes.length > 0 && (
@@ -388,7 +421,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
               return (
                 <div key={i} className="text-[11.5px]">
                   <span className="text-white/70 font-medium">{t.name}</span>
-                  {prose && <span className="text-white/35"> — {prose}</span>}
+                  {prose && <span className="text-white/35"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
                   <EvidencePosts ids={ids} posts={posts} onJumpToPost={onJumpToPost} />
                 </div>
               )
@@ -399,7 +432,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
       {n.register.description && (
         <section>
           <SectionTitle>Register</SectionTitle>
-          <p className="text-[12px] text-white/60">{n.register.description}</p>
+          <p className="text-[12px] text-white/60"><InlineText text={n.register.description} canAddTarget={canAddTarget} /></p>
           {n.register.devices.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
               {n.register.devices.map((d) => (
@@ -418,7 +451,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
               return (
                 <div key={i} className="text-[11.5px] text-white/55">
                   <span className="text-white/70">{arc.arc}</span> <span className="font-mono text-[10px] text-white/30">({arc.trend})</span>
-                  {prose && <span className="text-white/30"> — {prose}</span>}
+                  {prose && <span className="text-white/30"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
                   <EvidencePosts ids={ids} posts={posts} onJumpToPost={onJumpToPost} />
                 </div>
               )
@@ -429,7 +462,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
       {n.audienceRead && (
         <section>
           <SectionTitle>Audience</SectionTitle>
-          <p className="text-[12px] text-white/60">{n.audienceRead}</p>
+          <p className="text-[12px] text-white/60"><InlineText text={n.audienceRead} canAddTarget={canAddTarget} /></p>
         </section>
       )}
       {n.notablePosts.length > 0 && (
@@ -441,7 +474,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
               return (
                 <button
                   key={np.postId}
-                  onClick={onJumpToPost}
+                  onClick={() => onJumpToPost(np.postId)}
                   className="text-left w-full border border-[var(--color-border-faint)] rounded-lg p-2.5 bg-[var(--color-bg-raised)] hover:border-[var(--color-border-strong)] transition-colors"
                 >
                   {post ? (
@@ -462,7 +495,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
         <section>
           <SectionTitle>Contradictions / tensions</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.contradictions.map((c, i) => <li key={i} className="text-[11.5px] text-white/50">{c}</li>)}
+            {n.contradictions.map((c, i) => <li key={i} className="text-[11.5px] text-white/50"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -470,7 +503,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
         <section>
           <SectionTitle>Engagement hooks</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.engagementHooks.map((h, i) => <li key={i} className="text-[11.5px] text-white/55">{h}</li>)}
+            {n.engagementHooks.map((h, i) => <li key={i} className="text-[11.5px] text-white/55"><InlineText text={h} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -478,7 +511,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost }: {
         <section>
           <SectionTitle>Analyst conclusions</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.analystConclusions.map((c, i) => <li key={i} className="text-[11.5px] text-white/60">{c}</li>)}
+            {n.analystConclusions.map((c, i) => <li key={i} className="text-[11.5px] text-white/60"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -519,6 +552,26 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
               {r.meta.postCount} posts
               {i === history.length - 1 ? ' · baseline' : deltaLabel != null ? ` · ${deltaLabel}` : ''}
             </div>
+            {r.meta.tokenCost > 0 && (
+              <div
+                className="text-[9px] font-mono text-white/25 whitespace-nowrap"
+                title={
+                  (r.meta.promptTokens != null && r.meta.completionTokens != null
+                    ? `${r.meta.promptTokens.toLocaleString()} in + ${r.meta.completionTokens.toLocaleString()} out = `
+                    : '') +
+                  `${r.meta.tokenCost.toLocaleString()} tokens (exact, from Venice)` +
+                  ((r.meta.includedReportIds?.length ?? 0) > 0
+                    ? ` · built on ${r.meta.includedReportIds!.length} prior report${r.meta.includedReportIds!.length === 1 ? '' : 's'}`
+                    : '')
+                }
+              >
+                {formatTokens(r.meta.tokenCost)} tok
+                {r.meta.completionTokens != null && (
+                  <span className="text-white/20"> · {formatTokens(r.meta.completionTokens)} out</span>
+                )}
+                {(r.meta.includedReportIds?.length ?? 0) > 0 && <span className="text-[var(--color-accent)]/50"> ↺</span>}
+              </div>
+            )}
             <button
               onClick={(ev) => { ev.stopPropagation(); onDelete(r.id) }}
               title="Delete report"
@@ -544,7 +597,7 @@ export function ProfileReport() {
   const report = useXIntelStore((s) => (s.activeTarget ? s.reports[s.activeTarget] : undefined))
   const setActiveReport = useXIntelStore((s) => s.setActiveReport)
   const deleteReport = useXIntelStore((s) => s.deleteReport)
-  const setActiveSubTab = useXIntelStore((s) => s.setActiveSubTab)
+  const jumpToFeedPost = useXIntelStore((s) => s.jumpToFeedPost)
   const addTarget = useXIntelStore((s) => s.addTarget)
   const connected = useXSelfStore((s) => s.connected)
   const [busy, setBusy] = useState(false)
@@ -622,12 +675,16 @@ export function ProfileReport() {
           {active.changeSummary && <ChangeSummaryPanel change={active.changeSummary} />}
           <AnalyticsPanels a={active.analytics} posts={posts} onAddTarget={addAsTarget} />
           <div className="border-t border-white/[0.05] pt-4">
-            <NarrativePanels snapshot={active} posts={posts} onJumpToPost={() => setActiveSubTab('feed')} />
+            <NarrativePanels snapshot={active} posts={posts} onJumpToPost={jumpToFeedPost} />
           </div>
           <p className="text-[10px] text-white/12 font-mono pt-2">
             Report {relDate(active.createdAt)} · {active.model} · {active.meta.postCount} posts
             {active.meta.dateRange && ` · ${new Date(active.meta.dateRange.from).toLocaleDateString()}–${new Date(active.meta.dateRange.to).toLocaleDateString()}`}
             {active.meta.tokenCost > 0 && ` · ${formatTokens(active.meta.tokenCost)} tokens`}
+            {active.meta.promptTokens != null && active.meta.completionTokens != null &&
+              ` (${formatTokens(active.meta.promptTokens)} in · ${formatTokens(active.meta.completionTokens)} out)`}
+            {(active.meta.includedReportIds?.length ?? 0) > 0 &&
+              ` · built on ${active.meta.includedReportIds!.length} prior report${active.meta.includedReportIds!.length === 1 ? '' : 's'}`}
           </p>
         </div>
       ) : liveAnalytics ? (

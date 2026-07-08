@@ -1,10 +1,14 @@
-import type { ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useModels } from '../../hooks/use-models'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from '../layout/rail-footer'
 import { formatTokens, cn } from '../../lib/utils'
-import type { Profile, SynthesisSettings } from '../../lib/x-intel/types'
+import { computeAnalytics } from '../../lib/x-intel/analytics'
+import { partitionPosts } from '../../lib/x-intel/activity'
+import { buildReportMessages } from '../../lib/x-intel/synthesize'
+import { estimateMessagesTokens } from '../../lib/x-intel/token-estimate'
+import type { Profile, Post, Edge, SynthesisSettings, IntelReportSnapshot } from '../../lib/x-intel/types'
 import type { ActivitySummary } from '../../lib/x-intel/activity'
 
 export interface ProfileOverviewProps {
@@ -31,6 +35,14 @@ export interface ProfileOverviewProps {
   activity: ActivitySummary | null
   synthesisSettings: SynthesisSettings
   onSynthesisChange: (patch: Partial<SynthesisSettings>) => void
+  /** Number of posts currently gathered — drives the dynamic "MAX" context cap. */
+  postCount: number
+  /** Gathered posts — used to build the live token estimate for the next report. */
+  posts: Post[]
+  /** Network edges — needed so the estimate's analytics match the real payload. */
+  edges: Edge[]
+  /** Prior report snapshots — selectable as narrative context for the next report. */
+  reportHistory: IntelReportSnapshot[]
   /** Fixed footer action — self: disconnect OAuth; targets: remove from rail. */
   footerAction?: { label: string; onClick: () => void }
 }
@@ -43,18 +55,177 @@ const GearIcon = () => (
 )
 
 /**
+ * Sentinel context-cap value meaning "process every gathered post". Stored
+ * instead of a fixed number so the cap stays at MAX as more posts arrive on
+ * later gathers — synthesize slices posts.slice(0, contextCap), so an
+ * effectively-unbounded value simply takes them all.
+ */
+const MAX_CONTEXT = 100_000
+
+/**
+ * Context-cap slider with a dynamic ceiling. The top of the track is the number
+ * of gathered posts (step 1); dragging fully right stores the MAX sentinel and
+ * labels it "MAX" so the run always covers every available post. When fewer
+ * posts are gathered than the current cap, the cap already covers them all, so
+ * it reads as MAX too.
+ */
+function ContextCapControl({ value, postCount, onChange }: {
+  value: number
+  postCount: number
+  onChange: (v: number) => void
+}) {
+  const ceiling = postCount > 0 ? postCount : 200
+  const sliderMin = Math.min(10, ceiling)
+  const sliderMax = Math.max(ceiling, sliderMin)
+  const isMax = value >= ceiling
+  const sliderValue = Math.min(value, sliderMax)
+  return (
+    <label className="block text-[11px] text-white/40">
+      Context cap:{' '}
+      {isMax
+        ? <b className="text-white/70 font-mono">MAX</b>
+        : <><b className="text-white/70 font-mono">{value}</b> posts</>}
+      {isMax && postCount > 0 && (
+        <span className="text-white/25"> · all {postCount} posts</span>
+      )}
+      <input
+        type="range" min={sliderMin} max={sliderMax} step={1}
+        value={sliderValue}
+        onChange={(e) => {
+          const v = Number(e.target.value)
+          onChange(v >= sliderMax ? MAX_CONTEXT : v)
+        }}
+        className="w-full accent-white mt-1"
+      />
+    </label>
+  )
+}
+
+/**
+ * Prior-report context selector. Lets the user feed none / all / a custom subset
+ * of earlier reports into the next synthesis as narrative context (the model
+ * builds on them). Selection persists in synthesisSettings.includedReportIds.
+ * Stale ids (reports since deleted) are ignored by the orchestrator, but we also
+ * reconcile "all" against the live list here.
+ */
+function ReportContextSelector({ reportHistory, includedIds, onChange }: {
+  reportHistory: IntelReportSnapshot[]
+  includedIds: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (reportHistory.length === 0) {
+    return (
+      <div className="text-[11px] text-white/40">
+        Prior-report context
+        <p className="text-[10px] text-white/20 mt-0.5">No earlier reports yet — the first report is always a fresh baseline.</p>
+      </div>
+    )
+  }
+  const selectedSet = new Set(includedIds)
+  const selectedCount = reportHistory.filter((r) => selectedSet.has(r.id)).length
+  const allIds = reportHistory.map((r) => r.id)
+  const summary = selectedCount === 0 ? 'None' : selectedCount === reportHistory.length ? 'All' : `${selectedCount} selected`
+
+  const toggle = (id: string) => {
+    const next = new Set(selectedSet)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(allIds.filter((x) => next.has(x)))
+  }
+
+  return (
+    <div className="text-[11px] text-white/40">
+      <div className="flex items-center justify-between">
+        <span title="Feed earlier reports into the next synthesis as narrative context so it builds on prior analysis.">
+          Prior-report context
+        </span>
+        <span className="font-mono text-white/60">{summary}</span>
+      </div>
+      <div className="flex gap-1 mt-1">
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
+            selectedCount === 0 ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.08] text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
+        >
+          None
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(allIds)}
+          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
+            selectedCount === reportHistory.length ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.08] text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
+        >
+          All ({reportHistory.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
+            expanded ? 'border-white/25 text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
+        >
+          Custom
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-1.5 space-y-1 max-h-[12rem] overflow-y-auto pr-1 border-l border-white/[0.06] pl-2">
+          {reportHistory.map((r, i) => {
+            const checked = selectedSet.has(r.id)
+            return (
+              <label key={r.id} className="flex items-center gap-2 cursor-pointer text-[10px] text-white/50 hover:text-white/70">
+                <input type="checkbox" checked={checked} onChange={() => toggle(r.id)} className="accent-[var(--color-accent)]" />
+                <span className="font-mono whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                <span className="text-white/25 truncate">
+                  {r.meta.postCount}p{i === reportHistory.length - 1 ? ' · baseline' : ''}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Shared identity / overview column for a single X subject — used by both the
  * self Profile tab and the Targets tab so the two stay visually identical.
  * Order: refresh bar → identity + metrics → optional extras → latest report →
- * synthesis settings (always open) → fixed footer action. Self carries an extra metrics
- * block (bookmarks/likes) that targets simply omit.
+ * synthesis settings (collapsible, open by default; Model → Context cap →
+ * Temperature) → fixed footer action. Self carries an extra metrics block
+ * (bookmarks/likes) that targets simply omit.
  */
 export function ProfileOverview({
   profile, connected, canRefresh = connected, refreshing, refreshError, lastGatheredIso, onRefresh,
   emptyHint, showYouBadge, renderBio, extraSection, activity,
-  synthesisSettings, onSynthesisChange, footerAction,
+  synthesisSettings, onSynthesisChange, footerAction, postCount,
+  posts, edges, reportHistory,
 }: ProfileOverviewProps) {
   const { data: models } = useModels('text')
+  const [settingsOpen, setSettingsOpen] = useState(true)
+
+  // Live payload estimate for the NEXT report. Rebuilds the exact main-call chat
+  // messages (via the shared buildReportMessages) so the number tracks what will
+  // actually ship, then estimates tokens heuristically. This is an ESTIMATE — the
+  // real, exact count is logged per-report after the call returns.
+  const includedIds = synthesisSettings.includedReportIds ?? []
+  const estTokens = useMemo(() => {
+    if (!profile || posts.length === 0) return 0
+    const analytics = computeAnalytics(profile, posts, edges)
+    const { own } = partitionPosts(profile, posts)
+    const includedSet = new Set(includedIds)
+    const includedReports = reportHistory.filter((r) => includedSet.has(r.id))
+    const messages = buildReportMessages({
+      profile,
+      ownPosts: own,
+      analytics,
+      inboundCount: posts.length - own.length,
+      includedReports,
+      settings: synthesisSettings,
+    })
+    return estimateMessagesTokens(messages)
+  }, [profile, posts, edges, reportHistory, synthesisSettings, includedIds])
 
   const actionFooter = footerAction ? (
     <div className={RAIL_FOOTER_CLASS}>
@@ -155,47 +326,73 @@ export function ProfileOverview({
       {/* At-a-glance activity / situational awareness */}
       <ActivityGlance activity={activity} />
 
-      {/* Synthesis settings — always open for quick access */}
+      {/* Synthesis settings — collapsible, open by default */}
       <div className="pt-3 border-t border-white/[0.04] space-y-2">
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-white/25 uppercase tracking-[0.08em]">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((o) => !o)}
+          aria-expanded={settingsOpen}
+          className="flex items-center gap-1.5 w-full text-[10px] font-medium text-white/25 hover:text-white/45 uppercase tracking-[0.08em] transition-colors"
+        >
           <GearIcon />
           Synthesis settings
-        </span>
-        <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-3">
-          <label className="block text-[11px] text-white/40">
-            Context cap: <b className="text-white/70 font-mono">{synthesisSettings.contextCap}</b> posts
-            <input
-              type="range" min={10} max={200} step={5}
+          <svg
+            width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="3" strokeLinecap="round"
+            className={cn('ml-auto transition-transform', settingsOpen && 'rotate-90')}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        {settingsOpen && (
+          <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-3">
+            <label className="block text-[11px] text-white/40">
+              Model
+              <select
+                value={synthesisSettings.model}
+                onChange={(e) => onSynthesisChange({ model: e.target.value })}
+                className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
+              >
+                {(models ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>{m.model_spec?.name || m.id}</option>
+                ))}
+                {!models?.some((m) => m.id === synthesisSettings.model) && (
+                  <option value={synthesisSettings.model}>{synthesisSettings.model}</option>
+                )}
+              </select>
+            </label>
+            <ContextCapControl
               value={synthesisSettings.contextCap}
-              onChange={(e) => onSynthesisChange({ contextCap: Number(e.target.value) })}
-              className="w-full accent-white mt-1"
+              postCount={postCount}
+              onChange={(contextCap) => onSynthesisChange({ contextCap })}
             />
-          </label>
-          <label className="block text-[11px] text-white/40">
-            Temperature: <b className="text-white/70 font-mono">{synthesisSettings.temperature.toFixed(1)}</b>
-            <input
-              type="range" min={0} max={1} step={0.1}
-              value={synthesisSettings.temperature}
-              onChange={(e) => onSynthesisChange({ temperature: Number(e.target.value) })}
-              className="w-full accent-white mt-1"
+            <label className="block text-[11px] text-white/40">
+              Temperature: <b className="text-white/70 font-mono">{synthesisSettings.temperature.toFixed(1)}</b>
+              <input
+                type="range" min={0} max={1} step={0.1}
+                value={synthesisSettings.temperature}
+                onChange={(e) => onSynthesisChange({ temperature: Number(e.target.value) })}
+                className="w-full accent-white mt-1"
+              />
+            </label>
+
+            <ReportContextSelector
+              reportHistory={reportHistory}
+              includedIds={includedIds}
+              onChange={(ids) => onSynthesisChange({ includedReportIds: ids })}
             />
-          </label>
-          <label className="block text-[11px] text-white/40">
-            Model
-            <select
-              value={synthesisSettings.model}
-              onChange={(e) => onSynthesisChange({ model: e.target.value })}
-              className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
-            >
-              {(models ?? []).map((m) => (
-                <option key={m.id} value={m.id}>{m.model_spec?.name || m.id}</option>
-              ))}
-              {!models?.some((m) => m.id === synthesisSettings.model) && (
-                <option value={synthesisSettings.model}>{synthesisSettings.model}</option>
-              )}
-            </select>
-          </label>
-        </div>
+
+            {/* Live payload estimate — approximate, pre-send. */}
+            <div className="flex items-baseline justify-between border-t border-white/[0.05] pt-2 text-[11px]">
+              <span className="text-white/40" title="Heuristic estimate of the input payload for the next report. The exact count is logged per report after it runs.">
+                Est. payload
+              </span>
+              <span className="font-mono text-white/60">
+                {estTokens > 0 ? `~${formatTokens(estTokens)} tok` : '—'}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       </div>
       {actionFooter}

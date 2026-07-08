@@ -303,8 +303,11 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
     computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
   }
 
-  const { narrative, changeNarrative, tokenCost } = await synthesizeReport(
-    account.profile, account.posts, analytics, computedDelta, prevSnapshot, settings,
+  const includedIds = new Set(settings.includedReportIds ?? [])
+  const includedReports = account.reportHistory.filter((r) => includedIds.has(r.id))
+
+  const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
+    account.profile, account.posts, analytics, computedDelta, prevSnapshot, settings, includedReports,
   )
 
   const snapshot: IntelReportSnapshot = {
@@ -317,6 +320,9 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
       dateRange: postDateRange(account.posts),
       postIdsAnalyzed: account.posts.map((p) => p.id),
       tokenCost,
+      promptTokens,
+      completionTokens,
+      includedReportIds: includedReports.map((r) => r.id),
     },
     analytics,
     narrative,

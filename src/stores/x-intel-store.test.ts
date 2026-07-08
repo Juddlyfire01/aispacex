@@ -6,7 +6,7 @@ const makeSnapshot = (id: string): IntelReportSnapshot => ({
   id,
   createdAt: new Date().toISOString(),
   model: 'venice-uncensored-1-2',
-  synthesisSettings: { contextCap: 80, temperature: 0.3, model: 'venice-uncensored-1-2' },
+  synthesisSettings: { contextCap: 80, temperature: 0.3, model: 'venice-uncensored-1-2', includedReportIds: [] },
   meta: { postCount: 1, dateRange: null, postIdsAnalyzed: ['p1'], tokenCost: 100 },
   analytics: {} as IntelReportSnapshot['analytics'],
   narrative: {} as IntelReportSnapshot['narrative'],
@@ -32,7 +32,7 @@ describe('mergePosts', () => {
 
 describe('useXIntelStore', () => {
   beforeEach(() => {
-    useXIntelStore.setState({ targets: [], reports: {}, activeTarget: null, sessionCost: 0, lifetimeTotal: 0 })
+    useXIntelStore.setState({ targets: [], reports: {}, activeTarget: null, sessionCost: 0, lifetimeTotal: 0, feedFocusPostId: null, feedFocusNonce: 0 })
   })
 
   it('addTarget creates an empty report and selects it', () => {

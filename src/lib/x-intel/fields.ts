@@ -7,7 +7,7 @@ export const USER_FIELDS = [
 
 export const POST_FIELDS = [
   'id', 'text', 'lang', 'created_at', 'edit_history_tweet_ids',
-  'public_metrics', 'context_annotations', 'entities',
+  'public_metrics', 'context_annotations', 'entities', 'note_tweet',
   'referenced_tweets', 'reply_settings', 'source',
   'possibly_sensitive', 'attachments',
 ] as const

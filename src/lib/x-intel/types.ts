@@ -28,7 +28,7 @@ export interface Post {
   kind: 'original' | 'reply' | 'quote' | 'retweet'
   referenced: { id: string; type: string }[]
   urls: { expanded: string; display: string; title?: string }[]
-  mentions: { username: string; id: string }[]
+  mentions: { username: string; id: string; start?: number; end?: number }[]
   mediaKeys: string[]
   contextAnnotations: { domain: string; entity: string }[]
   gatheredAt: string
@@ -57,6 +57,12 @@ export interface SynthesisSettings {
   contextCap: number    // default 80, user-adjustable 10–200
   temperature: number   // default 0.3, user-adjustable 0.0–1.0
   model: string         // default 'venice-uncensored-1-2'
+  /**
+   * Ids of prior report snapshots to feed into the next synthesis as prior-
+   * analysis context (narrative only). Empty = none (default, backward-compatible
+   * with the memoryless behavior). The UI offers none / all / custom selection.
+   */
+  includedReportIds: string[]
 }
 
 // ——— Comprehensive Report Ledger ———
@@ -195,7 +201,13 @@ export interface IntelReportSnapshot {
     postCount: number
     dateRange: { from: string; to: string } | null
     postIdsAnalyzed: string[]
-    tokenCost: number             // total_tokens reported by Venice
+    tokenCost: number             // total_tokens reported by Venice (exact)
+    /** Exact prompt tokens reported by Venice across all calls for this report. */
+    promptTokens?: number
+    /** Exact completion tokens reported by Venice across all calls for this report. */
+    completionTokens?: number
+    /** Ids of prior reports that were fed in as context when this was generated. */
+    includedReportIds?: string[]
   }
   analytics: ReportAnalytics
   narrative: ReportNarrative
@@ -207,6 +219,7 @@ export const DEFAULT_SYNTHESIS_SETTINGS: SynthesisSettings = {
   contextCap: 80,
   temperature: 0.3,
   model: 'venice-uncensored-1-2',
+  includedReportIds: [],
 }
 
 // ——— Raw X API v2 shapes (subset we request) ———
@@ -242,6 +255,11 @@ export interface XUserRaw {
   }
 }
 
+export interface XPostEntities {
+  urls?: { expanded_url: string; display_url: string; title?: string; start?: number; end?: number }[]
+  mentions?: { username: string; id?: string; start?: number; end?: number }[]
+}
+
 export interface XPostRaw {
   id: string
   text: string
@@ -257,10 +275,9 @@ export interface XPostRaw {
     bookmark_count?: number
   }
   referenced_tweets?: { type: 'replied_to' | 'quoted' | 'retweeted'; id: string }[]
-  entities?: {
-    urls?: { expanded_url: string; display_url: string; title?: string }[]
-    mentions?: { username: string; id?: string }[]
-  }
+  entities?: XPostEntities
+  /** Full text + entities for long-form posts (>280 chars). Root `text` is truncated. */
+  note_tweet?: { text?: string; entities?: XPostEntities }
   attachments?: { media_keys?: string[] }
   context_annotations?: { domain: { name: string }; entity: { name: string } }[]
 }

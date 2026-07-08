@@ -173,13 +173,18 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
     computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
   }
 
-  const { narrative, changeNarrative, tokenCost } = await synthesizeReport(
+  // Resolve the prior reports the user chose to feed in as narrative context.
+  const includedIds = new Set(report.synthesisSettings.includedReportIds ?? [])
+  const includedReports = report.reportHistory.filter((r) => includedIds.has(r.id))
+
+  const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
     report.profile,
     report.posts,
     analytics,
     computedDelta,
     prevSnapshot,
     report.synthesisSettings,
+    includedReports,
   )
 
   const snapshot: IntelReportSnapshot = {
@@ -192,6 +197,9 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
       dateRange: postDateRange(report.posts),
       postIdsAnalyzed: report.posts.map((p) => p.id),
       tokenCost,
+      promptTokens,
+      completionTokens,
+      includedReportIds: includedReports.map((r) => r.id),
     },
     analytics,
     narrative,

@@ -106,6 +106,23 @@ describe('normalizePost', () => {
     expect(normalizePost({ ...rawPost, referenced_tweets: [{ type: 'retweeted', id: '1' }] }).kind).toBe('retweet')
     expect(normalizePost({ ...rawPost, referenced_tweets: undefined }).kind).toBe('original')
   })
+
+  it('uses note_tweet for long-form post text and entities', () => {
+    const truncated = '1. DeepSeek 2. Perplexity 3. Suno 4. Polymarket 5. Gamma 6. ElevenLabs 7.…'
+    const full = `${truncated.replace(/…$/, '')} 8. Cursor 9. Venice`
+    const p = normalizePost({
+      ...rawPost,
+      text: truncated,
+      note_tweet: {
+        text: full,
+        entities: {
+          mentions: [{ username: 'deedydas', id: '55', start: 42, end: 51 }],
+        },
+      },
+    })
+    expect(p.text).toBe(full)
+    expect(p.mentions).toEqual([{ username: 'deedydas', id: '55', start: 42, end: 51 }])
+  })
 })
 
 describe('deriveEdges', () => {

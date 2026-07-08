@@ -118,6 +118,10 @@ export function ProfileCard() {
       renderBio={(p: Profile) => <BioText text={p.bio ?? ''} bioUrls={p.bioUrls} />}
       activity={activity}
       synthesisSettings={synthesisSettings}
+      postCount={report.posts.length}
+      posts={report.posts}
+      edges={report.edges}
+      reportHistory={report.reportHistory}
       onSynthesisChange={(patch) => updateReport(activeTarget, { synthesisSettings: { ...synthesisSettings, ...patch } })}
       footerAction={{ label: 'Remove from rail', onClick: handleRemove }}
     />

@@ -2,8 +2,11 @@ import { useState, type ComponentPropsWithoutRef } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { remarkEtherscan } from '../../lib/x-intel/remark-etherscan'
+import { remarkMention } from '../../lib/x-intel/remark-mention'
 import { ETH_IDENTITY_SCHEME, identityFromHref } from '../../lib/x-intel/etherscan'
+import { MENTION_SCHEME, usernameFromHref } from '../../lib/x-intel/mention'
 import { EthAddressLink } from '../x-intel/eth-address-link'
+import { MentionLink } from '../x-intel/mention-link'
 import { cn } from '../../lib/utils'
 
 // Shared markdown rendering for assistant chat output — used by the main Chat
@@ -23,6 +26,7 @@ function safeUrlTransform(url: string, key: string): string {
   // Preserve our internal ETH-identity sentinel so the link renderer can swap
   // in the interactive explorer popover. It never becomes a real href.
   if (url.startsWith(ETH_IDENTITY_SCHEME)) return url
+  if (url.startsWith(MENTION_SCHEME)) return url
   const cleaned = defaultUrlTransform(url)
   if (!cleaned) return ''
   if (key === 'src' && cleaned.startsWith('data:image/')) return cleaned
@@ -62,22 +66,27 @@ interface MarkdownMessageProps {
    * panels like the compose assistant chat. Controls the prose font-size. */
   size?: 'full' | 'compact'
   className?: string
+  /** Whether inline @mentions offer "Add as intel target". Off for surfaces with
+   *  no target concept (e.g. self report). Defaults to true. */
+  canAddTarget?: boolean
 }
 
 /** Renders assistant markdown output with shared link-safety, code-block, and
  * prose styling. Wrap in `prose-venice` + a size modifier so both chat
  * surfaces share one visual language. */
-export function MarkdownMessage({ content, size = 'full', className }: MarkdownMessageProps) {
+export function MarkdownMessage({ content, size = 'full', className, canAddTarget = true }: MarkdownMessageProps) {
   return (
     <div className={cn('prose-venice', size === 'compact' && 'prose-venice-compact', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkEtherscan]}
+        remarkPlugins={[remarkGfm, remarkEtherscan, remarkMention]}
         urlTransform={safeUrlTransform}
         components={{
           code: CodeBlock,
           a: ({ href, children, ...props }) => {
             const identity = identityFromHref(href)
             if (identity) return <EthAddressLink identity={identity} />
+            const username = usernameFromHref(href)
+            if (username) return <MentionLink username={username} canAddTarget={canAddTarget} />
             return (
               <a {...props} href={href} target="_blank" rel="noopener noreferrer ugc">
                 {children}

@@ -119,6 +119,7 @@ CRITICAL RULES:
 - The COMPUTED ANALYTICS are ground truth. They cover only the target's authored posts — inbound mentions others wrote at/about the target are excluded from posting cadence, composition, and engagement metrics.
 - Cite the analytics. NEVER recompute, contradict, or invent numbers — if you state a figure, it must come from the analytics object.
 - Be specific and evidence-grounded. Reference real posts by their id.
+- For themes and narrativeArcs, cite EVERY post that supports the point — list all relevant post ids, not just one. Include as many as genuinely apply (some themes will have one, others several); never artificially limit the count.
 - No speculation beyond what the data supports. Distinguish observation from inference.
 - For notablePosts, return only the post id and why it matters — do not fabricate post text.
 - Prose string fields may use light Markdown (bold, italics, lists) but must NOT begin with a label like "markdown:" — write the actual content directly.
@@ -129,9 +130,9 @@ Respond with ONLY a fenced json block matching exactly this shape:
 {
   "executiveSummary": "2-4 sentences on who this account is and its current posture",
   "strategicAssessment": "a paragraph on what this account appears to be trying to accomplish",
-  "themes": [{ "name": "theme name", "evidence": "cited post excerpt or id", "weight": 0.0 }],
+  "themes": [{ "name": "theme name", "evidence": "short reason plus every supporting post id (e.g. post:123, post:456, …) — cite all that apply, not just one", "weight": 0.0 }],
   "register": { "description": "tone/style", "devices": ["rhetorical device"] },
-  "narrativeArcs": [{ "arc": "arc description", "trend": "rising|falling|stable", "evidence": "supporting detail" }],
+  "narrativeArcs": [{ "arc": "arc description", "trend": "rising|falling|stable", "evidence": "supporting detail plus every relevant post id (e.g. post:123, post:456, …)" }],
   "audienceRead": "who this content targets and why",
   "contradictions": ["notable tension or pivot"],
   "notablePosts": [{ "postId": "id", "why": "why it matters" }],
@@ -160,6 +161,62 @@ function buildTranscript(posts: Post[], cap: number): string {
     .slice(0, cap)
     .map((p) => `[${p.createdAt}] (${p.kind}, ${p.metrics.likes}L/${p.metrics.reposts}R/${p.metrics.bookmarks}B, id:${p.id}) ${p.text}`)
     .join('\n')
+}
+
+/**
+ * Condense a prior report into narrative-only context for a follow-up synthesis.
+ * We include the interpretive prose (summary, themes, arcs, conclusions) but NOT
+ * the computed analytics numbers — the current run recomputes its own analytics,
+ * and echoing stale figures risks the model quoting outdated numbers.
+ */
+export function condensePriorReport(snapshot: IntelReportSnapshot): string {
+  const n = snapshot.narrative
+  const themes = n.themes.map((t) => t.name).filter(Boolean).join(', ')
+  const arcs = n.narrativeArcs.map((a) => `${a.arc} (${a.trend})`).join('; ')
+  const lines = [
+    `— Report ${new Date(snapshot.createdAt).toISOString().slice(0, 10)} (${snapshot.meta.postCount} posts) —`,
+    n.executiveSummary && `Summary: ${n.executiveSummary}`,
+    n.strategicAssessment && `Assessment: ${n.strategicAssessment}`,
+    themes && `Themes: ${themes}`,
+    arcs && `Arcs: ${arcs}`,
+    n.analystConclusions.length > 0 && `Conclusions: ${n.analystConclusions.join(' | ')}`,
+  ].filter(Boolean)
+  return lines.join('\n')
+}
+
+export interface ReportMessage {
+  role: 'system' | 'user'
+  content: string
+}
+
+/**
+ * Build the exact chat messages sent for the MAIN report synthesis call. Shared
+ * between the live payload estimator (synthesis settings UI) and the real call
+ * in synthesizeReport, so the pre-send estimate reflects what actually ships.
+ *
+ * The change-summary call is a separate, smaller call and is intentionally not
+ * modeled here — the live estimate covers the dominant main-call payload.
+ */
+export function buildReportMessages(args: {
+  profile: Profile
+  ownPosts: Post[]
+  analytics: ReportAnalytics
+  inboundCount: number
+  includedReports: IntelReportSnapshot[]
+  settings: SynthesisSettings
+}): ReportMessage[] {
+  const { profile, ownPosts, analytics, inboundCount, includedReports, settings } = args
+  const transcript = buildTranscript(ownPosts, settings.contextCap)
+  const priorContext = includedReports.length > 0
+    ? `\n\nPRIOR ANALYSIS (narrative context from ${includedReports.length} earlier report${includedReports.length === 1 ? '' : 's'} — build on this; note continuity and shifts, do not simply repeat it):\n${includedReports.map(condensePriorReport).join('\n\n')}`
+    : ''
+  return [
+    { role: 'system', content: REPORT_SYSTEM },
+    {
+      role: 'user',
+      content: `Profile: ${JSON.stringify(profile)}\n\nCOMPUTED ANALYTICS (ground truth — own posts only; ${inboundCount} inbound mentions excluded from metrics):\n${JSON.stringify(analytics)}${priorContext}\n\nTarget's own posts:\n${transcript}`,
+    },
+  ]
 }
 
 const STRING_ARRAY = (v: unknown): string[] =>
@@ -199,7 +256,12 @@ export function parseReport(content: string): ReportNarrative {
 export interface SynthesizeReportResult {
   narrative: ReportNarrative
   changeNarrative: string | null
+  /** Exact total tokens (prompt + completion) across all calls, from Venice. */
   tokenCost: number
+  /** Exact prompt tokens summed across all calls. */
+  promptTokens: number
+  /** Exact completion tokens summed across all calls. */
+  completionTokens: number
 }
 
 /**
@@ -209,6 +271,7 @@ export interface SynthesizeReportResult {
  * cost across both calls for the snapshot's meta.
  *
  * @param computedDelta the deterministic delta (without narrative); null for baseline
+ * @param includedReports prior report snapshots to feed in as narrative context (may be empty)
  */
 export async function synthesizeReport(
   profile: Profile,
@@ -217,9 +280,9 @@ export async function synthesizeReport(
   computedDelta: Omit<ChangeSummary, 'narrative'> | null,
   prevSnapshot: IntelReportSnapshot | null,
   settings: SynthesisSettings,
+  includedReports: IntelReportSnapshot[] = [],
 ): Promise<SynthesizeReportResult> {
   const { own } = partitionPosts(profile, posts)
-  const transcript = buildTranscript(own, settings.contextCap)
   const inboundCount = posts.length - own.length
 
   const resp = await venice<ChatCompletionResponse>('/chat/completions', {
@@ -228,13 +291,7 @@ export async function synthesizeReport(
       model: settings.model,
       stream: false,
       temperature: settings.temperature,
-      messages: [
-        { role: 'system', content: REPORT_SYSTEM },
-        {
-          role: 'user',
-          content: `Profile: ${JSON.stringify(profile)}\n\nCOMPUTED ANALYTICS (ground truth — own posts only; ${inboundCount} inbound mentions excluded from metrics):\n${JSON.stringify(analytics)}\n\nTarget's own posts:\n${transcript}`,
-        },
-      ],
+      messages: buildReportMessages({ profile, ownPosts: own, analytics, inboundCount, includedReports, settings }),
     }),
   })
   const choice = resp.choices?.[0]
@@ -243,6 +300,8 @@ export async function synthesizeReport(
   }
   const narrative = parseReport(choice.message.content)
   let tokenCost = resp.usage?.total_tokens ?? 0
+  let promptTokens = resp.usage?.prompt_tokens ?? 0
+  let completionTokens = resp.usage?.completion_tokens ?? 0
 
   let changeNarrative: string | null = null
   if (computedDelta && prevSnapshot) {
@@ -262,6 +321,8 @@ export async function synthesizeReport(
       }),
     })
     tokenCost += changeResp.usage?.total_tokens ?? 0
+    promptTokens += changeResp.usage?.prompt_tokens ?? 0
+    completionTokens += changeResp.usage?.completion_tokens ?? 0
     const changeContent = changeResp.choices?.[0]?.message?.content
     if (changeContent) {
       const parsed = extractJson(changeContent) as { narrative?: string } | null
@@ -271,5 +332,5 @@ export async function synthesizeReport(
     }
   }
 
-  return { narrative, changeNarrative, tokenCost }
+  return { narrative, changeNarrative, tokenCost, promptTokens, completionTokens }
 }

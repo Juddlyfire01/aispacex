@@ -30,6 +30,122 @@ export function partitionPosts(profile: Profile, posts: Post[]): { own: Post[]; 
   return { own, inbound }
 }
 
+/** True when a gathered row is someone else's tweet that mentions the subject. */
+export function isInboundPost(profile: Profile, post: Post): boolean {
+  return Boolean(post.authorId && post.authorId !== profile.id)
+}
+
+/**
+ * Thread-routing @handles X prefixes at the start of reply / quote text. For
+ * reply chains this can be several contiguous mentions; bare quote tweets are
+ * often just "@author https://t.co/…" with no added commentary.
+ */
+export function threadPrefixMentions(post: Post): Post['mentions'] {
+  if ((post.kind !== 'reply' && post.kind !== 'quote') || !post.mentions.length) return []
+
+  const withSpan = post.mentions.filter(
+    (m): m is Post['mentions'][number] & { start: number; end: number } =>
+      m.start != null && m.end != null,
+  )
+
+  if (withSpan.length === post.mentions.length) {
+    const sorted = [...withSpan].sort((a, b) => a.start - b.start)
+    const prefix: Post['mentions'] = []
+    let cursor = 0
+    for (const m of sorted) {
+      if (prefix.length === 0) {
+        if (m.start !== 0) break
+      } else if (!/^\s*$/.test(post.text.slice(cursor, m.start))) {
+        break
+      }
+      prefix.push(m)
+      cursor = m.end
+    }
+    return prefix
+  }
+
+  return mentionsMatchingLeadingUsernames(post.mentions, leadingMentionUsernames(post.text))
+}
+
+/** @handles parsed from the leading run of @user tokens in reply text (legacy fallback). */
+export function leadingMentionUsernames(text: string): string[] {
+  const out: string[] = []
+  let i = 0
+  while (i < text.length) {
+    while (i < text.length && text[i] === ' ') i++
+    if (text[i] !== '@') break
+    const match = text.slice(i + 1).match(/^([A-Za-z0-9_]{1,15})(?=$|\s|[^\w])/)
+    if (!match) break
+    out.push(match[1].toLowerCase())
+    i += 1 + match[0].length
+  }
+  return out
+}
+
+function mentionKey(m: Post['mentions'][number]): string {
+  return m.id || m.username.toLowerCase()
+}
+
+function mentionsMatchingLeadingUsernames(
+  mentions: Post['mentions'],
+  leading: string[],
+): Post['mentions'] {
+  const counts = new Map<string, number>()
+  for (const u of leading) counts.set(u, (counts.get(u) ?? 0) + 1)
+  const prefix: Post['mentions'] = []
+  for (const m of mentions) {
+    const k = m.username.toLowerCase()
+    const n = counts.get(k) ?? 0
+    if (n > 0) {
+      counts.set(k, n - 1)
+      prefix.push(m)
+    } else {
+      break
+    }
+  }
+  return prefix
+}
+
+/**
+ * @mentions the author deliberately added. Excludes:
+ * - retweets (RT @author: attribution + echoed tweet mentions)
+ * - reply / quote thread prefixes (contiguous leading @handles)
+ */
+export function explicitOutboundMentions(post: Post): Post['mentions'] {
+  if (!post.mentions.length) return []
+  if (post.kind === 'retweet') return []
+  if (post.kind === 'reply' || post.kind === 'quote') {
+    const prefixKeys = new Set(threadPrefixMentions(post).map(mentionKey))
+    return post.mentions.filter((m) => !prefixKeys.has(mentionKey(m)))
+  }
+  return post.mentions
+}
+
+export function hasExplicitMentionOut(post: Post): boolean {
+  return explicitOutboundMentions(post).some((m) => m.username)
+}
+
+/** Feed filter keys — authored kinds plus mention direction. */
+export type FeedFilterKey = Post['kind'] | 'mention-in' | 'mention-out'
+
+/** All filter tags that apply to a post (a post can match several). */
+export function postFeedFilterKeys(profile: Profile | null, post: Post): FeedFilterKey[] {
+  if (profile && isInboundPost(profile, post)) return ['mention-in']
+  const keys: FeedFilterKey[] = [post.kind]
+  if (hasExplicitMentionOut(post)) keys.push('mention-out')
+  return keys
+}
+
+/** Union match: show the post if any of its tags are selected. */
+export function matchesFeedFilters(
+  profile: Profile | null,
+  post: Post,
+  selected: Set<FeedFilterKey>,
+): boolean {
+  if (selected.size === 0) return false
+  return postFeedFilterKeys(profile, post).some((k) => selected.has(k))
+}
+
 export interface ActivitySummary {
   /** Best "last active" proxy: mostRecentPostId snowflake, else newest own post. */
   lastActiveMs: number | null

@@ -153,6 +153,8 @@ export function SelfProfileView() {
 
   const profile = account?.profile ?? null
   const posts = account?.posts ?? []
+  const edges = account?.edges ?? []
+  const reportHistory = account?.reportHistory ?? []
   const bookmarks = account?.bookmarks ?? []
   const likes = account?.likes ?? []
 
@@ -231,6 +233,10 @@ export function SelfProfileView() {
           }
           activity={profile ? computeActivity(profile, posts) : null}
           synthesisSettings={account.synthesisSettings}
+          postCount={posts.length}
+          posts={posts}
+          edges={edges}
+          reportHistory={reportHistory}
           onSynthesisChange={(patch) => setSynthesisSettings(activeAccountId, patch)}
           footerAction={connected ? { label: 'Disconnect account', onClick: () => { void disconnectActiveAccount() } } : undefined}
         />

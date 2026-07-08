@@ -267,7 +267,7 @@ export const useXSelfStore = create<XSelfState>()(
     }),
     {
       name: 'x-self-profile',
-      version: 2,
+      version: 3,
       // Sensitive corpus (posts, bookmarks, likes, reports) is encrypted at rest
       // with a device-bound key. Legacy plaintext entries are read transparently
       // and re-written encrypted on the next persist. See encrypted-storage.ts.
@@ -319,6 +319,18 @@ export const useXSelfStore = create<XSelfState>()(
           delete state.refreshedAt
           delete state.synthesisSettings
           delete state.connected
+        }
+        // v2 → v3: backfill includedReportIds on each account's + the default
+        // synthesis settings so the report-context selector reads a defined array.
+        if (version < 3) {
+          for (const account of Object.values(state.accounts ?? {})) {
+            if (account.synthesisSettings && !Array.isArray(account.synthesisSettings.includedReportIds)) {
+              account.synthesisSettings.includedReportIds = []
+            }
+          }
+          if (state.defaultSynthesisSettings && !Array.isArray(state.defaultSynthesisSettings.includedReportIds)) {
+            state.defaultSynthesisSettings.includedReportIds = []
+          }
         }
         return state as XSelfState
       },

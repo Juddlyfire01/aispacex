@@ -94,6 +94,10 @@ interface XIntelState {
   /** Persisted all-time spend across all targets (survives target removal). */
   lifetimeTotal: number
   defaultSynthesisSettings: SynthesisSettings
+  /** Ephemeral: scroll/highlight this post in the Feed tab when set. Not persisted. */
+  feedFocusPostId: string | null
+  /** Bumps on every jump request so re-clicking the same post still scrolls. */
+  feedFocusNonce: number
 
   addTarget: (username: string) => void
   seedTarget: (profile: Profile) => void
@@ -113,6 +117,11 @@ interface XIntelState {
   appendReport: (username: string, snapshot: IntelReportSnapshot) => void
   deleteReport: (username: string, reportId: string) => void
   setActiveReport: (username: string, reportId: string) => void
+  /** Switch to Feed and scroll/highlight a post by id. */
+  jumpToFeedPost: (postId: string) => void
+  /** Same as jumpToFeedPost but for the self ("me") Profile → Feed sub-tab. */
+  jumpToSelfFeedPost: (postId: string) => void
+  clearFeedFocus: () => void
 }
 
 export function mergePosts(existing: Post[], incoming: Post[]): Post[] {
@@ -144,6 +153,8 @@ export const useXIntelStore = create<XIntelState>()(
       sessionCost: 0,
       lifetimeTotal: 0,
       defaultSynthesisSettings: DEFAULT_SYNTHESIS_SETTINGS,
+      feedFocusPostId: null,
+      feedFocusNonce: 0,
 
       addTarget: (username) => {
         const name = canonical(username)
@@ -332,10 +343,23 @@ export const useXIntelStore = create<XIntelState>()(
           return { reports: { ...s.reports, [key]: { ...report, activeReportId: reportId } } }
         })
       },
+
+      jumpToFeedPost: (postId) => set((s) => ({
+        feedFocusPostId: postId,
+        activeSubTab: 'feed',
+        feedFocusNonce: s.feedFocusNonce + 1,
+      })),
+      jumpToSelfFeedPost: (postId) => set((s) => ({
+        feedFocusPostId: postId,
+        activeSelfSubTab: 'feed',
+        activeTopTab: 'me',
+        feedFocusNonce: s.feedFocusNonce + 1,
+      })),
+      clearFeedFocus: () => set({ feedFocusPostId: null }),
     }),
     {
       name: 'x-intel-reports',
-      version: 4,
+      version: 5,
       // Target profiles/posts/reports are encrypted at rest with the device-bound
       // key. Legacy plaintext entries are read transparently and re-encrypted on
       // the next persist. See encrypted-storage.ts.
@@ -375,6 +399,20 @@ export const useXIntelStore = create<XIntelState>()(
         if (version < 4 && state.reports) {
           for (const report of Object.values(state.reports) as (IntelReport & { drafts?: unknown })[]) {
             delete report.drafts
+          }
+        }
+        // v4 -> v5: backfill includedReportIds on per-target + default synthesis
+        // settings so the report-context selector reads a defined array.
+        if (version < 5) {
+          if (state.reports) {
+            for (const report of Object.values(state.reports)) {
+              if (report.synthesisSettings && !Array.isArray(report.synthesisSettings.includedReportIds)) {
+                report.synthesisSettings.includedReportIds = []
+              }
+            }
+          }
+          if (state.defaultSynthesisSettings && !Array.isArray(state.defaultSynthesisSettings.includedReportIds)) {
+            state.defaultSynthesisSettings.includedReportIds = []
           }
         }
         return state as XIntelState
