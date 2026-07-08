@@ -1,48 +1,7 @@
-import { useState, type ComponentPropsWithoutRef } from 'react'
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { useState } from 'react'
 import type { ChatMessage, ContentPart } from '../../types/venice'
+import { MarkdownMessage } from './markdown-message'
 import { cn } from '../../lib/utils'
-
-// Allow http/https/mailto links and image data: URIs only. Strips javascript:,
-// vbscript:, file:, and any other smuggled protocols.
-const SAFE_URL_PROTOCOLS = /^(https?:|mailto:|#|\/|\.)/i
-function safeUrlTransform(url: string, key: string): string {
-  if (!url) return ''
-  // react-markdown's default already handles most protocol filtering; we layer
-  // an explicit allow-list on top because we render untrusted model output.
-  const cleaned = defaultUrlTransform(url)
-  if (!cleaned) return ''
-  if (key === 'src' && cleaned.startsWith('data:image/')) return cleaned
-  if (SAFE_URL_PROTOCOLS.test(cleaned)) return cleaned
-  return ''
-}
-
-function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'code'>) {
-  const match = /language-(\w+)/.exec(className || '')
-  const lang = match ? match[1] : ''
-  const codeStr = String(children).replace(/\n$/, '')
-  const [codeCopied, setCodeCopied] = useState(false)
-
-  if (!className && !String(children).includes('\n')) {
-    return <code className={className} {...props}>{children}</code>
-  }
-
-  return (
-    <div className="relative group/code">
-      {lang && (
-        <div className="absolute top-0 left-0 px-3 py-1.5 text-[13px] text-white/15 font-mono uppercase tracking-wider select-none">{lang}</div>
-      )}
-      <button
-        onClick={() => { navigator.clipboard.writeText(codeStr); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500) }}
-        className="absolute top-1.5 right-1.5 px-2 py-1 text-[13px] font-medium text-white/15 hover:text-white/40 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all opacity-0 group-hover/code:opacity-100"
-      >
-        {codeCopied ? 'Copied' : 'Copy'}
-      </button>
-      <code className={className} {...props}>{children}</code>
-    </div>
-  )
-}
 
 // Extract text and images from multimodal content
 function extractContent(content: string | ContentPart[]): { text: string; images: string[] } {
@@ -148,20 +107,7 @@ export function MessageBubble({ message, onCopy, onDelete, onRegenerate }: Messa
         )}
 
         {content ? (
-          <div className="prose-venice text-[15.5px] leading-relaxed text-white/85">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              urlTransform={safeUrlTransform}
-              components={{
-                code: CodeBlock,
-                a: ({ href, children, ...props }) => (
-                  <a {...props} href={href} target="_blank" rel="noopener noreferrer ugc">
-                    {children}
-                  </a>
-                ),
-              }}
-            >{content}</ReactMarkdown>
-          </div>
+          <MarkdownMessage content={content} className="text-[15.5px] leading-relaxed text-white/85" />
         ) : (
           <span className="inline-flex gap-1.5 py-1.5">
             <span className="w-1 h-1 rounded-full bg-white/25 animate-pulse-dot" />

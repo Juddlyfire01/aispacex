@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useCompose } from '../../hooks/use-compose'
 import type { TargetContext } from '../../lib/compose/compose-prompt'
+import { MarkdownMessage } from '../chat/markdown-message'
 
 interface ComposeChatProps {
   context: string
@@ -40,16 +41,21 @@ export function ComposeChat({ context, targetContext, corpus }: ComposeChatProps
         ) : (
           messages.map((m, i) =>
             typeof m.content === 'string' && m.content !== '' ? (
-              <div
-                key={i}
-                className={
-                  m.role === 'user'
-                    ? 'ml-auto max-w-[85%] bg-white/[0.06] rounded-lg px-3 py-2 text-[12.5px] text-white/85 whitespace-pre-wrap'
-                    : 'max-w-[92%] text-[12.5px] text-white/70 whitespace-pre-wrap leading-relaxed'
-                }
-              >
-                {m.content}
-              </div>
+              m.role === 'user' ? (
+                <div
+                  key={i}
+                  className="ml-auto max-w-[85%] bg-white/[0.06] rounded-lg px-3 py-2 text-[12.5px] text-white/85 whitespace-pre-wrap break-words"
+                >
+                  {m.content}
+                </div>
+              ) : (
+                <MarkdownMessage
+                  key={i}
+                  content={m.content}
+                  size="compact"
+                  className="max-w-[92%] text-[12.5px] text-white/70"
+                />
+              )
             ) : m.role === 'assistant' && isStreaming && i === messages.length - 1 ? (
               <div key={i} className="text-[12px] text-white/30">Thinking…</div>
             ) : null,

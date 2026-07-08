@@ -26,7 +26,7 @@ export function SignInWithXButton({
         className,
       )}
     >
-      connect
+      Connect
     </button>
   )
 }

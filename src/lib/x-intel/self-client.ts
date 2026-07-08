@@ -18,6 +18,7 @@ import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 
 export const X_OAUTH_INTEL_TAB_KEY = 'x_oauth_intel_top_tab'
+export const X_OAUTH_LOGIN_PATH = '/api/x/oauth/login'
 
 const PROXY_BASE = '/api/x/proxy'
 
@@ -56,7 +57,7 @@ export function beginSelfLogin(): void {
     sessionStorage.setItem(X_OAUTH_INTEL_TAB_KEY, useXIntelStore.getState().activeTopTab)
   } catch { /* private mode / disabled */ }
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    window.location.href = '/api/x/oauth/login'
+    window.location.href = X_OAUTH_LOGIN_PATH
   }))
 }
 

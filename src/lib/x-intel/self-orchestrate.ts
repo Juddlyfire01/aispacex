@@ -146,7 +146,7 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
     connected = false
   }
 
-  const savedIntelTab = oauthReturn ? readOAuthIntelTopTab() : null
+  const savedIntelTab = inProgress ? readOAuthIntelTopTab() : null
 
   // The round-trip is over — clear the bridge and drop the connecting flag so the
   // real connected/disconnected state can render. Only clear `connecting` if THIS
@@ -170,6 +170,8 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
     refreshDefaultTarget()
   } else if (oauthReturn && !connected) {
     toast.error('X connect failed', 'Session could not be established after redirect.')
+  } else if (inProgress && !oauthReturn) {
+    if (savedIntelTab) useXIntelStore.getState().setActiveTopTab(savedIntelTab)
   }
 
   return { connected, oauthReturn, oauthError }

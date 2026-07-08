@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownMessage } from '../chat/markdown-message'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { generateReport, runGather } from '../../lib/x-intel/orchestrate'
@@ -15,11 +14,7 @@ import { formatTokens, cn } from '../../lib/utils'
 function Prose({ children }: { children: string }) {
   const clean = children?.replace(/^\s*(?:markdown|md)\s*:\s*/i, '') ?? ''
   if (!clean) return null
-  return (
-    <div className="prose-venice text-[12.5px] text-white/70">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{clean}</ReactMarkdown>
-    </div>
-  )
+  return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-white/70" />
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {

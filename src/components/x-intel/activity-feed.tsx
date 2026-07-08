@@ -4,8 +4,34 @@ import { useXSelfStore } from '../../stores/x-self-store'
 import { refreshPosts } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
+import { linkify } from '../../lib/x-intel/linkify'
+import { EthAddressLink } from './eth-address-link'
+import { MentionLink } from './mention-link'
 import type { Post } from '../../lib/x-intel/types'
 import { cn, formatTokens } from '../../lib/utils'
+
+/** Post body with @mentions, #hashtags, URLs and ETH/ENS identities linked. */
+function PostText({ text }: { text: string }) {
+  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  return (
+    <p className="text-[12px] text-white/70 whitespace-pre-wrap break-words">
+      {linkify(text).map((tok, i) => {
+        switch (tok.type) {
+          case 'url':
+            return <a key={i} href={tok.href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+          case 'mention':
+            return <MentionLink key={i} username={tok.username} label={tok.value} />
+          case 'hashtag':
+            return <a key={i} href={`https://x.com/hashtag/${encodeURIComponent(tok.tag)}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+          case 'eth':
+            return <EthAddressLink key={i} identity={tok.value} />
+          default:
+            return <span key={i}>{tok.value}</span>
+        }
+      })}
+    </p>
+  )
+}
 
 type KindFilter = 'all' | Post['kind']
 const FILTERS: KindFilter[] = ['all', 'original', 'reply', 'quote', 'retweet']
@@ -103,7 +129,7 @@ export function ActivityFeedInner({
                 )}>{p.kind}</span>
                 <span>{new Date(p.createdAt).toLocaleString()}</span>
               </div>
-              <p className="text-[12px] text-white/70 whitespace-pre-wrap break-words">{p.text}</p>
+              <PostText text={p.text} />
               <div className="flex gap-3 mt-2 text-[10px] text-white/20 font-mono">
                 <span>{formatTokens(p.metrics.impressions)} views</span>
                 <span>{formatTokens(p.metrics.likes)} likes</span>

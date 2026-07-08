@@ -5,6 +5,8 @@ import { xLogoHrefForTheme } from '../../lib/appearance'
 import { gatherSelf, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { linkify } from '../../lib/x-intel/linkify'
+import { EthAddressLink } from './eth-address-link'
+import { MentionLink } from './mention-link'
 import { formatTokens } from '../../lib/utils'
 import { computeActivity } from '../../lib/x-intel/activity'
 import { ProfileOverview } from './profile-overview'
@@ -26,7 +28,10 @@ function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; exp
           return <a key={i} href={href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
         }
         if (tok.type === 'mention') {
-          return <a key={i} href={`https://x.com/${tok.username}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
+          return <MentionLink key={i} username={tok.username} label={tok.value} />
+        }
+        if (tok.type === 'eth') {
+          return <EthAddressLink key={i} identity={tok.value} />
         }
         return <span key={i}>{tok.value}</span>
       })}

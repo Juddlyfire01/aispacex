@@ -339,7 +339,8 @@ button:focus, a:focus, textarea:focus, input:focus, select:focus { outline: none
 }
 
 /* Font size — scales explicit pixel text utilities inside the shell */
-.ui-scale-shell .prose-venice { font-size: calc(15.5px * var(--font-scale)); }
+.ui-scale-shell .prose-venice:not(.prose-venice-compact) { font-size: calc(15.5px * var(--font-scale)); }
+.ui-scale-shell .prose-venice-compact { font-size: calc(12.5px * var(--font-scale)); }
 .ui-scale-shell .text-\[9px\] { font-size: calc(9px * var(--font-scale)); }
 .ui-scale-shell .text-\[10px\] { font-size: calc(10px * var(--font-scale)); }
 .ui-scale-shell .text-\[10\.5px\] { font-size: calc(10.5px * var(--font-scale)); }

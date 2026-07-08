@@ -3,6 +3,8 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { refreshProfile, runGather } from '../../lib/x-intel/orchestrate'
 import { linkify } from '../../lib/x-intel/linkify'
+import { EthAddressLink } from './eth-address-link'
+import { MentionLink } from './mention-link'
 import { ensureProfileShape, profileNeedsLinkRefresh } from '../../lib/x-intel/normalize'
 import { computeActivity } from '../../lib/x-intel/activity'
 import type { Profile } from '../../lib/x-intel/types'
@@ -11,24 +13,10 @@ import { canGatherTarget, isDemoTarget } from '../../lib/x-intel/fields'
 
 /**
  * Render a bio with clickable URLs, @mentions and #hashtags. URLs and hashtags
- * open externally; a mention is a strong related-account signal, so clicking it
- * offers to add that account as a new intel target (mirrors the network graph).
+ * open externally; a mention opens a popover to add the account as an intel
+ * target or open its X profile (shared <MentionLink> UX).
  */
 function BioText({ text, bioUrls }: { text: string; bioUrls?: { url: string; expanded: string; display: string }[] }) {
-  const addTarget = useXIntelStore((s) => s.addTarget)
-  const connected = useXSelfStore((s) => s.connected)
-
-  const addAsTarget = (username: string) => {
-    if (!connected) {
-      alert('Connect your X account (header → Connect X) to add targets from a bio mention.')
-      return
-    }
-    if (confirm(`Add @${username} as a new intel target?`)) {
-      addTarget(username)
-      runGather(username).catch(() => { /* surfaced in target rail */ })
-    }
-  }
-
   const linkCls = 'text-[var(--color-accent)] hover:underline'
   return (
     <p className="text-[12px] text-white/50 mt-1.5 break-words">
@@ -41,17 +29,15 @@ function BioText({ text, bioUrls }: { text: string; bioUrls?: { url: string; exp
               </a>
             )
           case 'mention':
-            return (
-              <button key={i} type="button" onClick={() => addAsTarget(tok.username)} className={linkCls} title={`Add @${tok.username} as a target`}>
-                {tok.value}
-              </button>
-            )
+            return <MentionLink key={i} username={tok.username} label={tok.value} />
           case 'hashtag':
             return (
               <a key={i} href={`https://x.com/hashtag/${encodeURIComponent(tok.tag)}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
                 {tok.value}
               </a>
             )
+          case 'eth':
+            return <EthAddressLink key={i} identity={tok.value} />
           default:
             return <span key={i}>{tok.value}</span>
         }

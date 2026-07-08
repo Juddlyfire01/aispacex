@@ -77,4 +77,28 @@ describe('linkify', () => {
     const t = linkify('@a #b https://x.co done')
     expect(t.map((x) => x.type)).toEqual(['mention', 'text', 'hashtag', 'text', 'url', 'text'])
   })
+
+  it('links an ENS name to Etherscan', () => {
+    const t = linkify('gm willywonka.eth ser')
+    expect(t[1]).toEqual({
+      type: 'eth',
+      value: 'willywonka.eth',
+      href: 'https://etherscan.io/address/willywonka.eth',
+    })
+  })
+
+  it('links a raw Ethereum address to Etherscan', () => {
+    const addr = '0x1234567890abcdef1234567890abcdef12345678'
+    const t = linkify(`send to ${addr} now`)
+    expect(t[1]).toEqual({
+      type: 'eth',
+      value: addr,
+      href: `https://etherscan.io/address/${addr}`,
+    })
+  })
+
+  it('does not treat an ordinary domain as an ENS name', () => {
+    const t = linkify('visit venice.ai today')
+    expect(t.every((x) => x.type !== 'eth')).toBe(true)
+  })
 })

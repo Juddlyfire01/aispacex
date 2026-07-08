@@ -8,11 +8,13 @@
  * URL labels follow X display requirements: use `display_url` from API
  * entities when available; otherwise strip protocol/www for plain URLs.
  */
+import { etherscanAddressUrl } from './etherscan'
 export type LinkToken =
   | { type: 'text'; value: string }
   | { type: 'url'; value: string; href: string }
   | { type: 'mention'; value: string; username: string }
   | { type: 'hashtag'; value: string; tag: string }
+  | { type: 'eth'; value: string; href: string }
 
 export type BioUrlEntity = {
   url: string
@@ -22,11 +24,25 @@ export type BioUrlEntity = {
   end?: number
 }
 
-// @handles (1–15 word chars, X's limit), #hashtags — used inside plain segments.
-const INLINE_RE = /(?:^|(?<=[\s(]))@(\w{1,15})\b|(?:^|(?<=[\s(]))#(\w+)/g
+// Ethereum identity fragments shared with the Etherscan link builder. Kept
+// inline (rather than imported) so the alternation indices stay obvious, but
+// intentionally mirrors src/lib/x-intel/etherscan.ts.
+const ETH_ADDRESS = '0x[a-fA-F0-9]{40}'
+const ENS_NAME = '(?:[a-zA-Z0-9-]+\\.)+eth'
 
-// Full-string scan including bare URLs (fallback when entity indices are absent).
-const TOKEN_RE = /(https?:\/\/[^\s]+)|(?:^|(?<=[\s(]))@(\w{1,15})\b|(?:^|(?<=[\s(]))#(\w+)/g
+// @handles (1–15 word chars, X's limit), #hashtags, ETH addresses, .eth names
+// — used inside plain segments. Groups: 1=mention 2=hashtag 3=address 4=ens.
+const INLINE_RE = new RegExp(
+  `(?:^|(?<=[\\s(]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b`,
+  'g',
+)
+
+// Full-string scan including bare URLs (fallback when entity indices are
+// absent). Groups: 1=url 2=mention 3=hashtag 4=address 5=ens.
+const TOKEN_RE = new RegExp(
+  `(https?:\\/\\/[^\\s]+)|(?:^|(?<=[\\s(]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b`,
+  'g',
+)
 
 /** Fallback label when no X entity metadata is available. */
 export function condenseUrlLabel(url: string): string {
@@ -54,6 +70,8 @@ function linkifyPlainSegment(segment: string, bioUrls: BioUrlEntity[]): LinkToke
     if (idx > lastIndex) tokens.push({ type: 'text', value: segment.slice(lastIndex, idx) })
     if (m[1]) tokens.push({ type: 'mention', value: `@${m[1]}`, username: m[1] })
     else if (m[2]) tokens.push({ type: 'hashtag', value: `#${m[2]}`, tag: m[2] })
+    else if (m[3]) tokens.push({ type: 'eth', value: m[3], href: etherscanAddressUrl(m[3]) })
+    else if (m[4]) tokens.push({ type: 'eth', value: m[4], href: etherscanAddressUrl(m[4]) })
     lastIndex = idx + m[0].length
   }
   if (lastIndex < segment.length) {
@@ -87,6 +105,10 @@ function linkifyRegex(text: string, bioUrls: BioUrlEntity[]): LinkToken[] {
       tokens.push({ type: 'mention', value: `@${m[2]}`, username: m[2] })
     } else if (m[3]) {
       tokens.push({ type: 'hashtag', value: `#${m[3]}`, tag: m[3] })
+    } else if (m[4]) {
+      tokens.push({ type: 'eth', value: m[4], href: etherscanAddressUrl(m[4]) })
+    } else if (m[5]) {
+      tokens.push({ type: 'eth', value: m[5], href: etherscanAddressUrl(m[5]) })
     }
     lastIndex = idx + m[0].length
   }
