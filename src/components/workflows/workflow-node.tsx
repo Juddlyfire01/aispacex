@@ -4,6 +4,7 @@ import type { VeniceNodeData, VeniceNodeType } from '../../stores/workflow-store
 import { useWorkflowStore } from '../../stores/workflow-store'
 import { useModels } from '../../hooks/use-models'
 import { Select } from '../ui/select'
+import { CheckboxField } from '../ui/checkbox'
 import { cn } from '../../lib/utils'
 
 function InputIcon() {
@@ -255,15 +256,14 @@ function WorkflowNodeComponent({ id, data }: NodeProps<WorkflowNode>) {
                     placeholder="Style preset..."
                     className={cn(inputCls, 'flex-1')}
                   />
-                  <label className="nodrag flex items-center gap-1 text-[12px] text-white/30 cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={data.hideWatermark ?? true}
-                      onChange={(e) => updateNode({ hideWatermark: e.target.checked })}
-                      className="nodrag w-3 h-3 accent-white/50"
-                    />
-                    No WM
-                  </label>
+                  <CheckboxField
+                    label="No WM"
+                    checked={data.hideWatermark ?? true}
+                    onChange={(hideWatermark) => updateNode({ hideWatermark })}
+                    className="nodrag text-[12px] text-white/30 shrink-0"
+                    inputClassName="nodrag"
+                    boxClassName="nodrag"
+                  />
                 </div>
               </>
             )}
@@ -332,15 +332,14 @@ function WorkflowNodeComponent({ id, data }: NodeProps<WorkflowNode>) {
                       className={selectCls + ' w-full'}
                     />
                   </div>
-                  <label className="nodrag flex items-center gap-1 text-[12px] text-white/30 cursor-pointer pb-0.5">
-                    <input
-                      type="checkbox"
-                      checked={data.instrumental ?? false}
-                      onChange={(e) => updateNode({ instrumental: e.target.checked })}
-                      className="nodrag w-3 h-3 accent-white/50"
-                    />
-                    Instrumental
-                  </label>
+                  <CheckboxField
+                    label="Instrumental"
+                    checked={data.instrumental ?? false}
+                    onChange={(instrumental) => updateNode({ instrumental })}
+                    className="nodrag text-[12px] text-white/30 pb-0.5"
+                    inputClassName="nodrag"
+                    boxClassName="nodrag"
+                  />
                 </div>
               </>
             )}

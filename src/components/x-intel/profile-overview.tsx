@@ -2,6 +2,8 @@ import { useMemo, useState, useEffect, type ReactNode } from 'react'
 import { useModels } from '../../hooks/use-models'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
+import { VerifiedBadge } from './verified-badge'
+import { Checkbox } from '../ui/checkbox'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from '../layout/rail-footer'
 import { formatTokens, cn } from '../../lib/utils'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
@@ -175,7 +177,7 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
             const checked = selectedSet.has(r.id)
             return (
               <label key={r.id} className="flex items-center gap-2 cursor-pointer text-[10px] text-white/50 hover:text-white/70">
-                <input type="checkbox" checked={checked} onChange={() => toggle(r.id)} className="accent-[var(--color-accent)]" />
+                <Checkbox checked={checked} onChange={() => toggle(r.id)} />
                 <span className="font-mono whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
                 <span className="text-white/25 truncate">
                   {r.meta.postCount}p{i === reportHistory.length - 1 ? ' · baseline' : ''}
@@ -293,17 +295,7 @@ export function ProfileOverview({
           <div className="flex items-center gap-1.5">
             <h2 className="text-[15px] font-semibold text-white/90 truncate">{profile.displayName}</h2>
             {profile.verified.type && (
-              <span
-                title={`Verified (${profile.verified.type})`}
-                className={cn(
-                  'text-[9px] px-1.5 py-px rounded-full font-medium',
-                  profile.verified.type === 'blue' && 'bg-blue-400/15 text-blue-300/70',
-                  profile.verified.type === 'business' && 'bg-yellow-400/15 text-yellow-300/70',
-                  profile.verified.type === 'government' && 'bg-gray-400/15 text-gray-300/70',
-                )}
-              >
-                {profile.verified.type}
-              </span>
+              <VerifiedBadge type={profile.verified.type} />
             )}
             {showYouBadge && (
               <span className="text-[9px] px-1.5 py-px rounded-full font-medium bg-[var(--color-accent)]/15 text-[var(--color-accent)]/80">you</span>

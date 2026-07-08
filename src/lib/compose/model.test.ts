@@ -25,7 +25,7 @@ describe('pickComposeModel', () => {
       model('grok-4-20', { xSearch: true, created: 1 }),
       model('grok-4-20-multi-agent', { xSearch: true, created: 3 }),
     ]
-    expect(pickComposeModel(models)).toBe('grok-4-20')
+    expect(pickComposeModel(models)).toBe('grok-4-3')
   })
 
   it('prefers base grok over same-version variants', () => {

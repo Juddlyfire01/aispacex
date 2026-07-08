@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useStyles } from '../../hooks/use-styles'
@@ -43,7 +43,8 @@ const DEFAULT_SIZE_MAP = [
 export function ImageView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.image)
-  const { data: models, defaultModelId } = useModels('image')
+  const setSelectedModel = useSettingsStore((s) => s.setSelectedModel)
+  const { data: models, defaultModelId, isLoading: modelsLoading } = useModels('image')
   const { data: styles } = useStyles()
   const model = selectedModel || defaultModelId
 
@@ -70,6 +71,18 @@ export function ImageView() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
+
+  useEffect(() => {
+    setAspectRatio('')
+    setResolution('')
+    setSizeIdx('2')
+    setSteps(constraints?.steps?.default || 20)
+  }, [model, constraints?.steps?.default])
+
+  const modelOptions = useMemo(
+    () => models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [],
+    [models],
+  )
 
   // Build aspect ratio options from model constraints
   const aspectOptions = useMemo(() => {
@@ -141,6 +154,17 @@ export function ImageView() {
 
   const controls = (
     <>
+      <div>
+        <Label>Model</Label>
+        <Select
+          value={model}
+          onChange={(v) => setSelectedModel('image', v)}
+          options={modelOptions}
+          searchable
+          placeholder={modelsLoading ? 'Loading...' : 'Select model...'}
+        />
+      </div>
+
       <div>
         <Label hint={`${prompt.trim().length}/${MIN_PROMPT_LENGTH}+ chars`}>Prompt</Label>
         <TextArea value={prompt} onChange={setPrompt} placeholder="A serene mountain landscape at golden hour…" />

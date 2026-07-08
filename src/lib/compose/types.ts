@@ -60,13 +60,13 @@ export function emptySegment(): PostSegment {
   return { id: newId(), text: '', media: [] }
 }
 
-export function emptyDraft(target: PostTarget = { kind: 'original' }): PostDraft {
+export function emptyDraft(target: PostTarget = { kind: 'original' }, opts?: { longform?: boolean }): PostDraft {
   const now = new Date().toISOString()
   return {
     id: newId(),
     segments: [emptySegment()],
     target,
-    longform: false,
+    longform: opts?.longform ?? true,
     madeWithAi: false,
     createdAt: now,
     updatedAt: now,

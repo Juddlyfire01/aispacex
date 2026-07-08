@@ -4,9 +4,11 @@ import { useXSelfStore } from '../../stores/x-self-store'
 import { classifyPostability } from '../../lib/compose/postability'
 import { serializeDraftForCopy } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
+import { effectiveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
 import { TWEET_LIMIT, LONGFORM_LIMIT } from '../../lib/compose/types'
 import { postDraft, XPostError } from '../../lib/compose/x-post-client'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
+import { useComposeVerified } from '../../hooks/use-compose-verified'
 
 // Native media posting is not wired yet, so drafts with media route to copy.
 const CAPS = { mediaNativeSupported: false }
@@ -21,6 +23,8 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
   const session = useComposeStore((s) => s.sessions[context])
   const resetDraft = useComposeStore((s) => s.resetDraft)
   const connected = useXSelfStore((s) => s.connected)
+  const { isVerified } = useComposeVerified()
+  const longformPreference = useComposeStore((s) => s.longformPreference)
   const [posting, setPosting] = useState(false)
   const [postedUrl, setPostedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +34,8 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
 
   const { draft } = session
   const postability = classifyPostability(draft, CAPS)
-  const limit = draft.longform ? LONGFORM_LIMIT : TWEET_LIMIT
+  const longform = effectiveLongform(draft.longform, isVerified)
+  const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
   const overLimit = draft.segments.some((s) => tweetLength(s.text) > limit)
   const empty = draft.segments.every((s) => s.text.trim() === '' && s.media.length === 0)
   const blocked = empty || overLimit
@@ -47,7 +52,7 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
     setPostedUrl(null)
     setNeedsReconnect(false)
     try {
-      const result = await postDraft(draft)
+      const result = await postDraft(prepareDraftForPost(draft, isVerified, longformPreference))
       setPostedUrl(result.url)
       resetDraft(context)
     } catch (e) {

@@ -59,6 +59,7 @@ export interface VeniceModel {
     capabilities?: ModelCapabilities
     traits?: ModelTrait[]
     offline?: boolean
+    betaModel?: boolean
     name?: string
     description?: string
     constraints?: VideoConstraints | ImageConstraints

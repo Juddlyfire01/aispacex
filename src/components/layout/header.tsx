@@ -48,7 +48,7 @@ const tabSubtitles: Record<string, string> = {
   settings: 'Preferences and appearance',
 }
 
-const noModelSelector = new Set(['video', 'workflows', 'playground', 'intel', 'signal', 'stats', 'news', 'settings'])
+const noModelSelector = new Set(['video', 'music', 'audio', 'image', 'workflows', 'playground', 'intel', 'signal', 'stats', 'news', 'settings'])
 
 interface Props {
   onOpenApiKey: () => void

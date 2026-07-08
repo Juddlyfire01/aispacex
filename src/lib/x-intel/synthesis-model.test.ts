@@ -18,11 +18,11 @@ function model(
 describe('pickSynthesisModel', () => {
   it('picks the highest-version standard grok', () => {
     const models = [
-      model('grok-4-3'),
+      model('grok-4-3', { traits: [] }),
       model('grok-4-20'),
       model('grok-4-20-multi-agent', { created: 99 }),
     ]
-    expect(pickSynthesisModel(models)).toBe('grok-4-20')
+    expect(pickSynthesisModel(models)).toBe('grok-4-3')
   })
 
   it('falls back to venice uncensored default trait', () => {
@@ -50,7 +50,7 @@ describe('pickSynthesisModel', () => {
 })
 
 describe('shouldUpgradeSynthesisModel', () => {
-  const models = [model('grok-4-20'), model(LEGACY_SYNTHESIS_DEFAULT)]
+  const models = [model('grok-4-3'), model(LEGACY_SYNTHESIS_DEFAULT)]
 
   it('upgrades legacy default', () => {
     expect(shouldUpgradeSynthesisModel(LEGACY_SYNTHESIS_DEFAULT, models)).toBe(true)
@@ -61,6 +61,6 @@ describe('shouldUpgradeSynthesisModel', () => {
   })
 
   it('keeps valid user selections', () => {
-    expect(shouldUpgradeSynthesisModel('grok-4-20', models)).toBe(false)
+    expect(shouldUpgradeSynthesisModel('grok-4-3', models)).toBe(false)
   })
 })

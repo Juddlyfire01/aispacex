@@ -4,6 +4,8 @@ import { parseSSEStream } from '../lib/stream'
 import { useComposeStore } from '../stores/compose-store'
 import { buildComposeSystem, type TargetContext } from '../lib/compose/compose-prompt'
 import { parseDraftBlock } from '../lib/compose/draft-block'
+import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
+import { getActiveAccountVerified } from './use-compose-verified'
 import type { ChatCompletionRequest, ChatMessage } from '../types/venice'
 
 // Streaming compose chat. Mirrors use-chat's abort/stream pattern, but on stream
@@ -75,7 +77,11 @@ export function useCompose() {
         if (last?.role === 'assistant' && typeof last.content === 'string') {
           const { draft, visibleText } = parseDraftBlock(last.content)
           if (draft) {
-            applyDraftPatch(context, draft)
+            const isVerified = getActiveAccountVerified()
+            const pref = useComposeStore.getState().longformPreference
+            const withPref = applyLongformPreference(draft, pref)
+            const gated = syncDraftForVerification(withPref, isVerified, pref)
+            applyDraftPatch(context, gated ? { ...withPref, ...gated } : withPref)
             setLastAssistantContent(context, visibleText || 'Draft updated.')
           }
         }

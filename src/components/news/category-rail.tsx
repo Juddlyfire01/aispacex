@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { NEWS_CATEGORIES, NEWS_FEEDS } from '../../lib/news/feeds'
 import { useNewsStore, type NewsCategoryFilter } from '../../stores/news-store'
+import { Checkbox } from '../ui/checkbox'
 
 function BookmarkIcon() {
   return (
@@ -77,12 +78,7 @@ export function CategoryRail({ counts, bookmarkCount }: {
                   key={feed.id}
                   className="flex items-center gap-2 px-2.5 py-1 rounded-md text-[12px] text-[var(--color-text-secondary)] hover:bg-white/[0.03] cursor-pointer"
                 >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggleFeed(feed.id)}
-                    className="accent-[var(--color-accent)]"
-                  />
+                  <Checkbox checked={on} onChange={() => toggleFeed(feed.id)} />
                   <span className="flex-1 min-w-0 truncate">{feed.name}</span>
                   <span className="text-[9px] uppercase tracking-[0.05em] text-[var(--color-text-tertiary)]">{feed.category}</span>
                 </label>

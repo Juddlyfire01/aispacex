@@ -54,7 +54,8 @@ const FORMATS = ['mp3', 'opus', 'aac', 'flac', 'wav'] as const
 export function AudioView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.audio)
-  const { data: models, defaultModelId } = useModels('tts')
+  const setSelectedModel = useSettingsStore((s) => s.setSelectedModel)
+  const { data: models, defaultModelId, isLoading: modelsLoading } = useModels('tts')
   const model = selectedModel || defaultModelId
 
   const [tab, setTab] = useState<'tts' | 'transcribe'>('tts')
@@ -89,6 +90,11 @@ export function AudioView() {
 
   const formatOptions = FORMATS.map((f) => ({ value: f, label: f.toUpperCase() }))
 
+  const modelOptions = useMemo(
+    () => models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [],
+    [models],
+  )
+
   const handleTTS = () => {
     if (!text.trim()) return
     tts.mutate(
@@ -110,6 +116,16 @@ export function AudioView() {
 
       {tab === 'tts' ? (
         <>
+          <div>
+            <Label>Model</Label>
+            <Select
+              value={model}
+              onChange={(v) => setSelectedModel('audio', v)}
+              options={modelOptions}
+              searchable
+              placeholder={modelsLoading ? 'Loading...' : 'Select model...'}
+            />
+          </div>
           <div>
             <Label hint={`${text.length}/4096`}>Text</Label>
             <TextArea value={text} onChange={setText} placeholder="Enter text to convert to speech…" rows={5} />

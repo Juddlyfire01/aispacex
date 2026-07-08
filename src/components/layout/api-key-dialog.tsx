@@ -4,6 +4,7 @@ import { AppLogo } from '../ui/logo'
 import { toast } from '../../stores/toast-store'
 import { validateVeniceKey } from '../../lib/validate-venice-key'
 import { Modal, modalInputClass, modalGhostBtnClass, modalPrimaryBtnClass } from '../ui/modal'
+import { CheckboxField } from '../ui/checkbox'
 
 const MIN_PASSPHRASE = 8
 
@@ -122,15 +123,13 @@ export function ApiKeyDialog({ open, onClose }: { open: boolean; onClose: () => 
             .
           </p>
 
-          <label className="flex items-center gap-2 mt-4 text-[14px] text-[var(--color-text-secondary)] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="accent-[var(--color-accent)]"
-            />
-            Remember across sessions (encrypted with passphrase)
-          </label>
+          <CheckboxField
+            label="Remember across sessions (encrypted with passphrase)"
+            checked={remember}
+            onChange={setRemember}
+            size="md"
+            className="mt-4 text-[14px] text-[var(--color-text-secondary)] gap-2"
+          />
 
           {remember && (
             <div className="mt-2">

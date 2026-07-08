@@ -1,6 +1,14 @@
+import { useEffect } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { containsUrl } from '../../lib/compose/tweet-length'
+import {
+  effectiveLongform,
+  filterReplySettingOptions,
+  syncDraftForVerification,
+} from '../../lib/compose/verified-features'
+import { useComposeVerified } from '../../hooks/use-compose-verified'
 import type { ReplySettings } from '../../lib/compose/types'
+import { CheckboxField } from '../ui/checkbox'
 import { SegmentEditor } from './segment-editor'
 import { TargetPicker } from './target-picker'
 
@@ -8,19 +16,22 @@ interface PostComposerProps {
   context: string
 }
 
-const REPLY_SETTINGS: { value: ReplySettings; label: string }[] = [
-  { value: 'everyone', label: 'Everyone can reply' },
-  { value: 'following', label: 'Accounts you follow' },
-  { value: 'mentionedUsers', label: 'Only mentioned' },
-  { value: 'subscribers', label: 'Subscribers' },
-  { value: 'verified', label: 'Verified accounts' },
-]
-
 export function PostComposer({ context }: PostComposerProps) {
   const session = useComposeStore((s) => s.sessions[context])
   const addSegment = useComposeStore((s) => s.addSegment)
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
+  const setLongformPreference = useComposeStore((s) => s.setLongformPreference)
+  const longformPreference = useComposeStore((s) => s.longformPreference)
   const resetDraft = useComposeStore((s) => s.resetDraft)
+  const { connected, isVerified } = useComposeVerified()
+
+  useEffect(() => {
+    const current = useComposeStore.getState().sessions[context]
+    if (!current) return
+    const pref = useComposeStore.getState().longformPreference
+    const patch = syncDraftForVerification(current.draft, isVerified, pref)
+    if (patch) applyDraftPatch(context, patch)
+  }, [isVerified, longformPreference, context, applyDraftPatch])
 
   if (!session) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">Start composing</div>
@@ -28,6 +39,8 @@ export function PostComposer({ context }: PostComposerProps) {
 
   const { draft } = session
   const hasLink = draft.segments.some((seg) => containsUrl(seg.text))
+  const longform = effectiveLongform(draft.longform, isVerified)
+  const replyOptions = filterReplySettingOptions(isVerified)
 
   return (
     <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
@@ -48,7 +61,7 @@ export function PostComposer({ context }: PostComposerProps) {
             segment={seg}
             index={i}
             total={draft.segments.length}
-            longform={draft.longform}
+            longform={longform}
           />
         ))}
       </div>
@@ -67,24 +80,29 @@ export function PostComposer({ context }: PostComposerProps) {
       )}
 
       <div className="pt-2 border-t border-white/[0.05] space-y-2">
-        <label className="flex items-center gap-2 text-[11px] text-white/50 cursor-pointer">
-          <input
-            type="checkbox"
+        {isVerified ? (
+          <CheckboxField
+            label="Long-form (up to 25k chars)"
             checked={draft.longform}
-            onChange={(e) => applyDraftPatch(context, { longform: e.target.checked })}
-            className="accent-white"
+            onChange={(longform) => {
+              setLongformPreference(longform)
+              applyDraftPatch(context, { longform })
+            }}
+            className="text-[11px] text-white/50 gap-2"
           />
-          Long-form (up to 25k chars — renders for Premium accounts)
-        </label>
-        <label className="flex items-center gap-2 text-[11px] text-white/50 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={draft.madeWithAi}
-            onChange={(e) => applyDraftPatch(context, { madeWithAi: e.target.checked })}
-            className="accent-white"
-          />
-          Label as AI-generated (made_with_ai)
-        </label>
+        ) : (
+          <p className="text-[10px] text-white/30 leading-snug">
+            {!connected
+              ? 'Connect your X account to post. Verified accounts unlock long-form posts and verified-only reply settings.'
+              : 'Long-form posts and verified-only reply settings require a verified X account.'}
+          </p>
+        )}
+        <CheckboxField
+          label="Label as AI-generated (made_with_ai)"
+          checked={draft.madeWithAi}
+          onChange={(madeWithAi) => applyDraftPatch(context, { madeWithAi })}
+          className="text-[11px] text-white/50 gap-2"
+        />
         <label className="block text-[11px] text-white/40">
           Who can reply
           <select
@@ -92,7 +110,7 @@ export function PostComposer({ context }: PostComposerProps) {
             onChange={(e) => applyDraftPatch(context, { replySettings: e.target.value as ReplySettings })}
             className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none"
           >
-            {REPLY_SETTINGS.map((r) => (
+            {replyOptions.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
 import { useMusic } from '../../hooks/use-music'
+import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, ErrorText, PillGroup } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { Spinner } from '../ui/spinner'
@@ -18,7 +19,8 @@ function clamp(value: number, min: number, max: number) {
 export function MusicView() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.music)
-  const { data: models, defaultModelId } = useModels('music')
+  const setSelectedModel = useSettingsStore((s) => s.setSelectedModel)
+  const { data: models, defaultModelId, isLoading: modelsLoading } = useModels('music')
   const model = selectedModel || defaultModelId
   const modelObj = models?.find((m) => m.id === model)
   const caps = getMusicCapabilities(modelObj)
@@ -86,8 +88,24 @@ export function MusicView() {
 
   const durationStep = caps.maxDuration > 60 ? 5 : 1
 
+  const modelOptions = useMemo(
+    () => models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [],
+    [models],
+  )
+
   const controls = (
     <>
+      <div>
+        <Label>Model</Label>
+        <Select
+          value={model}
+          onChange={(v) => setSelectedModel('music', v)}
+          options={modelOptions}
+          searchable
+          placeholder={modelsLoading ? 'Loading...' : 'Select model...'}
+        />
+      </div>
+
       <div>
         <Label hint={caps.promptCharacterLimit ? `${promptLen}/${caps.promptCharacterLimit}` : `${promptLen}/${minPromptLength}+ chars`}>Prompt</Label>
         <TextArea value={prompt} onChange={setPrompt} placeholder="An upbeat electronic track with a driving bassline and ethereal synths…" rows={4} maxLength={caps.promptCharacterLimit} />

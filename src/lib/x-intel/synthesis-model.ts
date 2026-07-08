@@ -1,25 +1,12 @@
 import type { VeniceModel } from '../../types/venice'
 import { pickLatestGrokModel } from '../venice-grok-utils'
+import { pickNewestModel } from '../model-version-utils'
 
 /** Prior hard-coded synthesis default — used to auto-upgrade on model catalog load. */
 export const LEGACY_SYNTHESIS_DEFAULT = 'venice-uncensored-1-2'
 
 function isVeniceUncensored(id: string): boolean {
   return id.toLowerCase().includes('venice-uncensored')
-}
-
-function uncensoredVersionKey(id: string): [number, number] {
-  const m = id.match(/venice-uncensored-(\d+)-(\d+)/i)
-  if (!m) return [0, 0]
-  return [Number(m[1]), Number(m[2])]
-}
-
-function compareUncensoredDesc(a: VeniceModel, b: VeniceModel): number {
-  const [aMaj, aMin] = uncensoredVersionKey(a.id)
-  const [bMaj, bMin] = uncensoredVersionKey(b.id)
-  if (bMaj !== aMaj) return bMaj - aMaj
-  if (bMin !== aMin) return bMin - aMin
-  return b.id.localeCompare(a.id)
 }
 
 function pickVeniceUncensoredDefault(models: VeniceModel[]): string | undefined {
@@ -29,8 +16,7 @@ function pickVeniceUncensoredDefault(models: VeniceModel[]): string | undefined 
   const traitDefault = uncensored.find((m) => m.model_spec?.traits?.includes('default'))
   if (traitDefault) return traitDefault.id
 
-  const sorted = [...uncensored].sort(compareUncensoredDesc)
-  return sorted[0]?.id
+  return pickNewestModel(uncensored)?.id
 }
 
 /**

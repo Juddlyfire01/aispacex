@@ -28,6 +28,8 @@ interface ComposeState {
   model: string
   xSearch: XSearchMode
   isStreaming: boolean
+  /** Persisted long-form default for verified accounts (user can opt out). */
+  longformPreference: boolean
 
   ensureSession: (context: string, target?: PostTarget) => void
   setActiveContext: (context: string) => void
@@ -50,6 +52,7 @@ interface ComposeState {
   setModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
   setStreaming: (streaming: boolean) => void
+  setLongformPreference: (enabled: boolean) => void
 }
 
 function touch(draft: PostDraft): PostDraft {
@@ -82,6 +85,7 @@ export const useComposeStore = create<ComposeState>()(
       model: '',
       xSearch: 'auto',
       isStreaming: false,
+      longformPreference: true,
 
       ensureSession: (context, target) =>
         set((s) => {
@@ -89,7 +93,10 @@ export const useComposeStore = create<ComposeState>()(
           return {
             sessions: {
               ...s.sessions,
-              [context]: { messages: [], draft: emptyDraft(target ?? { kind: 'original' }) },
+              [context]: {
+                messages: [],
+                draft: emptyDraft(target ?? { kind: 'original' }, { longform: s.longformPreference }),
+              },
             },
           }
         }),
@@ -175,22 +182,34 @@ export const useComposeStore = create<ComposeState>()(
 
       resetDraft: (context) =>
         set((s) =>
-          mapSession(s, context, (sess) => ({ ...sess, draft: emptyDraft(sess.draft.target) })),
+          mapSession(s, context, (sess) => ({
+            ...sess,
+            draft: emptyDraft(sess.draft.target, { longform: s.longformPreference }),
+          })),
         ),
 
       setModel: (model) => set({ model }),
       setXSearch: (mode) => set({ xSearch: mode }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
+      setLongformPreference: (enabled) => set({ longformPreference: enabled }),
     }),
     {
       name: 'venice-compose',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => createSafeStorage()),
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<ComposeState>
+        if (version < 2 && state.longformPreference == null) {
+          state.longformPreference = true
+        }
+        return state as ComposeState
+      },
       partialize: (state) => ({
         sessions: state.sessions,
         activeContext: state.activeContext,
         model: state.model,
         xSearch: state.xSearch,
+        longformPreference: state.longformPreference,
       }),
     },
   ),
