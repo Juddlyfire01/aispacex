@@ -2,7 +2,11 @@ import { useCallback, useRef } from 'react'
 import { venice } from '../lib/venice-client'
 import { parseSSEStream } from '../lib/stream'
 import { useComposeStore } from '../stores/compose-store'
-import { buildComposeSystem, type TargetContext } from '../lib/compose/compose-prompt'
+import {
+  buildComposeSystem,
+  buildHotUserPrefix,
+  type TargetContext,
+} from '../lib/compose/compose-prompt'
 import { parseDraftBlock } from '../lib/compose/draft-block'
 import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
 import { getActiveAccountVerified } from './use-compose-verified'
@@ -41,14 +45,36 @@ export function useCompose() {
       abortRef.current = abortController
 
       const xSearchOn = xSearch !== 'off'
-      const system = buildComposeSystem({ target: targetContext, corpus, xSearchOn })
+      // Task 11 will wire hot-window packer + toolsEnabled fully.
+      const system = buildComposeSystem({ xSearchOn, toolsEnabled: true })
+
+      // Temporary: pass corpus/target as hot prefix until Task 11 packer lands.
+      let hot = corpus ?? ''
+      if (!hot && targetContext) {
+        const t = targetContext
+        const recent = (t.recentPosts ?? [])
+          .slice(0, 20)
+          .map((p) => `[${p.kind}] ${p.text}`)
+          .join('\n')
+        hot =
+          `Context — @${t.username}${t.displayName ? ` (${t.displayName})` : ''}.` +
+          (t.bio ? `\nBio: ${t.bio}` : '') +
+          (recent ? `\n\nRecent posts by @${t.username}:\n${recent}` : '')
+      }
 
       // Transcript minus the trailing empty assistant placeholder.
+      // UI stores raw userMessage; API latest user turn may include hot prefix.
       const session = useComposeStore.getState().sessions[context]
       const history = (session?.messages ?? []).filter((m) =>
         typeof m.content === 'string' ? m.content !== '' : true,
       )
-      const messages: ChatMessage[] = [{ role: 'system', content: system }, ...history]
+      const apiHistory = history.map((m, i) => {
+        if (i === history.length - 1 && m.role === 'user' && typeof m.content === 'string') {
+          return { ...m, content: buildHotUserPrefix(hot, m.content) }
+        }
+        return m
+      })
+      const messages: ChatMessage[] = [{ role: 'system', content: system }, ...apiHistory]
 
       const body: ChatCompletionRequest = {
         model,
