@@ -30,6 +30,42 @@ export function partitionPosts(profile: Profile, posts: Post[]): { own: Post[]; 
   return { own, inbound }
 }
 
+/**
+ * Highest snowflake id among posts we already hold that the subject authored.
+ * Used as X API `since_id` for incremental timeline pulls.
+ *
+ * Must NOT use profile.mostRecentPostId: that field is the live "latest tweet"
+ * on X. After a profile refresh it already points at the newest post, so
+ * since_id would exclude it and every newer post until a full re-gather.
+ * Inbound mention ids must also be excluded — a recent @mention can have a
+ * higher snowflake than the subject's last own post and would skip their posts.
+ */
+export function maxOwnPostId(authorId: string | null | undefined, posts: Post[]): string | undefined {
+  if (!authorId || posts.length === 0) return undefined
+  let max: bigint | null = null
+  let maxId: string | undefined
+  for (const p of posts) {
+    if (p.authorId !== authorId) continue
+    try {
+      const id = BigInt(p.id)
+      if (max == null || id > max) {
+        max = id
+        maxId = p.id
+      }
+    } catch {
+      // non-snowflake ids (tests / legacy) — fall back to string compare below
+    }
+  }
+  if (maxId) return maxId
+  // Fallback when ids aren't numeric snowflakes: newest createdAt among own posts.
+  let best: Post | undefined
+  for (const p of posts) {
+    if (p.authorId !== authorId) continue
+    if (!best || p.createdAt > best.createdAt) best = p
+  }
+  return best?.id
+}
+
 /** True when a gathered row is someone else's tweet that mentions the subject. */
 export function isInboundPost(profile: Profile, post: Post): boolean {
   return Boolean(post.authorId && post.authorId !== profile.id)

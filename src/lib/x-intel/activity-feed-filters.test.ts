@@ -3,6 +3,7 @@ import {
   explicitOutboundMentions,
   leadingMentionUsernames,
   matchesFeedFilters,
+  maxOwnPostId,
   postFeedFilterKeys,
   threadPrefixMentions,
 } from './activity'
@@ -184,5 +185,33 @@ describe('matchesFeedFilters', () => {
     const p = post({ id: 'c', mentions: [{ username: 'a', id: '1' }] })
     expect(matchesFeedFilters(profile, p, new Set(['mention-out']))).toBe(true)
     expect(matchesFeedFilters(profile, p, new Set(['retweet']))).toBe(false)
+  })
+})
+
+describe('maxOwnPostId', () => {
+  // Real-ish snowflake ids (numeric, increasing over time).
+  const older = '1900000000000000001'
+  const newer = '1900000000000000099'
+  const inboundNewer = '1900000000000000999'
+
+  it('returns undefined when empty or no author', () => {
+    expect(maxOwnPostId(null, [post({ id: older })])).toBeUndefined()
+    expect(maxOwnPostId('1', [])).toBeUndefined()
+  })
+
+  it('returns the highest own post snowflake', () => {
+    const posts = [
+      post({ id: older, authorId: '1' }),
+      post({ id: newer, authorId: '1' }),
+    ]
+    expect(maxOwnPostId('1', posts)).toBe(newer)
+  })
+
+  it('ignores inbound mentions with higher ids (must not skip own posts)', () => {
+    const posts = [
+      post({ id: older, authorId: '1' }),
+      post({ id: inboundNewer, authorId: '99' }),
+    ]
+    expect(maxOwnPostId('1', posts)).toBe(older)
   })
 })

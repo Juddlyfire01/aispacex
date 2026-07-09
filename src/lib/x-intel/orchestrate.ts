@@ -2,7 +2,7 @@ import { gatherProfile, gatherPosts, gatherMentions } from './gather'
 import { resolveGatherAuth } from './gather-auth'
 import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
-import { partitionPosts } from './activity'
+import { maxOwnPostId, partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
 import type { IntelReportSnapshot, Post } from './types'
@@ -30,7 +30,7 @@ function markRefreshed(key: string, ...sections: (keyof RefreshedAt)[]): Refresh
 
 /**
  * The "everything" pull for a target: profile → outbound posts (incremental if
- * we have a mostRecentPostId) + inbound mentions → local edge derivation.
+ * we already hold own posts) + inbound mentions → local edge derivation.
  * Updates the store and cost meter. Backs the Profile tab's Refresh button and
  * the initial gather when a target is added. A mentions hiccup is non-fatal —
  * posts still land — so the core timeline is never lost to an inbound failure.
@@ -48,11 +48,12 @@ export async function runGather(username: string, opts: { backfill?: number } = 
   updateReport(key, { profile })
 
   // 2. Posts (outbound, incremental via since_id) + mentions (inbound), in parallel
-  // Re-read the current state to avoid a stale snapshot
+  // Re-read the current state to avoid a stale snapshot.
+  // since_id must be the highest *gathered own* post id — not profile.mostRecentPostId
+  // (that field is already the live latest tweet after a profile refresh, so using it
+  // as since_id returns zero new posts and the newest tweet never lands in the feed).
   const currentReport = useXIntelStore.getState().reports[key]
-  const sinceId = currentReport && currentReport.posts.length > 0
-    ? currentReport.profile?.mostRecentPostId ?? undefined
-    : undefined
+  const sinceId = currentReport ? maxOwnPostId(profile.id, currentReport.posts) : undefined
   const [postsResult, mentionsResult] = await Promise.all([
     gatherPosts(profile.id, auth, { sinceId, maxResults: opts.backfill ?? 50 }),
     gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
@@ -105,12 +106,15 @@ export async function refreshPosts(username: string): Promise<void> {
     profileId = profileResult.data.id
   }
 
-  const sinceId = report.posts.length > 0 ? report.profile?.mostRecentPostId ?? undefined : undefined
+  // Cursor from posts we already hold (own only). Do not use mostRecentPostId —
+  // see runGather comment. Re-read posts so concurrent gathers can't stale the cursor.
+  const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
+  const sinceId = maxOwnPostId(profileId, existingPosts)
   const postsResult = await gatherPosts(profileId, auth, { sinceId })
   addCost(key, postsResult.cost)
 
-  const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
-  const merged = mergePosts(existingPosts, postsResult.data)
+  const latestPosts = useXIntelStore.getState().reports[key]?.posts ?? existingPosts
+  const merged = mergePosts(latestPosts, postsResult.data)
   const edges = deriveEdges(profileId, merged)
   // Stamp feed + network on every success — a zero-new-posts pull still means
   // "checked just now", so the label must move even though `merged` is unchanged.

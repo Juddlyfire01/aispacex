@@ -7,6 +7,9 @@ export const USER_FIELDS = [
 
 export const POST_FIELDS = [
   'id', 'text', 'lang', 'created_at', 'edit_history_tweet_ids',
+  // author_id must be a tweet field (not only an expansion) or it stays empty
+  // and maxOwnPostId / inbound-vs-own splits cannot tell who wrote the post.
+  'author_id',
   'public_metrics', 'context_annotations', 'entities', 'note_tweet',
   'referenced_tweets', 'reply_settings', 'source',
   'possibly_sensitive', 'attachments',

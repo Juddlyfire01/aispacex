@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils'
 import { useSettingsStore, type Tab } from '../../stores/settings-store'
 import { useChatStore } from '../../stores/chat-store'
 import { toast } from '../../stores/toast-store'
-import { AppLogo, AppWordmark } from '../ui/logo'
+import { AppLogo } from '../ui/logo'
 import { PanelToggleButton } from './panel-toggle'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from './rail-footer'
 import type { Conversation } from '../../types/venice'
@@ -144,7 +144,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
         {expanded ? (
           <>
             <AppLogo size={20} className="shrink-0" />
-            <AppWordmark className="text-[15px] tracking-tight truncate flex-1 min-w-0" />
+            <div className="flex-1 min-w-0" />
             <PanelToggleButton
               expanded={sidebarOpen}
               onClick={toggleSidebar}
