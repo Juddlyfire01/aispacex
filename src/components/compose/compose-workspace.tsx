@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -8,10 +8,30 @@ import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-e
 import { packHotWindow } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
 import { libraryCounts } from '../../lib/intel-library/library'
+import { SubTabs } from '../ui/sub-tabs'
 import { HistoryRail } from './history-rail'
 import { ComposeSettings } from './compose-settings'
 import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
+
+/** Mirrors You/Others Profile | Feed | Network chrome; only Profile is wired today. */
+const POST_SUB_TABS = [
+  { id: 'profile' as const, label: 'Profile' },
+  { id: 'feed' as const, label: 'Feed' },
+  { id: 'network' as const, label: 'Network' },
+]
+
+type PostSubTab = (typeof POST_SUB_TABS)[number]['id']
+
+function PostSubTabPlaceholder({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center px-6">
+      <p className="text-[11px] text-[var(--color-text-tertiary)] text-center">
+        {label} — coming soon
+      </p>
+    </div>
+  )
+}
 
 export function ComposeWorkspace() {
   const { data: models } = useModels('text')
@@ -32,6 +52,8 @@ export function ComposeWorkspace() {
 
   const reports = useXIntelStore((s) => s.reports)
   const selfAccounts = useXSelfStore((s) => s.accounts)
+
+  const [activeSubTab, setActiveSubTab] = useState<PostSubTab>('profile')
 
   // Resolve default once the list loads: highest Grok w/ X search, then fallbacks.
   useEffect(() => {
@@ -95,22 +117,41 @@ export function ComposeWorkspace() {
   return (
     <div className="flex h-full min-h-0">
       <HistoryRail />
-      <ComposeSettings
-        pack={pack}
-        budget={budget}
-        contextLimit={contextLimit}
-        budgetPct={budgetPct}
-        libraryMode={libraryMode}
-        dayWindowDays={dayWindowDays}
-        counts={counts}
-        limitAssumed={limitAssumed}
-        onModeChange={setLibraryMode}
-        onBudgetPctChange={setBudgetPct}
-        onDayWindowChange={setDayWindowDays}
-      />
-      <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
-        {threadId ? <ComposeChat threadId={threadId} sendBlocked={sendBlocked} /> : null}
-        <DraftDrawer />
+
+      <div className="flex flex-col flex-1 min-w-0">
+        <SubTabs
+          tabs={POST_SUB_TABS}
+          value={activeSubTab}
+          onChange={setActiveSubTab}
+          className="px-4"
+          size="sm"
+        />
+
+        <div className="flex-1 min-h-0">
+          {activeSubTab === 'profile' && (
+            <div className="flex h-full min-h-0">
+              <ComposeSettings
+                pack={pack}
+                budget={budget}
+                contextLimit={contextLimit}
+                budgetPct={budgetPct}
+                libraryMode={libraryMode}
+                dayWindowDays={dayWindowDays}
+                counts={counts}
+                limitAssumed={limitAssumed}
+                onModeChange={setLibraryMode}
+                onBudgetPctChange={setBudgetPct}
+                onDayWindowChange={setDayWindowDays}
+              />
+              <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
+                {threadId ? <ComposeChat threadId={threadId} sendBlocked={sendBlocked} /> : null}
+                <DraftDrawer />
+              </div>
+            </div>
+          )}
+          {activeSubTab === 'feed' && <PostSubTabPlaceholder label="Feed" />}
+          {activeSubTab === 'network' && <PostSubTabPlaceholder label="Network" />}
+        </div>
       </div>
     </div>
   )
