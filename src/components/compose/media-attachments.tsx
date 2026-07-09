@@ -7,7 +7,7 @@ import type { MediaItem, PostSegment } from '../../lib/compose/types'
 // for now media routes a draft to copy-out.
 
 interface MediaAttachmentsProps {
-  context: string
+  threadId: string
   segment: PostSegment
 }
 
@@ -17,7 +17,7 @@ function kindForFile(type: string): MediaItem['kind'] {
   return 'image'
 }
 
-export function MediaAttachments({ context, segment }: MediaAttachmentsProps) {
+export function MediaAttachments({ threadId, segment }: MediaAttachmentsProps) {
   const patchSegment = useComposeStore((s) => s.patchSegment)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -40,18 +40,18 @@ export function MediaAttachments({ context, segment }: MediaAttachmentsProps) {
           }),
       )
     void Promise.all(readers).then((items) => {
-      patchSegment(context, segment.id, { media: [...segment.media, ...items] })
+      patchSegment(threadId, segment.id, { media: [...segment.media, ...items] })
     })
   }
 
   const updateAlt = (id: string, altText: string) => {
-    patchSegment(context, segment.id, {
+    patchSegment(threadId, segment.id, {
       media: segment.media.map((m) => (m.id === id ? { ...m, altText } : m)),
     })
   }
 
   const remove = (id: string) => {
-    patchSegment(context, segment.id, { media: segment.media.filter((m) => m.id !== id) })
+    patchSegment(threadId, segment.id, { media: segment.media.filter((m) => m.id !== id) })
   }
 
   return (

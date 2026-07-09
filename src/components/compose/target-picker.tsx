@@ -7,30 +7,30 @@ import type { PostTarget } from '../../lib/compose/types'
 // the composer surfaces separately.
 
 interface TargetPickerProps {
-  context: string
+  threadId: string
   target: PostTarget
 }
 
-export function TargetPicker({ context, target }: TargetPickerProps) {
+export function TargetPicker({ threadId, target }: TargetPickerProps) {
   const setTarget = useComposeStore((s) => s.setTarget)
   const targets = useXIntelStore((s) => s.targets)
 
   const onKind = (kind: PostTarget['kind']) => {
-    if (kind === 'original') setTarget(context, { kind: 'original' })
-    else if (kind === 'reply') setTarget(context, { kind: 'reply', toPostId: '', toUsername: targets[0] ?? '' })
-    else setTarget(context, { kind: 'quote', postId: '', username: targets[0] ?? '' })
+    if (kind === 'original') setTarget(threadId, { kind: 'original' })
+    else if (kind === 'reply') setTarget(threadId, { kind: 'reply', toPostId: '', toUsername: targets[0] ?? '' })
+    else setTarget(threadId, { kind: 'quote', postId: '', username: targets[0] ?? '' })
   }
 
   const username = target.kind === 'reply' ? target.toUsername : target.kind === 'quote' ? target.username : ''
   const postId = target.kind === 'reply' ? target.toPostId : target.kind === 'quote' ? target.postId : ''
 
   const setUsername = (value: string) => {
-    if (target.kind === 'reply') setTarget(context, { ...target, toUsername: value })
-    else if (target.kind === 'quote') setTarget(context, { ...target, username: value })
+    if (target.kind === 'reply') setTarget(threadId, { ...target, toUsername: value })
+    else if (target.kind === 'quote') setTarget(threadId, { ...target, username: value })
   }
   const setPostId = (value: string) => {
-    if (target.kind === 'reply') setTarget(context, { ...target, toPostId: value })
-    else if (target.kind === 'quote') setTarget(context, { ...target, postId: value })
+    if (target.kind === 'reply') setTarget(threadId, { ...target, toPostId: value })
+    else if (target.kind === 'quote') setTarget(threadId, { ...target, postId: value })
   }
 
   return (

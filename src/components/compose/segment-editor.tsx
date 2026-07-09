@@ -8,14 +8,14 @@ import { MediaAttachments } from './media-attachments'
 import { PollEditor } from './poll-editor'
 
 interface SegmentEditorProps {
-  context: string
+  threadId: string
   segment: PostSegment
   index: number
   total: number
   longform: boolean
 }
 
-export function SegmentEditor({ context, segment, index, total, longform }: SegmentEditorProps) {
+export function SegmentEditor({ threadId, segment, index, total, longform }: SegmentEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const setSegmentText = useComposeStore((s) => s.setSegmentText)
   const removeSegment = useComposeStore((s) => s.removeSegment)
@@ -31,20 +31,20 @@ export function SegmentEditor({ context, segment, index, total, longform }: Segm
           <span className="font-mono">{index + 1}/{total}</span>
           <div className="flex-1" />
           <button
-            onClick={() => moveSegment(context, segment.id, -1)}
+            onClick={() => moveSegment(threadId, segment.id, -1)}
             disabled={index === 0}
             className="hover:text-white/60 transition-colors disabled:opacity-20"
           >
             ↑
           </button>
           <button
-            onClick={() => moveSegment(context, segment.id, 1)}
+            onClick={() => moveSegment(threadId, segment.id, 1)}
             disabled={index === total - 1}
             className="hover:text-white/60 transition-colors disabled:opacity-20"
           >
             ↓
           </button>
-          <button onClick={() => removeSegment(context, segment.id)} className="hover:text-red-400/70 transition-colors">
+          <button onClick={() => removeSegment(threadId, segment.id)} className="hover:text-red-400/70 transition-colors">
             Remove
           </button>
         </div>
@@ -52,21 +52,21 @@ export function SegmentEditor({ context, segment, index, total, longform }: Segm
 
       <FormatToolbar
         value={segment.text}
-        onChange={(text) => setSegmentText(context, segment.id, text)}
+        onChange={(text) => setSegmentText(threadId, segment.id, text)}
         textareaRef={textareaRef}
       />
 
       <textarea
         ref={textareaRef}
         value={segment.text}
-        onChange={(e) => setSegmentText(context, segment.id, e.target.value)}
+        onChange={(e) => setSegmentText(threadId, segment.id, e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.shiftKey) {
             e.preventDefault()
             const el = e.currentTarget
             const { selectionStart: start, selectionEnd: end, value } = el
             const next = value.slice(0, start) + '\n' + value.slice(end)
-            setSegmentText(context, segment.id, next)
+            setSegmentText(threadId, segment.id, next)
             requestAnimationFrame(() => {
               el.selectionStart = el.selectionEnd = start + 1
             })
@@ -77,8 +77,8 @@ export function SegmentEditor({ context, segment, index, total, longform }: Segm
         className="w-full bg-transparent text-[13px] text-white/85 font-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] placeholder:font-sans"
       />
 
-      <MediaAttachments context={context} segment={segment} />
-      <PollEditor context={context} segment={segment} />
+      <MediaAttachments threadId={threadId} segment={segment} />
+      <PollEditor threadId={threadId} segment={segment} />
 
       <div className="flex items-center justify-end pt-1">
         <CharRing used={used} limit={limit} />

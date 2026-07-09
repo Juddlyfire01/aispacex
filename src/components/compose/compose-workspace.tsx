@@ -7,7 +7,8 @@ import { pickComposeModel, modelSupportsXSearch } from '../../lib/compose/model'
 import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
 import { packHotWindow } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
-import { scopeFromContext } from '../../lib/intel-library/scope'
+import { contextKeyFromScope } from '../../lib/intel-library/scope'
+import type { ComposeScope } from '../../lib/intel-library/types'
 import { libraryCounts } from '../../lib/intel-library/library'
 import { ComposeChat } from './compose-chat'
 import { PostComposer } from './post-composer'
@@ -16,11 +17,20 @@ import { LibraryMeter } from './library-meter'
 
 const X_SEARCH_MODES: XSearchMode[] = ['off', 'auto', 'on']
 
+function scopeFromSelectValue(value: string): ComposeScope {
+  if (value === ME_CONTEXT) return { type: 'me' }
+  if (value === ALL_CONTEXT) return { type: 'all' }
+  return { type: 'target', username: value }
+}
+
 export function ComposeWorkspace() {
   const { data: models } = useModels('text')
-  const activeContext = useComposeStore((s) => s.activeContext)
-  const setActiveContext = useComposeStore((s) => s.setActiveContext)
-  const ensureSession = useComposeStore((s) => s.ensureSession)
+  const activeThreadId = useComposeStore((s) => s.activeThreadId)
+  const threads = useComposeStore((s) => s.threads)
+  const ensureActiveThread = useComposeStore((s) => s.ensureActiveThread)
+  const createThread = useComposeStore((s) => s.createThread)
+  const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
+  const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
   const setContextLimit = useComposeStore((s) => s.setContextLimit)
@@ -53,8 +63,11 @@ export function ComposeWorkspace() {
   }, [model, models, setContextLimit])
 
   useEffect(() => {
-    ensureSession(activeContext)
-  }, [activeContext, ensureSession])
+    ensureActiveThread()
+  }, [ensureActiveThread])
+
+  const threadId = activeThreadId && threads[activeThreadId] ? activeThreadId : null
+  const activeThread = threadId ? threads[threadId] : undefined
 
   const modelObj = useMemo(() => models?.find((m) => m.id === model), [models, model])
   const limitAssumed = !(
@@ -71,7 +84,10 @@ export function ComposeWorkspace() {
     [selfAccounts, reports],
   )
 
-  const scope = useMemo(() => scopeFromContext(activeContext), [activeContext])
+  // Scope for meter: active thread context, else new-thread default.
+  const scope = activeThread?.context ?? newThreadContext
+  const contextSelectValue = contextKeyFromScope(scope)
+
   const budget = useMemo(
     () => computeHotBudget(contextLimit, budgetPct),
     [contextLimit, budgetPct],
@@ -95,6 +111,13 @@ export function ComposeWorkspace() {
   const sendBlocked = libraryMode === 'custom' && pack.overBudget
   const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
 
+  const onContextChange = (value: string) => {
+    const next = scopeFromSelectValue(value)
+    setNewThreadContext(next)
+    // Temporary until thread UI (Task 5–7): switching context starts a new thread.
+    createThread(next)
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Controls */}
@@ -102,8 +125,8 @@ export function ComposeWorkspace() {
         <label className="flex items-center gap-1.5 text-[11px] text-white/40">
           Context
           <select
-            value={activeContext}
-            onChange={(e) => setActiveContext(e.target.value)}
+            value={contextSelectValue}
+            onChange={(e) => onContextChange(e.target.value)}
             className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/70 outline-none"
           >
             <option value={ME_CONTEXT}>Your account</option>
@@ -173,13 +196,17 @@ export function ComposeWorkspace() {
       {/* Split view */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 border-r border-white/[0.05]">
-          <ComposeChat context={activeContext} sendBlocked={sendBlocked} />
+          {threadId ? (
+            <ComposeChat threadId={threadId} sendBlocked={sendBlocked} />
+          ) : null}
         </div>
         <div className="w-[46%] max-w-[560px] min-w-0 flex flex-col min-h-0">
           <div className="flex-1 min-h-0">
-            <PostComposer context={activeContext} />
+            {threadId ? <PostComposer threadId={threadId} /> : null}
           </div>
-          <ComposeActions context={activeContext} copied={copied} setCopied={setCopied} />
+          {threadId ? (
+            <ComposeActions threadId={threadId} copied={copied} setCopied={setCopied} />
+          ) : null}
         </div>
       </div>
     </div>

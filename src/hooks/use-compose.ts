@@ -7,7 +7,6 @@ import { parseDraftBlock } from '../lib/compose/draft-block'
 import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
-import { scopeFromContext } from '../lib/intel-library/scope'
 import { packHotWindow } from '../lib/compose/hot-window'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
@@ -15,14 +14,13 @@ import type { ChatMessage } from '../types/venice'
 
 // Compose chat via non-streaming intel agent: packs a hot-window of local
 // library data, may call intel_* tools, then extracts ```postdraft into the
-// session draft and leaves clean prose in the transcript.
+// thread draft and leaves clean prose in the transcript.
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
   const {
-    activeContext,
     isStreaming,
-    ensureSession,
+    ensureActiveThread,
     addMessage,
     setLastAssistantContent,
     applyDraftPatch,
@@ -33,11 +31,12 @@ export function useCompose() {
   const send = useCallback(
     async (userMessage: string): Promise<void> => {
       const store = useComposeStore.getState()
-      const context = store.activeContext
-      store.ensureSession(context)
+      const threadId = store.ensureActiveThread()
+      const thread = useComposeStore.getState().threads[threadId]
+      if (!thread) return
 
-      store.addMessage(context, { role: 'user', content: userMessage })
-      store.addMessage(context, { role: 'assistant', content: '' })
+      store.addMessage(threadId, { role: 'user', content: userMessage })
+      store.addMessage(threadId, { role: 'assistant', content: '' })
       store.setStreaming(true)
 
       const abortController = new AbortController()
@@ -47,7 +46,7 @@ export function useCompose() {
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
         const reports = Object.values(useXIntelStore.getState().reports)
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })
-        const scope = scopeFromContext(context)
+        const scope = useComposeStore.getState().threads[threadId]?.context ?? thread.context
 
         const { libraryMode, budgetPct, dayWindowDays, model, xSearch, contextLimit } =
           useComposeStore.getState()
@@ -63,7 +62,7 @@ export function useCompose() {
 
         if (libraryMode === 'custom' && pack.overBudget) {
           store.setLastAssistantContent(
-            context,
+            threadId,
             `Hot window is over budget (~${pack.estimatedTokens.toLocaleString()} tokens vs budget ${budget.toLocaleString()}). ` +
               `Raise the budget, shorten the day window, switch to Auto, or narrow context — then try again.`,
           )
@@ -75,8 +74,8 @@ export function useCompose() {
 
         // Transcript minus the trailing empty assistant placeholder.
         // UI stores raw userMessage; API latest user turn includes hot prefix.
-        const session = useComposeStore.getState().sessions[context]
-        const history = (session?.messages ?? []).filter((m) =>
+        const active = useComposeStore.getState().threads[threadId]
+        const history = (active?.messages ?? []).filter((m) =>
           typeof m.content === 'string' ? m.content !== '' : true,
         )
         const apiHistory = history.map((m, i) => {
@@ -107,18 +106,18 @@ export function useCompose() {
             const pref = finishedStore.longformPreference
             const withPref = applyLongformPreference(draft, pref)
             const gated = syncDraftForVerification(withPref, isVerified, pref)
-            finishedStore.applyDraftPatch(context, gated ? { ...withPref, ...gated } : withPref)
-            finishedStore.setLastAssistantContent(context, visibleText || 'Draft updated.')
+            finishedStore.applyDraftPatch(threadId, gated ? { ...withPref, ...gated } : withPref)
+            finishedStore.setLastAssistantContent(threadId, visibleText || 'Draft updated.')
           } else {
-            finishedStore.setLastAssistantContent(context, content)
+            finishedStore.setLastAssistantContent(threadId, content)
           }
         } else {
-          finishedStore.setLastAssistantContent(context, '')
+          finishedStore.setLastAssistantContent(threadId, '')
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         const message = err instanceof Error ? err.message : 'Unknown error'
-        useComposeStore.getState().setLastAssistantContent(context, `[Error: ${message}]`)
+        useComposeStore.getState().setLastAssistantContent(threadId, `[Error: ${message}]`)
       } finally {
         const s = useComposeStore.getState()
         s.setStreaming(false)
@@ -126,8 +125,8 @@ export function useCompose() {
         abortRef.current = null
       }
     },
-    // store actions are stable; activeContext read fresh via getState in send
-    [ensureSession, addMessage, setLastAssistantContent, applyDraftPatch, setStreaming, setToolActivity],
+    // store actions are stable; active thread read fresh via getState in send
+    [ensureActiveThread, addMessage, setLastAssistantContent, applyDraftPatch, setStreaming, setToolActivity],
   )
 
   const stop = useCallback(() => {

@@ -4,31 +4,34 @@ import type { ChatMessage } from '../types/venice'
 import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
+import type { ComposeThread } from '../lib/compose/thread-types'
+import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
+import type { ComposeScope } from '../lib/intel-library/types'
+import { scopeFromContext } from '../lib/intel-library/scope'
 import { createSafeStorage } from '../lib/safe-storage'
 
-// A compose session is a chat transcript plus the draft it's shaping. Sessions
-// are keyed by context so composing an original ("__me__") and composing in
-// reference to a target keep separate transcripts and drafts.
-
+// Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
-// Whole-corpus context: composing/discussing against the entire gathered data
-// set (every connected self account + every target report) rather than one
-// subject. Keyed like any other context, so it gets its own transcript + draft.
 export const ALL_CONTEXT = '__all__'
 
 export type { LibraryMode }
+export type { ComposeThread }
 
-export interface ComposeSession {
+export type XSearchMode = 'off' | 'auto' | 'on'
+
+/** Legacy session shape (persist versions < 4). */
+interface LegacyComposeSession {
   messages: ChatMessage[]
   draft: PostDraft
 }
 
-export type XSearchMode = 'off' | 'auto' | 'on'
-
 interface ComposeState {
-  sessions: Record<string, ComposeSession>
-  activeContext: string
+  threads: Record<string, ComposeThread>
+  threadOrder: string[]
+  activeThreadId: string | null
+  newThreadContext: ComposeScope
+  draftDrawerOpen: boolean
   model: string
   xSearch: XSearchMode
   isStreaming: boolean
@@ -43,23 +46,27 @@ interface ComposeState {
   /** Model context limit for the meter — ephemeral; recompute from model list. */
   contextLimit: number
 
-  ensureSession: (context: string, target?: PostTarget) => void
-  setActiveContext: (context: string) => void
-  getSession: (context: string) => ComposeSession | undefined
+  createThread: (context?: ComposeScope, target?: PostTarget) => string
+  selectThread: (id: string | null) => void
+  deleteThread: (id: string) => void
+  ensureActiveThread: () => string
+  getActiveThread: () => ComposeThread | undefined
+  setNewThreadContext: (scope: ComposeScope) => void
+  setDraftDrawerOpen: (open: boolean) => void
 
-  addMessage: (context: string, message: ChatMessage) => void
-  appendToLastAssistant: (context: string, token: string) => void
-  setLastAssistantContent: (context: string, content: string) => void
-  deleteLastMessage: (context: string) => void
+  addMessage: (threadId: string, message: ChatMessage) => void
+  appendToLastAssistant: (threadId: string, token: string) => void
+  setLastAssistantContent: (threadId: string, content: string) => void
+  deleteLastMessage: (threadId: string) => void
 
-  applyDraftPatch: (context: string, patch: Partial<PostDraft>) => void
-  setSegmentText: (context: string, segmentId: string, text: string) => void
-  addSegment: (context: string) => void
-  removeSegment: (context: string, segmentId: string) => void
-  moveSegment: (context: string, segmentId: string, dir: -1 | 1) => void
-  setTarget: (context: string, target: PostTarget) => void
-  patchSegment: (context: string, segmentId: string, patch: Partial<PostSegment>) => void
-  resetDraft: (context: string) => void
+  applyDraftPatch: (threadId: string, patch: Partial<PostDraft>) => void
+  setSegmentText: (threadId: string, segmentId: string, text: string) => void
+  addSegment: (threadId: string) => void
+  removeSegment: (threadId: string, segmentId: string) => void
+  moveSegment: (threadId: string, segmentId: string, dir: -1 | 1) => void
+  setTarget: (threadId: string, target: PostTarget) => void
+  patchSegment: (threadId: string, segmentId: string, patch: Partial<PostSegment>) => void
+  resetDraft: (threadId: string) => void
 
   setModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
@@ -72,33 +79,121 @@ interface ComposeState {
   setContextLimit: (limit: number) => void
 }
 
+function newId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `t_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
 function touch(draft: PostDraft): PostDraft {
   return { ...draft, updatedAt: new Date().toISOString() }
 }
 
-function mapSession(
+function bumpOrder(order: string[], threadId: string): string[] {
+  return [threadId, ...order.filter((id) => id !== threadId)]
+}
+
+function mapThread(
   state: ComposeState,
-  context: string,
-  fn: (session: ComposeSession) => ComposeSession,
+  threadId: string,
+  fn: (thread: ComposeThread) => ComposeThread,
 ): Partial<ComposeState> {
-  const session = state.sessions[context]
-  if (!session) return {}
-  return { sessions: { ...state.sessions, [context]: fn(session) } }
+  const thread = state.threads[threadId]
+  if (!thread) return {}
+  const next = fn(thread)
+  const meta = recomputeThreadMeta({
+    messages: next.messages,
+    draft: next.draft,
+    title: next.title,
+  })
+  const updated: ComposeThread = { ...next, ...meta }
+  return {
+    threads: { ...state.threads, [threadId]: updated },
+    threadOrder: bumpOrder(state.threadOrder, threadId),
+  }
 }
 
 function mapDraft(
   state: ComposeState,
-  context: string,
+  threadId: string,
   fn: (draft: PostDraft) => PostDraft,
 ): Partial<ComposeState> {
-  return mapSession(state, context, (s) => ({ ...s, draft: touch(fn(s.draft)) }))
+  return mapThread(state, threadId, (t) => ({ ...t, draft: touch(fn(t.draft)) }))
+}
+
+/** Migrate persisted compose state; exported for unit tests. */
+export function migrateComposeState(persisted: unknown, version: number): ComposeState {
+  const state = { ...(persisted as Record<string, unknown>) } as Record<string, unknown>
+
+  if (version < 2 && state.longformPreference == null) {
+    state.longformPreference = true
+  }
+  if (version < 3) {
+    if (state.libraryMode == null) state.libraryMode = 'auto'
+    if (state.budgetPct == null) state.budgetPct = 0.5
+    if (state.dayWindowDays === undefined) state.dayWindowDays = 7
+  }
+
+  if (version < 4) {
+    const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
+    const activeContext = typeof state.activeContext === 'string' ? state.activeContext : ME_CONTEXT
+    const threads: Record<string, ComposeThread> = {}
+    const entries: { id: string; key: string; updatedAt: string }[] = []
+
+    for (const [key, session] of Object.entries(sessions)) {
+      if (!session) continue
+      const id = newId()
+      const messages = session.messages ?? []
+      const draft = session.draft ?? emptyDraft({ kind: 'original' })
+      const createdAt = draft.createdAt ?? new Date().toISOString()
+      const meta = recomputeThreadMeta({
+        messages,
+        draft,
+        title: 'New chat',
+      })
+      threads[id] = {
+        id,
+        context: scopeFromContext(key),
+        title: meta.title,
+        createdAt,
+        updatedAt: draft.updatedAt ?? meta.updatedAt,
+        messages,
+        draft,
+        tokenEstimate: meta.tokenEstimate,
+        preview: meta.preview,
+      }
+      entries.push({ id, key, updatedAt: draft.updatedAt ?? meta.updatedAt })
+    }
+
+    entries.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+    const threadOrder = entries.map((e) => e.id)
+    const activeEntry = entries.find((e) => e.key === activeContext)
+    const activeThreadId = activeEntry?.id ?? threadOrder[0] ?? null
+
+    state.threads = threads
+    state.threadOrder = threadOrder
+    state.activeThreadId = activeThreadId
+    state.newThreadContext = scopeFromContext(activeContext)
+    delete state.sessions
+    delete state.activeContext
+  }
+
+  if (state.threads == null) state.threads = {}
+  if (state.threadOrder == null) state.threadOrder = []
+  if (state.activeThreadId === undefined) state.activeThreadId = null
+  if (state.newThreadContext == null) state.newThreadContext = { type: 'all' }
+  if (state.draftDrawerOpen == null) state.draftDrawerOpen = false
+
+  return state as unknown as ComposeState
 }
 
 export const useComposeStore = create<ComposeState>()(
   persist(
     (set, get) => ({
-      sessions: {},
-      activeContext: ME_CONTEXT,
+      threads: {},
+      threadOrder: [],
+      activeThreadId: null,
+      newThreadContext: { type: 'all' },
+      draftDrawerOpen: false,
       model: '',
       xSearch: 'auto',
       isStreaming: false,
@@ -109,87 +204,129 @@ export const useComposeStore = create<ComposeState>()(
       toolActivity: null,
       contextLimit: DEFAULT_CONTEXT_FALLBACK,
 
-      ensureSession: (context, target) =>
+      createThread: (context, target) => {
+        const id = newId()
+        const now = new Date().toISOString()
+        const s = get()
+        const scope = context ?? s.newThreadContext
+        const draft = emptyDraft(target ?? { kind: 'original' }, { longform: s.longformPreference })
+        const meta = recomputeThreadMeta({ messages: [], draft, title: 'New chat' })
+        const thread: ComposeThread = {
+          id,
+          context: scope,
+          title: meta.title,
+          createdAt: now,
+          updatedAt: meta.updatedAt,
+          messages: [],
+          draft,
+          tokenEstimate: meta.tokenEstimate,
+          preview: meta.preview,
+        }
+        set((prev) => ({
+          threads: { ...prev.threads, [id]: thread },
+          threadOrder: [id, ...prev.threadOrder],
+          activeThreadId: id,
+        }))
+        return id
+      },
+
+      selectThread: (id) => set({ activeThreadId: id }),
+
+      deleteThread: (id) =>
         set((s) => {
-          if (s.sessions[context]) return {}
-          return {
-            sessions: {
-              ...s.sessions,
-              [context]: {
-                messages: [],
-                draft: emptyDraft(target ?? { kind: 'original' }, { longform: s.longformPreference }),
-              },
-            },
-          }
+          const { [id]: _removed, ...rest } = s.threads
+          const threadOrder = s.threadOrder.filter((tid) => tid !== id)
+          const activeThreadId =
+            s.activeThreadId === id ? (threadOrder[0] ?? null) : s.activeThreadId
+          return { threads: rest, threadOrder, activeThreadId }
         }),
 
-      setActiveContext: (context) => set({ activeContext: context }),
+      ensureActiveThread: () => {
+        const s = get()
+        if (s.activeThreadId && s.threads[s.activeThreadId]) return s.activeThreadId
+        return get().createThread()
+      },
 
-      getSession: (context) => get().sessions[context],
+      getActiveThread: () => {
+        const s = get()
+        return s.activeThreadId ? s.threads[s.activeThreadId] : undefined
+      },
 
-      addMessage: (context, message) =>
-        set((s) => mapSession(s, context, (sess) => ({ ...sess, messages: [...sess.messages, message] }))),
+      setNewThreadContext: (scope) => set({ newThreadContext: scope }),
+      setDraftDrawerOpen: (open) => set({ draftDrawerOpen: open }),
 
-      appendToLastAssistant: (context, token) =>
+      addMessage: (threadId, message) =>
         set((s) =>
-          mapSession(s, context, (sess) => {
-            const msgs = [...sess.messages]
+          mapThread(s, threadId, (t) => ({ ...t, messages: [...t.messages, message] })),
+        ),
+
+      appendToLastAssistant: (threadId, token) =>
+        set((s) =>
+          mapThread(s, threadId, (t) => {
+            const msgs = [...t.messages]
             const last = msgs[msgs.length - 1]
             if (last?.role === 'assistant' && typeof last.content === 'string') {
               msgs[msgs.length - 1] = { ...last, content: last.content + token }
             }
-            return { ...sess, messages: msgs }
+            return { ...t, messages: msgs }
           }),
         ),
 
-      setLastAssistantContent: (context, content) =>
+      setLastAssistantContent: (threadId, content) =>
         set((s) =>
-          mapSession(s, context, (sess) => {
-            const msgs = [...sess.messages]
+          mapThread(s, threadId, (t) => {
+            const msgs = [...t.messages]
             const last = msgs[msgs.length - 1]
             if (last?.role === 'assistant') {
               msgs[msgs.length - 1] = { ...last, content }
             }
-            return { ...sess, messages: msgs }
+            return { ...t, messages: msgs }
           }),
         ),
 
-      deleteLastMessage: (context) =>
-        set((s) => mapSession(s, context, (sess) => ({ ...sess, messages: sess.messages.slice(0, -1) }))),
-
-      applyDraftPatch: (context, patch) =>
-        set((s) => mapDraft(s, context, (draft) => ({ ...draft, ...patch }))),
-
-      setSegmentText: (context, segmentId, text) =>
+      deleteLastMessage: (threadId) =>
         set((s) =>
-          mapDraft(s, context, (draft) => ({
+          mapThread(s, threadId, (t) => ({ ...t, messages: t.messages.slice(0, -1) })),
+        ),
+
+      applyDraftPatch: (threadId, patch) =>
+        set((s) => mapDraft(s, threadId, (draft) => ({ ...draft, ...patch }))),
+
+      setSegmentText: (threadId, segmentId, text) =>
+        set((s) =>
+          mapDraft(s, threadId, (draft) => ({
             ...draft,
             segments: draft.segments.map((seg) => (seg.id === segmentId ? { ...seg, text } : seg)),
           })),
         ),
 
-      patchSegment: (context, segmentId, patch) =>
+      patchSegment: (threadId, segmentId, patch) =>
         set((s) =>
-          mapDraft(s, context, (draft) => ({
+          mapDraft(s, threadId, (draft) => ({
             ...draft,
             segments: draft.segments.map((seg) => (seg.id === segmentId ? { ...seg, ...patch } : seg)),
           })),
         ),
 
-      addSegment: (context) =>
-        set((s) => mapDraft(s, context, (draft) => ({ ...draft, segments: [...draft.segments, emptySegment()] }))),
-
-      removeSegment: (context, segmentId) =>
+      addSegment: (threadId) =>
         set((s) =>
-          mapDraft(s, context, (draft) => {
+          mapDraft(s, threadId, (draft) => ({
+            ...draft,
+            segments: [...draft.segments, emptySegment()],
+          })),
+        ),
+
+      removeSegment: (threadId, segmentId) =>
+        set((s) =>
+          mapDraft(s, threadId, (draft) => {
             if (draft.segments.length <= 1) return draft
             return { ...draft, segments: draft.segments.filter((seg) => seg.id !== segmentId) }
           }),
         ),
 
-      moveSegment: (context, segmentId, dir) =>
+      moveSegment: (threadId, segmentId, dir) =>
         set((s) =>
-          mapDraft(s, context, (draft) => {
+          mapDraft(s, threadId, (draft) => {
             const idx = draft.segments.findIndex((seg) => seg.id === segmentId)
             const next = idx + dir
             if (idx === -1 || next < 0 || next >= draft.segments.length) return draft
@@ -199,14 +336,14 @@ export const useComposeStore = create<ComposeState>()(
           }),
         ),
 
-      setTarget: (context, target) =>
-        set((s) => mapDraft(s, context, (draft) => ({ ...draft, target }))),
+      setTarget: (threadId, target) =>
+        set((s) => mapDraft(s, threadId, (draft) => ({ ...draft, target }))),
 
-      resetDraft: (context) =>
+      resetDraft: (threadId) =>
         set((s) =>
-          mapSession(s, context, (sess) => ({
-            ...sess,
-            draft: emptyDraft(sess.draft.target, { longform: s.longformPreference }),
+          mapThread(s, threadId, (t) => ({
+            ...t,
+            draft: emptyDraft(t.draft.target, { longform: s.longformPreference }),
           })),
         ),
 
@@ -222,23 +359,14 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => createSafeStorage()),
-      migrate: (persisted, version) => {
-        const state = persisted as Partial<ComposeState>
-        if (version < 2 && state.longformPreference == null) {
-          state.longformPreference = true
-        }
-        if (version < 3) {
-          if (state.libraryMode == null) state.libraryMode = 'auto'
-          if (state.budgetPct == null) state.budgetPct = 0.5
-          if (state.dayWindowDays === undefined) state.dayWindowDays = 7
-        }
-        return state as ComposeState
-      },
+      migrate: (persisted, version) => migrateComposeState(persisted, version),
       partialize: (state) => ({
-        sessions: state.sessions,
-        activeContext: state.activeContext,
+        threads: state.threads,
+        threadOrder: state.threadOrder,
+        activeThreadId: state.activeThreadId,
+        newThreadContext: state.newThreadContext,
         model: state.model,
         xSearch: state.xSearch,
         longformPreference: state.longformPreference,

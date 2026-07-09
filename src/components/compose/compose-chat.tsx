@@ -4,18 +4,18 @@ import { useCompose } from '../../hooks/use-compose'
 import { MarkdownMessage } from '../chat/markdown-message'
 
 interface ComposeChatProps {
-  context: string
+  threadId: string
   sendBlocked?: boolean
 }
 
-export function ComposeChat({ context, sendBlocked }: ComposeChatProps) {
-  const session = useComposeStore((s) => s.sessions[context])
+export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
+  const thread = useComposeStore((s) => s.threads[threadId])
   const toolActivity = useComposeStore((s) => s.toolActivity)
   const { send, stop, isStreaming } = useCompose()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const messages = useMemo(() => session?.messages ?? [], [session?.messages])
+  const messages = useMemo(() => thread?.messages ?? [], [thread?.messages])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })

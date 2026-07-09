@@ -14,13 +14,13 @@ import { useComposeVerified } from '../../hooks/use-compose-verified'
 const CAPS = { mediaNativeSupported: false }
 
 interface ComposeActionsProps {
-  context: string
+  threadId: string
   copied: boolean
   setCopied: (v: boolean) => void
 }
 
-export function ComposeActions({ context, copied, setCopied }: ComposeActionsProps) {
-  const session = useComposeStore((s) => s.sessions[context])
+export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsProps) {
+  const thread = useComposeStore((s) => s.threads[threadId])
   const resetDraft = useComposeStore((s) => s.resetDraft)
   const connected = useXSelfStore((s) => s.connected)
   const { isVerified } = useComposeVerified()
@@ -30,9 +30,9 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
   const [error, setError] = useState<string | null>(null)
   const [needsReconnect, setNeedsReconnect] = useState(false)
 
-  if (!session) return null
+  if (!thread) return null
 
-  const { draft } = session
+  const { draft } = thread
   const postability = classifyPostability(draft, CAPS)
   const longform = effectiveLongform(draft.longform, isVerified)
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
@@ -54,7 +54,7 @@ export function ComposeActions({ context, copied, setCopied }: ComposeActionsPro
     try {
       const result = await postDraft(prepareDraftForPost(draft, isVerified, longformPreference))
       setPostedUrl(result.url)
-      resetDraft(context)
+      resetDraft(threadId)
     } catch (e) {
       if (e instanceof XPostError) {
         setError(e.message)

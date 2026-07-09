@@ -6,7 +6,7 @@ import type { PostSegment } from '../../lib/compose/types'
 // poll is only offered when the segment has no media.
 
 interface PollEditorProps {
-  context: string
+  threadId: string
   segment: PostSegment
 }
 
@@ -17,7 +17,7 @@ const DURATIONS = [
   { label: '7 days', minutes: 10080 },
 ]
 
-export function PollEditor({ context, segment }: PollEditorProps) {
+export function PollEditor({ threadId, segment }: PollEditorProps) {
   const patchSegment = useComposeStore((s) => s.patchSegment)
   const poll = segment.poll
 
@@ -25,7 +25,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
     if (segment.media.length > 0) return null
     return (
       <button
-        onClick={() => patchSegment(context, segment.id, { poll: { options: ['', ''], durationMinutes: 1440 } })}
+        onClick={() => patchSegment(threadId, segment.id, { poll: { options: ['', ''], durationMinutes: 1440 } })}
         className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
       >
         + Add poll
@@ -35,7 +35,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
 
   const setOption = (i: number, value: string) => {
     const options = poll.options.map((o, idx) => (idx === i ? value : o))
-    patchSegment(context, segment.id, { poll: { ...poll, options } })
+    patchSegment(threadId, segment.id, { poll: { ...poll, options } })
   }
 
   return (
@@ -51,7 +51,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
           />
           {poll.options.length > 2 && (
             <button
-              onClick={() => patchSegment(context, segment.id, { poll: { ...poll, options: poll.options.filter((_, idx) => idx !== i) } })}
+              onClick={() => patchSegment(threadId, segment.id, { poll: { ...poll, options: poll.options.filter((_, idx) => idx !== i) } })}
               className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors"
             >
               ×
@@ -62,7 +62,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
       <div className="flex items-center gap-2 pt-1">
         {poll.options.length < 4 && (
           <button
-            onClick={() => patchSegment(context, segment.id, { poll: { ...poll, options: [...poll.options, ''] } })}
+            onClick={() => patchSegment(threadId, segment.id, { poll: { ...poll, options: [...poll.options, ''] } })}
             className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
           >
             + Choice
@@ -70,7 +70,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
         )}
         <select
           value={poll.durationMinutes}
-          onChange={(e) => patchSegment(context, segment.id, { poll: { ...poll, durationMinutes: Number(e.target.value) } })}
+          onChange={(e) => patchSegment(threadId, segment.id, { poll: { ...poll, durationMinutes: Number(e.target.value) } })}
           className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-1.5 py-1 text-[10px] text-white/60 outline-none"
         >
           {DURATIONS.map((d) => (
@@ -79,7 +79,7 @@ export function PollEditor({ context, segment }: PollEditorProps) {
         </select>
         <div className="flex-1" />
         <button
-          onClick={() => patchSegment(context, segment.id, { poll: undefined })}
+          onClick={() => patchSegment(threadId, segment.id, { poll: undefined })}
           className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors"
         >
           Remove poll

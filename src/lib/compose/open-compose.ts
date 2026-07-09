@@ -1,10 +1,9 @@
 import { useComposeStore } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 
-/** Jump to the Post tab with a target loaded as compose context. */
+/** Jump to the Post tab with a new thread scoped to a target. */
 export function openComposeForTarget(username: string) {
-  useComposeStore.getState().setActiveContext(username)
-  useComposeStore.getState().ensureSession(username)
+  useComposeStore.getState().createThread({ type: 'target', username })
   useXIntelStore.getState().setActiveTopTab('post')
 }
 
@@ -12,6 +11,10 @@ export function openComposeForTarget(username: string) {
 export function syncComposeContextFromActiveTarget() {
   const target = useXIntelStore.getState().activeTarget
   if (!target) return
-  useComposeStore.getState().setActiveContext(target)
-  useComposeStore.getState().ensureSession(target)
+  const store = useComposeStore.getState()
+  store.setNewThreadContext({ type: 'target', username: target })
+  // Only create a thread if none is active yet.
+  if (!store.activeThreadId || !store.threads[store.activeThreadId]) {
+    store.createThread({ type: 'target', username: target })
+  }
 }

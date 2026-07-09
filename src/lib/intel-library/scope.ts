@@ -6,3 +6,9 @@ export function scopeFromContext(activeContext: string): ComposeScope {
   if (activeContext === ALL_CONTEXT) return { type: 'all' }
   return { type: 'target', username: activeContext }
 }
+
+export function contextKeyFromScope(scope: ComposeScope): string {
+  if (scope.type === 'me') return ME_CONTEXT
+  if (scope.type === 'all') return ALL_CONTEXT
+  return scope.username.replace(/^@/, '')
+}

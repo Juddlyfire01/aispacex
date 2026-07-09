@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useComposeStore, ME_CONTEXT } from './compose-store'
+import { useComposeStore, migrateComposeState, ME_CONTEXT } from './compose-store'
+import { emptyDraft } from '../lib/compose/types'
 
 function reset() {
   useComposeStore.setState({
-    sessions: {},
-    activeContext: ME_CONTEXT,
+    threads: {},
+    threadOrder: [],
+    activeThreadId: null,
+    newThreadContext: { type: 'all' },
+    draftDrawerOpen: false,
     model: '',
     xSearch: 'auto',
     isStreaming: false,
@@ -18,74 +22,102 @@ function reset() {
 describe('compose-store', () => {
   beforeEach(reset)
 
-  it('creates a session with a single empty segment', () => {
-    useComposeStore.getState().ensureSession(ME_CONTEXT)
-    const session = useComposeStore.getState().sessions[ME_CONTEXT]
-    expect(session).toBeDefined()
-    expect(session.draft.segments).toHaveLength(1)
-    expect(session.draft.target).toEqual({ kind: 'original' })
+  it('createThread creates a thread with a single empty segment', () => {
+    const id = useComposeStore.getState().createThread({ type: 'me' })
+    const thread = useComposeStore.getState().threads[id]
+    expect(thread).toBeDefined()
+    expect(thread.draft.segments).toHaveLength(1)
+    expect(thread.draft.target).toEqual({ kind: 'original' })
+    expect(thread.context).toEqual({ type: 'me' })
+    expect(thread.title).toBe('New chat')
+    expect(useComposeStore.getState().activeThreadId).toBe(id)
+    expect(useComposeStore.getState().threadOrder[0]).toBe(id)
   })
 
-  it('ensureSession is idempotent', () => {
+  it('selectThread and deleteThread update active and order', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    const first = useComposeStore.getState().sessions[ME_CONTEXT]
-    s.ensureSession(ME_CONTEXT)
-    expect(useComposeStore.getState().sessions[ME_CONTEXT]).toBe(first)
+    const a = s.createThread({ type: 'me' })
+    const b = s.createThread({ type: 'all' })
+    expect(useComposeStore.getState().activeThreadId).toBe(b)
+    useComposeStore.getState().selectThread(a)
+    expect(useComposeStore.getState().activeThreadId).toBe(a)
+    useComposeStore.getState().deleteThread(a)
+    expect(useComposeStore.getState().threads[a]).toBeUndefined()
+    expect(useComposeStore.getState().activeThreadId).toBe(b)
+    expect(useComposeStore.getState().threadOrder).toEqual([b])
+  })
+
+  it('ensureActiveThread creates when none active, reuses when present', () => {
+    const s = useComposeStore.getState()
+    const first = s.ensureActiveThread()
+    expect(useComposeStore.getState().threads[first]).toBeDefined()
+    expect(useComposeStore.getState().threads[first].context).toEqual({ type: 'all' })
+    const again = useComposeStore.getState().ensureActiveThread()
+    expect(again).toBe(first)
+  })
+
+  it('addMessage sets title from first user message', () => {
+    const s = useComposeStore.getState()
+    const id = s.createThread()
+    s.addMessage(id, { role: 'user', content: 'Write a post about privacy' })
+    const thread = useComposeStore.getState().threads[id]
+    expect(thread.title).toBe('Write a post about privacy')
+    expect(thread.preview).toContain('privacy')
+    expect(thread.tokenEstimate).toBeGreaterThan(0)
   })
 
   it('appends streamed tokens to the last assistant message', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    s.addMessage(ME_CONTEXT, { role: 'user', content: 'hi' })
-    s.addMessage(ME_CONTEXT, { role: 'assistant', content: '' })
-    s.appendToLastAssistant(ME_CONTEXT, 'Hel')
-    s.appendToLastAssistant(ME_CONTEXT, 'lo')
-    const msgs = useComposeStore.getState().sessions[ME_CONTEXT].messages
+    const id = s.createThread()
+    s.addMessage(id, { role: 'user', content: 'hi' })
+    s.addMessage(id, { role: 'assistant', content: '' })
+    s.appendToLastAssistant(id, 'Hel')
+    s.appendToLastAssistant(id, 'lo')
+    const msgs = useComposeStore.getState().threads[id].messages
     expect(msgs[msgs.length - 1].content).toBe('Hello')
   })
 
   it('applies a draft patch and bumps updatedAt', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    const before = useComposeStore.getState().sessions[ME_CONTEXT].draft.updatedAt
-    s.applyDraftPatch(ME_CONTEXT, { segments: [{ id: 'x', text: 'new', media: [] }] })
-    const draft = useComposeStore.getState().sessions[ME_CONTEXT].draft
+    const id = s.createThread()
+    const before = useComposeStore.getState().threads[id].draft.updatedAt
+    s.applyDraftPatch(id, { segments: [{ id: 'x', text: 'new', media: [] }] })
+    const draft = useComposeStore.getState().threads[id].draft
     expect(draft.segments[0].text).toBe('new')
     expect(draft.updatedAt >= before).toBe(true)
   })
 
   it('adds, edits, moves and removes segments', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    const firstId = useComposeStore.getState().sessions[ME_CONTEXT].draft.segments[0].id
-    s.setSegmentText(ME_CONTEXT, firstId, 'one')
-    s.addSegment(ME_CONTEXT)
-    let segs = useComposeStore.getState().sessions[ME_CONTEXT].draft.segments
+    const id = s.createThread()
+    const firstId = useComposeStore.getState().threads[id].draft.segments[0].id
+    s.setSegmentText(id, firstId, 'one')
+    s.addSegment(id)
+    let segs = useComposeStore.getState().threads[id].draft.segments
     expect(segs).toHaveLength(2)
     const secondId = segs[1].id
-    s.setSegmentText(ME_CONTEXT, secondId, 'two')
-    s.moveSegment(ME_CONTEXT, secondId, -1)
-    segs = useComposeStore.getState().sessions[ME_CONTEXT].draft.segments
+    s.setSegmentText(id, secondId, 'two')
+    s.moveSegment(id, secondId, -1)
+    segs = useComposeStore.getState().threads[id].draft.segments
     expect(segs.map((x) => x.text)).toEqual(['two', 'one'])
-    s.removeSegment(ME_CONTEXT, segs[0].id)
-    expect(useComposeStore.getState().sessions[ME_CONTEXT].draft.segments).toHaveLength(1)
+    s.removeSegment(id, segs[0].id)
+    expect(useComposeStore.getState().threads[id].draft.segments).toHaveLength(1)
   })
 
   it('never removes the last remaining segment', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    const id = useComposeStore.getState().sessions[ME_CONTEXT].draft.segments[0].id
-    s.removeSegment(ME_CONTEXT, id)
-    expect(useComposeStore.getState().sessions[ME_CONTEXT].draft.segments).toHaveLength(1)
+    const id = s.createThread()
+    const segId = useComposeStore.getState().threads[id].draft.segments[0].id
+    s.removeSegment(id, segId)
+    expect(useComposeStore.getState().threads[id].draft.segments).toHaveLength(1)
   })
 
   it('setLastAssistantContent replaces the streamed text (block-strip case)', () => {
     const s = useComposeStore.getState()
-    s.ensureSession(ME_CONTEXT)
-    s.addMessage(ME_CONTEXT, { role: 'assistant', content: 'raw with block' })
-    s.setLastAssistantContent(ME_CONTEXT, 'clean prose')
-    const msgs = useComposeStore.getState().sessions[ME_CONTEXT].messages
+    const id = s.createThread()
+    s.addMessage(id, { role: 'assistant', content: 'raw with block' })
+    s.setLastAssistantContent(id, 'clean prose')
+    const msgs = useComposeStore.getState().threads[id].messages
     expect(msgs[msgs.length - 1].content).toBe('clean prose')
   })
 
@@ -95,6 +127,7 @@ describe('compose-store', () => {
     expect(s.budgetPct).toBe(0.5)
     expect(s.dayWindowDays).toBe(7)
     expect(s.toolActivity).toBeNull()
+    expect(s.newThreadContext).toEqual({ type: 'all' })
   })
 
   it('clamps budgetPct to 0.25–0.75', () => {
@@ -117,5 +150,48 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().toolActivity).toBe('Searching library…')
     s.setToolActivity(null)
     expect(useComposeStore.getState().toolActivity).toBeNull()
+  })
+
+  it('migrateComposeState v3 sessions → v4 threads', () => {
+    const olderDraft = emptyDraft({ kind: 'original' })
+    olderDraft.updatedAt = '2024-01-01T00:00:00.000Z'
+    const newerDraft = emptyDraft({ kind: 'original' })
+    newerDraft.updatedAt = '2024-06-01T00:00:00.000Z'
+
+    const migrated = migrateComposeState(
+      {
+        sessions: {
+          [ME_CONTEXT]: {
+            messages: [{ role: 'user', content: 'Hello from me' }],
+            draft: olderDraft,
+          },
+          AskVenice: {
+            messages: [{ role: 'user', content: 'About Venice' }],
+            draft: newerDraft,
+          },
+        },
+        activeContext: 'AskVenice',
+        model: 'grok',
+        xSearch: 'auto',
+        longformPreference: true,
+        libraryMode: 'auto',
+        budgetPct: 0.5,
+        dayWindowDays: 7,
+      },
+      3,
+    )
+
+    const raw = migrated as unknown as Record<string, unknown>
+    expect(raw.sessions).toBeUndefined()
+    expect(raw.activeContext).toBeUndefined()
+    expect(Object.keys(migrated.threads)).toHaveLength(2)
+    expect(migrated.threadOrder).toHaveLength(2)
+    // Newer updatedAt first
+    const firstId = migrated.threadOrder[0]
+    expect(migrated.threads[firstId].context).toEqual({ type: 'target', username: 'AskVenice' })
+    expect(migrated.activeThreadId).toBe(firstId)
+    expect(migrated.newThreadContext).toEqual({ type: 'target', username: 'AskVenice' })
+    const meThread = Object.values(migrated.threads).find((t) => t.context.type === 'me')
+    expect(meThread?.title).toBe('Hello from me')
   })
 })
