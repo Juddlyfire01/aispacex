@@ -3,7 +3,9 @@ import type { IntelSnapshot, LibrarySubject } from './types'
 
 const GATHERED = '2026-07-08T12:00:00.000Z'
 
-export function makePost(partial: Partial<Post> = {}): Post {
+export function makePost(
+  partial: Partial<Omit<Post, 'metrics'>> & { metrics?: Partial<Post['metrics']> } = {},
+): Post {
   const { metrics: metricsOver, ...rest } = partial
   return {
     id: 'post-1',
