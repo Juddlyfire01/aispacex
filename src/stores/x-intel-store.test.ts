@@ -32,7 +32,17 @@ describe('mergePosts', () => {
 
 describe('useXIntelStore', () => {
   beforeEach(() => {
-    useXIntelStore.setState({ targets: [], reports: {}, activeTarget: null, sessionCost: 0, lifetimeTotal: 0, feedFocusPostId: null, feedFocusNonce: 0 })
+    useXIntelStore.setState({
+      targets: [],
+      reports: {},
+      activeTarget: null,
+      sessionCost: 0,
+      lifetimeTotal: 0,
+      feedFocusPostId: null,
+      feedFocusNonce: 0,
+      generatingReports: {},
+      reportGenerateErrors: {},
+    })
   })
 
   it('addTarget creates an empty report and selects it', () => {
@@ -183,6 +193,19 @@ describe('useXIntelStore', () => {
     store.appendReport('ErikVoorhees', makeSnapshot('b')) // active = b
     store.deleteReport('ErikVoorhees', 'a')
     expect(useXIntelStore.getState().reports['ErikVoorhees'].activeReportId).toBe('b')
+  })
+
+  it('setReportGenerating / setReportGenerateError are ephemeral and keyed by report', () => {
+    const store = useXIntelStore.getState()
+    store.addTarget('ErikVoorhees')
+    store.setReportGenerating('ErikVoorhees', true)
+    store.setReportGenerateError('ErikVoorhees', 'boom')
+    expect(useXIntelStore.getState().generatingReports['ErikVoorhees']).toBe(true)
+    expect(useXIntelStore.getState().reportGenerateErrors['ErikVoorhees']).toBe('boom')
+    store.setReportGenerating('ErikVoorhees', false)
+    store.setReportGenerateError('ErikVoorhees', null)
+    expect(useXIntelStore.getState().generatingReports['ErikVoorhees']).toBeUndefined()
+    expect(useXIntelStore.getState().reportGenerateErrors['ErikVoorhees']).toBeUndefined()
   })
 })
 

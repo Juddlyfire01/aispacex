@@ -9,6 +9,8 @@ describe('useXSelfStore reorderAccounts', () => {
       activeAccountId: null,
       connecting: false,
       connected: false,
+      generatingReports: {},
+      reportGenerateErrors: {},
     })
   })
 
@@ -30,5 +32,18 @@ describe('useXSelfStore reorderAccounts', () => {
     store.upsertAccount({ id: '2', username: 'bob' })
     store.reorderAccounts(1, 5)
     expect(useXSelfStore.getState().accountOrder).toEqual(['1', '2'])
+  })
+
+  it('setReportGenerating / setReportGenerateError track per-account job state', () => {
+    const store = useXSelfStore.getState()
+    store.upsertAccount({ id: '1', username: 'alice' })
+    store.setReportGenerating('1', true)
+    store.setReportGenerateError('1', 'failed')
+    expect(useXSelfStore.getState().generatingReports['1']).toBe(true)
+    expect(useXSelfStore.getState().reportGenerateErrors['1']).toBe('failed')
+    store.setReportGenerating('1', false)
+    store.setReportGenerateError('1', null)
+    expect(useXSelfStore.getState().generatingReports['1']).toBeUndefined()
+    expect(useXSelfStore.getState().reportGenerateErrors['1']).toBeUndefined()
   })
 })

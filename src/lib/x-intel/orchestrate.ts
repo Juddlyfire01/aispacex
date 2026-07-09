@@ -156,57 +156,79 @@ export async function refreshNetworkWithMentions(username: string): Promise<void
  * post metrics change on a later re-gather.
  */
 export async function generateReport(username: string): Promise<IntelReportSnapshot> {
-  const { appendReport } = useXIntelStore.getState()
+  const store = useXIntelStore.getState()
   const { key, report } = requireReport(username)
+  if (store.generatingReports[key]) {
+    throw new Error('A report is already generating for this profile')
+  }
   if (!report.profile) throw new Error('Gather the profile first')
   if (report.posts.length === 0) throw new Error('Gather posts first (re-gather from the profile rail)')
 
-  const analytics = computeAnalytics(report.profile, report.posts, report.edges)
-  const prevSnapshot = report.reportHistory[0] ?? null
+  // Snapshot inputs up front so navigate-away / store churn cannot mid-flight
+  // the analytics + synthesis against a different corpus.
+  const profile = report.profile
+  const posts = report.posts
+  const edges = report.edges
+  const synthesisSettings = { ...report.synthesisSettings }
+  const reportHistory = report.reportHistory
 
-  // Computed delta vs. the previous report (baseline = null)
-  let computedDelta: Omit<import('./types').ChangeSummary, 'narrative'> | null = null
-  if (prevSnapshot) {
-    const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
-    const newPosts = report.posts.filter((p) => !prevIds.has(p.id))
-    const { own: newOwn, inbound: newInbound } = partitionPosts(report.profile, newPosts)
-    computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+  store.setReportGenerating(key, true)
+  store.setReportGenerateError(key, null)
+
+  try {
+    const analytics = computeAnalytics(profile, posts, edges)
+    const prevSnapshot = reportHistory[0] ?? null
+
+    // Computed delta vs. the previous report (baseline = null)
+    let computedDelta: Omit<import('./types').ChangeSummary, 'narrative'> | null = null
+    if (prevSnapshot) {
+      const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
+      const newPosts = posts.filter((p) => !prevIds.has(p.id))
+      const { own: newOwn, inbound: newInbound } = partitionPosts(profile, newPosts)
+      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+    }
+
+    // Resolve the prior reports the user chose to feed in as narrative context.
+    const includedIds = new Set(synthesisSettings.includedReportIds ?? [])
+    const includedReports = reportHistory.filter((r) => includedIds.has(r.id))
+
+    const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
+      profile,
+      posts,
+      analytics,
+      computedDelta,
+      prevSnapshot,
+      synthesisSettings,
+      includedReports,
+    )
+
+    const snapshot: IntelReportSnapshot = {
+      id: newReportId(),
+      createdAt: new Date().toISOString(),
+      model: synthesisSettings.model,
+      synthesisSettings: { ...synthesisSettings },
+      meta: {
+        postCount: posts.length,
+        dateRange: postDateRange(posts),
+        postIdsAnalyzed: posts.map((p) => p.id),
+        tokenCost,
+        promptTokens,
+        completionTokens,
+        includedReportIds: includedReports.map((r) => r.id),
+      },
+      analytics,
+      narrative,
+      changeSummary: computedDelta ? { ...computedDelta, narrative: changeNarrative ?? '' } : null,
+      previousReportId: prevSnapshot?.id ?? null,
+    }
+
+    useXIntelStore.getState().appendReport(key, snapshot)
+    return snapshot
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Report generation failed'
+    useXIntelStore.getState().setReportGenerateError(key, message)
+    throw e
+  } finally {
+    useXIntelStore.getState().setReportGenerating(key, false)
   }
-
-  // Resolve the prior reports the user chose to feed in as narrative context.
-  const includedIds = new Set(report.synthesisSettings.includedReportIds ?? [])
-  const includedReports = report.reportHistory.filter((r) => includedIds.has(r.id))
-
-  const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
-    report.profile,
-    report.posts,
-    analytics,
-    computedDelta,
-    prevSnapshot,
-    report.synthesisSettings,
-    includedReports,
-  )
-
-  const snapshot: IntelReportSnapshot = {
-    id: newReportId(),
-    createdAt: new Date().toISOString(),
-    model: report.synthesisSettings.model,
-    synthesisSettings: { ...report.synthesisSettings },
-    meta: {
-      postCount: report.posts.length,
-      dateRange: postDateRange(report.posts),
-      postIdsAnalyzed: report.posts.map((p) => p.id),
-      tokenCost,
-      promptTokens,
-      completionTokens,
-      includedReportIds: includedReports.map((r) => r.id),
-    },
-    analytics,
-    narrative,
-    changeSummary: computedDelta ? { ...computedDelta, narrative: changeNarrative ?? '' } : null,
-    previousReportId: prevSnapshot?.id ?? null,
-  }
-
-  appendReport(key, snapshot)
-  return snapshot
 }

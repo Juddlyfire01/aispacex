@@ -100,6 +100,13 @@ interface XIntelState {
   feedFocusPostId: string | null
   /** Bumps on every jump request so re-clicking the same post still scrolls. */
   feedFocusNonce: number
+  /**
+   * Ephemeral: usernames currently synthesizing a report. Survives ProfileReport
+   * unmount so navigate-away does not lose "Generating…" / double-fire the job.
+   */
+  generatingReports: Record<string, true>
+  /** Ephemeral: last generate-report error per username (cleared on next start). */
+  reportGenerateErrors: Record<string, string>
 
   addTarget: (username: string) => void
   seedTarget: (profile: Profile) => void
@@ -130,6 +137,8 @@ interface XIntelState {
   /** Same as jumpToFeedPost but for the self ("me") Profile → Feed sub-tab. */
   jumpToSelfFeedPost: (postId: string) => void
   clearFeedFocus: () => void
+  setReportGenerating: (username: string, generating: boolean) => void
+  setReportGenerateError: (username: string, error: string | null) => void
 }
 
 export function mergePosts(existing: Post[], incoming: Post[]): Post[] {
@@ -163,6 +172,8 @@ export const useXIntelStore = create<XIntelState>()(
       defaultSynthesisSettings: DEFAULT_SYNTHESIS_SETTINGS,
       feedFocusPostId: null,
       feedFocusNonce: 0,
+      generatingReports: {},
+      reportGenerateErrors: {},
 
       addTarget: (username) => {
         const name = canonical(username)
@@ -408,6 +419,28 @@ export const useXIntelStore = create<XIntelState>()(
         feedFocusNonce: s.feedFocusNonce + 1,
       })),
       clearFeedFocus: () => set({ feedFocusPostId: null }),
+
+      setReportGenerating: (username, generating) => {
+        const key = findReportKey(get().reports, username) ?? canonical(username)
+        if (!key) return
+        set((s) => {
+          const generatingReports = { ...s.generatingReports }
+          if (generating) generatingReports[key] = true
+          else delete generatingReports[key]
+          return { generatingReports }
+        })
+      },
+
+      setReportGenerateError: (username, error) => {
+        const key = findReportKey(get().reports, username) ?? canonical(username)
+        if (!key) return
+        set((s) => {
+          const reportGenerateErrors = { ...s.reportGenerateErrors }
+          if (error) reportGenerateErrors[key] = error
+          else delete reportGenerateErrors[key]
+          return { reportGenerateErrors }
+        })
+      },
     }),
     {
       name: 'x-intel-reports',

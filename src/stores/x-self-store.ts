@@ -71,6 +71,13 @@ interface XSelfState {
    *  many components that gate on `connected` (header, rails, refresh buttons). */
   connected: boolean
   defaultSynthesisSettings: SynthesisSettings
+  /**
+   * Ephemeral: account ids currently synthesizing a self report. Survives
+   * SelfReport unmount so navigate-away does not drop "Generating…".
+   */
+  generatingReports: Record<string, true>
+  /** Ephemeral: last generate-report error per account id. */
+  reportGenerateErrors: Record<string, string>
 
   // Account lifecycle
   upsertAccount: (account: { id: string; username: string }) => void
@@ -102,6 +109,8 @@ interface XSelfState {
   appendReport: (id: string, snapshot: IntelReportSnapshot) => void
   setActiveReport: (id: string, reportId: string) => void
   deleteReport: (id: string, reportId: string) => void
+  setReportGenerating: (id: string, generating: boolean) => void
+  setReportGenerateError: (id: string, error: string | null) => void
 
   /** Drop all live connection flags but keep cached data. */
   disconnectAll: () => void
@@ -118,6 +127,8 @@ export const useXSelfStore = create<XSelfState>()(
       connecting: false,
       connected: false,
       defaultSynthesisSettings: DEFAULT_SYNTHESIS_SETTINGS,
+      generatingReports: {},
+      reportGenerateErrors: {},
 
       upsertAccount: ({ id, username }) =>
         set((s) => {
@@ -311,8 +322,32 @@ export const useXSelfStore = create<XSelfState>()(
           return { accounts: { ...s.accounts, [id]: { ...a, reportHistory, activeReportId } } }
         }),
 
+      setReportGenerating: (id, generating) =>
+        set((s) => {
+          const generatingReports = { ...s.generatingReports }
+          if (generating) generatingReports[id] = true
+          else delete generatingReports[id]
+          return { generatingReports }
+        }),
+
+      setReportGenerateError: (id, error) =>
+        set((s) => {
+          const reportGenerateErrors = { ...s.reportGenerateErrors }
+          if (error) reportGenerateErrors[id] = error
+          else delete reportGenerateErrors[id]
+          return { reportGenerateErrors }
+        }),
+
       disconnectAll: () => set({ connecting: false, connected: false, activeAccountId: null }),
-      reset: () => set({ accounts: {}, accountOrder: [], activeAccountId: null, connecting: false, connected: false }),
+      reset: () => set({
+        accounts: {},
+        accountOrder: [],
+        activeAccountId: null,
+        connecting: false,
+        connected: false,
+        generatingReports: {},
+        reportGenerateErrors: {},
+      }),
     }),
     {
       name: 'x-self-profile',

@@ -35,6 +35,14 @@ export function TextArea({ value, onChange, placeholder, rows = 3, ariaLabel, ma
   )
 }
 
+/**
+ * Theme primary fill colors. Use for compact CTAs that aren't full-width
+ * PrimaryButton — same tokens on every theme (accent on Venice/grey/light,
+ * white-on-black on X dark).
+ */
+export const primaryBtnFillClass =
+  'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90'
+
 export function PrimaryButton({ onClick, disabled, loading, children, ariaLabel, size = 'md' }: {
   onClick: () => void
   disabled?: boolean
@@ -55,7 +63,7 @@ export function PrimaryButton({ onClick, disabled, loading, children, ariaLabel,
         'w-full rounded-lg font-medium transition-all duration-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
         sizing,
         !disabled && !loading
-          ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 active:scale-[0.99] shadow-sm'
+          ? cn(primaryBtnFillClass, 'active:scale-[0.99] shadow-sm')
           : 'bg-[var(--color-border-faint)] text-[var(--color-text-tertiary)] cursor-not-allowed',
       )}
     >

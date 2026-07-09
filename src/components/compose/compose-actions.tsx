@@ -98,7 +98,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
             onClick={post}
             disabled={!connected || blocked || posting}
             title={!connected ? 'Connect your X account (header → Connect X)' : undefined}
-            className="px-3 py-1.5 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {posting ? 'Posting…' : draft.segments.length > 1 ? 'Post thread' : 'Post to X'}
           </button>

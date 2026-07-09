@@ -3,7 +3,7 @@ import { MarkdownMessage } from '../chat/markdown-message'
 import { MentionLink } from './mention-link'
 import { EthAddressLink } from './eth-address-link'
 import { linkify } from '../../lib/x-intel/linkify'
-import { useXIntelStore } from '../../stores/x-intel-store'
+import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { generateReport, runGather } from '../../lib/x-intel/orchestrate'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
@@ -601,8 +601,18 @@ export function ProfileReport() {
   const jumpToFeedPost = useXIntelStore((s) => s.jumpToFeedPost)
   const addTarget = useXIntelStore((s) => s.addTarget)
   const connected = useXSelfStore((s) => s.connected)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Busy/error live in the store so leaving Profile mid-generation does not
+  // abort UI state or allow a second concurrent job for the same target.
+  const busy = useXIntelStore((s) => {
+    if (!s.activeTarget) return false
+    const key = findReportKey(s.reports, s.activeTarget) ?? s.activeTarget
+    return Boolean(s.generatingReports[key])
+  })
+  const error = useXIntelStore((s) => {
+    if (!s.activeTarget) return null
+    const key = findReportKey(s.reports, s.activeTarget) ?? s.activeTarget
+    return s.reportGenerateErrors[key] ?? null
+  })
 
   // Add an engaged account (from mentions/replies) as a new intel target.
   const addAsTarget = (username: string) => {
@@ -627,16 +637,9 @@ export function ProfileReport() {
   // Live analytics preview over current posts (free, instant) when no report is selected yet.
   const liveAnalytics = !active && profile && hasPosts ? computeAnalytics(profile, posts, edges) : null
 
-  const run = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await generateReport(activeTarget)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Report generation failed')
-    } finally {
-      setBusy(false)
-    }
+  const run = () => {
+    if (busy) return
+    void generateReport(activeTarget).catch(() => { /* error stored on x-intel-store */ })
   }
 
   const buttonLabel = busy ? 'Generating…' : reportHistory.length > 0 ? 'Generate new report' : 'Generate report'
@@ -662,7 +665,7 @@ export function ProfileReport() {
           onClick={run}
           disabled={busy || !hasPosts || !profile}
           title={!hasPosts ? 'Gather posts first' : `Analyzes ${posts.length} stored posts (Venice tokens)`}
-          className="px-3 py-1 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {buttonLabel}
         </button>

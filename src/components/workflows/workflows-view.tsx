@@ -302,7 +302,7 @@ function WorkflowCanvas() {
               'w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[14px] font-medium transition-all',
               isRunning
                 ? 'bg-white/[0.06] text-white/30 cursor-wait'
-                : 'bg-white text-black hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed',
+                : 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed',
             )}
           >
             {isRunning ? (
@@ -402,7 +402,7 @@ export function WorkflowsView() {
           />
           <button
             onClick={() => handleCreate(newName)}
-            className="text-[14px] font-medium px-4 py-2 rounded-lg bg-white text-black hover:bg-white/90 transition-colors"
+            className="text-[14px] font-medium px-4 py-2 rounded-lg bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity"
           >
             New Workflow
           </button>

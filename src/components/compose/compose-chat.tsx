@@ -102,7 +102,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
               type="button"
               onClick={submit}
               disabled={!canSend}
-              className="px-3 py-1 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30"
+              className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30"
             >
               Send
             </button>

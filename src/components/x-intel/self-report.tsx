@@ -76,18 +76,22 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
     return unsub
   }, [hydrated])
 
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Busy/error live in the store so leaving Profile mid-generation does not
+  // drop "Generating…" or allow a second concurrent job for the same account.
+  const busy = useXSelfStore((s) =>
+    s.activeAccountId ? Boolean(s.generatingReports[s.activeAccountId]) : false,
+  )
+  const error = useXSelfStore((s) =>
+    s.activeAccountId ? (s.reportGenerateErrors[s.activeAccountId] ?? null) : null,
+  )
 
   const hasPosts = posts.length > 0
   const active = reportHistory.find((r) => r.id === activeReportId) ?? reportHistory[0] ?? null
   const liveAnalytics = !active && profile && hasPosts ? computeAnalytics(profile, posts, edges) : null
 
-  const run = async () => {
-    setBusy(true); setError(null)
-    try { await generateSelfReport() }
-    catch (e) { setError(e instanceof Error ? e.message : 'Report generation failed') }
-    finally { setBusy(false) }
+  const run = () => {
+    if (busy) return
+    void generateSelfReport().catch(() => { /* error stored on x-self-store */ })
   }
 
   // Self view has no "add target" affordance; mentions/replies just no-op.
@@ -110,7 +114,7 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
         <button
           onClick={run}
           disabled={busy || !hasPosts || !profile}
-          className="px-3 py-1 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {busy ? 'Generating…' : reportHistory.length > 0 ? 'Generate new report' : 'Generate report'}
         </button>

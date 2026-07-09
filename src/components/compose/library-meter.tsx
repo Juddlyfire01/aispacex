@@ -70,7 +70,9 @@ export function LibraryMeter({
               type="button"
               onClick={() => onModeChange(mode)}
               className={`px-2 py-0.5 text-[10px] capitalize transition-colors ${
-                libraryMode === mode ? 'bg-white text-black' : 'text-white/50 hover:text-white/80'
+                libraryMode === mode
+                  ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]'
+                  : 'text-white/50 hover:text-white/80'
               }`}
             >
               {mode === 'auto' ? 'Auto' : 'Custom'}

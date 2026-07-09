@@ -229,7 +229,9 @@ export function PlaygroundView() {
               disabled={!canExport || isRunning}
               className={cn(
                 'flex items-center gap-1.5 text-[13px] font-medium px-2.5 py-1 rounded-md transition-colors',
-                canExport && !isRunning ? 'bg-white text-black hover:bg-white/90' : 'bg-white/[0.05] text-white/30 cursor-not-allowed',
+                canExport && !isRunning
+                  ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90'
+                  : 'bg-white/[0.05] text-white/30 cursor-not-allowed',
               )}
               title="Open in Workflows tab"
             >

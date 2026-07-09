@@ -102,7 +102,7 @@ export function SectionEmpty({ title, hint, actionLabel, onAction, busy, disable
         <button
           onClick={onAction}
           disabled={busy || disabled}
-          className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
+          className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
         >
           <RefreshIcon spinning={busy} />
           {busy ? 'Gathering…' : actionLabel}

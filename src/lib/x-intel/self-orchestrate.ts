@@ -348,49 +348,69 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
   const state = useXSelfStore.getState()
   const accountId = state.activeAccountId
   if (!accountId) throw new Error('No active account')
+  if (state.generatingReports[accountId]) {
+    throw new Error('A report is already generating for this account')
+  }
   const account = state.accounts[accountId]
   if (!account || !account.profile) throw new Error('Load your profile first')
   if (account.posts.length === 0) throw new Error('Gather your posts first')
 
-  const settings = account.synthesisSettings
-  const analytics = computeAnalytics(account.profile, account.posts, account.edges)
-  const prevSnapshot = account.reportHistory[0] ?? null
+  // Snapshot inputs so unmount / account switch cannot mid-flight the job.
+  const profile = account.profile
+  const posts = account.posts
+  const edges = account.edges
+  const settings = { ...account.synthesisSettings }
+  const reportHistory = account.reportHistory
 
-  let computedDelta: Omit<ChangeSummary, 'narrative'> | null = null
-  if (prevSnapshot) {
-    const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
-    const newPosts = account.posts.filter((p) => !prevIds.has(p.id))
-    const { own: newOwn, inbound: newInbound } = partitionPosts(account.profile, newPosts)
-    computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+  state.setReportGenerating(accountId, true)
+  state.setReportGenerateError(accountId, null)
+
+  try {
+    const analytics = computeAnalytics(profile, posts, edges)
+    const prevSnapshot = reportHistory[0] ?? null
+
+    let computedDelta: Omit<ChangeSummary, 'narrative'> | null = null
+    if (prevSnapshot) {
+      const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
+      const newPosts = posts.filter((p) => !prevIds.has(p.id))
+      const { own: newOwn, inbound: newInbound } = partitionPosts(profile, newPosts)
+      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+    }
+
+    const includedIds = new Set(settings.includedReportIds ?? [])
+    const includedReports = reportHistory.filter((r) => includedIds.has(r.id))
+
+    const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
+      profile, posts, analytics, computedDelta, prevSnapshot, settings, includedReports,
+    )
+
+    const snapshot: IntelReportSnapshot = {
+      id: newReportId(),
+      createdAt: new Date().toISOString(),
+      model: settings.model,
+      synthesisSettings: { ...settings },
+      meta: {
+        postCount: posts.length,
+        dateRange: postDateRange(posts),
+        postIdsAnalyzed: posts.map((p) => p.id),
+        tokenCost,
+        promptTokens,
+        completionTokens,
+        includedReportIds: includedReports.map((r) => r.id),
+      },
+      analytics,
+      narrative,
+      changeSummary: computedDelta ? { ...computedDelta, narrative: changeNarrative ?? '' } : null,
+      previousReportId: prevSnapshot?.id ?? null,
+    }
+
+    useXSelfStore.getState().appendReport(accountId, snapshot)
+    return snapshot
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Report generation failed'
+    useXSelfStore.getState().setReportGenerateError(accountId, message)
+    throw e
+  } finally {
+    useXSelfStore.getState().setReportGenerating(accountId, false)
   }
-
-  const includedIds = new Set(settings.includedReportIds ?? [])
-  const includedReports = account.reportHistory.filter((r) => includedIds.has(r.id))
-
-  const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
-    account.profile, account.posts, analytics, computedDelta, prevSnapshot, settings, includedReports,
-  )
-
-  const snapshot: IntelReportSnapshot = {
-    id: newReportId(),
-    createdAt: new Date().toISOString(),
-    model: settings.model,
-    synthesisSettings: { ...settings },
-    meta: {
-      postCount: account.posts.length,
-      dateRange: postDateRange(account.posts),
-      postIdsAnalyzed: account.posts.map((p) => p.id),
-      tokenCost,
-      promptTokens,
-      completionTokens,
-      includedReportIds: includedReports.map((r) => r.id),
-    },
-    analytics,
-    narrative,
-    changeSummary: computedDelta ? { ...computedDelta, narrative: changeNarrative ?? '' } : null,
-    previousReportId: prevSnapshot?.id ?? null,
-  }
-
-  useXSelfStore.getState().appendReport(accountId, snapshot)
-  return snapshot
 }
