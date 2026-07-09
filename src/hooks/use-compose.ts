@@ -115,6 +115,7 @@ export function useCompose() {
             const withPref = applyLongformPreference(draft, pref)
             const gated = syncDraftForVerification(withPref, isVerified, pref)
             finishedStore.applyDraftPatch(threadId, gated ? { ...withPref, ...gated } : withPref)
+            finishedStore.setDraftDrawerOpen(true)
             finishedStore.setLastAssistantContent(threadId, visibleText || 'Draft updated.')
           } else {
             finishedStore.setLastAssistantContent(threadId, content)
