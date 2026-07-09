@@ -10,6 +10,7 @@ import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindow } from '../lib/compose/hot-window'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
+import { buildHistorySnapshot } from '../lib/compose/history-library'
 import type { ChatMessage } from '../types/venice'
 
 // Compose chat via non-streaming intel agent: packs a hot-window of local
@@ -86,10 +87,17 @@ export function useCompose() {
         })
         const apiMessages: ChatMessage[] = [{ role: 'system', content: system }, ...apiHistory]
 
+        const composeState = useComposeStore.getState()
+        const historySnapshot = buildHistorySnapshot(
+          composeState.threads,
+          composeState.threadOrder,
+        )
+
         const { content } = await runComposeAgent({
           model,
           messages: apiMessages,
           snapshot,
+          historySnapshot,
           scope,
           xSearchOn,
           signal: abortController.signal,

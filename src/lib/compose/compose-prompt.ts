@@ -39,7 +39,12 @@ const TOOLS_SPEC = `Intel access:
 - For deeper, older, or cross-subject lookup, call the intel_* tools (list subjects, glob paths, grep, get profile/posts/report/edges). Use tools surgically — ids, date ranges, and handles from prior hits — never dump the full library.
 - Never invent post ids or handles. Only use ids/handles returned by tools or present in the hot window.
 - If a tool returns empty or no matching data, say so plainly rather than fabricating posts or metrics.
-- Do not try to reconstruct the entire corpus via tools; fetch only what you need for the current turn.`
+- Do not try to reconstruct the entire corpus via tools; fetch only what you need for the current turn.
+
+Compose history access:
+- Prefer the active chat transcript already in this conversation. It is the source of truth for the current thread.
+- For prior compose threads (other chats), use compose_history_* tools (list, glob, grep, get). Paths look like history/{me|all|target/@user}/{threadId}.
+- Never invent thread ids. Only use thread ids returned by compose_history_* tools.`
 
 export function buildComposeSystem(opts: ComposeSystemOpts): string {
   const parts: string[] = [

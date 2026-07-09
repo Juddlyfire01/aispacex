@@ -1,6 +1,8 @@
 import { venice } from '../venice-client'
 import type { ChatCompletionResponse, ChatMessage } from '../../types/venice'
 import type { ComposeScope, IntelSnapshot } from '../intel-library/types'
+import type { HistorySnapshot } from './history-library'
+import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
 
 export const MAX_TOOL_ROUNDS = 6
@@ -10,6 +12,7 @@ export interface ComposeAgentOpts {
   /** Includes system as first message. */
   messages: ChatMessage[]
   snapshot: IntelSnapshot
+  historySnapshot: HistorySnapshot
   scope: ComposeScope
   xSearchOn: boolean
   signal?: AbortSignal
@@ -39,7 +42,7 @@ function contentAsString(content: ChatMessage['content']): string {
 
 /**
  * Non-streaming multi-round tool loop for compose.
- * Calls Venice chat/completions with COMPOSE_INTEL_TOOLS until the model
+ * Calls Venice chat/completions with intel + history tools until the model
  * returns text without tool_calls, or MAX_TOOL_ROUNDS is hit.
  */
 export async function runComposeAgent(
@@ -47,6 +50,7 @@ export async function runComposeAgent(
 ): Promise<{ content: string; toolCalls: number }> {
   const messages: ChatMessage[] = [...opts.messages]
   let toolCalls = 0
+  const tools = [...COMPOSE_INTEL_TOOLS, ...COMPOSE_HISTORY_TOOLS]
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (opts.signal?.aborted) {
@@ -60,7 +64,7 @@ export async function runComposeAgent(
         messages,
         temperature: 0.6,
         max_tokens: 4096,
-        tools: COMPOSE_INTEL_TOOLS,
+        tools,
         tool_choice: 'auto',
         venice_parameters: { enable_x_search: opts.xSearchOn },
       }),
@@ -91,10 +95,12 @@ export async function runComposeAgent(
       const name = call.function?.name ?? ''
       const args = safeParseArgs(call.function?.arguments)
       opts.onTool?.({ name, args })
-      const result = executeIntelTool(name, args, {
-        snapshot: opts.snapshot,
-        scope: opts.scope,
-      })
+      const result = name.startsWith('compose_history_')
+        ? executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
+        : executeIntelTool(name, args, {
+            snapshot: opts.snapshot,
+            scope: opts.scope,
+          })
       toolCalls++
       messages.push({
         role: 'tool',

@@ -9,13 +9,16 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/segments/)
   })
 
-  it('toolsEnabled adds intel tool rules', () => {
+  it('toolsEnabled adds intel and history tool rules', () => {
     const off = buildComposeSystem({ xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ xSearchOn: false, toolsEnabled: true })
     expect(off).not.toMatch(/intel_\*/)
     expect(on).toMatch(/intel_\*/)
     expect(on).toMatch(/HOT WINDOW/i)
     expect(on).toMatch(/Never invent post ids/i)
+    expect(on).toMatch(/compose_history_\*/)
+    expect(on).toMatch(/Never invent thread ids/i)
+    expect(on).toMatch(/active chat transcript/i)
   })
 
   it('xSearchOn adds live search blurb', () => {

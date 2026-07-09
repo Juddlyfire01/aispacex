@@ -67,6 +67,7 @@ describe('runComposeAgent', () => {
         { role: 'user', content: 'Find staking posts' },
       ],
       snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] },
       scope: { type: 'all' },
       xSearchOn: false,
       onTool,
