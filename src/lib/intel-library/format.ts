@@ -6,15 +6,21 @@ function shortDate(iso: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : iso
 }
 
+function collapseWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 export function formatProfileLine(p: Profile): string {
-  const head = `@${p.username} (${p.displayName}) · ${p.metrics.followers} followers`
-  if (p.bio) return `${head}\n  ${p.bio}`
+  const verified = p.verified?.type ? ` · ${p.verified.type}✓` : ''
+  const head = `@${p.username} (${p.displayName}) · ${p.metrics.followers} followers${verified}`
+  if (p.bio) return `${head}\n  Bio: ${collapseWhitespace(p.bio)}`
   return head
 }
 
 export function formatPostLine(p: Post): string {
   const date = shortDate(p.createdAt)
-  return `  - [${date}] id=${p.id} (${p.kind}) ♥${p.metrics.likes} — ${p.text}`
+  const text = collapseWhitespace(p.text)
+  return `  - [${date}] id=${p.id} (${p.kind}) ♥${p.metrics.likes} — ${text}`
 }
 
 export function formatReportBrief(s: IntelReportSnapshot): string {

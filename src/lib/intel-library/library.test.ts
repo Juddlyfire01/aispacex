@@ -5,7 +5,7 @@ import {
   libraryCounts,
   getSubject,
 } from './library'
-import { sampleSnapshot } from './test-fixtures'
+import { makePost, sampleSnapshot } from './test-fixtures'
 import {
   formatProfileLine,
   formatPostLine,
@@ -25,7 +25,15 @@ describe('scope', () => {
   })
 
   it('all both', () => {
-    expect(listSubjects(snap, { type: 'all' })).toHaveLength(2)
+    const list = listSubjects(snap, { type: 'all' })
+    expect(list).toHaveLength(2)
+    const first = list[0]!
+    expect(first).toMatchObject({
+      postCount: expect.any(Number),
+      reportCount: expect.any(Number),
+      hasProfile: expect.any(Boolean),
+    })
+    expect(first).not.toHaveProperty('posts')
   })
 
   it('counts posts in all', () => {
@@ -52,5 +60,19 @@ describe('format helpers', () => {
       for (const r of sub.reports) formatReportBrief(r)
       for (const e of sub.edges) formatEdgeLine(e)
     }
+  })
+
+  it('collapses multi-line and multi-space post text to a single line', () => {
+    const line = formatPostLine(
+      makePost({
+        text: 'hello\n\n  world   with   spaces',
+        createdAt: '2026-07-01T12:00:00.000Z',
+        id: 'p1',
+        kind: 'original',
+        metrics: { likes: 3 },
+      }),
+    )
+    expect(line).toBe('  - [2026-07-01] id=p1 (original) ♥3 — hello world with spaces')
+    expect(line).not.toMatch(/\n/)
   })
 })

@@ -40,3 +40,12 @@ export interface LibraryCounts {
   bookmarks: number
   likes: number
 }
+
+export interface SubjectSummary {
+  kind: LibraryKind
+  username: string
+  postCount: number
+  reportCount: number
+  hasProfile: boolean
+  refreshedAt: string | null
+}

@@ -1,4 +1,10 @@
-import type { ComposeScope, IntelSnapshot, LibraryCounts, LibrarySubject } from './types'
+import type {
+  ComposeScope,
+  IntelSnapshot,
+  LibraryCounts,
+  LibrarySubject,
+  SubjectSummary,
+} from './types'
 
 function normalizeHandle(handle: string): string {
   return handle.replace(/^@/, '').toLowerCase()
@@ -19,8 +25,15 @@ export function subjectsInScope(snap: IntelSnapshot, scope: ComposeScope): Libra
   }
 }
 
-export function listSubjects(snap: IntelSnapshot, scope: ComposeScope): LibrarySubject[] {
-  return subjectsInScope(snap, scope)
+export function listSubjects(snap: IntelSnapshot, scope: ComposeScope): SubjectSummary[] {
+  return subjectsInScope(snap, scope).map((s) => ({
+    kind: s.kind,
+    username: s.username,
+    postCount: s.posts.length,
+    reportCount: s.reports.length,
+    hasProfile: Boolean(s.profile),
+    refreshedAt: s.refreshedAt ?? null,
+  }))
 }
 
 export function libraryCounts(snap: IntelSnapshot, scope: ComposeScope): LibraryCounts {
