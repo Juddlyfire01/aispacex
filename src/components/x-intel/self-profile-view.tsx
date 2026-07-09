@@ -10,9 +10,9 @@ import { MentionLink } from './mention-link'
 import { computeActivity } from '../../lib/x-intel/activity'
 import { ProfileOverview } from './profile-overview'
 import { SelfReport } from './self-report'
-import { Spinner } from '../ui/spinner'
 import { SignInWithXButton } from './sign-in-with-x-button'
 import { XDataPrivacyDisclosure } from './x-data-privacy-disclosure'
+import { XConnectFlow } from './x-connect-flow'
 import type { Profile } from '../../lib/x-intel/types'
 
 /** Bio with clickable URLs / mentions / hashtags (mentions open on X here —
@@ -54,57 +54,6 @@ function ConnectCta() {
         </div>
       </div>
       <div aria-hidden />
-    </div>
-  )
-}
-
-/**
- * Informational loading screen shown during the OAuth round-trip and the
- * post-redirect profile gather. Replaces the dead-end "Connect button reappears
- * then profile pops in" sequence with explicit phase copy so the user always
- * knows what's happening.
- *
- * - phase="authorizing": OAuth redirect in flight (click → x.com → return) or
- *   the session probe is still resolving after the callback.
- * - phase="syncing": session is connected but the first profile/posts/bookmarks
- *   gather is running. Can surface a retry button if that gather fails.
- */
-function XConnectFlow({
-  phase,
-  busy,
-  error,
-  onRetry,
-}: {
-  phase: 'authorizing' | 'syncing'
-  busy?: boolean
-  error?: string | null
-  onRetry?: () => void
-}) {
-  const title = phase === 'authorizing' ? 'Connecting to X…' : 'Syncing your profile…'
-  const subtitle = phase === 'authorizing'
-    ? 'Authorizing your account with X. You’ll be back here in a moment.'
-    : 'Fetching your profile, posts, bookmarks & likes.'
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-6 animate-fade-in">
-      <Spinner size="md" />
-      <div className="space-y-1 max-w-sm">
-        <h2 className="text-[15px] font-semibold text-white/85">{title}</h2>
-        <p className="text-[12px] text-white/40 leading-relaxed">{subtitle}</p>
-      </div>
-      {phase === 'syncing' && error && (
-        <div className="space-y-2 max-w-sm">
-          <p className="text-[11px] text-red-400/70">{error}</p>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              disabled={busy}
-              className="px-3 py-1.5 text-[12px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {busy ? 'Retrying…' : 'Retry gather'}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   )
 }

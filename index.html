@@ -4,44 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
-    <script>
-      (function () {
-        try {
-          var html = document.documentElement
-          var theme = 'dark'
-          html.dataset.theme = theme
-          html.style.colorScheme = 'dark'
-          var raw = localStorage.getItem('venice-settings')
-          if (raw) {
-            var data = JSON.parse(raw)
-            var s = data.state || data
-            if (s.theme) theme = s.theme
-            html.dataset.theme = theme
-            html.style.colorScheme = theme === 'light' ? 'light' : 'dark'
-            var scale = s.scale != null ? s.scale : (s.zoom != null ? s.zoom : 100)
-            html.style.setProperty('--ui-scale', String(scale / 100))
-            html.style.removeProperty('zoom')
-            var fontScale = { sm: 0.9, md: 1, lg: 1.12 }
-            if (s.fontScale && fontScale[s.fontScale]) {
-              html.style.setProperty('--font-scale', String(fontScale[s.fontScale]))
-            }
-            var densitySpace = s.density === 'compact' ? 0.82 : 1
-            html.style.setProperty('--density-space', String(densitySpace))
-            if (s.reduceMotion) html.dataset.reduceMotion = String(s.reduceMotion)
-            if (s.density) html.dataset.density = s.density
-          }
-          if (theme === 'light') {
-            var meta = document.querySelector('meta[name="theme-color"]')
-            if (meta) meta.setAttribute('content', '#f4f4f2')
-          }
-          var favicon = document.querySelector('link[rel="icon"]')
-          if (favicon) {
-            favicon.href = theme === 'light' ? '/aispace-logo-light.svg?v=12' : '/aispace-logo-dark.svg?v=12'
-            favicon.type = 'image/svg+xml'
-          }
-        } catch (_) { /* ignore corrupt storage */ }
-      })()
-    </script>
+    <!-- Blocking FOUC script (external so CSP script-src 'self' allows it). -->
+    <script src="/appearance-boot.js"></script>
     <meta name="description" content="AiSpaceX — a clean, hackable, open-source web UI for the Venice AI API. Chat, images, audio, music, video, embeddings, and visual workflows." />
     <meta property="og:title" content="AiSpaceX" />
     <meta property="og:description" content="A customizable, open-source frontend for the Venice AI API." />

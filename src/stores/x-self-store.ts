@@ -11,6 +11,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
+import { moveItemInArray } from '../lib/array-order'
 import type { Profile, Post, Edge, IntelReportSnapshot, SynthesisSettings } from '../lib/x-intel/types'
 import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
@@ -76,6 +77,8 @@ interface XSelfState {
   /** Soft disconnect: drop from the rail (accountOrder) but KEEP the cached
    *  bucket in `accounts` so reconnecting the same X id revives it instantly. */
   disconnectAccount: (id: string) => void
+  /** Reorder the You rail by moving one account from `fromIndex` to `toIndex`. */
+  reorderAccounts: (fromIndex: number, toIndex: number) => void
   /** Hard delete: purge one account's cached data entirely (rail + bucket). */
   purgeAccount: (id: string) => void
   /** Hard delete every account's cached data (connected or not). */
@@ -141,6 +144,12 @@ export const useXSelfStore = create<XSelfState>()(
           const accountOrder = s.accountOrder.filter((a) => a !== id)
           const activeAccountId = s.activeAccountId === id ? (accountOrder[0] ?? null) : s.activeAccountId
           return { accountOrder, activeAccountId }
+        }),
+
+      reorderAccounts: (fromIndex, toIndex) =>
+        set((s) => {
+          const accountOrder = moveItemInArray(s.accountOrder, fromIndex, toIndex)
+          return accountOrder === s.accountOrder ? s : { accountOrder }
         }),
 
       purgeAccount: (id) =>

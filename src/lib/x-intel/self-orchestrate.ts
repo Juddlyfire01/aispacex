@@ -8,7 +8,16 @@
 // generateSelfReport operate on the active account id; the server-side
 // x_active_account cookie already routes /api/x/proxy calls to that account.
 import { gatherSelfProfile, gatherSelfPosts, gatherSelfBookmarks, gatherSelfLikes } from './self-gather'
-import { getSelfSession, selfLogout, switchActiveAccount, X_OAUTH_INTEL_TAB_KEY } from './self-client'
+import {
+  getSelfSession,
+  isXOAuthCallbackUrl,
+  isXOAuthReturnPending,
+  prefetchIntelView,
+  selfLogout,
+  switchActiveAccount,
+  X_OAUTH_IN_PROGRESS_KEY,
+  X_OAUTH_INTEL_TAB_KEY,
+} from './self-client'
 import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
@@ -104,6 +113,47 @@ export interface OAuthBootstrapResult {
   oauthError: string | null
 }
 
+/** Force Intel tab even if async settings hydration reloads a prior tab. */
+function pinIntelTab(): void {
+  useSettingsStore.getState().setActiveTab('intel')
+  if (!useSettingsStore.persist.hasHydrated()) {
+    const unsub = useSettingsStore.persist.onFinishHydration(() => {
+      unsub?.()
+      // Only re-pin while the OAuth handoff is still live.
+      if (useXSelfStore.getState().connecting || isXOAuthReturnPending()) {
+        useSettingsStore.getState().setActiveTab('intel')
+      }
+    })
+  }
+}
+
+/**
+ * Synchronous first-paint shell for OAuth return.
+ * Call from module scope / before React mounts so the user lands on Intel with
+ * `connecting` already true — avoiding a flash of the prior tab, Connect CTA,
+ * or the generic "Loading intel…" Suspense spinner.
+ */
+export function primeXOAuthReturnShell(): boolean {
+  if (typeof window === 'undefined') return false
+  const pending = isXOAuthReturnPending()
+  if (!pending) return false
+
+  useXSelfStore.getState().setConnecting(true)
+  pinIntelTab()
+
+  const saved = readOAuthIntelTopTab()
+  // Successful callback should open You; errors / in-progress keep the pre-click tab if known.
+  const oauthError = new URLSearchParams(window.location.search).get('x_error')
+  if (isXOAuthCallbackUrl() && !oauthError) {
+    useXIntelStore.getState().setActiveTopTab(saved ?? 'me')
+  } else if (saved) {
+    useXIntelStore.getState().setActiveTopTab(saved)
+  }
+
+  prefetchIntelView()
+  return true
+}
+
 /**
  * Run once on app load: reconcile the OAuth session, surface callback errors,
  * switch to Intel after a successful connect, and strip ?x_connected / ?x_error
@@ -125,14 +175,20 @@ function readOAuthIntelTopTab(): IntelTopTab | null {
 async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   const params = new URLSearchParams(window.location.search)
   const oauthError = params.get('x_error')
-  const oauthReturn = params.get('x_connected') !== null || !!oauthError
+  const oauthReturn = isXOAuthCallbackUrl()
 
   // An OAuth round-trip is "in progress" when we land here straight from the
   // callback (?x_connected / ?x_error) OR when a click flagged the sessionStorage
-  // bridge and we're still on the same tab. Either way, show the connecting UI
-  // until the session probe resolves.
-  const inProgress = oauthReturn || sessionStorage.getItem('x_oauth_in_progress') === '1'
-  if (inProgress) useXSelfStore.getState().setConnecting(true)
+  // bridge. primeXOAuthReturnShell usually already set connecting + intel tab;
+  // re-apply so late callers still get a coherent shell.
+  const inProgress = oauthReturn || isXOAuthReturnPending()
+  if (inProgress) {
+    useXSelfStore.getState().setConnecting(true)
+    pinIntelTab()
+    prefetchIntelView()
+  }
+
+  const savedIntelTab = inProgress ? readOAuthIntelTopTab() : null
 
   let connected = false
   try {
@@ -146,14 +202,23 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
     connected = false
   }
 
-  const savedIntelTab = inProgress ? readOAuthIntelTopTab() : null
+  // Route to the right Intel sub-tab BEFORE clearing connecting, so SelfProfileView
+  // never paints Connect CTA / wrong top-tab between probe settle and tab switch.
+  if (oauthError) {
+    // leave top tab as primed
+  } else if (oauthReturn && connected) {
+    pinIntelTab()
+    useXIntelStore.getState().setActiveTopTab(savedIntelTab ?? 'me')
+  } else if (inProgress && !oauthReturn && savedIntelTab) {
+    useXIntelStore.getState().setActiveTopTab(savedIntelTab)
+  }
 
   // The round-trip is over — clear the bridge and drop the connecting flag so the
   // real connected/disconnected state can render. Only clear `connecting` if THIS
   // bootstrap owned it (inProgress): otherwise a probe that resolves during the
   // pre-redirect frames of a fresh Connect click would stomp the spinner the
   // click just turned on, flashing back to the Connect button before redirect.
-  try { sessionStorage.removeItem('x_oauth_in_progress') } catch { /* private mode */ }
+  try { sessionStorage.removeItem(X_OAUTH_IN_PROGRESS_KEY) } catch { /* private mode */ }
   try { sessionStorage.removeItem(X_OAUTH_INTEL_TAB_KEY) } catch { /* private mode */ }
   if (inProgress) useXSelfStore.getState().setConnecting(false)
 
@@ -164,14 +229,10 @@ async function runOAuthBootstrap(): Promise<OAuthBootstrapResult> {
   if (oauthError) {
     toast.error('X connect failed', oauthError)
   } else if (oauthReturn && connected) {
-    useSettingsStore.getState().setActiveTab('intel')
-    useXIntelStore.getState().setActiveTopTab(savedIntelTab ?? 'me')
     toast.success('Connected to X')
     refreshDefaultTarget()
   } else if (oauthReturn && !connected) {
     toast.error('X connect failed', 'Session could not be established after redirect.')
-  } else if (inProgress && !oauthReturn) {
-    if (savedIntelTab) useXIntelStore.getState().setActiveTopTab(savedIntelTab)
   }
 
   return { connected, oauthReturn, oauthError }

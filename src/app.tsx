@@ -16,8 +16,16 @@ import { Toaster } from './components/ui/toaster'
 import { SettingsView } from './components/settings/settings-view'
 import { useApplyAppearance } from './hooks/use-apply-appearance'
 import { useXOAuthBootstrap } from './hooks/use-x-oauth-bootstrap'
+import { primeXOAuthReturnShell } from './lib/x-intel/self-orchestrate'
+import { isXOAuthReturnPending } from './lib/x-intel/self-client'
+import { useXSelfStore } from './stores/x-self-store'
 
 import { ViewLoadingFallback } from './components/ui/spinner'
+import { XConnectFlow } from './components/x-intel/x-connect-flow'
+
+// Before first React paint: pin Intel + connecting when returning from X OAuth
+// so we never flash the previous tab or a generic Suspense spinner.
+primeXOAuthReturnShell()
 
 const LazyWorkflowsView = lazy(() => import('./components/workflows/workflows-view').then((m) => ({ default: m.WorkflowsView })))
 function WorkflowsView() {
@@ -31,7 +39,13 @@ function PlaygroundView() {
 
 const LazyIntelView = lazy(() => import('./components/x-intel/intel-view').then((m) => ({ default: m.IntelView })))
 function IntelView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading intel…" />}><LazyIntelView /></Suspense>
+  // On OAuth return use the same Connecting shell as SelfProfileView — not "Loading intel…".
+  const connecting = useXSelfStore((s) => s.connecting)
+  const oauthReturn = connecting || isXOAuthReturnPending()
+  const fallback = oauthReturn
+    ? <XConnectFlow phase="authorizing" />
+    : <ViewLoadingFallback label="Loading intel…" />
+  return <Suspense fallback={fallback}><LazyIntelView /></Suspense>
 }
 
 const LazyStatsView = lazy(() => import('./components/stats/stats-view').then((m) => ({ default: m.StatsView })))

@@ -104,6 +104,25 @@ describe('useXIntelStore', () => {
     expect(useXIntelStore.getState().activeTarget).toBeNull()
   })
 
+  it('reorderTargets moves a profile within the rail and preserves selection', () => {
+    const store = useXIntelStore.getState()
+    store.addTarget('Alice')
+    store.addTarget('Bob')
+    store.addTarget('Carol')
+    store.setActiveTarget('Bob')
+    store.reorderTargets(0, 2)
+    const s = useXIntelStore.getState()
+    expect(s.targets).toEqual(['Bob', 'Carol', 'Alice'])
+    expect(s.activeTarget).toBe('Bob')
+  })
+
+  it('reorderTargets is a no-op for out-of-bounds indexes', () => {
+    useXIntelStore.getState().addTarget('Alice')
+    useXIntelStore.getState().addTarget('Bob')
+    useXIntelStore.getState().reorderTargets(0, 9)
+    expect(useXIntelStore.getState().targets).toEqual(['Alice', 'Bob'])
+  })
+
   it('addCost is a no-op for non-existent target (does not inflate sessionCost)', () => {
     useXIntelStore.getState().addTarget('ErikVoorhees')
     useXIntelStore.getState().addCost('NonExistent', 0.5)

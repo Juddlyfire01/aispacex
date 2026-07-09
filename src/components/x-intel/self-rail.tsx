@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { beginSelfLogin, selfLogout } from '../../lib/x-intel/self-client'
 import { selectSelfAccount, refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
 import { openComposeForTarget } from '../../lib/compose/open-compose'
+import { useListDragReorder } from '../../hooks/use-list-drag-reorder'
+import { RailDropIndicator } from './rail-drop-indicator'
 import { CostMeter } from './cost-meter'
 import { RailTopConnectButton } from './rail-top-control'
 import { cn } from '../../lib/utils'
@@ -22,14 +24,23 @@ function relativeTime(iso: string | undefined): string {
  *  the Profile tab: a "+ Connect another account" entry at top, a scrollable
  *  list of connected accounts (each switchable + disconnectable), and the same
  *  avatar/username/last-gathered row shape. Clicking a row switches the active
- *  account server-side (no re-auth needed). */
+ *  account server-side (no re-auth needed). Drag a row to reorder. */
 export function SelfRail() {
   const accounts = useXSelfStore((s) => s.accounts)
   const accountOrder = useXSelfStore((s) => s.accountOrder)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const disconnectAccount = useXSelfStore((s) => s.disconnectAccount)
+  const reorderAccounts = useXSelfStore((s) => s.reorderAccounts)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const handleReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      reorderAccounts(fromIndex, toIndex)
+    },
+    [reorderAccounts],
+  )
+  const { getItemProps, draggingIndex, showDropSlot } = useListDragReorder(accountOrder.length, handleReorder)
 
   const handleSwitch = async (id: string) => {
     if (id === activeAccountId) return
@@ -80,26 +91,33 @@ export function SelfRail() {
             Connect an X account to see your own profile, posts, bookmarks & likes.
           </div>
         ) : (
-          accountOrder.map((id) => {
+          accountOrder.map((id, index) => {
             const acc = accounts[id]
             if (!acc) return null
             const isActive = id === activeAccountId
+            const dragProps = getItemProps(index)
+            const isLast = index === accountOrder.length - 1
             return (
               <div
                 key={id}
+                {...dragProps}
+                title="Drag to reorder"
                 className={cn(
-                  'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-pointer transition-colors',
+                  'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-grab active:cursor-grabbing transition-colors',
                   isActive
                     ? 'text-[var(--color-text-primary)]'
                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
+                  draggingIndex === index && 'opacity-40',
                 )}
                 onClick={() => handleSwitch(id)}
               >
+                {showDropSlot(index) && <RailDropIndicator edge="before" />}
+                {isLast && showDropSlot(accountOrder.length) && <RailDropIndicator edge="after" />}
                 {isActive && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-full bg-[var(--color-accent)]" />
                 )}
                 {acc.profile?.avatarUrl ? (
-                  <img src={acc.profile.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0" />
+                  <img src={acc.profile.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0 pointer-events-none" draggable={false} />
                 ) : (
                   <div className="w-4 h-4 rounded-full bg-[var(--color-bg-raised)] shrink-0" />
                 )}

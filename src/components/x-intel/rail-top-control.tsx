@@ -1,11 +1,12 @@
+import { useState } from 'react'
 import { cn } from '../../lib/utils'
 
 /** Shared chrome for Self / Others rail top actions — one source of truth for box + label text. */
 const RAIL_TOP_SHELL =
-  'w-full min-h-9 flex items-center justify-center bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] font-normal leading-none text-center text-[var(--color-text-primary)] transition-colors'
+  'w-full min-h-9 flex items-center bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] font-normal leading-none text-[var(--color-text-primary)] transition-colors'
 
 const RAIL_TOP_INPUT =
-  'relative z-[1] w-full bg-transparent border-0 outline-none p-0 m-0 text-center text-[inherit] font-[inherit] leading-[inherit] caret-[var(--color-text-primary)]'
+  'relative z-[1] w-full bg-transparent border-0 outline-none p-0 m-0 text-left text-[inherit] font-[inherit] leading-[inherit] caret-[var(--color-text-primary)]'
 
 type RailTopConnectButtonProps = {
   onClick: () => void
@@ -16,7 +17,7 @@ export function RailTopConnectButton({ onClick }: RailTopConnectButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={cn(RAIL_TOP_SHELL, 'hover:border-[var(--color-border-strong)]')}
+      className={cn(RAIL_TOP_SHELL, 'justify-center text-center hover:border-[var(--color-border-strong)]')}
     >
       +Connect Account
     </button>
@@ -30,20 +31,23 @@ type RailTopAddProfileInputProps = {
 }
 
 export function RailTopAddProfileInput({ value, onChange, onSubmit }: RailTopAddProfileInputProps) {
-  const empty = value.length === 0
+  const [focused, setFocused] = useState(false)
+  const showPlaceholder = value.length === 0 && !focused
 
   return (
-    <div className={cn(RAIL_TOP_SHELL, 'focus-within:border-[var(--color-border-strong)] cursor-text relative')}>
+    <div className={cn(RAIL_TOP_SHELL, 'justify-start focus-within:border-[var(--color-border-strong)] cursor-text relative')}>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         aria-label="Add profile"
-        className={cn(RAIL_TOP_INPUT, empty ? 'text-transparent' : 'text-[var(--color-text-primary)]')}
+        className={cn(RAIL_TOP_INPUT, showPlaceholder ? 'text-transparent' : 'text-[var(--color-text-primary)]')}
       />
-      {empty && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[inherit] font-[inherit] leading-[inherit] text-[var(--color-text-primary)]">
+      {showPlaceholder && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-start px-2 text-[inherit] font-[inherit] leading-[inherit] text-[var(--color-text-primary)]">
           +Add Profile
         </span>
       )}

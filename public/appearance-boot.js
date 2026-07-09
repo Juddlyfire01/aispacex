@@ -1,0 +1,55 @@
+/**
+ * Pre-React FOUC guard. Runs as a blocking classic script (allowed by CSP
+ * script-src 'self'). Reads the plaintext appearance mirror written by the app
+ * whenever theme/scale prefs change. Does NOT attempt to decrypt venice-settings.
+ */
+;(function () {
+  try {
+    var html = document.documentElement
+    var theme = 'dark'
+    var raw = null
+    try {
+      raw = localStorage.getItem('aispacex-appearance')
+    } catch (_) {
+      /* private mode */
+    }
+
+    if (raw) {
+      var s = JSON.parse(raw)
+      if (s && s.theme) theme = s.theme
+      html.dataset.theme = theme
+      html.style.colorScheme = theme === 'light' ? 'light' : 'dark'
+
+      var scale = s.scale != null ? s.scale : s.zoom != null ? s.zoom : 100
+      html.style.setProperty('--ui-scale', String(Number(scale) / 100 || 1))
+      html.style.removeProperty('zoom')
+
+      var fontScale = { sm: 0.9, md: 1, lg: 1.12 }
+      if (s.fontScale && fontScale[s.fontScale]) {
+        html.style.setProperty('--font-scale', String(fontScale[s.fontScale]))
+      }
+
+      var densitySpace = s.density === 'compact' ? 0.82 : 1
+      html.style.setProperty('--density-space', String(densitySpace))
+      if (s.density) html.dataset.density = s.density
+      if (s.reduceMotion) html.dataset.reduceMotion = String(s.reduceMotion)
+    } else {
+      // First visit or mirror not written yet — leave data-theme from <html>.
+      html.dataset.theme = theme
+      html.style.colorScheme = 'dark'
+    }
+
+    if (theme === 'light') {
+      var meta = document.querySelector('meta[name="theme-color"]')
+      if (meta) meta.setAttribute('content', '#f4f4f2')
+    }
+
+    var favicon = document.querySelector('link[rel="icon"]')
+    if (favicon) {
+      favicon.href = theme === 'light' ? '/aispace-logo-light.svg?v=12' : '/aispace-logo-dark.svg?v=12'
+      favicon.type = 'image/svg+xml'
+    }
+  } catch (_) {
+    /* ignore corrupt storage */
+  }
+})()

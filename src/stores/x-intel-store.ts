@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
+import { moveItemInArray } from '../lib/array-order'
 import type { Profile, Post, Edge, CharacterProfile, SynthesisSettings, IntelReportSnapshot } from '../lib/x-intel/types'
 import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
@@ -104,6 +105,8 @@ interface XIntelState {
   seedTarget: (profile: Profile) => void
   /** Soft-remove from the Others rail; cached profile/posts/reports are kept. */
   removeTarget: (username: string) => void
+  /** Reorder the Others rail by moving one entry from `fromIndex` to `toIndex`. */
+  reorderTargets: (fromIndex: number, toIndex: number) => void
   /** Hard-delete one target's cached data (Settings → Data & privacy only). */
   purgeTarget: (username: string) => void
   /** Hard-clear every target's cached data (for Settings → Data & privacy). */
@@ -255,6 +258,13 @@ export const useXIntelStore = create<XIntelState>()(
             targets,
             activeTarget: s.activeTarget === railKey ? (targets[0] ?? null) : s.activeTarget,
           }
+        })
+      },
+
+      reorderTargets: (fromIndex, toIndex) => {
+        set((s) => {
+          const targets = moveItemInArray(s.targets, fromIndex, toIndex)
+          return targets === s.targets ? s : { targets }
         })
       },
 

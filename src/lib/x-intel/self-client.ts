@@ -16,11 +16,35 @@
 import { XAPIError } from './x-client'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
+import { useSettingsStore } from '../../stores/settings-store'
 
 export const X_OAUTH_INTEL_TAB_KEY = 'x_oauth_intel_top_tab'
+export const X_OAUTH_IN_PROGRESS_KEY = 'x_oauth_in_progress'
 export const X_OAUTH_LOGIN_PATH = '/api/x/oauth/login'
 
 const PROXY_BASE = '/api/x/proxy'
+
+/** True when the URL is the OAuth callback bounce (`?x_connected` / `?x_error`). */
+export function isXOAuthCallbackUrl(search = typeof window !== 'undefined' ? window.location.search : ''): boolean {
+  const params = new URLSearchParams(search)
+  return params.get('x_connected') !== null || params.get('x_error') !== null
+}
+
+/** True while a connect round-trip is in flight (callback URL or sessionStorage bridge). */
+export function isXOAuthReturnPending(): boolean {
+  if (typeof window === 'undefined') return false
+  if (isXOAuthCallbackUrl()) return true
+  try {
+    return sessionStorage.getItem(X_OAUTH_IN_PROGRESS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Warm the Intel code-split chunk so return-from-X rarely hits Suspense. */
+export function prefetchIntelView(): void {
+  void import('../../components/x-intel/intel-view')
+}
 
 export interface SelfAccountRef {
   id: string
@@ -47,15 +71,20 @@ export async function getSelfSession(): Promise<SelfSession> {
 
 /** Begin the OAuth login redirect. Flips the store into the connecting state
  *  and stashes a sessionStorage flag so the remounted app can keep showing the
- *  connecting UI until the session probe resolves. The redirect is deferred one
- *  paint frame (double rAF) so the connecting state actually renders before the
- *  browser navigates away. */
+ *  connecting UI until the session probe resolves. Prefetches the Intel chunk
+ *  so the post-redirect Suspense fallback is usually a cache hit. The redirect
+ *  is deferred one paint frame (double rAF) so the connecting state actually
+ *  renders before the browser navigates away. */
 export function beginSelfLogin(): void {
   useXSelfStore.getState().setConnecting(true)
+  // Land on Intel after X; persist best-effort (async encrypted write may not
+  // finish before navigation — sessionStorage + primeXOAuthReturnShell cover that).
+  useSettingsStore.getState().setActiveTab('intel')
   try {
-    sessionStorage.setItem('x_oauth_in_progress', '1')
+    sessionStorage.setItem(X_OAUTH_IN_PROGRESS_KEY, '1')
     sessionStorage.setItem(X_OAUTH_INTEL_TAB_KEY, useXIntelStore.getState().activeTopTab)
   } catch { /* private mode / disabled */ }
+  prefetchIntelView()
   requestAnimationFrame(() => requestAnimationFrame(() => {
     window.location.href = X_OAUTH_LOGIN_PATH
   }))

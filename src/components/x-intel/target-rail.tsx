@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
-import { useXSelfStore } from '../../stores/x-self-store'
 import { runGather } from '../../lib/x-intel/orchestrate'
-import { beginSelfLogin } from '../../lib/x-intel/self-client'
+import { useListDragReorder } from '../../hooks/use-list-drag-reorder'
+import { RailDropIndicator } from './rail-drop-indicator'
 import { CostMeter } from './cost-meter'
-import { RailTopAddProfileInput, RailTopConnectButton } from './rail-top-control'
+import { RailTopAddProfileInput } from './rail-top-control'
 import { cn } from '../../lib/utils'
 
 function relativeTime(iso: string | undefined): string {
@@ -19,11 +19,18 @@ function relativeTime(iso: string | undefined): string {
 }
 
 export function TargetRail() {
-  const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget } = useXIntelStore()
-  const connected = useXSelfStore((s) => s.connected)
+  const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget, reorderTargets } = useXIntelStore()
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const handleReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      reorderTargets(fromIndex, toIndex)
+    },
+    [reorderTargets],
+  )
+  const { getItemProps, draggingIndex, showDropSlot } = useListDragReorder(targets.length, handleReorder)
 
   const handleRemove = (username: string) => {
     if (!confirm(`Remove @${username} from the Others rail? Gathered data stays encrypted on this device and is revived if you add them again. Clear it anytime from Settings → Data & privacy.`)) return
@@ -55,15 +62,15 @@ export function TargetRail() {
   return (
     <div className="w-52 shrink-0 border-r border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col">
       <div className="p-2">
-        {connected ? (
-          <RailTopAddProfileInput
-            value={input}
-            onChange={setInput}
-            onSubmit={handleAdd}
-          />
-        ) : (
-          <RailTopConnectButton onClick={beginSelfLogin} />
-        )}
+        {/* Always show Add Profile here — Connect lives on You / the header.
+            Demo targets (e.g. @AskVenice) work offline; gather enforces OAuth
+            for everyone else. Gating this on `connected` was flipping the control
+            to +Connect Account whenever the session flag lagged. */}
+        <RailTopAddProfileInput
+          value={input}
+          onChange={setInput}
+          onSubmit={handleAdd}
+        />
         {error && <p className="text-[10px] text-red-400/70 mt-1 px-0.5">{error}</p>}
       </div>
 
@@ -74,24 +81,31 @@ export function TargetRail() {
             <div className="mt-2 text-[var(--color-text-quaternary)]">e.g. ErikVoorhees · venice_ai</div>
           </div>
         ) : (
-          targets.map((t) => {
+          targets.map((t, index) => {
             const report = reports[t]
+            const dragProps = getItemProps(index)
+            const isLast = index === targets.length - 1
             return (
               <div
                 key={t}
+                {...dragProps}
+                title="Drag to reorder"
                 className={cn(
-                  'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-pointer transition-colors',
+                  'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-grab active:cursor-grabbing transition-colors',
                   t === activeTarget
                     ? 'text-[var(--color-text-primary)]'
                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
+                  draggingIndex === index && 'opacity-40',
                 )}
                 onClick={() => setActiveTarget(t)}
               >
+                {showDropSlot(index) && <RailDropIndicator edge="before" />}
+                {isLast && showDropSlot(targets.length) && <RailDropIndicator edge="after" />}
                 {t === activeTarget && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-full bg-[var(--color-accent)]" />
                 )}
                 {report?.profile?.avatarUrl ? (
-                  <img src={report.profile.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0" />
+                  <img src={report.profile.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0 pointer-events-none" draggable={false} />
                 ) : (
                   <div className="w-4 h-4 rounded-full bg-[var(--color-bg-raised)] shrink-0" />
                 )}

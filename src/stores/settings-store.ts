@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
+import { writeAppearanceSnapshot } from '../lib/appearance-persist'
 import { DEFAULT_THEME } from '../lib/theme-palettes'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
@@ -103,6 +104,19 @@ export const useSettingsStore = create<SettingsState>()(
           activeTab: remapDeprecatedTab(s.activeTab),
           lastNonSettingsTab: remapDeprecatedTab(s.lastNonSettingsTab),
         }
+      },
+      // After encrypted settings rehydrate (or fail open to defaults), mirror
+      // chrome prefs to the plaintext FOUC key so the next full reload / OAuth
+      // bounce paints the user's theme before React boots.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        writeAppearanceSnapshot({
+          theme: state.theme,
+          scale: state.scale,
+          fontScale: state.fontScale,
+          density: state.density,
+          reduceMotion: state.reduceMotion,
+        })
       },
     },
   ),
