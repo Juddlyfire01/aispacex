@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useComposeStore, ME_CONTEXT, ALL_CONTEXT, type XSearchMode } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
-import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
 import { pickComposeModel, modelSupportsXSearch } from '../../lib/compose/model'
-import { buildCorpus } from '../../lib/compose/build-corpus'
-import type { TargetContext } from '../../lib/compose/compose-prompt'
+import { resolveContextLimit } from '../../lib/compose/token-estimate'
 import { ComposeChat } from './compose-chat'
 import { PostComposer } from './post-composer'
 import { ComposeActions } from './compose-actions'
@@ -19,12 +17,11 @@ export function ComposeWorkspace() {
   const ensureSession = useComposeStore((s) => s.ensureSession)
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
+  const setContextLimit = useComposeStore((s) => s.setContextLimit)
   const xSearch = useComposeStore((s) => s.xSearch)
   const setXSearch = useComposeStore((s) => s.setXSearch)
 
   const targets = useXIntelStore((s) => s.targets)
-  const reports = useXIntelStore((s) => s.reports)
-  const selfAccounts = useXSelfStore((s) => s.accounts)
 
   const [copied, setCopied] = useState(false)
 
@@ -34,32 +31,15 @@ export function ComposeWorkspace() {
     setModel(pickComposeModel(models))
   }, [model, models, setModel])
 
+  // Keep contextLimit in sync with the selected model for hot-window budgeting.
+  useEffect(() => {
+    const modelObj = models?.find((m) => m.id === model)
+    setContextLimit(resolveContextLimit(modelObj))
+  }, [model, models, setContextLimit])
+
   useEffect(() => {
     ensureSession(activeContext)
   }, [activeContext, ensureSession])
-
-  const targetContext: TargetContext | undefined = useMemo(() => {
-    if (activeContext === ME_CONTEXT || activeContext === ALL_CONTEXT) return undefined
-    const report = reports[activeContext]
-    if (!report?.profile) return { username: activeContext }
-    return {
-      username: report.profile.username,
-      displayName: report.profile.displayName,
-      bio: report.profile.bio,
-      recentPosts: report.posts.slice(0, 20).map((p) => ({ id: p.id, text: p.text, kind: p.kind })),
-    }
-  }, [activeContext, reports])
-
-  // The "All" context assembles the entire gathered data set into one dump.
-  const corpus: string | undefined = useMemo(() => {
-    if (activeContext !== ALL_CONTEXT) return undefined
-    return (
-      buildCorpus({
-        selfAccounts: Object.values(selfAccounts),
-        reports: Object.values(reports),
-      }) || undefined
-    )
-  }, [activeContext, selfAccounts, reports])
 
   const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
 
@@ -77,7 +57,9 @@ export function ComposeWorkspace() {
             <option value={ME_CONTEXT}>Your account</option>
             <option value={ALL_CONTEXT}>All (entire data set)</option>
             {targets.map((t) => (
-              <option key={t} value={t}>@{t}</option>
+              <option key={t} value={t}>
+                @{t}
+              </option>
             ))}
           </select>
         </label>
@@ -91,7 +73,8 @@ export function ComposeWorkspace() {
           >
             {(models ?? []).map((m) => (
               <option key={m.id} value={m.id}>
-                {(m.model_spec?.name || m.id) + (m.model_spec?.capabilities?.supportsXSearch ? ' · X search' : '')}
+                {(m.model_spec?.name || m.id) +
+                  (m.model_spec?.capabilities?.supportsXSearch ? ' · X search' : '')}
               </option>
             ))}
             {model && !models?.some((m) => m.id === model) && <option value={model}>{model}</option>}
@@ -122,7 +105,7 @@ export function ComposeWorkspace() {
       {/* Split view */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 border-r border-white/[0.05]">
-          <ComposeChat context={activeContext} targetContext={targetContext} corpus={corpus} />
+          <ComposeChat context={activeContext} />
         </div>
         <div className="w-[46%] max-w-[560px] min-w-0 flex flex-col min-h-0">
           <div className="flex-1 min-h-0">
