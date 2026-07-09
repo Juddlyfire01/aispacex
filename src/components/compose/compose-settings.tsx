@@ -61,8 +61,8 @@ export function ComposeSettings({
   const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
 
   return (
-    <aside className="md:w-[360px] lg:w-[400px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
-      <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+    <aside className="w-[340px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
+      <div className="p-4 flex flex-col gap-4 overflow-y-auto min-h-0 flex-1">
         <div>
           <Label htmlFor="compose-new-context">New chat context</Label>
           <select
