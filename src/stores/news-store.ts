@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { DEFAULT_FEED_IDS } from '../lib/news/feeds'
 import type { NewsCategory, NewsItem } from '../lib/news/types'
 
@@ -47,7 +47,7 @@ export const useNewsStore = create<NewsState>()(
     {
       name: 'venice-news',
       version: 1,
-      storage: createJSONStorage(() => createSafeStorage()),
+      storage: createJSONStorage(() => createEncryptedStorage()),
       partialize: (s) => ({
         enabledFeedIds: s.enabledFeedIds,
         activeCategory: s.activeCategory,

@@ -23,7 +23,7 @@ function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
  * (badge, preview, time, and ~token size are on the row).
  */
 function threadPillTip(): string {
-  return 'Saved on this device. Size is messages + draft. Agent can search older chats.'
+  return 'Encrypted on this device. Size is messages + draft. Agent can search older chats.'
 }
 
 export function HistoryRail() {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { DEFAULT_THEME } from '../lib/theme-palettes'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
@@ -88,7 +88,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'venice-settings',
       version: 4,
-      storage: createJSONStorage(() => createSafeStorage()),
+      storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<SettingsState> & { zoom?: Scale }
         const scale = s.scale ?? s.zoom ?? 100

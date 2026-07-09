@@ -1,14 +1,14 @@
-// Device-bound encryption for at-rest intel data in the browser.
+// Device-bound encryption for at-rest client data in the browser.
 //
 // Unlike auth-store.ts (passphrase-derived PBKDF2 key that the user unlocks each
-// session), the intel caches must auto-decrypt silently on every page load. We
-// can't require a passphrase for that, so instead we generate a NON-EXTRACTABLE
+// session), persisted app stores must auto-decrypt silently on every page load.
+// We can't require a passphrase for that, so instead we generate a NON-EXTRACTABLE
 // AES-GCM key with the WebCrypto API and store the CryptoKey object itself in
 // IndexedDB. Because the key is non-extractable, its raw bytes can never be read
 // back out — not by our code, not by an attacker with disk access to the profile
 // — while the browser can still use it to encrypt/decrypt. This gives honest
-// "encrypted at rest" for the sensitive corpora (posts, bookmarks, likes,
-// reports) with zero user friction.
+// "encrypted at rest" for local stores (X intel, compose/chat history, settings,
+// news, workflows, playground, cost meters) with zero user friction.
 //
 // Threat model, stated plainly: this protects data at rest from casual
 // disk/localStorage inspection and other origins. It does NOT protect against

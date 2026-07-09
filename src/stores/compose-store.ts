@@ -9,7 +9,7 @@ import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import type { ComposeScope } from '../lib/intel-library/types'
 import { scopeFromContext } from '../lib/intel-library/scope'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 
 // Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
@@ -360,7 +360,8 @@ export const useComposeStore = create<ComposeState>()(
     {
       name: 'venice-compose',
       version: 4,
-      storage: createJSONStorage(() => createSafeStorage()),
+      // Threads + drafts encrypted at rest (device-bound AES-GCM).
+      storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
       partialize: (state) => ({
         threads: state.threads,

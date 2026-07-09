@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ChatMessage, Conversation, VeniceParameters } from '../types/venice'
 import { generateId } from '../lib/utils'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 
 interface ChatState {
   conversations: Conversation[]
@@ -140,7 +140,7 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'venice-chat',
       version: 2,
-      storage: createJSONStorage(() => createSafeStorage()),
+      storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => {
         // v1 → v2: trim conversations to 50, ensure veniceParams shape
         if (!persisted || typeof persisted !== 'object') return persisted as ChatState

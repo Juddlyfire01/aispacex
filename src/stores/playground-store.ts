@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Node, Edge } from '@xyflow/react'
 import type { VeniceNodeData, NodeResult } from './workflow-store'
 import { applyPatches, type WorkflowPatch, type PatchResult } from '../lib/workflow-mutations'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 
 export interface PlaygroundActivity {
   tool: string
@@ -86,7 +86,7 @@ export const usePlaygroundStore = create<PlaygroundState>()(
     {
       name: 'venice-playground',
       version: 1,
-      storage: createJSONStorage(() => createSafeStorage()),
+      storage: createJSONStorage(() => createEncryptedStorage()),
       partialize: (s) => ({ messages: s.messages.slice(-40), draft: s.draft, linkedWorkflowId: s.linkedWorkflowId }),
     },
   ),

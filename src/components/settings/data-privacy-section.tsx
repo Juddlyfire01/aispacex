@@ -31,8 +31,8 @@ function DataRow({
 /**
  * Settings → Data & privacy. Lists every locally-cached intel dataset — your own
  * connected/disconnected X accounts and every analyzed target — and lets the user
- * clear them selectively or all at once. Data is encrypted at rest with a
- * device-bound key; clearing here is a hard, irreversible purge.
+ * clear them selectively or all at once. All client stores are encrypted at rest
+ * with a device-bound key; clearing here is a hard, irreversible purge.
  */
 export function DataPrivacySection() {
   const accounts = useXSelfStore((s) => s.accounts)
@@ -63,10 +63,10 @@ export function DataPrivacySection() {
   return (
     <div className="flex flex-col gap-8 max-w-xl">
       <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
-        All gathered X data (profiles, posts, bookmarks, likes, and generated reports) is
-        stored only on this device, encrypted at rest with a device-bound key. Disconnecting
-        an account or removing a profile from the Others rail keeps its data cached — use the
-        controls below to permanently erase it.
+        Local app data (X intel, compose chats, main chat, settings, news, workflows, and
+        playground state) is stored only on this device, encrypted at rest with a device-bound
+        key. Disconnecting an account or removing a profile from the Others rail keeps its data
+        cached — use the controls below to permanently erase it.
       </p>
 
       {/* Your own accounts */}

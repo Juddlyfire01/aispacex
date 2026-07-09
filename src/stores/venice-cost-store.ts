@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { createSafeStorage } from '../lib/safe-storage'
+import { createEncryptedStorage } from '../lib/encrypted-storage'
 import type { TokenUsage } from '../lib/venice/usage-cost'
 import { estimateUsageUsd } from '../lib/venice/usage-cost'
 import type { VeniceModel } from '../types/venice'
@@ -40,7 +40,7 @@ export const useVeniceCostStore = create<VeniceCostState>()(
     {
       name: 'venice-api-cost',
       version: 1,
-      storage: createJSONStorage(() => createSafeStorage()),
+      storage: createJSONStorage(() => createEncryptedStorage()),
       partialize: (s) => ({ lifetimeTotal: s.lifetimeTotal }),
     },
   ),
