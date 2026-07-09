@@ -83,7 +83,7 @@ export function MessageBubble({ message, onCopy, onDelete, onRegenerate }: Messa
   return (
     <div className="flex gap-3" onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-white/95 to-white/75 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-        <img src="/favicon.svg" alt="Venice" width="16" height="16" className="[filter:brightness(0)_saturate(100%)] opacity-90" />
+        <img src="/aispace-logo-light.svg" alt="" width="16" height="16" className="opacity-90" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
         {/* Reasoning content (thinking) */}

@@ -1,4 +1,7 @@
 import { venice } from '../venice-client'
+import { useVeniceCostStore } from '../../stores/venice-cost-store'
+import { fetchModelsBundle } from '../venice-model-utils'
+import type { VeniceModel } from '../../types/venice'
 import { partitionPosts } from './activity'
 import type {
   Profile,
@@ -11,6 +14,19 @@ import type {
   IntelReportSnapshot,
 } from './types'
 import type { ChatCompletionResponse } from '../../types/venice'
+
+let textModelsCache: VeniceModel[] | null = null
+
+async function resolveTextModel(modelId: string): Promise<VeniceModel | undefined> {
+  if (!textModelsCache) {
+    try {
+      textModelsCache = (await fetchModelsBundle('text')).models
+    } catch {
+      return undefined
+    }
+  }
+  return textModelsCache.find((m) => m.id === modelId)
+}
 
 /**
  * Defensively extract a JSON object from an LLM response. Tries, in order:
@@ -302,6 +318,8 @@ export async function synthesizeReport(
   let tokenCost = resp.usage?.total_tokens ?? 0
   let promptTokens = resp.usage?.prompt_tokens ?? 0
   let completionTokens = resp.usage?.completion_tokens ?? 0
+  const modelSpec = await resolveTextModel(settings.model)
+  useVeniceCostStore.getState().addUsage(modelSpec, resp.usage)
 
   let changeNarrative: string | null = null
   if (computedDelta && prevSnapshot) {
@@ -323,6 +341,7 @@ export async function synthesizeReport(
     tokenCost += changeResp.usage?.total_tokens ?? 0
     promptTokens += changeResp.usage?.prompt_tokens ?? 0
     completionTokens += changeResp.usage?.completion_tokens ?? 0
+    useVeniceCostStore.getState().addUsage(modelSpec, changeResp.usage)
     const changeContent = changeResp.choices?.[0]?.message?.content
     if (changeContent) {
       const parsed = extractJson(changeContent) as { narrative?: string } | null

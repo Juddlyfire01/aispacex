@@ -36,7 +36,7 @@
           }
           var favicon = document.querySelector('link[rel="icon"]')
           if (favicon) {
-            favicon.href = '/logo-dark.svg?v=10'
+            favicon.href = theme === 'light' ? '/aispace-logo-light.svg?v=12' : '/aispace-logo-dark.svg?v=12'
             favicon.type = 'image/svg+xml'
           }
         } catch (_) { /* ignore corrupt storage */ }
@@ -52,7 +52,7 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://api.venice.ai blob: data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
     />
     <title>AiSpaceX — clean UI for the Venice AI API</title>
-    <link rel="icon" type="image/svg+xml" href="/logo-dark.svg?v=10" />
+    <link rel="icon" type="image/svg+xml" href="/aispace-logo-dark.svg?v=12" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Color+Emoji&display=swap" rel="stylesheet" />

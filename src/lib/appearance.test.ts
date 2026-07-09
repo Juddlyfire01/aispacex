@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { applyAppearanceToHtml, faviconHrefForTheme, xLogoHrefForTheme, scaleToFactor } from './appearance'
+import {
+  applyAppearanceToHtml,
+  faviconHrefForTheme,
+  aispaceLogoHrefForTheme,
+  veniceKeysLogoHrefForTheme,
+  xLogoHrefForTheme,
+  scaleToFactor,
+} from './appearance'
 
 describe('appearance', () => {
   it('scaleToFactor converts percent steps to a multiplier', () => {
@@ -8,17 +15,28 @@ describe('appearance', () => {
     expect(scaleToFactor(90)).toBe(0.9)
   })
 
-  it('faviconHrefForTheme maps themes to logo variants', () => {
-    expect(faviconHrefForTheme('light')).toBe('/logo-dark.svg?v=10')
-    expect(faviconHrefForTheme('venice')).toBe('/logo-dark.svg?v=10')
-    expect(faviconHrefForTheme('dark')).toBe('/logo-dark.svg?v=10')
-    expect(faviconHrefForTheme('grey')).toBe('/logo-dark.svg?v=10')
+  it('aispaceLogoHrefForTheme maps light/dark app key', () => {
+    expect(aispaceLogoHrefForTheme('light')).toBe('/aispace-logo-light.svg')
+    expect(aispaceLogoHrefForTheme('dark')).toBe('/aispace-logo-dark.svg')
+    expect(aispaceLogoHrefForTheme('venice')).toBe('/aispace-logo-dark.svg')
+    expect(aispaceLogoHrefForTheme('grey')).toBe('/aispace-logo-dark.svg')
   })
 
-  it('xLogoHrefForTheme uses black X logo on light theme', () => {
+  it('veniceKeysLogoHrefForTheme maps light/dark Venice keys', () => {
+    expect(veniceKeysLogoHrefForTheme('light')).toBe('/venice-keys-logo-light.svg')
+    expect(veniceKeysLogoHrefForTheme('dark')).toBe('/venice-keys-logo-dark.svg')
+    expect(veniceKeysLogoHrefForTheme('venice')).toBe('/venice-keys-logo-dark.svg')
+  })
+
+  it('faviconHrefForTheme versions the AiSpace key', () => {
+    expect(faviconHrefForTheme('light')).toBe('/aispace-logo-light.svg?v=12')
+    expect(faviconHrefForTheme('dark')).toBe('/aispace-logo-dark.svg?v=12')
+  })
+
+  it('xLogoHrefForTheme maps light/dark X mark', () => {
     expect(xLogoHrefForTheme('light')).toBe('/x-logo-light.svg')
-    expect(xLogoHrefForTheme('dark')).toBe('/x-logo.svg')
-    expect(xLogoHrefForTheme('venice')).toBe('/x-logo.svg')
+    expect(xLogoHrefForTheme('dark')).toBe('/x-logo-dark.svg')
+    expect(xLogoHrefForTheme('venice')).toBe('/x-logo-dark.svg')
   })
 
   it('applyAppearanceToHtml maps legacy zoom to ui-scale', () => {
@@ -26,9 +44,16 @@ describe('appearance', () => {
     const el = {
       style: {
         setProperty: (k: string, v: string) => style.set(k, v),
-        removeProperty: (k: string) => { style.delete(k); return '' },
-        get zoom() { return style.get('zoom') ?? '' },
-        set zoom(_v: string) { /* noop */ },
+        removeProperty: (k: string) => {
+          style.delete(k)
+          return ''
+        },
+        get zoom() {
+          return style.get('zoom') ?? ''
+        },
+        set zoom(_v: string) {
+          /* noop */
+        },
       },
       dataset: {} as DOMStringMap,
     } as unknown as HTMLElement

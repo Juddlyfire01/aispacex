@@ -134,7 +134,7 @@ export function SelfRail() {
         )}
       </div>
 
-      <CostMeter />
+      <CostMeter defaultView="combined" />
     </div>
   )
 }

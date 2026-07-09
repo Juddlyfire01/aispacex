@@ -1,6 +1,7 @@
 import { venice } from '../venice-client'
-import type { ChatCompletionResponse, ChatMessage } from '../../types/venice'
+import type { ChatCompletionResponse, ChatMessage, VeniceModel } from '../../types/venice'
 import type { ComposeScope, IntelSnapshot } from '../intel-library/types'
+import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { HistorySnapshot } from './history-library'
 import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
@@ -9,6 +10,8 @@ export const MAX_TOOL_ROUNDS = 6
 
 export interface ComposeAgentOpts {
   model: string
+  /** Optional model object for USD pricing from usage. */
+  modelSpec?: VeniceModel | null
   /** Includes system as first message. */
   messages: ChatMessage[]
   snapshot: IntelSnapshot
@@ -70,6 +73,9 @@ export async function runComposeAgent(
       }),
       signal: opts.signal,
     })
+
+    // Record Venice spend from response usage × model pricing (session + lifetime).
+    useVeniceCostStore.getState().addUsage(opts.modelSpec, resp.usage)
 
     const message = resp.choices[0]?.message
     if (!message) {

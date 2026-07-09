@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useComposeStore } from '../stores/compose-store'
 import { useXSelfStore } from '../stores/x-self-store'
 import { useXIntelStore } from '../stores/x-intel-store'
@@ -11,6 +12,7 @@ import { packHotWindow } from '../lib/compose/hot-window'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
 import { buildHistorySnapshot } from '../lib/compose/history-library'
+import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
 
 // Compose chat via non-streaming intel agent: packs a hot-window of local
@@ -19,6 +21,7 @@ import type { ChatMessage } from '../types/venice'
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
+  const queryClient = useQueryClient()
   const {
     isStreaming,
     ensureActiveThread,
@@ -71,7 +74,7 @@ export function useCompose() {
         }
 
         const xSearchOn = xSearch !== 'off'
-        const system = buildComposeSystem({ xSearchOn, toolsEnabled: true })
+        const system = buildComposeSystem({ modelId: model, xSearchOn, toolsEnabled: true })
 
         // Transcript minus the trailing empty assistant placeholder.
         // UI stores raw userMessage; API latest user turn includes hot prefix.
@@ -93,8 +96,12 @@ export function useCompose() {
           composeState.threadOrder,
         )
 
+        const modelsCache = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
+        const modelSpec = modelsCache?.models.find((m) => m.id === model) ?? null
+
         const { content } = await runComposeAgent({
           model,
+          modelSpec,
           messages: apiMessages,
           snapshot,
           historySnapshot,
@@ -135,7 +142,7 @@ export function useCompose() {
       }
     },
     // store actions are stable; active thread read fresh via getState in send
-    [ensureActiveThread, addMessage, setLastAssistantContent, applyDraftPatch, setStreaming, setToolActivity],
+    [queryClient, ensureActiveThread, addMessage, setLastAssistantContent, applyDraftPatch, setStreaming, setToolActivity],
   )
 
   const stop = useCallback(() => {

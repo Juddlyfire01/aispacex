@@ -7,6 +7,7 @@ import {
   messageContentString,
 } from '../../lib/compose/thread-meta'
 import type { ComposeThread } from '../../lib/compose/thread-types'
+import { CostMeter } from '../x-intel/cost-meter'
 import { cn } from '../../lib/utils'
 
 function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
@@ -126,6 +127,8 @@ export function HistoryRail() {
           })
         )}
       </div>
+
+      <CostMeter defaultView="venice" />
     </div>
   )
 }

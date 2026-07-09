@@ -25,14 +25,40 @@ export interface AppearanceSnapshot {
   reduceMotion?: boolean
 }
 
-export const FAVICON_VERSION = '10'
+export const FAVICON_VERSION = '12'
 
-export function faviconHrefForTheme(_theme: string): string {
-  return `/logo-dark.svg?v=${FAVICON_VERSION}`
+/** True for light UI chrome; all other themes use dark-theme mark assets. */
+export function isLightTheme(theme: string): boolean {
+  return theme === 'light'
 }
 
+/**
+ * AiSpace app key mark (favicon, sidebar logo).
+ * dark theme → white key; light theme → black key.
+ */
+export function aispaceLogoHrefForTheme(theme: string): string {
+  return isLightTheme(theme) ? '/aispace-logo-light.svg' : '/aispace-logo-dark.svg'
+}
+
+/**
+ * Venice crossed-keys mark (Venice cost meter, Venice-branded UI).
+ * dark theme → light-fill keys; light theme → dark-fill keys.
+ */
+export function veniceKeysLogoHrefForTheme(theme: string): string {
+  return isLightTheme(theme) ? '/venice-keys-logo-light.svg' : '/venice-keys-logo-dark.svg'
+}
+
+/**
+ * X logo mark.
+ * dark theme → white X; light theme → black X.
+ */
 export function xLogoHrefForTheme(theme: string): string {
-  return theme === 'light' ? '/x-logo-light.svg' : '/x-logo.svg'
+  return isLightTheme(theme) ? '/x-logo-light.svg' : '/x-logo-dark.svg'
+}
+
+/** Favicon = AiSpace key, versioned for cache bust. */
+export function faviconHrefForTheme(theme: string): string {
+  return `${aispaceLogoHrefForTheme(theme)}?v=${FAVICON_VERSION}`
 }
 
 export function applyFaviconForTheme(theme: string, doc: Document = document) {
