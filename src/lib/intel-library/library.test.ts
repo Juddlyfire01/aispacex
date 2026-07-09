@@ -100,6 +100,42 @@ describe('grepIntel', () => {
     const hits = grepIntel(snap, { type: 'all' }, { query: 'privacy', handle: 'me_user' })
     expect(hits.every((h) => h.handle === 'me_user')).toBe(true)
   })
+
+  it('empty or whitespace query returns []', () => {
+    expect(grepIntel(snap, { type: 'all' }, { query: '' })).toEqual([])
+    expect(grepIntel(snap, { type: 'all' }, { query: '   ' })).toEqual([])
+  })
+
+  it('limit 0 returns []', () => {
+    expect(grepIntel(snap, { type: 'all' }, { query: 'staking', limit: 0 })).toEqual([])
+  })
+
+  it('until date-only includes same-day posts', () => {
+    // p1 is 2026-07-05T10:00; date-only until must include the whole day
+    const hits = grepIntel(snap, { type: 'all' }, {
+      query: 'staking',
+      types: ['posts'],
+      until: '2026-07-05',
+    })
+    expect(hits.some((h) => h.id === 'p1')).toBe(true)
+
+    const t1Hits = grepIntel(snap, { type: 'all' }, {
+      query: 'privacy',
+      types: ['posts'],
+      until: '2026-07-06',
+    })
+    expect(t1Hits.some((h) => h.id === 't1')).toBe(true)
+  })
+
+  it('until date-only excludes next day', () => {
+    // t1 is 2026-07-06; until 2026-07-05 must exclude it
+    const hits = grepIntel(snap, { type: 'all' }, {
+      query: 'privacy',
+      types: ['posts'],
+      until: '2026-07-05',
+    })
+    expect(hits.some((h) => h.id === 't1')).toBe(false)
+  })
 })
 
 describe('globIntel', () => {
@@ -124,9 +160,42 @@ describe('getters', () => {
     expect(posts.map((p) => p.id)).toEqual(['t1'])
   })
 
+  it('getPosts until date-only includes same-day posts', () => {
+    const posts = getPosts(snap, { type: 'all' }, {
+      handle: 'me_user',
+      until: '2026-07-05',
+      limit: 10,
+    })
+    expect(posts.map((p) => p.id)).toContain('p1')
+  })
+
+  it('getPosts until date-only excludes next day', () => {
+    const posts = getPosts(snap, { type: 'all' }, {
+      handle: 'AskVenice',
+      until: '2026-07-05',
+      limit: 10,
+    })
+    expect(posts.map((p) => p.id)).not.toContain('t1')
+    expect(posts.map((p) => p.id)).toContain('t2')
+  })
+
+  it('getPosts limit 0 returns []', () => {
+    expect(
+      getPosts(snap, { type: 'all' }, { handle: 'AskVenice', limit: 0 }),
+    ).toEqual([])
+  })
+
   it('getReport defaults to latest', () => {
     const r = getReport(snap, { type: 'target', username: 'AskVenice' }, { handle: 'AskVenice' })
     expect(r?.id).toBe('r-av')
+  })
+
+  it('getReport finds by reportId', () => {
+    const r = getReport(snap, { type: 'all' }, { handle: 'me_user', reportId: 'r-me' })
+    expect(r?.id).toBe('r-me')
+    expect(
+      getReport(snap, { type: 'all' }, { handle: 'me_user', reportId: 'missing' }),
+    ).toBeNull()
   })
 
   it('getEdges sorts by weight desc', () => {

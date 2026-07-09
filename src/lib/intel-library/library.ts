@@ -129,10 +129,28 @@ function snippetAround(haystack: string, terms: string[]): string {
   return snip
 }
 
+function dayPrefix(isoOrDate: string): string {
+  return isoOrDate.slice(0, 10)
+}
+
 function inDateRange(iso: string | undefined, since?: string, until?: string): boolean {
   if (!iso) return !(since || until)
-  if (since && iso < since) return false
-  if (until && iso > until) return false
+  // Full ISO bounds (contain 'T'): exclusive/inclusive lexicographic on full string
+  // Date-only: compare day prefixes so until: '2026-07-05' INCLUDES all of that day
+  if (since) {
+    if (since.includes('T')) {
+      if (iso < since) return false
+    } else if (dayPrefix(iso) < dayPrefix(since)) {
+      return false
+    }
+  }
+  if (until) {
+    if (until.includes('T')) {
+      if (iso > until) return false
+    } else if (dayPrefix(iso) > dayPrefix(until)) {
+      return false
+    }
+  }
   return true
 }
 
@@ -157,6 +175,8 @@ export function grepIntel(snap: IntelSnapshot, scope: ComposeScope, opts: GrepIn
 
   const wantTypes = expandGrepTypes(opts.types)
   const limit = clampLimit(opts.limit, GREP_LIMIT_DEFAULT, GREP_LIMIT_MAX)
+  if (limit === 0) return []
+
   const handleFilter = opts.handle != null ? normalizeHandle(opts.handle) : null
   const hits: GrepHit[] = []
 
