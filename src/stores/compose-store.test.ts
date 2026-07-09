@@ -8,6 +8,10 @@ function reset() {
     model: '',
     xSearch: 'auto',
     isStreaming: false,
+    libraryMode: 'auto',
+    budgetPct: 0.5,
+    dayWindowDays: 7,
+    toolActivity: null,
   })
 }
 
@@ -83,5 +87,35 @@ describe('compose-store', () => {
     s.setLastAssistantContent(ME_CONTEXT, 'clean prose')
     const msgs = useComposeStore.getState().sessions[ME_CONTEXT].messages
     expect(msgs[msgs.length - 1].content).toBe('clean prose')
+  })
+
+  it('defaults library mode, budget, and day window', () => {
+    const s = useComposeStore.getState()
+    expect(s.libraryMode).toBe('auto')
+    expect(s.budgetPct).toBe(0.5)
+    expect(s.dayWindowDays).toBe(7)
+    expect(s.toolActivity).toBeNull()
+  })
+
+  it('clamps budgetPct to 0.25–0.75', () => {
+    const s = useComposeStore.getState()
+    s.setBudgetPct(0.1)
+    expect(useComposeStore.getState().budgetPct).toBe(0.25)
+    s.setBudgetPct(0.9)
+    expect(useComposeStore.getState().budgetPct).toBe(0.75)
+    s.setBudgetPct(0.6)
+    expect(useComposeStore.getState().budgetPct).toBe(0.6)
+  })
+
+  it('sets library mode, day window, and tool activity', () => {
+    const s = useComposeStore.getState()
+    s.setLibraryMode('custom')
+    s.setDayWindowDays(null)
+    s.setToolActivity('Searching library…')
+    expect(useComposeStore.getState().libraryMode).toBe('custom')
+    expect(useComposeStore.getState().dayWindowDays).toBeNull()
+    expect(useComposeStore.getState().toolActivity).toBe('Searching library…')
+    s.setToolActivity(null)
+    expect(useComposeStore.getState().toolActivity).toBeNull()
   })
 })

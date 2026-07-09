@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ChatMessage } from '../types/venice'
+import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
+import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import { createSafeStorage } from '../lib/safe-storage'
 
 // A compose session is a chat transcript plus the draft it's shaping. Sessions
@@ -14,6 +16,8 @@ export const ME_CONTEXT = '__me__'
 // set (every connected self account + every target report) rather than one
 // subject. Keyed like any other context, so it gets its own transcript + draft.
 export const ALL_CONTEXT = '__all__'
+
+export type { LibraryMode }
 
 export interface ComposeSession {
   messages: ChatMessage[]
@@ -30,6 +34,14 @@ interface ComposeState {
   isStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
   longformPreference: boolean
+  libraryMode: LibraryMode
+  budgetPct: number
+  /** null = all time */
+  dayWindowDays: number | null
+  /** Ephemeral tool activity label — not persisted. */
+  toolActivity: string | null
+  /** Model context limit for the meter — ephemeral; recompute from model list. */
+  contextLimit: number
 
   ensureSession: (context: string, target?: PostTarget) => void
   setActiveContext: (context: string) => void
@@ -53,6 +65,11 @@ interface ComposeState {
   setXSearch: (mode: XSearchMode) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
+  setLibraryMode: (mode: LibraryMode) => void
+  setBudgetPct: (pct: number) => void
+  setDayWindowDays: (days: number | null) => void
+  setToolActivity: (label: string | null) => void
+  setContextLimit: (limit: number) => void
 }
 
 function touch(draft: PostDraft): PostDraft {
@@ -86,6 +103,11 @@ export const useComposeStore = create<ComposeState>()(
       xSearch: 'auto',
       isStreaming: false,
       longformPreference: true,
+      libraryMode: 'auto',
+      budgetPct: 0.5,
+      dayWindowDays: 7,
+      toolActivity: null,
+      contextLimit: DEFAULT_CONTEXT_FALLBACK,
 
       ensureSession: (context, target) =>
         set((s) => {
@@ -192,15 +214,25 @@ export const useComposeStore = create<ComposeState>()(
       setXSearch: (mode) => set({ xSearch: mode }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
+      setLibraryMode: (mode) => set({ libraryMode: mode }),
+      setBudgetPct: (pct) => set({ budgetPct: clampBudgetPct(pct) }),
+      setDayWindowDays: (days) => set({ dayWindowDays: days }),
+      setToolActivity: (label) => set({ toolActivity: label }),
+      setContextLimit: (limit) => set({ contextLimit: limit }),
     }),
     {
       name: 'venice-compose',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => createSafeStorage()),
       migrate: (persisted, version) => {
         const state = persisted as Partial<ComposeState>
         if (version < 2 && state.longformPreference == null) {
           state.longformPreference = true
+        }
+        if (version < 3) {
+          if (state.libraryMode == null) state.libraryMode = 'auto'
+          if (state.budgetPct == null) state.budgetPct = 0.5
+          if (state.dayWindowDays === undefined) state.dayWindowDays = 7
         }
         return state as ComposeState
       },
@@ -210,6 +242,9 @@ export const useComposeStore = create<ComposeState>()(
         model: state.model,
         xSearch: state.xSearch,
         longformPreference: state.longformPreference,
+        libraryMode: state.libraryMode,
+        budgetPct: state.budgetPct,
+        dayWindowDays: state.dayWindowDays,
       }),
     },
   ),
