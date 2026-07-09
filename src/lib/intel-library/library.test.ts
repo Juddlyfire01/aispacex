@@ -4,6 +4,12 @@ import {
   listSubjects,
   libraryCounts,
   getSubject,
+  grepIntel,
+  globIntel,
+  getPosts,
+  getReport,
+  getEdges,
+  getProfile,
 } from './library'
 import { makePost, sampleSnapshot } from './test-fixtures'
 import {
@@ -74,5 +80,62 @@ describe('format helpers', () => {
     )
     expect(line).toBe('  - [2026-07-01] id=p1 (original) ♥3 — hello world with spaces')
     expect(line).not.toMatch(/\n/)
+  })
+})
+
+describe('grepIntel', () => {
+  const snap = sampleSnapshot()
+
+  it('finds posts by all terms', () => {
+    const hits = grepIntel(snap, { type: 'all' }, { query: 'staking VVV', types: ['posts'], limit: 20 })
+    expect(hits.some((h) => h.id === 'p1')).toBe(true)
+  })
+
+  it('finds report narrative', () => {
+    const hits = grepIntel(snap, { type: 'all' }, { query: 'private inference', types: ['reports'] })
+    expect(hits.some((h) => h.type === 'report')).toBe(true)
+  })
+
+  it('respects handle filter', () => {
+    const hits = grepIntel(snap, { type: 'all' }, { query: 'privacy', handle: 'me_user' })
+    expect(hits.every((h) => h.handle === 'me_user')).toBe(true)
+  })
+})
+
+describe('globIntel', () => {
+  const snap = sampleSnapshot()
+
+  it('lists report paths', () => {
+    const paths = globIntel(snap, { type: 'all' }, 'intel/**/reports')
+    expect(paths.some((p) => (typeof p === 'string' ? p : p.path).includes('AskVenice'))).toBe(true)
+  })
+})
+
+describe('getters', () => {
+  const snap = sampleSnapshot()
+
+  it('getPosts respects since and limit', () => {
+    const posts = getPosts(snap, { type: 'all' }, {
+      handle: 'AskVenice',
+      source: 'posts',
+      since: '2026-07-05',
+      limit: 10,
+    })
+    expect(posts.map((p) => p.id)).toEqual(['t1'])
+  })
+
+  it('getReport defaults to latest', () => {
+    const r = getReport(snap, { type: 'target', username: 'AskVenice' }, { handle: 'AskVenice' })
+    expect(r?.id).toBe('r-av')
+  })
+
+  it('getEdges sorts by weight desc', () => {
+    const edges = getEdges(snap, { type: 'all' }, { handle: 'AskVenice' })
+    expect(edges[0]?.targetUsername).toBe('gekko_eth')
+  })
+
+  it('getProfile returns profile or null', () => {
+    expect(getProfile(snap, { type: 'all' }, 'AskVenice')?.username).toBe('AskVenice')
+    expect(getProfile(snap, { type: 'me' }, 'AskVenice')).toBeNull()
   })
 })

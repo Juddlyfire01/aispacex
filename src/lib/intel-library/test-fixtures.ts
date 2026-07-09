@@ -221,7 +221,7 @@ export function sampleSnapshot(): IntelSnapshot {
             id: 't2',
             authorId: avProfile.id,
             text: 'DIEM minting unlocks dedicated compute',
-            createdAt: '2026-07-07T11:00:00.000Z',
+            createdAt: '2026-07-02T11:00:00.000Z',
             metrics: { impressions: 3000, likes: 150, reposts: 25, replies: 10, quotes: 5, bookmarks: 40 },
           }),
         ],
