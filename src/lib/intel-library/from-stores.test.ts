@@ -195,4 +195,103 @@ describe('buildIntelSnapshot', () => {
       likes: 2,
     })
   })
+
+  it('includes likes-only self', () => {
+    const snap = buildIntelSnapshot({
+      selfAccounts: [
+        makeSelfAccount({
+          id: 'likes-only',
+          username: 'liker',
+          likes: [makePost({ id: 'l-only' })],
+        }),
+      ],
+      reports: [],
+    })
+
+    expect(snap.subjects).toHaveLength(1)
+    expect(snap.subjects[0]).toMatchObject({
+      kind: 'self',
+      username: 'liker',
+    })
+    expect(snap.subjects[0]!.likes).toHaveLength(1)
+  })
+
+  it('includes reports-only target', () => {
+    const report = makeReport('r-only', 'Reports only')
+    const snap = buildIntelSnapshot({
+      selfAccounts: [],
+      reports: [
+        makeIntelReport({
+          username: 'reports_only',
+          reportHistory: [report],
+        }),
+      ],
+    })
+
+    expect(snap.subjects).toHaveLength(1)
+    expect(snap.subjects[0]).toMatchObject({
+      kind: 'target',
+      username: 'reports_only',
+      id: 'reports_only',
+    })
+    expect(snap.subjects[0]!.reports).toEqual([report])
+  })
+
+  it('includes edges-only target', () => {
+    const edge = {
+      source: 'id_edges_only',
+      target: 'id_other',
+      targetUsername: 'other',
+      kind: 'mention' as const,
+      weight: 1,
+      lastSeen: '2026-07-08T12:00:00.000Z',
+    }
+    const snap = buildIntelSnapshot({
+      selfAccounts: [],
+      reports: [
+        makeIntelReport({
+          username: 'edges_only',
+          edges: [edge],
+        }),
+      ],
+    })
+
+    expect(snap.subjects).toHaveLength(1)
+    expect(snap.subjects[0]).toMatchObject({
+      kind: 'target',
+      username: 'edges_only',
+    })
+    expect(snap.subjects[0]!.edges).toEqual([edge])
+  })
+
+  it('refreshedAt picks later of two section stamps', () => {
+    const snap = buildIntelSnapshot({
+      selfAccounts: [
+        makeSelfAccount({
+          id: 's1',
+          username: 'me_user',
+          profile: makeProfile('me_user'),
+          refreshedAt: {
+            posts: '2026-07-01T10:00:00.000Z',
+            profile: '2026-07-08T15:00:00.000Z',
+            bookmarks: '2026-07-05T12:00:00.000Z',
+          },
+        }),
+      ],
+      reports: [
+        makeIntelReport({
+          username: 'AskVenice',
+          profile: makeProfile('AskVenice'),
+          refreshedAt: {
+            feed: '2026-07-02T11:00:00.000Z',
+            network: '2026-07-09T08:00:00.000Z',
+            profile: '2026-07-04T11:00:00.000Z',
+          },
+        }),
+      ],
+    })
+
+    expect(snap.subjects[0]!.refreshedAt).toBe('2026-07-08T15:00:00.000Z')
+    expect(snap.subjects[1]!.refreshedAt).toBe('2026-07-09T08:00:00.000Z')
+  })
 })

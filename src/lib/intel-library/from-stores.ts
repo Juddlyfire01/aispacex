@@ -3,19 +3,37 @@ import type { IntelReport, RefreshedAt } from '../../stores/x-intel-store'
 import type { IntelSnapshot, LibrarySubject } from './types'
 
 function isEmptySelf(account: SelfAccount): boolean {
-  return !account.profile && account.posts.length === 0 && account.bookmarks.length === 0
+  return (
+    !account.profile &&
+    account.posts.length === 0 &&
+    account.bookmarks.length === 0 &&
+    account.likes.length === 0 &&
+    account.edges.length === 0 &&
+    (account.reportHistory?.length ?? 0) === 0
+  )
 }
 
 function isEmptyTarget(report: IntelReport): boolean {
-  return !report.profile && report.posts.length === 0
+  return (
+    !report.profile &&
+    report.posts.length === 0 &&
+    report.edges.length === 0 &&
+    (report.reportHistory?.length ?? 0) === 0
+  )
+}
+
+function pickLatest(...isos: (string | undefined)[]): string | undefined {
+  const defined = isos.filter((x): x is string => Boolean(x))
+  if (defined.length === 0) return undefined
+  return defined.reduce((a, b) => (a > b ? a : b))
 }
 
 function pickSelfRefreshedAt(refreshedAt: SelfSectionsRefreshed): string | undefined {
-  return refreshedAt.posts ?? refreshedAt.profile ?? refreshedAt.bookmarks ?? refreshedAt.likes
+  return pickLatest(refreshedAt.posts, refreshedAt.profile, refreshedAt.bookmarks, refreshedAt.likes)
 }
 
 function pickTargetRefreshedAt(refreshedAt: RefreshedAt): string | undefined {
-  return refreshedAt.feed ?? refreshedAt.profile ?? refreshedAt.network
+  return pickLatest(refreshedAt.feed, refreshedAt.profile, refreshedAt.network)
 }
 
 function selfToSubject(account: SelfAccount): LibrarySubject {
