@@ -11,6 +11,7 @@ interface ComposeChatProps {
 export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const toolActivity = useComposeStore((s) => s.toolActivity)
+  const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
   const { send, stop, isStreaming } = useCompose()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -34,10 +35,17 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
     <div className="flex flex-col h-full min-h-0">
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 ? (
-          <div className="text-[12px] text-white/20 leading-relaxed">
-            Describe the post you want. Your local intel library (Me, All, or a target) is packed into a
-            hot window, and tools can dig deeper. Live X search is available when enabled — the draft
-            builds on the right.
+          <div className="text-[12px] text-white/20 leading-relaxed space-y-2">
+            <p>
+              Describe the post you want. Your local intel library (Me, All, or a target) is packed
+              into a hot window for this chat&apos;s sticky context.
+            </p>
+            <p>
+              Use the history rail to switch threads or start + New chat. Library tools dig into
+              stored intel; <code className="text-white/30">compose_history_*</code> tools can
+              search past Post chats. Live X search is available when enabled — drafts open in the
+              Draft panel.
+            </p>
           </div>
         ) : (
           messages.map((m, i) =>
@@ -83,6 +91,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
         <div className="flex items-center gap-2 mt-2">
           {isStreaming ? (
             <button
+              type="button"
               onClick={stop}
               className="px-3 py-1 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors"
             >
@@ -90,6 +99,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
             </button>
           ) : (
             <button
+              type="button"
               onClick={submit}
               disabled={!canSend}
               className="px-3 py-1 text-[11px] font-medium bg-white text-black rounded-md hover:bg-white/90 transition-colors disabled:opacity-30"
@@ -97,8 +107,20 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
               Send
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setDraftDrawerOpen(true)}
+            className="px-3 py-1 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/70 rounded-md hover:text-white/90 hover:border-[var(--color-border-strong)] transition-colors"
+          >
+            Draft
+          </button>
           {toolActivity && (
             <span className="text-[10px] text-white/30 truncate">{toolActivity}</span>
+          )}
+          {sendBlocked && (
+            <span className="text-[10px] text-amber-400/60 truncate">
+              Hot window over budget — adjust library settings
+            </span>
           )}
         </div>
       </div>
