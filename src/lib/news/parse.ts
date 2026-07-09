@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
-import type { NewsFeed, NewsItem } from './types'
-import { stripHtml, truncate, hashId, extractImageUrl, toIso, stripLinkAggregatorMeta } from './normalize'
+import type { NewsFeed, NewsItem } from './types.js'
+import { stripHtml, truncate, hashId, extractImageUrl, toIso, stripLinkAggregatorMeta } from './normalize.js'
 
 const SUMMARY_MAX = 400
 

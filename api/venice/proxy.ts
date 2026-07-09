@@ -44,11 +44,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const method = (req.method ?? 'GET').toUpperCase()
-  let body: Buffer | undefined
+  // Uint8Array (not Buffer) so fetch BodyInit types accept the body under Vercel's NodeNext check.
+  let body: Uint8Array | undefined
   if (method !== 'GET' && method !== 'HEAD') {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(chunk as Buffer)
-    body = chunks.length ? Buffer.concat(chunks) : undefined
+    body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : undefined
   }
 
   let upstream: Response

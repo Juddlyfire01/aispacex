@@ -2,9 +2,9 @@
 // Fetches curated RSS/Atom feeds by ID (never raw URLs — no open relay),
 // parses to normalized NewsItem[], returns { items, failures }.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getFeed } from '../../src/lib/news/feeds'
-import { parseFeed } from '../../src/lib/news/parse'
-import type { NewsItem, NewsFeedFailure } from '../../src/lib/news/types'
+import { getFeed } from '../../src/lib/news/feeds.js'
+import { parseFeed } from '../../src/lib/news/parse.js'
+import type { NewsItem, NewsFeedFailure } from '../../src/lib/news/types.js'
 
 const PER_FEED_TIMEOUT_MS = 8_000
 

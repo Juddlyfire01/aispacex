@@ -1,4 +1,4 @@
-import type { NewsCategory, NewsFeed } from './types'
+import type { NewsCategory, NewsFeed } from './types.js'
 
 export const NEWS_FEEDS: NewsFeed[] = [
   // AI
