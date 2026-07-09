@@ -8,14 +8,6 @@
 // attached on the user turn via buildHotUserPrefix; deeper retrieval uses
 // intel_* tools when toolsEnabled.
 
-/** @deprecated Prefer hot-window packing; kept for callers that still build target dumps. */
-export interface TargetContext {
-  username: string
-  displayName?: string
-  bio?: string | null
-  recentPosts?: { id: string; text: string; kind: string }[]
-}
-
 export interface ComposeSystemOpts {
   xSearchOn: boolean
   toolsEnabled: boolean
