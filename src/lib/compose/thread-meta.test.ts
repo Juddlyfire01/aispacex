@@ -7,8 +7,12 @@ import {
   formatRelativeTime,
   formatTokenCount,
   scopeToPathSegment,
+  threadExportFilename,
+  threadToJson,
+  threadToMarkdown,
 } from './thread-meta'
 import type { ChatMessage } from '../../types/venice'
+import type { ComposeThread } from './thread-types'
 import { emptyDraft } from './types'
 
 describe('autoTitleFromUserText', () => {
@@ -68,5 +72,62 @@ describe('formatRelativeTime', () => {
   it('returns a non-empty string', () => {
     const iso = new Date().toISOString()
     expect(formatRelativeTime(iso, new Date()).length).toBeGreaterThan(0)
+  })
+})
+
+function sampleThread(partial?: Partial<ComposeThread>): ComposeThread {
+  const draft = emptyDraft({ kind: 'original' })
+  draft.segments[0]!.text = 'Draft line'
+  return {
+    id: 't1',
+    context: { type: 'all' },
+    title: 'Privacy thread',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-09T12:00:00.000Z',
+    messages: [
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi there' },
+    ],
+    draft,
+    tokenEstimate: 10,
+    preview: 'Hello',
+    ...partial,
+  }
+}
+
+describe('threadToMarkdown', () => {
+  it('includes title, roles, and draft', () => {
+    const md = threadToMarkdown(sampleThread())
+    expect(md).toContain('# Privacy thread')
+    expect(md).toContain('## You')
+    expect(md).toContain('Hello')
+    expect(md).toContain('## Assistant')
+    expect(md).toContain('## Draft')
+    expect(md).toContain('Draft line')
+    expect(md).toContain('AISpaceX Compose')
+  })
+})
+
+describe('threadToJson', () => {
+  it('wraps full thread with envelope', () => {
+    const thread = sampleThread()
+    const parsed = JSON.parse(threadToJson(thread)) as {
+      source: string
+      version: number
+      thread: ComposeThread
+    }
+    expect(parsed.source).toBe('aispacex-compose')
+    expect(parsed.version).toBe(1)
+    expect(parsed.thread.id).toBe(thread.id)
+    expect(parsed.thread.messages).toHaveLength(2)
+    expect(parsed.thread.draft.segments[0]?.text).toBe('Draft line')
+  })
+})
+
+describe('threadExportFilename', () => {
+  it('slugifies title and format', () => {
+    expect(threadExportFilename(sampleThread())).toBe('privacy-thread.md')
+    expect(threadExportFilename(sampleThread(), 'json')).toBe('privacy-thread.json')
+    expect(threadExportFilename(sampleThread({ title: '!!!' }))).toBe('compose-chat.md')
   })
 })

@@ -8,6 +8,7 @@ import {
 } from '../../lib/compose/thread-meta'
 import type { ComposeThread } from '../../lib/compose/thread-types'
 import { CostMeter } from '../x-intel/cost-meter'
+import { ThreadExportButton } from './thread-export-button'
 import { cn } from '../../lib/utils'
 
 function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
@@ -117,21 +118,24 @@ export function HistoryRail() {
                     {formatRelativeTime(thread.updatedAt)} · {formatTokenCount(thread.tokenEstimate)}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(thread)
-                  }}
-                  title="Delete chat"
-                  aria-label="Delete chat"
-                  className="opacity-0 group-hover:opacity-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all shrink-0 p-0.5"
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
+                  <ThreadExportButton thread={thread} />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(thread)
+                    }}
+                    title="Delete chat"
+                    aria-label="Delete chat"
+                    className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             )
           })

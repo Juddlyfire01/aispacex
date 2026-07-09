@@ -1,6 +1,8 @@
 import type { ChatMessage } from '../../types/venice'
 import type { ComposeScope } from '../intel-library/types'
+import type { ComposeThread } from './thread-types'
 import type { PostDraft } from './types'
+import { serializeDraftForCopy } from './serialize'
 import { estimateTokens } from './token-estimate'
 
 export function autoTitleFromUserText(text: string): string {
@@ -88,4 +90,72 @@ export function recomputeThreadMeta(input: {
     tokenEstimate: estimateThreadTokens(input.messages, input.draft),
     updatedAt: now.toISOString(),
   }
+}
+
+export type ThreadExportFormat = 'md' | 'json'
+
+/** Markdown dump of a compose thread (chat + draft) for local download. */
+export function threadToMarkdown(thread: ComposeThread): string {
+  const badge = contextBadgeLabel(thread.context)
+  const lines: string[] = [
+    `# ${thread.title || 'Compose chat'}`,
+    '',
+    `_Context: ${badge} · Updated: ${thread.updatedAt}_`,
+    '',
+  ]
+
+  for (const m of thread.messages) {
+    const heading =
+      m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Assistant' : m.role === 'system' ? 'System' : m.role
+    lines.push(`## ${heading}`, messageContentString(m), '')
+  }
+
+  const draftBody = serializeDraftForCopy(thread.draft).trim()
+  if (draftBody) {
+    lines.push('## Draft', draftBody, '')
+  }
+
+  lines.push('---', '', '_Exported from AISpaceX Compose_')
+  return lines.join('\n')
+}
+
+/**
+ * Full-fidelity JSON for backup / future reimport.
+ * Wraps the thread so consumers can version the envelope without mutating the store shape.
+ */
+export function threadToJson(thread: ComposeThread): string {
+  return JSON.stringify(
+    {
+      exportedAt: new Date().toISOString(),
+      source: 'aispacex-compose',
+      version: 1,
+      thread,
+    },
+    null,
+    2,
+  )
+}
+
+/** Safe filename from thread title. */
+export function threadExportFilename(thread: ComposeThread, format: ThreadExportFormat = 'md'): string {
+  const base = (thread.title || thread.preview || 'compose-chat')
+    .replace(/[^a-z0-9-_]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+  const stem = base || 'compose-chat'
+  return format === 'json' ? `${stem}.json` : `${stem}.md`
+}
+
+export function downloadThread(thread: ComposeThread, format: ThreadExportFormat): void {
+  const content = format === 'json' ? threadToJson(thread) : threadToMarkdown(thread)
+  const mime = format === 'json' ? 'application/json' : 'text/markdown'
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = threadExportFilename(thread, format)
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
