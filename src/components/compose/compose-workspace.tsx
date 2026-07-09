@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useComposeStore, ME_CONTEXT, ALL_CONTEXT, type XSearchMode } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
+import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
 import { pickComposeModel, modelSupportsXSearch } from '../../lib/compose/model'
-import { resolveContextLimit } from '../../lib/compose/token-estimate'
+import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
+import { packHotWindow } from '../../lib/compose/hot-window'
+import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
+import { scopeFromContext } from '../../lib/intel-library/scope'
+import { libraryCounts } from '../../lib/intel-library/library'
 import { ComposeChat } from './compose-chat'
 import { PostComposer } from './post-composer'
 import { ComposeActions } from './compose-actions'
+import { LibraryMeter } from './library-meter'
 
 const X_SEARCH_MODES: XSearchMode[] = ['off', 'auto', 'on']
 
@@ -18,10 +24,19 @@ export function ComposeWorkspace() {
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
   const setContextLimit = useComposeStore((s) => s.setContextLimit)
+  const contextLimit = useComposeStore((s) => s.contextLimit)
   const xSearch = useComposeStore((s) => s.xSearch)
   const setXSearch = useComposeStore((s) => s.setXSearch)
+  const libraryMode = useComposeStore((s) => s.libraryMode)
+  const setLibraryMode = useComposeStore((s) => s.setLibraryMode)
+  const budgetPct = useComposeStore((s) => s.budgetPct)
+  const setBudgetPct = useComposeStore((s) => s.setBudgetPct)
+  const dayWindowDays = useComposeStore((s) => s.dayWindowDays)
+  const setDayWindowDays = useComposeStore((s) => s.setDayWindowDays)
 
   const targets = useXIntelStore((s) => s.targets)
+  const reports = useXIntelStore((s) => s.reports)
+  const selfAccounts = useXSelfStore((s) => s.accounts)
 
   const [copied, setCopied] = useState(false)
 
@@ -41,6 +56,43 @@ export function ComposeWorkspace() {
     ensureSession(activeContext)
   }, [activeContext, ensureSession])
 
+  const modelObj = useMemo(() => models?.find((m) => m.id === model), [models, model])
+  const limitAssumed = !(
+    typeof modelObj?.model_spec?.availableContextTokens === 'number' &&
+    modelObj.model_spec.availableContextTokens > 0
+  )
+
+  const snapshot = useMemo(
+    () =>
+      buildIntelSnapshot({
+        selfAccounts: Object.values(selfAccounts),
+        reports: Object.values(reports),
+      }),
+    [selfAccounts, reports],
+  )
+
+  const scope = useMemo(() => scopeFromContext(activeContext), [activeContext])
+  const budget = useMemo(
+    () => computeHotBudget(contextLimit, budgetPct),
+    [contextLimit, budgetPct],
+  )
+
+  const pack = useMemo(
+    () =>
+      packHotWindow({
+        snapshot,
+        scope,
+        mode: libraryMode,
+        dayWindowDays,
+        tokenBudget: budget,
+        now: new Date(),
+      }),
+    [snapshot, scope, libraryMode, dayWindowDays, budget],
+  )
+
+  const counts = useMemo(() => libraryCounts(snapshot, scope), [snapshot, scope])
+
+  const sendBlocked = libraryMode === 'custom' && pack.overBudget
   const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
 
   return (
@@ -100,12 +152,28 @@ export function ComposeWorkspace() {
             <span className="text-[10px] text-amber-400/60">model lacks X search</span>
           )}
         </div>
+
+        <div className="w-full sm:w-auto sm:flex-1 min-w-[240px]">
+          <LibraryMeter
+            pack={pack}
+            budget={budget}
+            contextLimit={contextLimit}
+            budgetPct={budgetPct}
+            libraryMode={libraryMode}
+            dayWindowDays={dayWindowDays}
+            counts={counts}
+            limitAssumed={limitAssumed}
+            onModeChange={setLibraryMode}
+            onBudgetPctChange={setBudgetPct}
+            onDayWindowChange={setDayWindowDays}
+          />
+        </div>
       </div>
 
       {/* Split view */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 border-r border-white/[0.05]">
-          <ComposeChat context={activeContext} />
+          <ComposeChat context={activeContext} sendBlocked={sendBlocked} />
         </div>
         <div className="w-[46%] max-w-[560px] min-w-0 flex flex-col min-h-0">
           <div className="flex-1 min-h-0">
