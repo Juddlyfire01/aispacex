@@ -1,5 +1,6 @@
 import { useComposeStore, ME_CONTEXT, ALL_CONTEXT, type XSearchMode } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
+import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
 import { modelSupportsXSearch } from '../../lib/compose/model'
 import { contextKeyFromScope } from '../../lib/intel-library/scope'
@@ -56,6 +57,12 @@ export function ComposeSettings({
   const xSearch = useComposeStore((s) => s.xSearch)
   const setXSearch = useComposeStore((s) => s.setXSearch)
   const targets = useXIntelStore((s) => s.targets)
+  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
+  const accountOrder = useXSelfStore((s) => s.accountOrder)
+  const accounts = useXSelfStore((s) => s.accounts)
+  const selfAccountId = activeAccountId ?? accountOrder[0] ?? null
+  const selfUsername = selfAccountId ? accounts[selfAccountId]?.username : null
+  const selfLabel = selfUsername ? `@${selfUsername.replace(/^@/, '')}` : '@me'
 
   const contextSelectValue = contextKeyFromScope(newThreadContext)
   const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
@@ -71,8 +78,8 @@ export function ComposeSettings({
             onChange={(e) => setNewThreadContext(scopeFromSelectValue(e.target.value))}
             className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
           >
-            <option value={ME_CONTEXT}>You</option>
             <option value={ALL_CONTEXT}>All</option>
+            <option value={ME_CONTEXT}>{selfLabel}</option>
             {targets.map((t) => (
               <option key={t} value={t}>
                 @{t}
