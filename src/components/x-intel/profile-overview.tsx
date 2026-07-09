@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react'
+import { useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
 import { useModels } from '../../hooks/use-models'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
@@ -94,12 +94,59 @@ const BotIcon = () => (
  */
 const MAX_CONTEXT = 100_000
 
+/** Fixed 4-char mono slot so counts stay right-aligned in the header. */
+function CapValue({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-block w-[4ch] text-right font-mono tabular-nums text-white/70 font-semibold">
+      {children}
+    </span>
+  )
+}
+
+/**
+ * Labels under a range track: min label left, MAX right, and when the value is
+ * between the ends the current number sits under the thumb.
+ */
+function SliderTrackLabels({
+  min,
+  max,
+  value,
+  minLabel,
+  midLabel,
+}: {
+  min: number
+  max: number
+  value: number
+  minLabel: string
+  /** Override mid label (defaults to the numeric value). */
+  midLabel?: string
+}) {
+  const range = max - min
+  const pct = range <= 0 ? 0 : ((value - min) / range) * 100
+  const atMin = value <= min
+  const atMax = value >= max
+  const showMid = !atMin && !atMax && range > 0
+
+  return (
+    <div className="relative h-3.5 mt-0.5 text-[9px] font-mono tabular-nums text-white/30">
+      <span className={cn('absolute left-0', atMin && 'text-white/60')}>{minLabel}</span>
+      {showMid && (
+        <span
+          className="absolute -translate-x-1/2 text-white/60"
+          style={{ left: `clamp(1.25rem, ${pct}%, calc(100% - 1.25rem))` }}
+        >
+          {midLabel ?? value}
+        </span>
+      )}
+      <span className={cn('absolute right-0', atMax && 'text-white/60')}>MAX</span>
+    </div>
+  )
+}
+
 /**
  * Context-cap slider with a dynamic ceiling. The top of the track is the number
- * of gathered posts (step 1); dragging fully right stores the MAX sentinel and
- * labels it "MAX" so the run always covers every available post. When fewer
- * posts are gathered than the current cap, the cap already covers them all, so
- * it reads as MAX too.
+ * of gathered posts (step 1); dragging fully right stores the MAX sentinel.
+ * Header shows the count; under-track labels are None · value · MAX.
  */
 function ContextCapControl({ value, postCount, onChange }: {
   value: number
@@ -111,15 +158,15 @@ function ContextCapControl({ value, postCount, onChange }: {
   const sliderMax = Math.max(ceiling, sliderMin)
   const isMax = value >= ceiling
   const sliderValue = Math.min(value, sliderMax)
+  const displayCount = isMax ? ceiling : value
   return (
     <label className="block text-[11px] text-white/40">
-      Context cap:{' '}
-      {isMax
-        ? <b className="text-white/70 font-mono">MAX</b>
-        : <><b className="text-white/70 font-mono">{value}</b> posts</>}
-      {isMax && postCount > 0 && (
-        <span className="text-white/25"> · all {postCount} posts</span>
-      )}
+      <span className="flex items-baseline justify-between gap-2">
+        <span title="How many gathered posts to feed into the next report.">
+          Post context cap
+        </span>
+        <CapValue>{displayCount}</CapValue>
+      </span>
       <input
         type="range" min={sliderMin} max={sliderMax} step={1}
         value={sliderValue}
@@ -127,18 +174,44 @@ function ContextCapControl({ value, postCount, onChange }: {
           const v = Number(e.target.value)
           onChange(v >= sliderMax ? MAX_CONTEXT : v)
         }}
-        className="w-full accent-white mt-1"
+        className="w-full mt-1"
+      />
+      <SliderTrackLabels
+        min={sliderMin}
+        max={sliderMax}
+        value={sliderValue}
+        minLabel="None"
       />
     </label>
   )
 }
 
+/** Newest-first report ids — slider “N” means the N most recent priors. */
+function mostRecentReportIds(reportHistory: IntelReportSnapshot[], n: number): string[] {
+  if (n <= 0) return []
+  return [...reportHistory]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, n)
+    .map((r) => r.id)
+}
+
+/** Largest k where selection equals the k most recent reports; null if custom. */
+function matchingRecentCount(reportHistory: IntelReportSnapshot[], includedIds: string[]): number | null {
+  const selected = new Set(includedIds.filter((id) => reportHistory.some((r) => r.id === id)))
+  if (selected.size === 0) return 0
+  for (let k = reportHistory.length; k >= 1; k--) {
+    const want = mostRecentReportIds(reportHistory, k)
+    if (want.length !== selected.size) continue
+    if (want.every((id) => selected.has(id))) return k
+  }
+  return null
+}
+
 /**
- * Prior-report context selector. Lets the user feed none / all / a custom subset
- * of earlier reports into the next synthesis as narrative context (the model
- * builds on them). Selection persists in synthesisSettings.includedReportIds.
- * Stale ids (reports since deleted) are ignored by the orchestrator, but we also
- * reconcile "all" against the live list here.
+ * Prior-report context: slider for “most recent N” (0 = none, max = all),
+ * plus optional Custom checklist for arbitrary subsets. Selection persists in
+ * synthesisSettings.includedReportIds. Empty selection is seeded once to All
+ * (default max) when history exists.
  */
 function ReportContextSelector({ reportHistory, includedIds, onChange }: {
   reportHistory: IntelReportSnapshot[]
@@ -146,70 +219,100 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
   onChange: (ids: string[]) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  // Only auto-seed empty → all once; after the user slides to None we leave [].
+  const didSeedDefault = useRef(false)
+
+  useEffect(() => {
+    if (didSeedDefault.current) return
+    if (reportHistory.length === 0) return
+    if (includedIds.length > 0) {
+      didSeedDefault.current = true
+      return
+    }
+    didSeedDefault.current = true
+    onChange(reportHistory.map((r) => r.id))
+  }, [reportHistory, includedIds, onChange])
+
   if (reportHistory.length === 0) {
     return (
       <div className="text-[11px] text-white/40">
-        Prior-report context
+        Report context cap
         <p className="text-[10px] text-white/20 mt-0.5">No earlier reports yet — the first report is always a fresh baseline.</p>
       </div>
     )
   }
+
   const selectedSet = new Set(includedIds)
   const selectedCount = reportHistory.filter((r) => selectedSet.has(r.id)).length
-  const allIds = reportHistory.map((r) => r.id)
-  const summary = selectedCount === 0 ? 'None' : selectedCount === reportHistory.length ? 'All' : `${selectedCount} selected`
+  const maxN = reportHistory.length
+  const recentMatch = matchingRecentCount(reportHistory, includedIds)
+  const isCustom = recentMatch === null
+  const sliderValue = isCustom ? selectedCount : recentMatch
+
+  const setRecentCount = (n: number) => {
+    const clamped = Math.max(0, Math.min(maxN, Math.round(n)))
+    onChange(mostRecentReportIds(reportHistory, clamped))
+  }
 
   const toggle = (id: string) => {
     const next = new Set(selectedSet)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    onChange(allIds.filter((x) => next.has(x)))
+    // Preserve history order for stability; membership is what matters.
+    onChange(reportHistory.map((r) => r.id).filter((x) => next.has(x)))
   }
+
+  // Custom list: newest first so it matches the slider’s “recent” mental model.
+  const customList = [...reportHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   return (
     <div className="text-[11px] text-white/40">
-      <div className="flex items-center justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <span title="Feed earlier reports into the next synthesis as narrative context so it builds on prior analysis.">
-          Prior-report context
+          Report context cap
         </span>
-        <span className="font-mono text-white/60">{summary}</span>
+        <CapValue>{selectedCount}</CapValue>
       </div>
-      <div className="flex gap-1 mt-1">
-        <button
-          type="button"
-          onClick={() => onChange([])}
-          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
-            selectedCount === 0 ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.08] text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
-        >
-          None
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(allIds)}
-          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
-            selectedCount === reportHistory.length ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.08] text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
-        >
-          All ({reportHistory.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className={cn('flex-1 rounded-md border px-2 py-1 text-[10px] transition-colors',
-            expanded ? 'border-white/25 text-white/70' : 'border-white/[0.08] text-white/40 hover:text-white/60')}
-        >
-          Custom
-        </button>
-      </div>
+      <input
+        type="range"
+        min={0}
+        max={maxN}
+        step={1}
+        value={sliderValue}
+        onChange={(e) => setRecentCount(Number(e.target.value))}
+        className="w-full mt-1"
+        aria-label="Report context count"
+      />
+      <SliderTrackLabels
+        min={0}
+        max={maxN}
+        value={sliderValue}
+        minLabel="None"
+        midLabel={isCustom ? `${selectedCount}*` : undefined}
+      />
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className={cn(
+          'mt-1.5 w-full rounded-md border px-2 py-1 text-[10px] transition-colors',
+          expanded || isCustom
+            ? 'border-white/25 text-white/70'
+            : 'border-white/[0.08] text-white/40 hover:text-white/60',
+        )}
+      >
+        Custom{isCustom ? ` · ${selectedCount}` : ''}
+      </button>
       {expanded && (
         <div className="mt-1.5 space-y-1 max-h-[12rem] overflow-y-auto pr-1 border-l border-white/[0.06] pl-2">
-          {reportHistory.map((r, i) => {
+          {customList.map((r, i) => {
             const checked = selectedSet.has(r.id)
+            const isOldest = i === customList.length - 1
             return (
               <label key={r.id} className="flex items-center gap-2 cursor-pointer text-[10px] text-white/50 hover:text-white/70">
                 <Checkbox checked={checked} onChange={() => toggle(r.id)} />
                 <span className="font-mono whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
                 <span className="text-white/25 truncate">
-                  {r.meta.postCount}p{i === reportHistory.length - 1 ? ' · baseline' : ''}
+                  {r.meta.postCount}p{isOldest ? ' · baseline' : ''}
                 </span>
               </label>
             )
@@ -418,7 +521,7 @@ export function ProfileOverview({
           </svg>
         </button>
         {settingsOpen && (
-          <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-3">
+          <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] p-3 space-y-3">
             <label className="block text-[11px] text-white/40">
               Model
               <select
@@ -434,21 +537,26 @@ export function ProfileOverview({
                 )}
               </select>
             </label>
+            <label className="block text-[11px] text-white/40">
+              <span className="flex items-baseline justify-between gap-2">
+                <span>Temperature</span>
+                <CapValue>{synthesisSettings.temperature.toFixed(1)}</CapValue>
+              </span>
+              <input
+                type="range" min={0} max={1} step={0.1}
+                value={synthesisSettings.temperature}
+                onChange={(e) => handleSynthesisChange({ temperature: Number(e.target.value) })}
+                className="w-full mt-1"
+              />
+            </label>
+
+            <div className="border-t border-white/[0.05]" />
+
             <ContextCapControl
               value={synthesisSettings.contextCap}
               postCount={postCount}
               onChange={(contextCap) => handleSynthesisChange({ contextCap })}
             />
-            <label className="block text-[11px] text-white/40">
-              Temperature: <b className="text-white/70 font-mono">{synthesisSettings.temperature.toFixed(1)}</b>
-              <input
-                type="range" min={0} max={1} step={0.1}
-                value={synthesisSettings.temperature}
-                onChange={(e) => handleSynthesisChange({ temperature: Number(e.target.value) })}
-                className="w-full accent-white mt-1"
-              />
-            </label>
-
             <ReportContextSelector
               reportHistory={reportHistory}
               includedIds={includedIds}

@@ -30,6 +30,7 @@ describe('appearance-persist', () => {
       theme: 'light',
       scale: 110,
       fontScale: 'lg',
+      typeface: 'aispace',
       density: 'compact',
       reduceMotion: true,
     })
@@ -38,6 +39,7 @@ describe('appearance-persist', () => {
       theme: 'light',
       scale: 110,
       fontScale: 'lg',
+      typeface: 'aispace',
       density: 'compact',
       reduceMotion: true,
     })
@@ -48,6 +50,7 @@ describe('appearance-persist', () => {
       theme: 'dark',
       scale: 100,
       fontScale: 'md',
+      typeface: 'aispace',
       density: 'comfortable',
       reduceMotion: false,
     })

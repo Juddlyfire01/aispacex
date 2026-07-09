@@ -63,8 +63,9 @@ export interface SynthesisSettings {
   model: string         // resolved from live catalog; legacy default venice-uncensored-1-2
   /**
    * Ids of prior report snapshots to feed into the next synthesis as prior-
-   * analysis context (narrative only). Empty = none (default, backward-compatible
-   * with the memoryless behavior). The UI offers none / all / custom selection.
+   * analysis context (narrative only). Empty = none. The Profile UI defaults
+   * to all prior reports (seeded once when history first appears) and exposes
+   * a most-recent-N slider plus optional custom multi-select.
    */
   includedReportIds: string[]
 }

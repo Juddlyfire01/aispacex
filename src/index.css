@@ -1,9 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "InterVariable", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  /* Default = AiSpace (sibling app): Space Grotesk UI + JetBrains Mono data.
+     Overridden at runtime by applyAppearanceToHtml via --font-sans / --font-mono. */
+  --font-sans: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", "Consolas", "Liberation Mono", monospace;
   --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Apple Color Emoji", emoji;
+}
+
+/*
+ * Mono faux-bold guard.
+ * Before 600/700 were loaded, font-semibold / font-bold / <b> on mono forced the
+ * browser to synthesize weight — soft, blurry glyphs at 9–12px. Real cuts are
+ * loaded now; still disable synthesis so system fallbacks (Consolas etc.) never
+ * smear when a weight is missing.
+ */
+.font-mono,
+.prose-venice code,
+.prose-venice pre,
+.prose-venice pre code {
+  font-synthesis: none;
 }
 
 /* Default theme = Venice (official brand palette). Overridden per-theme below. */
@@ -117,9 +133,13 @@ body {
   margin: 0;
   background: var(--color-bg-base);
   color: var(--color-text-primary);
+  font-family: var(--font-sans);
   font-size: calc(15px * var(--font-scale));
+  /* geometricPrecision keeps glyph edges stable when sizes are fractional (font-scale ≠ 1). */
+  text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Inter-only features; harmless no-ops on other faces. */
   font-feature-settings: "ss01", "cv11";
 }
 
@@ -172,7 +192,7 @@ body {
   }
 }
 
-/* Range slider */
+/* Range slider — thumbs use theme accent on every theme (incl. light). */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -181,16 +201,17 @@ input[type="range"] {
   border-radius: 999px;
   outline: none;
   margin-top: 6px;
+  accent-color: var(--color-accent);
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-accent);
   cursor: pointer;
   border: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
   transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
 }
 input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
@@ -198,14 +219,14 @@ input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-accent);
   cursor: pointer;
   border: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
   transition: box-shadow 0.12s ease-out, transform 0.12s ease-out;
 }
-input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--color-accent-soft), 0 1px 4px rgba(0,0,0,0.4); }
-input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px var(--color-accent-soft), 0 1px 4px rgba(0,0,0,0.4); }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--color-accent-soft), 0 1px 4px rgba(0,0,0,0.35); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px var(--color-accent-soft), 0 1px 4px rgba(0,0,0,0.35); }
 
 textarea { field-sizing: content; }
 
@@ -257,6 +278,7 @@ button:focus, a:focus, textarea:focus, input:focus, select:focus { outline: none
 .prose-venice code {
   font-family: var(--font-mono);
   font-size: 0.86em;
+  font-weight: 400;
   background: var(--color-border-faint);
   padding: 0.13em 0.4em;
   border-radius: 4px;
@@ -329,10 +351,14 @@ button:focus, a:focus, textarea:focus, input:focus, select:focus { outline: none
 }
 .prose-venice img { border-radius: 8px; max-width: 100%; }
 
-/* Interface scale — scales the shell uniformly while refitting to the viewport */
+/*
+ * Interface scale — CSS zoom (not transform: scale).
+ * transform: scale paints the layer then stretches it → soft glyphs at 90/110/125%.
+ * zoom multiplies layout + paint metrics so type stays crisp at every step.
+ * Inverse width/height keeps the shell fitted to the viewport (same as before).
+ */
 .ui-scale-shell {
-  transform: scale(var(--ui-scale));
-  transform-origin: top left;
+  zoom: var(--ui-scale);
   width: calc(100% / var(--ui-scale));
   height: calc(100dvh / var(--ui-scale));
   min-height: calc(100dvh / var(--ui-scale));
@@ -530,7 +556,9 @@ button:focus, a:focus, textarea:focus, input:focus, select:focus { outline: none
   background: rgba(0, 0, 0, 0.12);
 }
 
+/* Light thumbs already use --color-accent from the base rule; keep a soft shadow. */
 [data-theme="light"] input[type="range"]::-webkit-slider-thumb,
 [data-theme="light"] input[type="range"]::-moz-range-thumb {
-  background: var(--color-text-primary);
+  background: var(--color-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }

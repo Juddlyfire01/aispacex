@@ -6,6 +6,9 @@ import {
   veniceKeysLogoHrefForTheme,
   xLogoHrefForTheme,
   scaleToFactor,
+  resolveTypeface,
+  TYPEFACE_STACKS,
+  DEFAULT_TYPEFACE,
 } from './appearance'
 
 describe('appearance', () => {
@@ -13,6 +16,13 @@ describe('appearance', () => {
     expect(scaleToFactor(100)).toBe(1)
     expect(scaleToFactor(125)).toBe(1.25)
     expect(scaleToFactor(90)).toBe(0.9)
+  })
+
+  it('resolveTypeface defaults to aispace and accepts known ids', () => {
+    expect(resolveTypeface(undefined)).toBe(DEFAULT_TYPEFACE)
+    expect(resolveTypeface('nope')).toBe('aispace')
+    expect(resolveTypeface('dossier')).toBe('dossier')
+    expect(TYPEFACE_STACKS.aispace.sans).toContain('Space Grotesk')
   })
 
   it('aispaceLogoHrefForTheme maps light/dark app key', () => {
@@ -58,9 +68,12 @@ describe('appearance', () => {
       dataset: {} as DOMStringMap,
     } as unknown as HTMLElement
 
-    applyAppearanceToHtml(el, { zoom: 110, fontScale: 'lg', density: 'compact' })
+    applyAppearanceToHtml(el, { zoom: 110, fontScale: 'lg', density: 'compact', typeface: 'x' })
     expect(style.get('--ui-scale')).toBe(String(1.1))
     expect(style.get('--font-scale')).toBe('1.12')
     expect(style.get('--density-space')).toBe('0.82')
+    expect(style.get('--font-sans')).toBe(TYPEFACE_STACKS.x.sans)
+    expect(style.get('--font-mono')).toBe(TYPEFACE_STACKS.x.mono)
+    expect((el as HTMLElement).dataset.typeface).toBe('x')
   })
 })

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { writeAppearanceSnapshot } from '../lib/appearance-persist'
 import { DEFAULT_THEME } from '../lib/theme-palettes'
+import { DEFAULT_TYPEFACE, resolveTypeface, type Typeface } from '../lib/appearance'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
 export type SettingsCategory = 'profile' | 'display' | 'data'
@@ -10,6 +11,7 @@ export type Theme = 'dark' | 'venice' | 'grey' | 'light'
 export type Scale = 90 | 100 | 110 | 125
 export type FontScale = 'sm' | 'md' | 'lg'
 export type Density = 'compact' | 'comfortable'
+export type { Typeface }
 
 interface SettingsState {
   activeTab: Tab
@@ -28,6 +30,8 @@ interface SettingsState {
   setScale: (s: Scale) => void
   fontScale: FontScale
   setFontScale: (f: FontScale) => void
+  typeface: Typeface
+  setTypeface: (t: Typeface) => void
   reduceMotion: boolean
   toggleReduceMotion: () => void
   density: Density
@@ -68,6 +72,8 @@ export const useSettingsStore = create<SettingsState>()(
       setScale: (s) => set({ scale: s }),
       fontScale: 'md',
       setFontScale: (f) => set({ fontScale: f }),
+      typeface: DEFAULT_TYPEFACE,
+      setTypeface: (t) => set({ typeface: t }),
       reduceMotion: false,
       toggleReduceMotion: () => set((s) => ({ reduceMotion: !s.reduceMotion })),
       density: 'comfortable',
@@ -88,7 +94,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'venice-settings',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<SettingsState> & { zoom?: Scale }
@@ -98,6 +104,7 @@ export const useSettingsStore = create<SettingsState>()(
           scale,
           theme: s.theme ?? DEFAULT_THEME,
           fontScale: s.fontScale ?? 'md',
+          typeface: resolveTypeface(s.typeface),
           reduceMotion: s.reduceMotion ?? false,
           density: s.density ?? 'comfortable',
           profileName: s.profileName ?? '',
@@ -114,6 +121,7 @@ export const useSettingsStore = create<SettingsState>()(
           theme: state.theme,
           scale: state.scale,
           fontScale: state.fontScale,
+          typeface: state.typeface,
           density: state.density,
           reduceMotion: state.reduceMotion,
         })

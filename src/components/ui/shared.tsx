@@ -4,7 +4,7 @@ import { Spinner } from './spinner'
 export function Label({ children, htmlFor, hint }: { children: React.ReactNode; htmlFor?: string; hint?: string }) {
   return (
     <div className="flex items-baseline justify-between mb-1.5">
-      <label htmlFor={htmlFor} className="block text-[11.5px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-[0.08em]">
+      <label htmlFor={htmlFor} className="block text-[11.5px] font-medium text-[var(--color-text-secondary)] uppercase tracking-[0.06em]">
         {children}
       </label>
       {hint && <span className="text-[11px] text-[var(--color-text-tertiary)]">{hint}</span>}

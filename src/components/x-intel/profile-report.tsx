@@ -476,7 +476,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
                 <button
                   key={np.postId}
                   onClick={() => onJumpToPost(np.postId)}
-                  className="text-left w-full border border-[var(--color-border-faint)] rounded-lg p-2.5 bg-[var(--color-bg-raised)] hover:border-[var(--color-border-strong)] transition-colors"
+                  className="text-left w-full rounded-lg border border-white/[0.05] bg-white/[0.015] p-2.5 hover:border-white/15 transition-colors"
                 >
                   {post ? (
                     <p className="text-[12px] text-white/65">{post.text.slice(0, 140)}{post.text.length > 140 ? '…' : ''}</p>

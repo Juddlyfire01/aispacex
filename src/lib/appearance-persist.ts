@@ -1,5 +1,5 @@
-import type { AppearanceSnapshot, Density, FontScale, Scale } from './appearance'
-import { SCALE_STEPS } from './appearance'
+import type { AppearanceSnapshot, Density, FontScale, Scale, Typeface } from './appearance'
+import { DEFAULT_TYPEFACE, resolveTypeface, SCALE_STEPS } from './appearance'
 
 /** Plaintext localStorage key — readable by the pre-React FOUC boot script.
  *  Sensitive settings stay in the encrypted `venice-settings` blob; only
@@ -18,6 +18,7 @@ export function writeAppearanceSnapshot(appearance: AppearanceSnapshot): void {
       theme: appearance.theme,
       scale: appearance.scale ?? appearance.zoom,
       fontScale: appearance.fontScale,
+      typeface: resolveTypeface(appearance.typeface),
       density: appearance.density,
       reduceMotion: appearance.reduceMotion ?? false,
     }
@@ -41,17 +42,19 @@ export function readAppearanceSnapshot(): AppearanceSnapshot | null {
 
 /** Normalize a partial snapshot for applying to <html>. */
 export function normalizeAppearance(s: AppearanceSnapshot): Required<
-  Pick<AppearanceSnapshot, 'theme' | 'scale' | 'fontScale' | 'density' | 'reduceMotion'>
+  Pick<AppearanceSnapshot, 'theme' | 'scale' | 'fontScale' | 'typeface' | 'density' | 'reduceMotion'>
 > {
   const rawScale = s.scale ?? s.zoom ?? 100
   const scale = (SCALE_STEPS.includes(rawScale as Scale) ? rawScale : 100) as Scale
   const fontScale = (s.fontScale === 'sm' || s.fontScale === 'lg' ? s.fontScale : 'md') as FontScale
   const density = (s.density === 'compact' ? 'compact' : 'comfortable') as Density
   const theme = isThemeKey(s.theme) ? s.theme : 'dark'
+  const typeface = resolveTypeface(s.typeface) as Typeface
   return {
     theme,
     scale,
     fontScale,
+    typeface,
     density,
     reduceMotion: Boolean(s.reduceMotion),
   }
