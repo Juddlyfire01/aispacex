@@ -18,6 +18,14 @@ function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
   return thread.messages.some((m) => messageContentString(m).toLowerCase().includes(q))
 }
 
+/**
+ * Hover explains what the pill does not already show
+ * (badge, preview, time, and ~token size are on the row).
+ */
+function threadPillTip(): string {
+  return 'Saved on this device. Size is messages + draft. Agent can search older chats.'
+}
+
 export function HistoryRail() {
   const threadOrder = useComposeStore((s) => s.threadOrder)
   const threads = useComposeStore((s) => s.threads)
@@ -79,6 +87,8 @@ export function HistoryRail() {
                 key={thread.id}
                 role="button"
                 tabIndex={0}
+                title={threadPillTip()}
+                aria-label={`${contextBadgeLabel(thread.context)}: ${thread.preview}`}
                 onClick={() => selectThread(thread.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {

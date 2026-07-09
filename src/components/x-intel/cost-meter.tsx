@@ -9,9 +9,9 @@ import { cn } from '../../lib/utils'
 export type CostProviderView = 'x' | 'venice' | 'combined'
 
 const VIEWS: { id: CostProviderView; title: string }[] = [
-  { id: 'combined', title: 'Both' },
-  { id: 'x', title: 'X' },
-  { id: 'venice', title: 'Venice' },
+  { id: 'combined', title: 'Combined Costs' },
+  { id: 'x', title: 'X API Costs' },
+  { id: 'venice', title: 'Venice API Costs' },
 ]
 
 /** One half of the Y-flip (out to edge / in from edge). */
@@ -163,18 +163,14 @@ export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderVie
   const total = view === 'x' ? xLifetime : view === 'venice' ? vLife : xLifetime + vLife
 
   const activeMeta = VIEWS.find((v) => v.id === view)!
-  const next = nextView(view)
-  const nextMeta = VIEWS.find((v) => v.id === next)!
-  // Footer click cycles: "Both → X"
-  const cycleTip = `${activeMeta.title} → ${nextMeta.title}`
 
   return (
     <div
       className={cn(RAIL_FOOTER_CLASS, 'relative cursor-pointer select-none')}
       role="button"
       tabIndex={0}
-      title={cycleTip}
-      aria-label={cycleTip}
+      title={activeMeta.title}
+      aria-label={activeMeta.title}
       onClick={() => setView((v) => nextView(v))}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
