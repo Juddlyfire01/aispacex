@@ -106,10 +106,28 @@ export interface ContentPart {
   input_audio?: { data: string; format: string }
 }
 
+export interface ToolDefinition {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
+}
+
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string | ContentPart[]
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | ContentPart[] | null
   reasoning_content?: string
+  tool_calls?: ToolCall[]
+  tool_call_id?: string
+  name?: string
 }
 
 export interface VeniceParameters {
@@ -134,6 +152,8 @@ export interface ChatCompletionRequest {
   top_p?: number
   frequency_penalty?: number
   presence_penalty?: number
+  tools?: ToolDefinition[]
+  tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
   venice_parameters?: VeniceParameters
 }
 
@@ -144,7 +164,17 @@ export interface ChatCompletionChunk {
   model: string
   choices: Array<{
     index: number
-    delta: { role?: string; content?: string; reasoning_content?: string }
+    delta: {
+      role?: string
+      content?: string | null
+      reasoning_content?: string
+      tool_calls?: Array<{
+        index?: number
+        id?: string
+        type?: 'function'
+        function?: { name?: string; arguments?: string }
+      }>
+    }
     finish_reason: string | null
   }>
 }
@@ -156,7 +186,11 @@ export interface ChatCompletionResponse {
   model: string
   choices: Array<{
     index: number
-    message: { role: string; content: string }
+    message: {
+      role: string
+      content: string | null
+      tool_calls?: ToolCall[]
+    }
     finish_reason: string
   }>
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }

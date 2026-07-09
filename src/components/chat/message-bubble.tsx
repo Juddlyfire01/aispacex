@@ -4,7 +4,8 @@ import { MarkdownMessage } from './markdown-message'
 import { cn } from '../../lib/utils'
 
 // Extract text and images from multimodal content
-function extractContent(content: string | ContentPart[]): { text: string; images: string[] } {
+function extractContent(content: string | ContentPart[] | null): { text: string; images: string[] } {
+  if (content == null) return { text: '', images: [] }
   if (typeof content === 'string') return { text: content, images: [] }
   let text = ''
   const images: string[] = []

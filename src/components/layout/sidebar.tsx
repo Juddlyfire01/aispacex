@@ -345,7 +345,9 @@ function conversationToMarkdown(conv: Conversation): string {
     lines.push(`## ${m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Assistant' : 'System'}`)
     const content = typeof m.content === 'string'
       ? m.content
-      : m.content.map((p) => p.type === 'text' ? p.text : p.type === 'image_url' ? `![image](${p.image_url?.url ?? ''})` : '').join('\n')
+      : Array.isArray(m.content)
+        ? m.content.map((p) => p.type === 'text' ? p.text : p.type === 'image_url' ? `![image](${p.image_url?.url ?? ''})` : '').join('\n')
+        : ''
     lines.push(content)
     lines.push('')
   }
