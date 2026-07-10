@@ -1,15 +1,15 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { ChatMessage } from '../types/venice'
 import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
-import type { ComposeThread } from '../lib/compose/thread-types'
+import type { ComposeMessage, ComposeThread } from '../lib/compose/thread-types'
 import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import type { ComposeScope } from '../lib/intel-library/types'
 import { scopeFromContext } from '../lib/intel-library/scope'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
+import type { AgentEvent, AgentEventStatus } from '../lib/compose/agent-events'
 
 // Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
@@ -43,6 +43,10 @@ interface ComposeState {
   dayWindowDays: number | null
   /** Ephemeral tool activity label — not persisted. */
   toolActivity: string | null
+  /** Ephemeral Cursor-style step timeline for the current run — not persisted. */
+  agentEvents: AgentEvent[]
+  /** Current top-level phase label shown while no step is running. */
+  agentPhase: string | null
   /** Model context limit for the meter — ephemeral; recompute from model list. */
   contextLimit: number
 
@@ -54,9 +58,11 @@ interface ComposeState {
   setNewThreadContext: (scope: ComposeScope) => void
   setDraftDrawerOpen: (open: boolean) => void
 
-  addMessage: (threadId: string, message: ChatMessage) => void
+  addMessage: (threadId: string, message: ComposeMessage) => void
   appendToLastAssistant: (threadId: string, token: string) => void
   setLastAssistantContent: (threadId: string, content: string) => void
+  /** Attach the completed agent step timeline to the last assistant message. */
+  setLastAssistantAgentEvents: (threadId: string, events: AgentEvent[]) => void
   deleteLastMessage: (threadId: string) => void
 
   applyDraftPatch: (threadId: string, patch: Partial<PostDraft>) => void
@@ -77,6 +83,11 @@ interface ComposeState {
   setDayWindowDays: (days: number | null) => void
   setToolActivity: (label: string | null) => void
   setContextLimit: (limit: number) => void
+
+  pushAgentEvent: (event: AgentEvent) => void
+  updateAgentEvent: (id: string, patch: { status?: AgentEventStatus; detail?: string }) => void
+  clearAgentEvents: () => void
+  setAgentPhase: (phase: string | null) => void
 }
 
 function newId(): string {
@@ -202,6 +213,8 @@ export const useComposeStore = create<ComposeState>()(
       budgetPct: 0.5,
       dayWindowDays: 7,
       toolActivity: null,
+      agentEvents: [],
+      agentPhase: null,
       contextLimit: DEFAULT_CONTEXT_FALLBACK,
 
       createThread: (context, target) => {
@@ -288,6 +301,20 @@ export const useComposeStore = create<ComposeState>()(
           }),
         ),
 
+      setLastAssistantAgentEvents: (threadId, events) =>
+        set((s) =>
+          mapThread(s, threadId, (t) => {
+            const msgs = [...t.messages]
+            const last = msgs[msgs.length - 1]
+            if (last?.role !== 'assistant') return t
+            msgs[msgs.length - 1] = {
+              ...last,
+              agentEvents: events.length > 0 ? events : undefined,
+            }
+            return { ...t, messages: msgs }
+          }),
+        ),
+
       deleteLastMessage: (threadId) =>
         set((s) =>
           mapThread(s, threadId, (t) => ({ ...t, messages: t.messages.slice(0, -1) })),
@@ -360,6 +387,14 @@ export const useComposeStore = create<ComposeState>()(
       setDayWindowDays: (days) => set({ dayWindowDays: days }),
       setToolActivity: (label) => set({ toolActivity: label }),
       setContextLimit: (limit) => set({ contextLimit: limit }),
+
+      pushAgentEvent: (event) => set((s) => ({ agentEvents: [...s.agentEvents, event] })),
+      updateAgentEvent: (id, patch) =>
+        set((s) => ({
+          agentEvents: s.agentEvents.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        })),
+      clearAgentEvents: () => set({ agentEvents: [] }),
+      setAgentPhase: (phase) => set({ agentPhase: phase }),
     }),
     {
       name: 'venice-compose',

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useCompose } from '../../hooks/use-compose'
 import { MarkdownMessage } from '../chat/markdown-message'
+import { AgentActivity } from './agent-activity'
+import type { ComposeMessage } from '../../lib/compose/thread-types'
 
 /** Distance from bottom (px) still counts as "following" the stream. */
 const STICK_BOTTOM_PX = 80
@@ -17,7 +19,8 @@ interface ComposeChatProps {
 
 export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
-  const toolActivity = useComposeStore((s) => s.toolActivity)
+  const liveEvents = useComposeStore((s) => s.agentEvents)
+  const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
   const { send, stop, isStreaming } = useCompose()
   const [input, setInput] = useState('')
@@ -26,7 +29,10 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   /** Follow new content until the user scrolls away from the bottom. */
   const stickToBottomRef = useRef(true)
 
-  const messages = useMemo(() => thread?.messages ?? [], [thread?.messages])
+  const messages = useMemo(
+    () => (thread?.messages ?? []) as ComposeMessage[],
+    [thread?.messages],
+  )
   const lastContent =
     typeof messages[messages.length - 1]?.content === 'string'
       ? (messages[messages.length - 1]!.content as string)
@@ -59,7 +65,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
         scrollRafRef.current = null
       }
     }
-  }, [lastContent, toolActivity, messages.length])
+  }, [lastContent, liveEvents.length, agentPhase, messages.length])
 
   const canSend = Boolean(input.trim()) && !isStreaming && !sendBlocked
 
@@ -86,10 +92,10 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
               into a hot window for this chat&apos;s sticky context.
             </p>
             <p>
-              Use the history rail to switch threads or start + New chat. Library tools dig into
-              stored intel; <code className="text-white/30">compose_history_*</code> tools can
-              search past Post chats. Live X search is available when enabled — drafts open in the
-              Draft panel.
+              Use the history rail to switch threads or start + New chat. The agent can dig into
+              your stored intel and search past Post chats on its own — you&apos;ll see each step
+              as it works. Live X search is available when enabled — drafts open in the Draft
+              panel.
             </p>
           </div>
         ) : (
@@ -109,26 +115,40 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
             }
 
             if (m.role === 'assistant') {
-              // Empty placeholder while tools run / before first token.
+              const active = isStreaming && isLast
+              // Live strip while streaming; persisted steps on the message after.
+              const events = active ? liveEvents : (m.agentEvents ?? [])
+              const showActivity = active || events.length > 0
+
               if (!content) {
-                if (isStreaming && isLast) {
+                if (active) {
                   return (
-                    <div key={i} className="text-[12px] text-white/30">
-                      {toolActivity ? `${toolActivity}…` : 'Thinking…'}
-                    </div>
+                    <AgentActivity
+                      key={i}
+                      events={events}
+                      active
+                      phase={agentPhase}
+                    />
                   )
                 }
                 return null
               }
-              // Same markdown renderer as main chat (incl. mid-stream). Token
-              // batching + lightweight store append keep re-parse cost in check.
+
               return (
-                <MarkdownMessage
-                  key={i}
-                  content={content}
-                  size="compact"
-                  className="max-w-[92%] text-[12.5px] text-white/70"
-                />
+                <div key={i} className="space-y-2">
+                  {showActivity && (
+                    <AgentActivity
+                      events={events}
+                      active={active}
+                      phase={active ? agentPhase : null}
+                    />
+                  )}
+                  <MarkdownMessage
+                    content={content}
+                    size="compact"
+                    className="max-w-[92%] text-[12.5px] text-white/70"
+                  />
+                </div>
               )
             }
 
@@ -177,9 +197,6 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
           >
             Draft
           </button>
-          {toolActivity && (
-            <span className="text-[10px] text-white/30 truncate">{toolActivity}</span>
-          )}
           {sendBlocked && (
             <span className="text-[10px] text-amber-400/60 truncate">
               Hot window over budget — adjust library settings

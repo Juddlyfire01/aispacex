@@ -11,6 +11,12 @@ import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindow } from '../lib/compose/hot-window'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
+import {
+  describeToolCall,
+  describeToolResult,
+  isToolError,
+  newAgentEventId,
+} from '../lib/compose/agent-events'
 import { buildHistorySnapshot } from '../lib/compose/history-library'
 import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
@@ -34,7 +40,6 @@ export function useCompose() {
     setLastAssistantContent,
     applyDraftPatch,
     setStreaming,
-    setToolActivity,
   } = useComposeStore()
 
   const flushPendingDelta = useCallback((threadId: string) => {
@@ -58,6 +63,8 @@ export function useCompose() {
       store.addMessage(threadId, { role: 'user', content: userMessage })
       store.addMessage(threadId, { role: 'assistant', content: '' })
       store.setStreaming(true)
+      store.clearAgentEvents()
+      store.setAgentPhase('Thinking')
       pendingDeltaRef.current = ''
       if (deltaRafRef.current != null) {
         cancelAnimationFrame(deltaRafRef.current)
@@ -67,6 +74,8 @@ export function useCompose() {
       const abortController = new AbortController()
       abortRef.current = abortController
       let clearedToolActivity = false
+      /** Maps in-flight tool calls (name+args) → timeline event ids. */
+      const pendingEventIds = new Map<string, string>()
 
       try {
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
@@ -104,11 +113,13 @@ export function useCompose() {
         const history = (active?.messages ?? []).filter((m) =>
           typeof m.content === 'string' ? m.content !== '' : true,
         )
+        // Strip UI-only agentEvents before sending to Venice.
         const apiHistory = history.map((m, i) => {
-          if (i === history.length - 1 && m.role === 'user' && typeof m.content === 'string') {
-            return { ...m, content: buildHotUserPrefix(pack.text, userMessage) }
+          const { agentEvents: _ae, ...rest } = m
+          if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
+            return { ...rest, content: buildHotUserPrefix(pack.text, userMessage) }
           }
-          return m
+          return rest
         })
         const apiMessages: ChatMessage[] = [{ role: 'system', content: system }, ...apiHistory]
 
@@ -133,7 +144,7 @@ export function useCompose() {
           onDelta: (token) => {
             if (!clearedToolActivity) {
               clearedToolActivity = true
-              useComposeStore.getState().setToolActivity(null)
+              useComposeStore.getState().setAgentPhase('Writing')
             }
             pendingDeltaRef.current += token
             if (deltaRafRef.current == null) {
@@ -151,10 +162,30 @@ export function useCompose() {
             useComposeStore.getState().setLastAssistantContent(threadId, '')
             clearedToolActivity = false
           },
-          onTool: ({ name }) => {
+          onRoundStart: () => {
+            const s = useComposeStore.getState()
+            if (s.agentEvents.length > 0) s.setAgentPhase('Thinking')
+          },
+          onTool: ({ name, args }) => {
             flushPendingDelta(threadId)
-            useComposeStore.getState().setToolActivity(`Library · ${name}`)
+            const s = useComposeStore.getState()
+            const label = describeToolCall(name, args)
+            const id = newAgentEventId()
+            pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
+            s.pushAgentEvent({ id, label, status: 'running', startedAt: Date.now() })
+            s.setAgentPhase(null)
             clearedToolActivity = false
+          },
+          onToolResult: ({ name, args, result }) => {
+            const s = useComposeStore.getState()
+            const key = `${name}:${JSON.stringify(args)}`
+            const id = pendingEventIds.get(key)
+            pendingEventIds.delete(key)
+            if (!id) return
+            s.updateAgentEvent(id, {
+              status: isToolError(result) ? 'error' : 'done',
+              detail: describeToolResult(name, result),
+            })
           },
         })
 
@@ -186,8 +217,18 @@ export function useCompose() {
       } finally {
         flushPendingDelta(threadId)
         const s = useComposeStore.getState()
+        // Settle interrupted steps, then pin the full timeline onto this turn.
+        for (const e of s.agentEvents) {
+          if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
+        }
+        const finalEvents = useComposeStore.getState().agentEvents
+        if (finalEvents.length > 0) {
+          s.setLastAssistantAgentEvents(threadId, finalEvents)
+        }
         s.setStreaming(false)
-        s.setToolActivity(null)
+        s.setAgentPhase(null)
+        // Live strip is cleared; history lives on the assistant message.
+        s.clearAgentEvents()
         abortRef.current = null
       }
     },
@@ -200,7 +241,6 @@ export function useCompose() {
       setLastAssistantContent,
       applyDraftPatch,
       setStreaming,
-      setToolActivity,
       flushPendingDelta,
     ],
   )
@@ -213,9 +253,18 @@ export function useCompose() {
     }
     pendingDeltaRef.current = ''
     const s = useComposeStore.getState()
+    for (const e of s.agentEvents) {
+      if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
+    }
+    const finalEvents = useComposeStore.getState().agentEvents
+    const threadId = s.activeThreadId
+    if (threadId && finalEvents.length > 0) {
+      s.setLastAssistantAgentEvents(threadId, finalEvents)
+    }
     s.setStreaming(false)
-    s.setToolActivity(null)
-  }, [setStreaming, setToolActivity])
+    s.setAgentPhase(null)
+    s.clearAgentEvents()
+  }, [setStreaming])
 
   return { send, stop, isStreaming }
 }

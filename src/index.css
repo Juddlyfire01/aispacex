@@ -186,6 +186,32 @@ body {
   animation: shimmer 2s infinite linear;
 }
 
+/* Cursor-style shimmering status text ("Thinking…", tool steps). */
+@keyframes shimmer-text {
+  0% { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--color-text-tertiary) 0%,
+    var(--color-text-tertiary) 35%,
+    var(--color-text-primary) 50%,
+    var(--color-text-tertiary) 65%,
+    var(--color-text-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 2s linear infinite;
+}
+[data-reduce-motion="true"] .shimmer-text {
+  background: none;
+  color: var(--color-text-secondary);
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

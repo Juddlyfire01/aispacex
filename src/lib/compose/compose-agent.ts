@@ -26,6 +26,10 @@ export interface ComposeAgentOpts {
   xSearchOn: boolean
   signal?: AbortSignal
   onTool?: (info: { name: string; args: Record<string, unknown> }) => void
+  /** Fired after a tool executes with its (untruncated-shape) result. */
+  onToolResult?: (info: { name: string; args: Record<string, unknown>; result: unknown }) => void
+  /** Fired when a new model round starts (1-based). */
+  onRoundStart?: (round: number) => void
   /** Fired for each content token as the final (or intermediate) answer streams. */
   onDelta?: (token: string) => void
   /**
@@ -161,6 +165,8 @@ export async function runComposeAgent(
       throw new DOMException('Aborted', 'AbortError')
     }
 
+    opts.onRoundStart?.(round + 1)
+
     const { content, toolCalls: calls, usage } = await streamComposeRound(
       opts,
       messages,
@@ -198,6 +204,7 @@ export async function runComposeAgent(
             scope: opts.scope,
           })
       toolCalls++
+      opts.onToolResult?.({ name, args, result })
       messages.push({
         role: 'tool',
         tool_call_id: call.id,
