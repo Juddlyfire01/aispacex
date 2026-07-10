@@ -3,10 +3,13 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { remarkEtherscan } from '../../lib/x-intel/remark-etherscan'
 import { remarkMention } from '../../lib/x-intel/remark-mention'
+import { remarkPost } from '../../lib/x-intel/remark-post'
 import { ETH_IDENTITY_SCHEME, identityFromHref } from '../../lib/x-intel/etherscan'
 import { MENTION_SCHEME, usernameFromHref } from '../../lib/x-intel/mention'
+import { POST_SCHEME, postIdFromHref } from '../../lib/x-intel/evidence'
 import { EthAddressLink } from '../x-intel/eth-address-link'
 import { MentionLink } from '../x-intel/mention-link'
+import { PostLink } from '../x-intel/post-link'
 import { cn } from '../../lib/utils'
 
 // Shared markdown rendering for assistant chat output — used by the main Chat
@@ -27,6 +30,7 @@ function safeUrlTransform(url: string, key: string): string {
   // in the interactive explorer popover. It never becomes a real href.
   if (url.startsWith(ETH_IDENTITY_SCHEME)) return url
   if (url.startsWith(MENTION_SCHEME)) return url
+  if (url.startsWith(POST_SCHEME)) return url
   const cleaned = defaultUrlTransform(url)
   if (!cleaned) return ''
   if (key === 'src' && cleaned.startsWith('data:image/')) return cleaned
@@ -78,7 +82,7 @@ export function MarkdownMessage({ content, size = 'full', className, canAddTarge
   return (
     <div className={cn('prose-venice', size === 'compact' && 'prose-venice-compact', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkEtherscan, remarkMention]}
+        remarkPlugins={[remarkGfm, remarkEtherscan, remarkMention, remarkPost]}
         urlTransform={safeUrlTransform}
         components={{
           code: CodeBlock,
@@ -87,6 +91,8 @@ export function MarkdownMessage({ content, size = 'full', className, canAddTarge
             if (identity) return <EthAddressLink identity={identity} />
             const username = usernameFromHref(href)
             if (username) return <MentionLink username={username} canAddTarget={canAddTarget} />
+            const postId = postIdFromHref(href)
+            if (postId) return <PostLink postId={postId} label={children} />
             return (
               <a {...props} href={href} target="_blank" rel="noopener noreferrer ugc">
                 {children}

@@ -4,6 +4,7 @@ import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { maxOwnPostId, partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
+import { beginReportProgress } from './report-progress'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
 import type { IntelReportSnapshot, Post } from './types'
 
@@ -36,39 +37,48 @@ function markRefreshed(key: string, ...sections: (keyof RefreshedAt)[]): Refresh
  * posts still land — so the core timeline is never lost to an inbound failure.
  */
 export async function runGather(username: string, opts: { backfill?: number } = {}): Promise<void> {
-  const { updateReport, addCost } = useXIntelStore.getState()
+  const store = useXIntelStore.getState()
+  const { updateReport, addCost, setGathering } = store
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
   const auth = resolveGatherAuth(apiUsername)
 
-  // 1. Profile — always refresh (cheap, metrics change)
-  const profileResult = await gatherProfile(apiUsername, auth)
-  addCost(key, profileResult.cost)
-  const profile = profileResult.data
-  updateReport(key, { profile })
+  setGathering(key, true)
+  try {
+    // 1. Profile — always refresh (cheap, metrics change)
+    const profileResult = await gatherProfile(apiUsername, auth)
+    addCost(key, profileResult.cost)
+    const profile = profileResult.data
+    // Stamp profile section with the profile write so rail + refresh bar share
+    // the same timestamp source (refreshedAt.profile) once the job finishes.
+    // During the job both surfaces read gatheringTargets and show "updating…".
+    updateReport(key, { profile, refreshedAt: markRefreshed(key, 'profile') })
 
-  // 2. Posts (outbound, incremental via since_id) + mentions (inbound), in parallel
-  // Re-read the current state to avoid a stale snapshot.
-  // since_id must be the highest *gathered own* post id — not profile.mostRecentPostId
-  // (that field is already the live latest tweet after a profile refresh, so using it
-  // as since_id returns zero new posts and the newest tweet never lands in the feed).
-  const currentReport = useXIntelStore.getState().reports[key]
-  const sinceId = currentReport ? maxOwnPostId(profile.id, currentReport.posts) : undefined
-  const [postsResult, mentionsResult] = await Promise.all([
-    gatherPosts(profile.id, auth, { sinceId, maxResults: opts.backfill ?? 50 }),
-    gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
-  ])
-  addCost(key, postsResult.cost)
-  addCost(key, mentionsResult.cost)
+    // 2. Posts (outbound, incremental via since_id) + mentions (inbound), in parallel
+    // Re-read the current state to avoid a stale snapshot.
+    // since_id must be the highest *gathered own* post id — not profile.mostRecentPostId
+    // (that field is already the live latest tweet after a profile refresh, so using it
+    // as since_id returns zero new posts and the newest tweet never lands in the feed).
+    const currentReport = useXIntelStore.getState().reports[key]
+    const sinceId = currentReport ? maxOwnPostId(profile.id, currentReport.posts) : undefined
+    const [postsResult, mentionsResult] = await Promise.all([
+      gatherPosts(profile.id, auth, { sinceId, maxResults: opts.backfill ?? 50 }),
+      gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
+    ])
+    addCost(key, postsResult.cost)
+    addCost(key, mentionsResult.cost)
 
-  // Re-read posts right before merging to avoid stale snapshot from concurrent gathers
-  const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
-  const merged = mergePosts(mergePosts(existingPosts, postsResult.data), mentionsResult.data)
+    // Re-read posts right before merging to avoid stale snapshot from concurrent gathers
+    const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
+    const merged = mergePosts(mergePosts(existingPosts, postsResult.data), mentionsResult.data)
 
-  // 3. Edges — recomputed locally from the full merged post set (outbound + inbound), free
-  const edges = deriveEdges(profile.id, merged)
+    // 3. Edges — recomputed locally from the full merged post set (outbound + inbound), free
+    const edges = deriveEdges(profile.id, merged)
 
-  updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'profile', 'feed', 'network') })
+    updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'profile', 'feed', 'network') })
+  } finally {
+    useXIntelStore.getState().setGathering(key, false)
+  }
 }
 
 /**
@@ -179,9 +189,14 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   store.setReportGenerating(key, true)
   store.setReportGenerateError(key, null)
 
+  const prevSnapshot = reportHistory[0] ?? null
+  const hasChangeStep = Boolean(prevSnapshot)
+  const subject = `@${profile.username}`
+  const progress = beginReportProgress({ subject, hasChangeStep })
+  progress.markPrepare()
+
   try {
     const analytics = computeAnalytics(profile, posts, edges)
-    const prevSnapshot = reportHistory[0] ?? null
 
     // Computed delta vs. the previous report (baseline = null)
     let computedDelta: Omit<import('./types').ChangeSummary, 'narrative'> | null = null
@@ -204,6 +219,12 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
       prevSnapshot,
       synthesisSettings,
       includedReports,
+      {
+        onPhase: (phase) => progress.markPhase(phase),
+        onStreamProgress: ({ phase, receivedTokens, expectedTokens }) => {
+          progress.onStreamTokens(phase, receivedTokens, expectedTokens)
+        },
+      },
     )
 
     const snapshot: IntelReportSnapshot = {
@@ -227,10 +248,12 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
     }
 
     useXIntelStore.getState().appendReport(key, snapshot)
+    progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Report generation failed'
     useXIntelStore.getState().setReportGenerateError(key, message)
+    progress.fail('Report failed', message)
     throw e
   } finally {
     useXIntelStore.getState().setReportGenerating(key, false)

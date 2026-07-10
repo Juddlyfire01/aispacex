@@ -34,6 +34,10 @@ describe('MENTION_RE', () => {
   it('finds multiple mentions', () => {
     expect(matches('cc @a and @b')).toEqual(['a', 'b'])
   })
+
+  it('matches slash-separated handles (both sides of /)', () => {
+    expect(matches('critics like @Crypdjo/@AlgodTrading')).toEqual(['Crypdjo', 'AlgodTrading'])
+  })
 })
 
 describe('mention sentinel href', () => {

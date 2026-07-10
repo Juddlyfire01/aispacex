@@ -19,9 +19,8 @@ function relativeTime(iso: string | undefined): string {
 }
 
 export function TargetRail() {
-  const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget, reorderTargets } = useXIntelStore()
+  const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget, reorderTargets, gatheringTargets } = useXIntelStore()
   const [input, setInput] = useState('')
-  const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleReorder = useCallback(
@@ -38,14 +37,11 @@ export function TargetRail() {
   }
 
   const gather = async (username: string) => {
-    setBusy(username)
     setError(null)
     try {
       await runGather(username)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gather failed')
-    } finally {
-      setBusy(null)
     }
   }
 
@@ -125,7 +121,9 @@ export function TargetRail() {
                     )}
                   </div>
                   <div className="text-[9px] text-[var(--color-text-tertiary)]">
-                    {busy === t ? 'gathering…' : relativeTime(report?.profile?.gatheredAt)}
+                    {gatheringTargets[t]
+                      ? 'updating…'
+                      : relativeTime(report?.refreshedAt?.profile ?? report?.profile?.gatheredAt)}
                   </div>
                 </div>
                 <button

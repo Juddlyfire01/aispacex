@@ -54,23 +54,22 @@ function BioText({ text, bioUrls }: { text: string; bioUrls?: { url: string; exp
 export function ProfileCard() {
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const report = useXIntelStore((s) => (s.activeTarget ? s.reports[s.activeTarget] : undefined))
+  const gathering = useXIntelStore((s) =>
+    s.activeTarget ? Boolean(s.gatheringTargets[s.activeTarget]) : false,
+  )
   const updateReport = useXIntelStore((s) => s.updateReport)
   const removeTarget = useXIntelStore((s) => s.removeTarget)
   const connected = useXSelfStore((s) => s.connected)
-  const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const linkRefreshAttempted = useRef<Set<string>>(new Set())
 
   const runRefresh = async () => {
     if (!activeTarget) return
-    setRefreshing(true)
     setRefreshError(null)
     try {
       await runGather(activeTarget)
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
-    } finally {
-      setRefreshing(false)
     }
   }
 
@@ -106,7 +105,7 @@ export function ProfileCard() {
       profile={profile}
       connected={connected}
       canRefresh={canGather}
-      refreshing={refreshing}
+      refreshing={gathering}
       refreshError={refreshError}
       lastGatheredIso={report.refreshedAt?.profile ?? profile?.gatheredAt}
       onRefresh={runRefresh}

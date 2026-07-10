@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { MarkdownMessage } from '../chat/markdown-message'
 import { MentionLink } from './mention-link'
 import { EthAddressLink } from './eth-address-link'
+import { PostLink } from './post-link'
 import { linkify } from '../../lib/x-intel/linkify'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { generateReport, runGather } from '../../lib/x-intel/orchestrate'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
 import { partitionPosts } from '../../lib/x-intel/activity'
-import { splitEvidence, postUrl, profileUrl } from '../../lib/x-intel/evidence'
+import { splitEvidence, profileUrl } from '../../lib/x-intel/evidence'
 import type { IntelReportSnapshot, ReportAnalytics, ChangeSummary, Post, Profile } from '../../lib/x-intel/types'
 import { formatTokens, cn } from '../../lib/utils'
 import { ReportExportButton } from './report-export-button'
@@ -23,10 +24,11 @@ function Prose({ children, canAddTarget = true }: { children: string; canAddTarg
 
 /**
  * Render a plain-text narrative fragment with the same inline affordances as the
- * rest of the app: @mentions open the add-target / view-profile popover, URLs and
- * hashtags open on X, and on-chain identities open the block-explorer popover.
- * Reuses the shared linkify() tokenizer (same as bios/feeds) so behaviour and
- * styling stay identical everywhere. `canAddTarget` is off in the self report.
+ * rest of the app: @mentions open the add-target / view-profile popover, post ids
+ * open Open-in-X / Add-to-draft, URLs and hashtags open on X, and on-chain
+ * identities open the block-explorer popover. Reuses the shared linkify()
+ * tokenizer (same as bios/feeds) so behaviour stays identical everywhere.
+ * `canAddTarget` is off in the self report.
  */
 function InlineText({ text, canAddTarget = true }: { text: string; canAddTarget?: boolean }) {
   const linkCls = 'text-[var(--color-accent)] hover:underline'
@@ -42,6 +44,8 @@ function InlineText({ text, canAddTarget = true }: { text: string; canAddTarget?
             return <a key={i} href={`https://x.com/hashtag/${encodeURIComponent(tok.tag)}`} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>{tok.value}</a>
           case 'eth':
             return <EthAddressLink key={i} identity={tok.value} />
+          case 'post':
+            return <PostLink key={i} postId={tok.postId} label={tok.value} />
           default:
             return <span key={i}>{tok.value}</span>
         }
@@ -111,17 +115,15 @@ function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Pos
                     <span className="font-mono text-[9px] text-white/20"> · {formatTokens(post.metrics.likes)}L</span>
                   </button>
                 ) : (
-                  <span className="flex-1 min-w-0 font-mono text-[10px] text-white/35">post {id.slice(0, 12)}…</span>
+                  <span className="flex-1 min-w-0 font-mono text-[10px]">
+                    <PostLink postId={id} />
+                  </span>
                 )}
-                <a
-                  href={postUrl(id)}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  title="Open on X"
-                  className="shrink-0 mt-0.5 text-white/25 hover:text-[var(--color-accent)] transition-colors"
-                >
-                  <LinkIcon />
-                </a>
+                {post && (
+                  <span className="shrink-0 mt-0.5">
+                    <PostLink postId={id} label={<LinkIcon />} />
+                  </span>
+                )}
               </div>
             )
           })}
@@ -173,16 +175,17 @@ function BarRow({ label, count, max }: { label: string; count: number; max: numb
   return (
     <div className="flex items-center gap-2 py-[3px]">
       {ref.kind === 'post' ? (
-        <a
-          href={postUrl(ref.id)}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          title={`Quoted post ${ref.id} — open on X`}
-          className="flex items-center gap-1 text-[11px] text-[var(--color-accent)]/75 hover:text-[var(--color-accent)] transition-colors w-28 shrink-0 min-w-0"
-        >
-          <LinkIcon className="shrink-0" />
-          <span className="truncate font-mono text-[10px]">post {ref.id.slice(0, 8)}…</span>
-        </a>
+        <span className="flex items-center gap-1 text-[11px] w-28 shrink-0 min-w-0">
+          <PostLink
+            postId={ref.id}
+            label={
+              <span className="flex items-center gap-1 min-w-0">
+                <LinkIcon className="shrink-0" />
+                <span className="truncate font-mono text-[10px]">post {ref.id.slice(0, 8)}…</span>
+              </span>
+            }
+          />
+        </span>
       ) : (
         <span className="text-[11px] text-white/55 truncate w-28 shrink-0">{ref.value}</span>
       )}

@@ -1,8 +1,11 @@
 import { venice } from '../venice-client'
+import { parseSSEStream } from '../stream'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import { fetchModelsBundle } from '../venice-model-utils'
 import type { VeniceModel } from '../../types/venice'
 import { partitionPosts } from './activity'
+import { estimateMessagesTokens, estimateTextTokens } from './token-estimate'
+import { expectedOutForCall, priorTokenHintFromSnapshot } from './report-progress'
 import type {
   Profile,
   Post,
@@ -280,6 +283,60 @@ export interface SynthesizeReportResult {
   completionTokens: number
 }
 
+export type SynthesizePhase = 'narrative' | 'change'
+
+export interface SynthesizeStreamProgress {
+  phase: SynthesizePhase
+  /** Estimated completion tokens received so far (from streamed text). */
+  receivedTokens: number
+  /** Ballpark expected completion tokens for this call. */
+  expectedTokens: number
+}
+
+export interface SynthesizeReportOptions {
+  /** Fired immediately before each Venice call so UI can advance progress. */
+  onPhase?: (phase: SynthesizePhase) => void
+  /** Fired as streamed tokens arrive (throttled by the caller if needed). */
+  onStreamProgress?: (p: SynthesizeStreamProgress) => void
+}
+
+interface StreamedCompletion {
+  content: string
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+}
+
+/**
+ * Stream a chat completion and accumulate content. Prefers final-chunk usage
+ * when the provider sends it; otherwise falls back to char-based estimates.
+ */
+async function streamChatCompletion(
+  body: Record<string, unknown>,
+  onDelta?: (contentSoFar: string) => void,
+): Promise<StreamedCompletion> {
+  const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...body,
+      stream: true,
+      // OpenAI-compatible; ignored harmlessly if unsupported.
+      stream_options: { include_usage: true },
+    }),
+    stream: true,
+  })
+
+  let content = ''
+  let usage: StreamedCompletion['usage']
+  for await (const chunk of parseSSEStream(stream)) {
+    const delta = chunk.choices?.[0]?.delta?.content
+    if (delta) {
+      content += delta
+      onDelta?.(content)
+    }
+    if (chunk.usage) usage = chunk.usage
+  }
+  return { content, usage }
+}
+
 /**
  * Produce the LLM portion of a report: the narrative interpretation grounded in
  * the (already-computed) analytics, and — when a computed delta is supplied —
@@ -297,54 +354,120 @@ export async function synthesizeReport(
   prevSnapshot: IntelReportSnapshot | null,
   settings: SynthesisSettings,
   includedReports: IntelReportSnapshot[] = [],
+  options: SynthesizeReportOptions = {},
 ): Promise<SynthesizeReportResult> {
   const { own } = partitionPosts(profile, posts)
   const inboundCount = posts.length - own.length
 
-  const resp = await venice<ChatCompletionResponse>('/chat/completions', {
-    method: 'POST',
-    body: JSON.stringify({
-      model: settings.model,
-      stream: false,
-      temperature: settings.temperature,
-      messages: buildReportMessages({ profile, ownPosts: own, analytics, inboundCount, includedReports, settings }),
-    }),
+  const reportMessages = buildReportMessages({
+    profile, ownPosts: own, analytics, inboundCount, includedReports, settings,
   })
-  const choice = resp.choices?.[0]
-  if (!choice?.message?.content) {
+  const estimatedPrompt = estimateMessagesTokens(reportMessages)
+  const priorHint = priorTokenHintFromSnapshot(prevSnapshot?.meta)
+  const priorIncludedChange = Boolean(prevSnapshot?.changeSummary)
+  const hasChangeStep = Boolean(computedDelta && prevSnapshot)
+
+  options.onPhase?.('narrative')
+  const expectedNarrativeOut = expectedOutForCall(
+    'narrative', estimatedPrompt, priorHint, priorIncludedChange || hasChangeStep,
+  )
+  options.onStreamProgress?.({
+    phase: 'narrative',
+    receivedTokens: 0,
+    expectedTokens: expectedNarrativeOut,
+  })
+
+  let lastEmit = 0
+  const narrativeStream = await streamChatCompletion(
+    {
+      model: settings.model,
+      temperature: settings.temperature,
+      messages: reportMessages,
+    },
+    (soFar) => {
+      const received = estimateTextTokens(soFar)
+      // Throttle UI updates (~every ~40 tokens of estimated growth)
+      if (received - lastEmit < 40 && received < expectedNarrativeOut * 0.95) return
+      lastEmit = received
+      options.onStreamProgress?.({
+        phase: 'narrative',
+        receivedTokens: received,
+        expectedTokens: expectedNarrativeOut,
+      })
+    },
+  )
+  if (!narrativeStream.content.trim()) {
     throw new Error('Venice report synthesis returned no content — the model may have refused or filtered the request')
   }
-  const narrative = parseReport(choice.message.content)
-  let tokenCost = resp.usage?.total_tokens ?? 0
-  let promptTokens = resp.usage?.prompt_tokens ?? 0
-  let completionTokens = resp.usage?.completion_tokens ?? 0
+  const narrative = parseReport(narrativeStream.content)
+
+  const narrPrompt = narrativeStream.usage?.prompt_tokens ?? estimatedPrompt
+  const narrCompletion = narrativeStream.usage?.completion_tokens ?? estimateTextTokens(narrativeStream.content)
+  const narrTotal = narrativeStream.usage?.total_tokens ?? (narrPrompt + narrCompletion)
+  let tokenCost = narrTotal
+  let promptTokens = narrPrompt
+  let completionTokens = narrCompletion
   const modelSpec = await resolveTextModel(settings.model)
-  useVeniceCostStore.getState().addUsage(modelSpec, resp.usage)
+  useVeniceCostStore.getState().addUsage(modelSpec, {
+    prompt_tokens: narrPrompt,
+    completion_tokens: narrCompletion,
+    total_tokens: narrTotal,
+  })
 
   let changeNarrative: string | null = null
   if (computedDelta && prevSnapshot) {
-    const changeResp = await venice<ChatCompletionResponse>('/chat/completions', {
-      method: 'POST',
-      body: JSON.stringify({
-        model: settings.model,
-        stream: false,
-        temperature: settings.temperature,
-        messages: [
-          { role: 'system', content: CHANGE_SYSTEM },
-          {
-            role: 'user',
-            content: `Previous report narrative:\n${JSON.stringify(prevSnapshot.narrative)}\n\nCOMPUTED DELTA (ground truth):\n${JSON.stringify(computedDelta)}`,
-          },
-        ],
-      }),
+    const changeMessages = [
+      { role: 'system', content: CHANGE_SYSTEM },
+      {
+        role: 'user',
+        content: `Previous report narrative:\n${JSON.stringify(prevSnapshot.narrative)}\n\nCOMPUTED DELTA (ground truth):\n${JSON.stringify(computedDelta)}`,
+      },
+    ]
+    const changePromptEst = estimateMessagesTokens(changeMessages)
+    const expectedChangeOut = expectedOutForCall(
+      'change', changePromptEst, priorHint, true,
+    )
+
+    options.onPhase?.('change')
+    lastEmit = 0
+    options.onStreamProgress?.({
+      phase: 'change',
+      receivedTokens: 0,
+      expectedTokens: expectedChangeOut,
     })
-    tokenCost += changeResp.usage?.total_tokens ?? 0
-    promptTokens += changeResp.usage?.prompt_tokens ?? 0
-    completionTokens += changeResp.usage?.completion_tokens ?? 0
-    useVeniceCostStore.getState().addUsage(modelSpec, changeResp.usage)
-    const changeContent = changeResp.choices?.[0]?.message?.content
-    if (changeContent) {
-      const parsed = extractJson(changeContent) as { narrative?: string } | null
+
+    const changeStream = await streamChatCompletion(
+      {
+        model: settings.model,
+        temperature: settings.temperature,
+        messages: changeMessages,
+      },
+      (soFar) => {
+        const received = estimateTextTokens(soFar)
+        if (received - lastEmit < 25 && received < expectedChangeOut * 0.95) return
+        lastEmit = received
+        options.onStreamProgress?.({
+          phase: 'change',
+          receivedTokens: received,
+          expectedTokens: expectedChangeOut,
+        })
+      },
+    )
+
+    const chPrompt = changeStream.usage?.prompt_tokens ?? changePromptEst
+    const chCompletion = changeStream.usage?.completion_tokens ?? estimateTextTokens(changeStream.content)
+    const chTotal = changeStream.usage?.total_tokens ?? (chPrompt + chCompletion)
+    tokenCost += chTotal
+    promptTokens += chPrompt
+    completionTokens += chCompletion
+    useVeniceCostStore.getState().addUsage(modelSpec, {
+      prompt_tokens: chPrompt,
+      completion_tokens: chCompletion,
+      total_tokens: chTotal,
+    })
+
+    if (changeStream.content.trim()) {
+      const parsed = extractJson(changeStream.content) as { narrative?: string } | null
       changeNarrative = stripMarkdownLabel(parsed?.narrative ?? '')
     } else {
       changeNarrative = ''
@@ -353,3 +476,4 @@ export async function synthesizeReport(
 
   return { narrative, changeNarrative, tokenCost, promptTokens, completionTokens }
 }
+

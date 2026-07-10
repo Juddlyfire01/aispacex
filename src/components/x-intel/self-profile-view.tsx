@@ -81,6 +81,9 @@ export function SelfProfileView() {
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const accountCount = useXSelfStore((s) => s.accountOrder.length)
   const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
+  const gathering = useXSelfStore((s) =>
+    s.activeAccountId ? Boolean(s.gatheringAccounts[s.activeAccountId]) : false,
+  )
   const setSynthesisSettings = useXSelfStore((s) => s.setSynthesisSettings)
 
   // The zustand persist middleware hydrates from localStorage asynchronously.
@@ -96,7 +99,6 @@ export function SelfProfileView() {
     return unsub
   }, [hydrated])
 
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const profile = account?.profile ?? null
@@ -107,10 +109,9 @@ export function SelfProfileView() {
   const likes = account?.likes ?? []
 
   const runRefresh = async () => {
-    setBusy(true); setError(null)
+    setError(null)
     try { await gatherSelf() }
     catch (e) { setError(e instanceof Error ? e.message : 'Gather failed') }
-    finally { setBusy(false) }
   }
 
   // After the shared session probe, gather the active account's data — but only
@@ -120,13 +121,8 @@ export function SelfProfileView() {
     if (!hydrated || !connected || !activeAccountId) return
     const acc = useXSelfStore.getState().accounts[activeAccountId]
     if (acc?.profile) return
-    let cancelled = false
-    setBusy(true)
     setError(null)
-    gatherSelf()
-      .catch((e) => setError(e instanceof Error ? e.message : 'Gather failed'))
-      .finally(() => { if (!cancelled) setBusy(false) })
-    return () => { cancelled = true }
+    gatherSelf().catch((e) => setError(e instanceof Error ? e.message : 'Gather failed'))
   }, [hydrated, connected, activeAccountId])
 
   // OAuth round-trip in flight (click → x.com → return, or session probe still
@@ -152,7 +148,7 @@ export function SelfProfileView() {
     return (
       <XConnectFlow
         phase="syncing"
-        busy={busy || !hydrated}
+        busy={gathering || !hydrated}
         error={hydrated ? error : null}
         onRetry={runRefresh}
       />
@@ -166,7 +162,7 @@ export function SelfProfileView() {
         <ProfileOverview
           profile={profile}
           connected={connected}
-          refreshing={busy}
+          refreshing={gathering}
           refreshError={error}
           lastGatheredIso={account.refreshedAt.profile ?? profile.gatheredAt}
           onRefresh={runRefresh}
@@ -188,7 +184,7 @@ export function SelfProfileView() {
           `syncing` = a gather is in flight, so the report panel shows a spinner
           instead of "No report yet" until posts land and analytics can compute. */}
       <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-        <SelfReport syncing={busy && posts.length === 0} />
+        <SelfReport syncing={gathering && posts.length === 0} />
       </div>
     </div>
   )

@@ -7,11 +7,12 @@
 
 /**
  * An @mention: leading @ followed by 1–15 word chars (X's handle limit), not
- * preceded by a word char or `/` so we don't match emails (`foo@bar`) or path
- * fragments. `g` flag for find-and-replace; fresh instances made per use since
+ * preceded by a word char so we don't match emails (`foo@bar`). `/` is allowed
+ * as a boundary so slash-separated lists like `@a/@b` still link both handles.
+ * `g` flag for find-and-replace; fresh instances made per use since
  * mdast-util-find-and-replace mutates lastIndex.
  */
-export const MENTION_RE = /(?:^|[^\w/@])@(\w{1,15})\b/g
+export const MENTION_RE = /(?:^|[^\w@])@(\w{1,15})\b/g
 
 /** Sentinel URL scheme for a mention inside a markdown link node. Stripped by
  *  the URL sanitiser, so it never leaks into a real anchor href. */

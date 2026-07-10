@@ -43,11 +43,13 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
   /** `compact` = stacked, right-aligned (feed/network). `bar` = full-width row (profile card). */
   layout?: 'compact' | 'bar'
 }) {
+  const statusText = busy ? 'Updating…' : `Updated ${relativeTime(lastGatheredIso)}`
+  const statusTextCompact = busy ? 'updating…' : `updated ${relativeTime(lastGatheredIso)}`
   const btn = (
     <button
       onClick={onClick}
       disabled={busy || disabled}
-      title={disabled ? 'Connect X first' : `Last refreshed ${relativeTime(lastGatheredIso)}`}
+      title={disabled ? 'Connect X first' : busy ? 'Updating…' : `Last refreshed ${relativeTime(lastGatheredIso)}`}
       className={refreshBtnCls}
     >
       <RefreshIcon spinning={busy} />
@@ -60,7 +62,7 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
       <div className="flex items-center justify-between gap-3 w-full">
         {error
           ? <span className="text-[10px] text-red-400/70 min-w-0">{error}</span>
-          : <span className="text-[10px] text-white/25 font-mono truncate">Updated {relativeTime(lastGatheredIso)}</span>}
+          : <span className="text-[10px] text-white/25 font-mono truncate">{statusText}</span>}
         {btn}
       </div>
     )
@@ -71,7 +73,7 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
       {btn}
       {error
         ? <span className="text-[9px] text-red-400/70">{error}</span>
-        : <span className="text-[9px] text-white/20 font-mono">updated {relativeTime(lastGatheredIso)}</span>}
+        : <span className="text-[9px] text-white/20 font-mono">{statusTextCompact}</span>}
     </div>
   )
 }

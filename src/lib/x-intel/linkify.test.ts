@@ -73,6 +73,29 @@ describe('linkify', () => {
     expect(t.every((x) => x.type !== 'mention')).toBe(true)
   })
 
+  it('matches slash-separated handles (both sides of /)', () => {
+    const t = linkify('critics like @Crypdjo/@AlgodTrading')
+    expect(t.filter((x) => x.type === 'mention')).toEqual([
+      { type: 'mention', value: '@Crypdjo', username: 'Crypdjo' },
+      { type: 'mention', value: '@AlgodTrading', username: 'AlgodTrading' },
+    ])
+  })
+
+  it('extracts bare snowflake post ids', () => {
+    const t = linkify('see 2073269941021929793 for context')
+    expect(t[1]).toEqual({ type: 'post', value: '2073269941021929793', postId: '2073269941021929793' })
+  })
+
+  it('extracts post:-prefixed ids', () => {
+    const t = linkify('cite post:2072424262422663246 here')
+    expect(t[1]).toEqual({ type: 'post', value: 'post:2072424262422663246', postId: '2072424262422663246' })
+  })
+
+  it('does not treat short numbers as post ids', () => {
+    const t = linkify('reduced from 4M to 3M over 12 months')
+    expect(t.every((x) => x.type !== 'post')).toBe(true)
+  })
+
   it('mixes multiple token types in order', () => {
     const t = linkify('@a #b https://x.co done')
     expect(t.map((x) => x.type)).toEqual(['mention', 'text', 'hashtag', 'text', 'url', 'text'])

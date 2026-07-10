@@ -177,6 +177,8 @@ export interface ChatCompletionChunk {
     }
     finish_reason: string | null
   }>
+  /** Present on the final chunk when the provider supports stream usage. */
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }
 
 export interface ChatCompletionResponse {

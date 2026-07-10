@@ -78,6 +78,11 @@ interface XSelfState {
   generatingReports: Record<string, true>
   /** Ephemeral: last generate-report error per account id. */
   reportGenerateErrors: Record<string, string>
+  /**
+   * Ephemeral: account ids currently running gatherSelf. Shared by the You rail
+   * subtitle and Profile refresh bar so both show "updating…" together.
+   */
+  gatheringAccounts: Record<string, true>
 
   // Account lifecycle
   upsertAccount: (account: { id: string; username: string }) => void
@@ -111,6 +116,7 @@ interface XSelfState {
   deleteReport: (id: string, reportId: string) => void
   setReportGenerating: (id: string, generating: boolean) => void
   setReportGenerateError: (id: string, error: string | null) => void
+  setGathering: (id: string, gathering: boolean) => void
 
   /** Drop all live connection flags but keep cached data. */
   disconnectAll: () => void
@@ -129,6 +135,7 @@ export const useXSelfStore = create<XSelfState>()(
       defaultSynthesisSettings: DEFAULT_SYNTHESIS_SETTINGS,
       generatingReports: {},
       reportGenerateErrors: {},
+      gatheringAccounts: {},
 
       upsertAccount: ({ id, username }) =>
         set((s) => {
@@ -338,6 +345,14 @@ export const useXSelfStore = create<XSelfState>()(
           return { reportGenerateErrors }
         }),
 
+      setGathering: (id, gathering) =>
+        set((s) => {
+          const gatheringAccounts = { ...s.gatheringAccounts }
+          if (gathering) gatheringAccounts[id] = true
+          else delete gatheringAccounts[id]
+          return { gatheringAccounts }
+        }),
+
       disconnectAll: () => set({ connecting: false, connected: false, activeAccountId: null }),
       reset: () => set({
         accounts: {},
@@ -347,6 +362,7 @@ export const useXSelfStore = create<XSelfState>()(
         connected: false,
         generatingReports: {},
         reportGenerateErrors: {},
+        gatheringAccounts: {},
       }),
     }),
     {

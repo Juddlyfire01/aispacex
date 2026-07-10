@@ -29,9 +29,10 @@ export function SelfRail() {
   const accounts = useXSelfStore((s) => s.accounts)
   const accountOrder = useXSelfStore((s) => s.accountOrder)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
+  const gatheringAccounts = useXSelfStore((s) => s.gatheringAccounts)
   const disconnectAccount = useXSelfStore((s) => s.disconnectAccount)
   const reorderAccounts = useXSelfStore((s) => s.reorderAccounts)
-  const [busy, setBusy] = useState<string | null>(null)
+  const [switching, setSwitching] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleReorder = useCallback(
@@ -44,7 +45,7 @@ export function SelfRail() {
 
   const handleSwitch = async (id: string) => {
     if (id === activeAccountId) return
-    setBusy(id)
+    setSwitching(id)
     setError(null)
     try {
       const ok = await selectSelfAccount(id)
@@ -56,7 +57,7 @@ export function SelfRail() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Switch failed')
     } finally {
-      setBusy(null)
+      setSwitching(null)
     }
   }
 
@@ -126,7 +127,11 @@ export function SelfRail() {
                     <span className="truncate">@{acc.username}</span>
                   </div>
                   <div className="text-[9px] text-[var(--color-text-tertiary)]">
-                    {busy === id ? 'switching…' : relativeTime(acc.refreshedAt?.profile ?? acc.profile?.gatheredAt)}
+                    {switching === id
+                      ? 'switching…'
+                      : gatheringAccounts[id]
+                        ? 'updating…'
+                        : relativeTime(acc.refreshedAt?.profile ?? acc.profile?.gatheredAt)}
                   </div>
                 </div>
                 <button

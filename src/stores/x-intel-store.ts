@@ -107,6 +107,11 @@ interface XIntelState {
   generatingReports: Record<string, true>
   /** Ephemeral: last generate-report error per username (cleared on next start). */
   reportGenerateErrors: Record<string, string>
+  /**
+   * Ephemeral: usernames currently running a full gather/refresh. Shared by the
+   * Others rail subtitle and Profile refresh bar so both show "updating…" together.
+   */
+  gatheringTargets: Record<string, true>
 
   addTarget: (username: string) => void
   seedTarget: (profile: Profile) => void
@@ -139,6 +144,7 @@ interface XIntelState {
   clearFeedFocus: () => void
   setReportGenerating: (username: string, generating: boolean) => void
   setReportGenerateError: (username: string, error: string | null) => void
+  setGathering: (username: string, gathering: boolean) => void
 }
 
 export function mergePosts(existing: Post[], incoming: Post[]): Post[] {
@@ -174,6 +180,7 @@ export const useXIntelStore = create<XIntelState>()(
       feedFocusNonce: 0,
       generatingReports: {},
       reportGenerateErrors: {},
+      gatheringTargets: {},
 
       addTarget: (username) => {
         const name = canonical(username)
@@ -439,6 +446,17 @@ export const useXIntelStore = create<XIntelState>()(
           if (error) reportGenerateErrors[key] = error
           else delete reportGenerateErrors[key]
           return { reportGenerateErrors }
+        })
+      },
+
+      setGathering: (username, gathering) => {
+        const key = findReportKey(get().reports, username) ?? canonical(username)
+        if (!key) return
+        set((s) => {
+          const gatheringTargets = { ...s.gatheringTargets }
+          if (gathering) gatheringTargets[key] = true
+          else delete gatheringTargets[key]
+          return { gatheringTargets }
         })
       },
     }),

@@ -15,6 +15,7 @@ export type LinkToken =
   | { type: 'mention'; value: string; username: string }
   | { type: 'hashtag'; value: string; tag: string }
   | { type: 'eth'; value: string; href: string }
+  | { type: 'post'; value: string; postId: string }
 
 export type BioUrlEntity = {
   url: string
@@ -30,17 +31,22 @@ export type BioUrlEntity = {
 const ETH_ADDRESS = '0x[a-fA-F0-9]{40}'
 const ENS_NAME = '(?:[a-zA-Z0-9-]+\\.)+eth'
 
-// @handles (1–15 word chars, X's limit), #hashtags, ETH addresses, .eth names
-// — used inside plain segments. Groups: 1=mention 2=hashtag 3=address 4=ens.
+// Trailing punctuation often stuck to bare URLs in prose (not part of the href).
+const TRAILING_PUNCT_RE = /[\].,;:!?)]+$/
+
+// @handles (1–15 word chars, X's limit), #hashtags, ETH addresses, .eth names,
+// X snowflake post ids — used inside plain segments.
+// Groups: 1=mention 2=hashtag 3=address 4=ens 5=postId.
+// `/` is a valid mention boundary so `@a/@b` links both handles.
 const INLINE_RE = new RegExp(
-  `(?:^|(?<=[\\s(]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b`,
+  `(?:^|(?<=[\\s(/]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b|\\b(?:post:)?(\\d{15,20})\\b`,
   'g',
 )
 
 // Full-string scan including bare URLs (fallback when entity indices are
-// absent). Groups: 1=url 2=mention 3=hashtag 4=address 5=ens.
+// absent). Groups: 1=url 2=mention 3=hashtag 4=address 5=ens 6=postId.
 const TOKEN_RE = new RegExp(
-  `(https?:\\/\\/[^\\s]+)|(?:^|(?<=[\\s(]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b`,
+  `(https?:\\/\\/[^\\s]+)|(?:^|(?<=[\\s(/]))@(\\w{1,15})\\b|(?:^|(?<=[\\s(]))#(\\w+)|\\b(${ETH_ADDRESS})\\b|\\b(${ENS_NAME})\\b|\\b(?:post:)?(\\d{15,20})\\b`,
   'g',
 )
 
@@ -58,7 +64,7 @@ export function condenseUrlLabel(url: string): string {
 }
 
 function findBioUrlEntity(trimmed: string, bioUrls: BioUrlEntity[]): BioUrlEntity | undefined {
-  const norm = trimmed.replace(/[.,;:!?)\]]+$/, '')
+  const norm = trimmed.replace(TRAILING_PUNCT_RE, '')
   return bioUrls.find((u) => u.url === norm || u.url === trimmed)
 }
 
@@ -72,6 +78,7 @@ function linkifyPlainSegment(segment: string, bioUrls: BioUrlEntity[]): LinkToke
     else if (m[2]) tokens.push({ type: 'hashtag', value: `#${m[2]}`, tag: m[2] })
     else if (m[3]) tokens.push({ type: 'eth', value: m[3], href: etherscanAddressUrl(m[3]) })
     else if (m[4]) tokens.push({ type: 'eth', value: m[4], href: etherscanAddressUrl(m[4]) })
+    else if (m[5]) tokens.push({ type: 'post', value: m[0], postId: m[5] })
     lastIndex = idx + m[0].length
   }
   if (lastIndex < segment.length) {
@@ -92,7 +99,7 @@ function linkifyRegex(text: string, bioUrls: BioUrlEntity[]): LinkToken[] {
 
     if (m[1]) {
       const raw = m[1]
-      const trimmed = raw.replace(/[.,;:!?)\]]+$/, '')
+      const trimmed = raw.replace(TRAILING_PUNCT_RE, '')
       const trailing = raw.slice(trimmed.length)
       const ent = findBioUrlEntity(trimmed, bioUrls)
       tokens.push(
@@ -109,6 +116,8 @@ function linkifyRegex(text: string, bioUrls: BioUrlEntity[]): LinkToken[] {
       tokens.push({ type: 'eth', value: m[4], href: etherscanAddressUrl(m[4]) })
     } else if (m[5]) {
       tokens.push({ type: 'eth', value: m[5], href: etherscanAddressUrl(m[5]) })
+    } else if (m[6]) {
+      tokens.push({ type: 'post', value: m[0], postId: m[6] })
     }
     lastIndex = idx + m[0].length
   }

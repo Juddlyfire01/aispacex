@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitEvidence, postUrl } from './evidence'
+import { splitEvidence, postUrl, postHref, postIdFromHref } from './evidence'
 
 describe('splitEvidence', () => {
   it('extracts "post:"-prefixed ids and leaves clean prose', () => {
@@ -35,5 +35,16 @@ describe('splitEvidence', () => {
 describe('postUrl', () => {
   it('builds an x.com status permalink', () => {
     expect(postUrl('2072408045007573141')).toBe('https://x.com/i/status/2072408045007573141')
+  })
+})
+
+describe('post sentinel href', () => {
+  it('round-trips a post id', () => {
+    expect(postIdFromHref(postHref('2072408045007573141'))).toBe('2072408045007573141')
+  })
+
+  it('returns null for a non-sentinel href', () => {
+    expect(postIdFromHref('https://x.com/i/status/1')).toBeNull()
+    expect(postIdFromHref(undefined)).toBeNull()
   })
 })

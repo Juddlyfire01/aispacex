@@ -22,6 +22,7 @@ import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
+import { beginReportProgress } from './report-progress'
 import type { IntelTopTab } from '../../stores/x-intel-store'
 import { findReportKey, mergePosts, newReportId, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -318,29 +319,34 @@ export async function gatherSelf(opts: { maxResults?: number } = {}): Promise<vo
   const accountId = store.activeAccountId
   if (!accountId) throw new Error('No active account')
 
-  const profile = await gatherSelfProfile()
-  store.upsertAccount({ id: accountId, username: profile.username })
-  store.setProfile(accountId, profile)
-  store.markRefreshed(accountId, 'profile')
+  store.setGathering(accountId, true)
+  try {
+    const profile = await gatherSelfProfile()
+    store.upsertAccount({ id: accountId, username: profile.username })
+    store.setProfile(accountId, profile)
+    store.markRefreshed(accountId, 'profile')
 
-  const [posts, bookmarks, likes] = await Promise.all([
-    gatherSelfPosts(profile.id, opts).catch(() => [] as never[]),
-    gatherSelfBookmarks(profile.id, opts).catch(() => [] as never[]),
-    gatherSelfLikes(profile.id, opts).catch(() => [] as never[]),
-  ])
+    const [posts, bookmarks, likes] = await Promise.all([
+      gatherSelfPosts(profile.id, opts).catch(() => [] as never[]),
+      gatherSelfBookmarks(profile.id, opts).catch(() => [] as never[]),
+      gatherSelfLikes(profile.id, opts).catch(() => [] as never[]),
+    ])
 
-  const account = useXSelfStore.getState().accounts[accountId]
-  const mergedPosts = mergePosts(account?.posts ?? [], posts)
-  store.setPosts(accountId, mergedPosts)
-  store.markRefreshed(accountId, 'posts')
+    const account = useXSelfStore.getState().accounts[accountId]
+    const mergedPosts = mergePosts(account?.posts ?? [], posts)
+    store.setPosts(accountId, mergedPosts)
+    store.markRefreshed(accountId, 'posts')
 
-  store.setBookmarks(accountId, mergePosts(account?.bookmarks ?? [], bookmarks))
-  store.markRefreshed(accountId, 'bookmarks')
+    store.setBookmarks(accountId, mergePosts(account?.bookmarks ?? [], bookmarks))
+    store.markRefreshed(accountId, 'bookmarks')
 
-  store.setLikes(accountId, mergePosts(account?.likes ?? [], likes))
-  store.markRefreshed(accountId, 'likes')
+    store.setLikes(accountId, mergePosts(account?.likes ?? [], likes))
+    store.markRefreshed(accountId, 'likes')
 
-  store.setEdges(accountId, deriveEdges(profile.id, mergedPosts))
+    store.setEdges(accountId, deriveEdges(profile.id, mergedPosts))
+  } finally {
+    useXSelfStore.getState().setGathering(accountId, false)
+  }
 }
 
 /** Generate a full intelligence report over the connected user's own posts. */
@@ -365,9 +371,14 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
   state.setReportGenerating(accountId, true)
   state.setReportGenerateError(accountId, null)
 
+  const prevSnapshot = reportHistory[0] ?? null
+  const hasChangeStep = Boolean(prevSnapshot)
+  const subject = profile.username ? `@${profile.username}` : 'Your profile'
+  const progress = beginReportProgress({ subject, hasChangeStep })
+  progress.markPrepare()
+
   try {
     const analytics = computeAnalytics(profile, posts, edges)
-    const prevSnapshot = reportHistory[0] ?? null
 
     let computedDelta: Omit<ChangeSummary, 'narrative'> | null = null
     if (prevSnapshot) {
@@ -382,6 +393,12 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
 
     const { narrative, changeNarrative, tokenCost, promptTokens, completionTokens } = await synthesizeReport(
       profile, posts, analytics, computedDelta, prevSnapshot, settings, includedReports,
+      {
+        onPhase: (phase) => progress.markPhase(phase),
+        onStreamProgress: ({ phase, receivedTokens, expectedTokens }) => {
+          progress.onStreamTokens(phase, receivedTokens, expectedTokens)
+        },
+      },
     )
 
     const snapshot: IntelReportSnapshot = {
@@ -405,10 +422,12 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
     }
 
     useXSelfStore.getState().appendReport(accountId, snapshot)
+    progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Report generation failed'
     useXSelfStore.getState().setReportGenerateError(accountId, message)
+    progress.fail('Report failed', message)
     throw e
   } finally {
     useXSelfStore.getState().setReportGenerating(accountId, false)

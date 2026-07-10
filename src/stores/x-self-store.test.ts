@@ -11,6 +11,7 @@ describe('useXSelfStore reorderAccounts', () => {
       connected: false,
       generatingReports: {},
       reportGenerateErrors: {},
+      gatheringAccounts: {},
     })
   })
 
@@ -45,5 +46,14 @@ describe('useXSelfStore reorderAccounts', () => {
     store.setReportGenerateError('1', null)
     expect(useXSelfStore.getState().generatingReports['1']).toBeUndefined()
     expect(useXSelfStore.getState().reportGenerateErrors['1']).toBeUndefined()
+  })
+
+  it('setGathering tracks ephemeral per-account gather state', () => {
+    const store = useXSelfStore.getState()
+    store.upsertAccount({ id: '1', username: 'alice' })
+    store.setGathering('1', true)
+    expect(useXSelfStore.getState().gatheringAccounts['1']).toBe(true)
+    store.setGathering('1', false)
+    expect(useXSelfStore.getState().gatheringAccounts['1']).toBeUndefined()
   })
 })

@@ -42,6 +42,7 @@ describe('useXIntelStore', () => {
       feedFocusNonce: 0,
       generatingReports: {},
       reportGenerateErrors: {},
+      gatheringTargets: {},
     })
   })
 
@@ -206,6 +207,15 @@ describe('useXIntelStore', () => {
     store.setReportGenerateError('ErikVoorhees', null)
     expect(useXIntelStore.getState().generatingReports['ErikVoorhees']).toBeUndefined()
     expect(useXIntelStore.getState().reportGenerateErrors['ErikVoorhees']).toBeUndefined()
+  })
+
+  it('setGathering tracks ephemeral per-target gather state', () => {
+    const store = useXIntelStore.getState()
+    store.addTarget('ErikVoorhees')
+    store.setGathering('ErikVoorhees', true)
+    expect(useXIntelStore.getState().gatheringTargets['ErikVoorhees']).toBe(true)
+    store.setGathering('ErikVoorhees', false)
+    expect(useXIntelStore.getState().gatheringTargets['ErikVoorhees']).toBeUndefined()
   })
 })
 
