@@ -27,6 +27,9 @@ function StepIcon({ status }: { status: AgentEvent['status'] }) {
 }
 
 function StepRow({ event }: { event: AgentEvent }) {
+  // Progressive while live; past-tense once done (history + completed steps).
+  const text =
+    event.status === 'running' ? (event.progressLabel || event.label) : event.label
   return (
     <div className="flex items-center gap-2 py-[3px] min-w-0">
       <StepIcon status={event.status} />
@@ -35,7 +38,7 @@ function StepRow({ event }: { event: AgentEvent }) {
           event.status === 'running' ? 'text-white/70' : 'text-white/40'
         }`}
       >
-        {event.label}
+        {text}
       </span>
       {event.detail && (
         <span className="text-[10.5px] text-white/25 shrink-0">· {event.detail}</span>
@@ -64,14 +67,15 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
   if (!active && events.length === 0) return null
 
   const running = events.filter((e) => e.status === 'running')
-  const headerText =
-    running.length > 0
-      ? running[running.length - 1]!.label
-      : active
-        ? (phase ?? 'Working')
-        : events.length === 1
-          ? events[0]!.label
-          : `${events.length} steps`
+  const current = running[running.length - 1]
+  // Live header flips with the tool: Reading… / Searching… / Writing… etc.
+  const headerText = current
+    ? current.progressLabel || current.label
+    : active
+      ? (phase ?? 'Working')
+      : events.length === 1
+        ? events[0]!.label
+        : `${events.length} steps`
 
   // Live: always show full list under the indicator.
   // Done: collapsed to a one-line summary; expand reveals the same full history.

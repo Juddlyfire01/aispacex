@@ -13,6 +13,7 @@ import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
 import {
   describeToolCall,
+  describeToolProgress,
   describeToolResult,
   isToolError,
   newAgentEventId,
@@ -170,9 +171,16 @@ export function useCompose() {
             flushPendingDelta(threadId)
             const s = useComposeStore.getState()
             const label = describeToolCall(name, args)
+            const progressLabel = describeToolProgress(name, args)
             const id = newAgentEventId()
             pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
-            s.pushAgentEvent({ id, label, status: 'running', startedAt: Date.now() })
+            s.pushAgentEvent({
+              id,
+              label,
+              progressLabel,
+              status: 'running',
+              startedAt: Date.now(),
+            })
             s.setAgentPhase(null)
             clearedToolActivity = false
           },

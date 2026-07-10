@@ -6,8 +6,10 @@ export type AgentEventStatus = 'running' | 'done' | 'error'
 
 export interface AgentEvent {
   id: string
-  /** Human-readable action, e.g. "Searched library for \"privacy\"". */
+  /** Completed-step label (past tense), e.g. "Searched library for \"privacy\"". */
   label: string
+  /** Live status while running (progressive), e.g. "Searching library for \"privacy\"". */
+  progressLabel: string
   /** Short result summary once done, e.g. "12 hits" or "3 posts". */
   detail?: string
   status: AgentEventStatus
@@ -24,7 +26,39 @@ function handleOf(args: Record<string, unknown>): string {
   return h ? (h.startsWith('@') ? h : `@${h}`) : ''
 }
 
-/** Verb-first, human-readable label for a tool call (Cursor-style). */
+/** Live status while a tool runs — progressive tense ("Reading…", "Searching…"). */
+export function describeToolProgress(name: string, args: Record<string, unknown>): string {
+  switch (name) {
+    case 'intel_list_subjects':
+      return 'Listing library subjects'
+    case 'intel_glob':
+      return `Browsing library ${q(args.pattern) || 'paths'}`
+    case 'intel_grep':
+      return `Searching library for ${q(args.query) || 'terms'}`
+    case 'intel_get_profile':
+      return `Reading profile ${handleOf(args)}`.trim()
+    case 'intel_get_posts': {
+      const src = typeof args.source === 'string' && args.source !== 'posts' ? args.source : 'posts'
+      return `Reading ${handleOf(args)} ${src}`.trim()
+    }
+    case 'intel_get_report':
+      return `Reading intel report for ${handleOf(args)}`.trim()
+    case 'intel_get_edges':
+      return `Mapping network edges for ${handleOf(args)}`.trim()
+    case 'compose_history_list':
+      return 'Listing past post chats'
+    case 'compose_history_grep':
+      return `Searching past chats for ${q(args.query) || 'terms'}`
+    case 'compose_history_glob':
+      return `Browsing chat history ${q(args.pattern) || 'paths'}`
+    case 'compose_history_get':
+      return 'Reading a past post chat'
+    default:
+      return name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  }
+}
+
+/** Completed-step label — past tense ("Read…", "Searched…"). */
 export function describeToolCall(name: string, args: Record<string, unknown>): string {
   switch (name) {
     case 'intel_list_subjects':
