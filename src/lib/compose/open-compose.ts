@@ -48,8 +48,10 @@ export function resolvePostAuthor(postId: string): string {
   }
 
   const self = useXSelfStore.getState()
-  if (self.posts.some((p) => p.id === postId) && self.profile?.username) {
-    return self.profile.username
+  for (const account of Object.values(self.accounts)) {
+    if (account.posts.some((p) => p.id === postId) && account.username) {
+      return account.username
+    }
   }
   // Fallback: active target (common when the model cites bare ids from the
   // open report) or the sole loaded target.
