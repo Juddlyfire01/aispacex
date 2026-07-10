@@ -3,6 +3,11 @@
 // to X. It models exactly what X's composer supports — nothing more (parity,
 // not creativity) — so a draft is always postable-by-construction.
 
+import type { DraftRegister, RegisterDefault } from './register'
+import { draftRegisterFromDefault, DEFAULT_REGISTER_DEFAULT } from './register'
+
+export type { DraftRegister, RegisterDefault, RegisterMode, RegisterPack } from './register'
+
 export const TWEET_LIMIT = 280
 export const LONGFORM_LIMIT = 25000
 
@@ -47,6 +52,8 @@ export interface PostDraft {
   /** Sets X's `made_with_ai` label on the created post. */
   madeWithAi: boolean
   replySettings?: ReplySettings
+  /** Linguistic register for the next compose turn (style transfer). */
+  register?: DraftRegister
   createdAt: string
   updatedAt: string
 }
@@ -60,14 +67,19 @@ export function emptySegment(): PostSegment {
   return { id: newId(), text: '', media: [] }
 }
 
-export function emptyDraft(target: PostTarget = { kind: 'original' }, opts?: { longform?: boolean }): PostDraft {
+export function emptyDraft(
+  target: PostTarget = { kind: 'original' },
+  opts?: { longform?: boolean; registerDefault?: RegisterDefault },
+): PostDraft {
   const now = new Date().toISOString()
+  const registerDefault = opts?.registerDefault ?? DEFAULT_REGISTER_DEFAULT
   return {
     id: newId(),
     segments: [emptySegment()],
     target,
     longform: opts?.longform ?? true,
     madeWithAi: false,
+    register: draftRegisterFromDefault(registerDefault),
     createdAt: now,
     updatedAt: now,
   }

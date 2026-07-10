@@ -3,9 +3,9 @@ import { useComposeStore } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
-import { pickComposeModel } from '../../lib/compose/model'
+import { pickComposeModel, modelIdSupportsFunctionCalling } from '../../lib/compose/model'
 import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
-import { packHotWindow } from '../../lib/compose/hot-window'
+import { packHotWindowCached } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
 import { libraryCounts } from '../../lib/intel-library/library'
 import { SubTabs } from '../ui/sub-tabs'
@@ -55,10 +55,12 @@ export function ComposeWorkspace() {
 
   const [activeSubTab, setActiveSubTab] = useState<PostSubTab>('profile')
 
-  // Resolve default once the list loads: highest Grok w/ X search, then fallbacks.
+  // Resolve default once the list loads; migrate off models that cannot call tools.
   useEffect(() => {
-    if (model || !models || models.length === 0) return
-    setModel(pickComposeModel(models))
+    if (!models || models.length === 0) return
+    if (!model || !modelIdSupportsFunctionCalling(models, model)) {
+      setModel(pickComposeModel(models))
+    }
   }, [model, models, setModel])
 
   // Keep contextLimit in sync with the selected model for hot-window budgeting.
@@ -99,7 +101,7 @@ export function ComposeWorkspace() {
 
   const pack = useMemo(
     () =>
-      packHotWindow({
+      packHotWindowCached({
         snapshot,
         scope,
         mode: libraryMode,

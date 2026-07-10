@@ -25,9 +25,26 @@ export interface ComposeAgentOpts {
   scope: ComposeScope
   xSearchOn: boolean
   signal?: AbortSignal
-  onTool?: (info: { name: string; args: Record<string, unknown> }) => void
+  /**
+   * Fired as soon as a tool name is known in the SSE stream (before args finish
+   * and before execution) so the UI can leave "Thinking…" immediately.
+   */
+  onToolStart?: (info: { index: number; id: string; name: string }) => void
+  /** Fired when a tool is about to execute with fully parsed args. */
+  onTool?: (info: {
+    index: number
+    id: string
+    name: string
+    args: Record<string, unknown>
+  }) => void
   /** Fired after a tool executes with its (untruncated-shape) result. */
-  onToolResult?: (info: { name: string; args: Record<string, unknown>; result: unknown }) => void
+  onToolResult?: (info: {
+    index: number
+    id: string
+    name: string
+    args: Record<string, unknown>
+    result: unknown
+  }) => void | Promise<void>
   /** Fired when a new model round starts (1-based). */
   onRoundStart?: (round: number) => void
   /** Fired for each content token as the final (or intermediate) answer streams. */
@@ -35,6 +52,7 @@ export interface ComposeAgentOpts {
   /**
    * Fired when a round ends in tool_calls after any content was streamed —
    * clear the assistant placeholder so tool activity UI can take over.
+   * Also fired early when the first tool_call appears mid-stream.
    */
   onContentReset?: () => void
 }
@@ -91,13 +109,16 @@ export function accumulateStreamedToolCalls(
 
 interface StreamedRound {
   content: string
-  toolCalls: ToolCall[]
+  toolCalls: Array<{ index: number; call: ToolCall }>
+  /** True if onContentReset already ran mid-stream for this round. */
+  contentResetFired: boolean
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }
 
 /**
  * One streaming chat/completions round with tools enabled.
- * Accumulates content + tool_calls from SSE deltas; reports content via onDelta.
+ * Accumulates content + tool_calls from SSE deltas; reports content via onDelta
+ * and announces tools via onToolStart as soon as names are known.
  */
 async function streamComposeRound(
   opts: ComposeAgentOpts,
@@ -123,6 +144,10 @@ async function streamComposeRound(
 
   let content = ''
   const toolAcc = new Map<number, ToolCall>()
+  const knownToolNames = new Set(tools.map((t) => t.function.name))
+  const announcedToolStarts = new Set<number>()
+  let toolsStarted = false
+  let contentResetFired = false
   let usage: StreamedRound['usage']
 
   for await (const chunk of parseSSEStream(stream, { signal: opts.signal })) {
@@ -132,25 +157,45 @@ async function streamComposeRound(
 
     if (delta.content) {
       content += delta.content
-      opts.onDelta?.(delta.content)
+      // Once tools are in flight, keep content for the API message but don't
+      // drip preamble into the chat — activity UI owns the surface.
+      if (!toolsStarted) opts.onDelta?.(delta.content)
     }
     if (delta.tool_calls?.length) {
       accumulateStreamedToolCalls(toolAcc, delta.tool_calls)
+      for (const [index, call] of toolAcc) {
+        if (announcedToolStarts.has(index)) continue
+        const name = call.function.name
+        if (!name) continue
+        const argsStarted = (call.function.arguments?.length ?? 0) > 0
+        // Name complete (known tool) or args already streaming → announce.
+        if (!knownToolNames.has(name) && !argsStarted) continue
+
+        announcedToolStarts.add(index)
+        if (!toolsStarted) {
+          toolsStarted = true
+          if (content) {
+            opts.onContentReset?.()
+            contentResetFired = true
+          }
+        }
+        opts.onToolStart?.({ index, id: call.id, name })
+      }
     }
   }
 
   const toolCalls = [...toolAcc.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([, call]) => call)
-    .filter((c) => c.id && c.function.name)
+    .filter(([, c]) => c.id && c.function.name)
+    .map(([index, call]) => ({ index, call }))
 
-  return { content, toolCalls, usage }
+  return { content, toolCalls, contentResetFired, usage }
 }
 
 /**
  * Streaming multi-round tool loop for compose.
- * Streams each Venice round over SSE (content tokens → onDelta). Tool rounds
- * stay non-visible; only the final answer text is kept for the transcript.
+ * Surfaces tool intent as soon as SSE names arrive; final answer text is what
+ * stays in the transcript after tool rounds.
  */
 export async function runComposeAgent(
   opts: ComposeAgentOpts,
@@ -167,14 +212,12 @@ export async function runComposeAgent(
 
     opts.onRoundStart?.(round + 1)
 
-    const { content, toolCalls: calls, usage } = await streamComposeRound(
-      opts,
-      messages,
-      tools,
-    )
+    const { content, toolCalls: callEntries, contentResetFired, usage } =
+      await streamComposeRound(opts, messages, tools)
 
     useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
 
+    const calls = callEntries.map((e) => e.call)
     const assistantMsg: ChatMessage = {
       role: 'assistant',
       content: content || null,
@@ -183,20 +226,20 @@ export async function runComposeAgent(
     messages.push(assistantMsg)
     lastContent = content
 
-    if (calls.length === 0) {
+    if (callEntries.length === 0) {
       return { content: content.trim(), toolCalls }
     }
 
-    // Tool round: drop any partial prose from the UI while tools run.
-    if (content) opts.onContentReset?.()
+    // Tool round: clear UI preamble if mid-stream didn't already.
+    if (content && !contentResetFired) opts.onContentReset?.()
 
-    for (const call of calls) {
+    for (const { index, call } of callEntries) {
       if (opts.signal?.aborted) {
         throw new DOMException('Aborted', 'AbortError')
       }
       const name = call.function?.name ?? ''
       const args = safeParseArgs(call.function?.arguments)
-      opts.onTool?.({ name, args })
+      opts.onTool?.({ index, id: call.id, name, args })
       const result = name.startsWith('compose_history_')
         ? executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
         : executeIntelTool(name, args, {
@@ -204,7 +247,7 @@ export async function runComposeAgent(
             scope: opts.scope,
           })
       toolCalls++
-      opts.onToolResult?.({ name, args, result })
+      await opts.onToolResult?.({ index, id: call.id, name, args, result })
       messages.push({
         role: 'tool',
         tool_call_id: call.id,

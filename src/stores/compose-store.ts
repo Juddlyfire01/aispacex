@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
+import type { RegisterDefault } from '../lib/compose/register'
+import { DEFAULT_REGISTER_DEFAULT } from '../lib/compose/register'
 import type { ComposeMessage, ComposeThread } from '../lib/compose/thread-types'
 import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
@@ -37,6 +39,8 @@ interface ComposeState {
   isStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
   longformPreference: boolean
+  /** App-wide default register mode for new drafts. */
+  registerDefault: RegisterDefault
   libraryMode: LibraryMode
   budgetPct: number
   /** null = all time */
@@ -78,6 +82,7 @@ interface ComposeState {
   setXSearch: (mode: XSearchMode) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
+  setRegisterDefault: (def: RegisterDefault) => void
   setLibraryMode: (mode: LibraryMode) => void
   setBudgetPct: (pct: number) => void
   setDayWindowDays: (days: number | null) => void
@@ -85,7 +90,15 @@ interface ComposeState {
   setContextLimit: (limit: number) => void
 
   pushAgentEvent: (event: AgentEvent) => void
-  updateAgentEvent: (id: string, patch: { status?: AgentEventStatus; detail?: string }) => void
+  updateAgentEvent: (
+    id: string,
+    patch: {
+      status?: AgentEventStatus
+      detail?: string
+      label?: string
+      progressLabel?: string
+    },
+  ) => void
   clearAgentEvents: () => void
   setAgentPhase: (phase: string | null) => void
 }
@@ -142,6 +155,10 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
     if (state.libraryMode == null) state.libraryMode = 'auto'
     if (state.budgetPct == null) state.budgetPct = 0.5
     if (state.dayWindowDays === undefined) state.dayWindowDays = 7
+  }
+
+  if (version < 5 && state.registerDefault == null) {
+    state.registerDefault = { ...DEFAULT_REGISTER_DEFAULT }
   }
 
   if (version < 4) {
@@ -209,6 +226,7 @@ export const useComposeStore = create<ComposeState>()(
       xSearch: 'auto',
       isStreaming: false,
       longformPreference: true,
+      registerDefault: { ...DEFAULT_REGISTER_DEFAULT },
       libraryMode: 'auto',
       budgetPct: 0.5,
       dayWindowDays: 7,
@@ -222,7 +240,10 @@ export const useComposeStore = create<ComposeState>()(
         const now = new Date().toISOString()
         const s = get()
         const scope = context ?? s.newThreadContext
-        const draft = emptyDraft(target ?? { kind: 'original' }, { longform: s.longformPreference })
+        const draft = emptyDraft(target ?? { kind: 'original' }, {
+          longform: s.longformPreference,
+          registerDefault: s.registerDefault,
+        })
         const meta = recomputeThreadMeta({ messages: [], draft, title: 'New chat' })
         const thread: ComposeThread = {
           id,
@@ -374,7 +395,10 @@ export const useComposeStore = create<ComposeState>()(
         set((s) =>
           mapThread(s, threadId, (t) => ({
             ...t,
-            draft: emptyDraft(t.draft.target, { longform: s.longformPreference }),
+            draft: emptyDraft(t.draft.target, {
+              longform: s.longformPreference,
+              registerDefault: s.registerDefault,
+            }),
           })),
         ),
 
@@ -382,6 +406,7 @@ export const useComposeStore = create<ComposeState>()(
       setXSearch: (mode) => set({ xSearch: mode }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
+      setRegisterDefault: (def) => set({ registerDefault: def }),
       setLibraryMode: (mode) => set({ libraryMode: mode }),
       setBudgetPct: (pct) => set({ budgetPct: clampBudgetPct(pct) }),
       setDayWindowDays: (days) => set({ dayWindowDays: days }),
@@ -398,7 +423,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 4,
+      version: 5,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -410,6 +435,7 @@ export const useComposeStore = create<ComposeState>()(
         model: state.model,
         xSearch: state.xSearch,
         longformPreference: state.longformPreference,
+        registerDefault: state.registerDefault,
         libraryMode: state.libraryMode,
         budgetPct: state.budgetPct,
         dayWindowDays: state.dayWindowDays,

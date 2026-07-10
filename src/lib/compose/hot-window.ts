@@ -359,3 +359,88 @@ export function packHotWindow(input: PackInput): PackResult {
     included: countIncluded(selected),
   }
 }
+
+/** Bucket wall-clock so day-window packs reuse within a short window. */
+const NOW_BUCKET_MS = 60_000
+const PACK_CACHE_MAX = 12
+
+const packCache = new Map<string, PackResult>()
+
+function scopeCacheKey(scope: ComposeScope): string {
+  switch (scope.type) {
+    case 'all':
+      return 'all'
+    case 'me':
+      return 'me'
+    case 'target':
+      return `target:${scope.username.replace(/^@/, '').toLowerCase()}`
+  }
+}
+
+/** Cheap invalidation key — gather refreshes bump refreshedAt / lengths / edge ids. */
+function snapshotCacheKey(snapshot: IntelSnapshot): string {
+  return snapshot.subjects
+    .map((s) => {
+      const firstPost = s.posts[0]
+      const lastPost = s.posts[s.posts.length - 1]
+      const firstEdge = s.edges[0]
+      return [
+        s.kind,
+        s.id,
+        s.username,
+        s.refreshedAt ?? '',
+        s.posts.length,
+        s.bookmarks.length,
+        s.likes.length,
+        s.edges.length,
+        s.reports.length,
+        firstPost?.id ?? '',
+        lastPost?.id ?? '',
+        firstEdge ? `${firstEdge.targetUsername}:${firstEdge.kind}:${firstEdge.lastSeen}` : '',
+        s.profile?.id ?? '',
+      ].join(':')
+    })
+    .join('|')
+}
+
+function packCacheKey(input: PackInput, now: Date): string {
+  const nowBucket = Math.floor(now.getTime() / NOW_BUCKET_MS)
+  return [
+    snapshotCacheKey(input.snapshot),
+    scopeCacheKey(input.scope),
+    input.mode,
+    input.dayWindowDays ?? 'all',
+    input.tokenBudget,
+    nowBucket,
+  ].join('::')
+}
+
+/** Test helper — clears the module pack cache. */
+export function clearPackHotWindowCache(): void {
+  packCache.clear()
+}
+
+/**
+ * Same as packHotWindow, with a small LRU so UI remounts / send-path packs
+ * reuse identical inputs without re-ranking the corpus.
+ */
+export function packHotWindowCached(input: PackInput): PackResult {
+  const now = input.now ?? new Date()
+  const key = packCacheKey(input, now)
+  const hit = packCache.get(key)
+  if (hit) {
+    // Refresh LRU order.
+    packCache.delete(key)
+    packCache.set(key, hit)
+    return hit
+  }
+
+  const result = packHotWindow({ ...input, now })
+  packCache.set(key, result)
+  while (packCache.size > PACK_CACHE_MAX) {
+    const oldest = packCache.keys().next().value
+    if (oldest === undefined) break
+    packCache.delete(oldest)
+  }
+  return result
+}

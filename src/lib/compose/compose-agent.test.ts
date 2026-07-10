@@ -135,6 +135,7 @@ describe('runComposeAgent', () => {
       )
 
     const onTool = vi.fn()
+    const onToolStart = vi.fn()
     const onContentReset = vi.fn()
     const deltas: string[] = []
     const result = await runComposeAgent({
@@ -148,6 +149,7 @@ describe('runComposeAgent', () => {
       scope: { type: 'all' },
       xSearchOn: false,
       onTool,
+      onToolStart,
       onContentReset,
       onDelta: (t) => deltas.push(t),
     })
@@ -155,7 +157,14 @@ describe('runComposeAgent', () => {
     expect(result.content).toBe('Found it.')
     expect(result.toolCalls).toBeGreaterThanOrEqual(1)
     expect(veniceMock).toHaveBeenCalledTimes(2)
+    expect(onToolStart).toHaveBeenCalledWith({
+      index: 0,
+      id: 'call_1',
+      name: 'intel_grep',
+    })
     expect(onTool).toHaveBeenCalledWith({
+      index: 0,
+      id: 'call_1',
       name: 'intel_grep',
       args: { query: 'staking' },
     })
@@ -207,5 +216,56 @@ describe('runComposeAgent', () => {
     })
 
     expect(onContentReset).toHaveBeenCalledTimes(1)
+  })
+
+  it('announces onToolStart before onTool executes', async () => {
+    veniceMock
+      .mockResolvedValueOnce(
+        sseStreamFromChunks([
+          chunk({
+            tool_calls: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'intel_get_posts', arguments: '' },
+              },
+            ],
+          }),
+          chunk({
+            tool_calls: [
+              {
+                index: 0,
+                function: {
+                  arguments: JSON.stringify({ handle: 'aixbt_agent', source: 'posts' }),
+                },
+              },
+            ],
+            finish_reason: 'tool_calls',
+          }),
+        ]),
+      )
+      .mockResolvedValueOnce(
+        sseStreamFromChunks([chunk({ content: 'Analysis done.', finish_reason: 'stop' })]),
+      )
+
+    const order: string[] = []
+    const result = await runComposeAgent({
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'analyze' }],
+      snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] },
+      scope: { type: 'all' },
+      xSearchOn: true,
+      onToolStart: ({ name }) => order.push(`start:${name}`),
+      onTool: ({ name }) => order.push(`exec:${name}`),
+    })
+
+    expect(result.content).toBe('Analysis done.')
+    expect(order[0]).toBe('start:intel_get_posts')
+    expect(order).toContain('exec:intel_get_posts')
+    expect(order.indexOf('start:intel_get_posts')).toBeLessThan(
+      order.indexOf('exec:intel_get_posts'),
+    )
   })
 })

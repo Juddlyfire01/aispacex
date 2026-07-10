@@ -133,10 +133,18 @@ export function reportToMarkdown(snapshot: IntelReportSnapshot, ctx: ReportExpor
     }
   }
 
-  if (n.register.description || n.register.devices.length > 0) {
+  if (n.register.description || n.register.devices.length > 0 || (n.register.fewShotExamples?.length ?? 0) > 0) {
     lines.push('## Register', '')
     if (n.register.description) lines.push(stripMarkdownLabel(n.register.description))
     if (n.register.devices.length > 0) lines.push('', `Devices: ${n.register.devices.join(', ')}`)
+    if (n.register.fewShotExamples && n.register.fewShotExamples.length > 0) {
+      lines.push('', 'Few-shot examples:')
+      for (const ex of n.register.fewShotExamples) {
+        const id = ex.postId ? ` (post:${ex.postId})` : ''
+        const clip = ex.text.length > 200 ? `${ex.text.slice(0, 200)}…` : ex.text
+        lines.push(`- ${ex.label}${id}: ${clip}`)
+      }
+    }
     lines.push('')
   }
 

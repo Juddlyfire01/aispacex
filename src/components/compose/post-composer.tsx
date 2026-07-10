@@ -11,6 +11,7 @@ import type { ReplySettings } from '../../lib/compose/types'
 import { CheckboxField } from '../ui/checkbox'
 import { SegmentEditor } from './segment-editor'
 import { TargetPicker } from './target-picker'
+import { RegisterControls } from './register-controls'
 
 interface PostComposerProps {
   threadId: string
@@ -115,6 +116,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
             ))}
           </select>
         </label>
+        <RegisterControls threadId={threadId} />
       </div>
     </div>
   )

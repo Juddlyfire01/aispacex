@@ -1,11 +1,19 @@
 import type { VeniceModel } from '../../types/venice'
 import { compareGrokDesc, isGrokModel } from '../venice-grok-utils'
 
-// Compose defaults to the highest Grok with native X search so the assistant can
-// research live X context while drafting. Resolution uses the live model list
-// (version-ranked Groks, then any X-search model, then Venice default).
+// Compose always sends tools + tool_choice. Only models with
+// supportsFunctionCalling belong in the Post model picker.
 
 export const COMPOSE_FALLBACK_MODEL = 'venice-uncensored-1-2'
+
+export function modelSupportsFunctionCalling(m: VeniceModel | undefined | null): boolean {
+  return m?.model_spec?.capabilities?.supportsFunctionCalling === true
+}
+
+/** Text models that can run the compose intel/history tool loop. */
+export function filterComposeToolModels(models: VeniceModel[]): VeniceModel[] {
+  return models.filter(modelSupportsFunctionCalling)
+}
 
 function pickFallbackModel(models: VeniceModel[]): string {
   const uncensored = models.find((m) => m.id === COMPOSE_FALLBACK_MODEL)
@@ -19,23 +27,31 @@ function pickFallbackModel(models: VeniceModel[]): string {
 }
 
 /**
- * Pick the default compose model:
+ * Pick the default compose model (tool-capable only):
  * 1. Highest-version Grok with `supportsXSearch` (walk down Groks if needed)
  * 2. Any other X-search-capable model
  * 3. `venice-uncensored-1-2`, else the model tagged with the `default` trait
  */
 export function pickComposeModel(models: VeniceModel[]): string {
-  const groks = models.filter((m) => isGrokModel(m.id)).sort(compareGrokDesc)
+  const eligible = filterComposeToolModels(models)
+  if (eligible.length === 0) return COMPOSE_FALLBACK_MODEL
+
+  const groks = eligible.filter((m) => isGrokModel(m.id)).sort(compareGrokDesc)
   const grokWithX = groks.find((m) => m.model_spec?.capabilities?.supportsXSearch)
   if (grokWithX) return grokWithX.id
 
-  const xSearch = models.filter((m) => m.model_spec?.capabilities?.supportsXSearch)
-  if (xSearch.length > 0) return xSearch[0].id
+  const xSearch = eligible.filter((m) => m.model_spec?.capabilities?.supportsXSearch)
+  if (xSearch.length > 0) return xSearch[0]!.id
 
-  return pickFallbackModel(models)
+  return pickFallbackModel(eligible)
 }
 
 /** Whether a given model id (from the loaded list) supports X search. */
 export function modelSupportsXSearch(models: VeniceModel[], id: string): boolean {
   return Boolean(models.find((m) => m.id === id)?.model_spec?.capabilities?.supportsXSearch)
+}
+
+/** Whether a given model id supports function calling / tools. */
+export function modelIdSupportsFunctionCalling(models: VeniceModel[], id: string): boolean {
+  return modelSupportsFunctionCalling(models.find((m) => m.id === id))
 }

@@ -43,7 +43,7 @@ function legacyToSnapshot(
       executiveSummary: '',
       strategicAssessment: '',
       themes: synthesis.themes.map((t) => ({ name: t, evidence: '', weight: 0 })),
-      register: { description: synthesis.register, devices: [] },
+      register: { description: synthesis.register, devices: [], fewShotExamples: [] },
       narrativeArcs: [],
       audienceRead: '',
       contradictions: [],
@@ -135,6 +135,11 @@ interface XIntelState {
   /** Upgrade legacy / missing model ids after the live catalog loads. */
   upgradeSynthesisModelDefaults: (model: string, models: { id: string }[]) => void
   appendReport: (username: string, snapshot: IntelReportSnapshot) => void
+  /** Patch register on the active report snapshot (Save to report from compose). */
+  patchActiveReportRegister: (
+    username: string,
+    register: IntelReportSnapshot['narrative']['register'],
+  ) => void
   deleteReport: (username: string, reportId: string) => void
   setActiveReport: (username: string, reportId: string) => void
   /** Switch to Feed and scroll/highlight a post by id. */
@@ -386,6 +391,22 @@ export const useXIntelStore = create<XIntelState>()(
               },
             },
           }
+        })
+      },
+
+      patchActiveReportRegister: (username, register) => {
+        set((s) => {
+          const key = findReportKey(s.reports, username)
+          if (!key) return s
+          const report = s.reports[key]
+          const activeId = report.activeReportId ?? report.reportHistory[0]?.id
+          if (!activeId) return s
+          const reportHistory = report.reportHistory.map((snap) =>
+            snap.id === activeId
+              ? { ...snap, narrative: { ...snap.narrative, register } }
+              : snap,
+          )
+          return { reports: { ...s.reports, [key]: { ...report, reportHistory } } }
         })
       },
 

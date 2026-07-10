@@ -166,7 +166,12 @@ export interface ReportNarrative {
   executiveSummary: string
   strategicAssessment: string
   themes: { name: string; evidence: string; weight: number }[]
-  register: { description: string; devices: string[] }
+  register: {
+    description: string
+    devices: string[]
+    /** Labeled real-post exemplars for high-fidelity style transfer. */
+    fewShotExamples?: { label: string; postId?: string; text: string }[]
+  }
   narrativeArcs: { arc: string; trend: string; evidence: string }[]
   audienceRead: string
   contradictions: string[]

@@ -5,8 +5,10 @@ import { MarkdownMessage } from '../chat/markdown-message'
 import { AgentActivity } from './agent-activity'
 import type { ComposeMessage } from '../../lib/compose/thread-types'
 
-/** Distance from bottom (px) still counts as "following" the stream. */
-const STICK_BOTTOM_PX = 80
+/** Only this close to the bottom counts as "following" the stream. */
+const STICK_BOTTOM_PX = 36
+/** Scroll at most every N new characters while sticking — less yanky. */
+const SCROLL_CHARS_BUCKET = 28
 
 function distanceFromBottom(el: HTMLElement): number {
   return el.scrollHeight - el.scrollTop - el.clientHeight
@@ -26,8 +28,11 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
-  /** Follow new content until the user scrolls away from the bottom. */
+  /** Skip onScroll while we programmatically pin to bottom. */
+  const ignoreScrollRef = useRef(false)
+  /** Follow new content until the user scrolls away. */
   const stickToBottomRef = useRef(true)
+  const touchYRef = useRef<number | null>(null)
 
   const messages = useMemo(
     () => (thread?.messages ?? []) as ComposeMessage[],
@@ -37,6 +42,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
     typeof messages[messages.length - 1]?.content === 'string'
       ? (messages[messages.length - 1]!.content as string)
       : ''
+  const scrollBucket = Math.floor(lastContent.length / SCROLL_CHARS_BUCKET)
 
   // New thread → re-attach follow (and jump to bottom once messages load).
   useEffect(() => {
@@ -44,12 +50,53 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   }, [threadId])
 
   const onScroll = useCallback(() => {
+    if (ignoreScrollRef.current) return
     const el = scrollRef.current
     if (!el) return
     stickToBottomRef.current = distanceFromBottom(el) <= STICK_BOTTOM_PX
   }, [])
 
-  // Auto-scroll only while stick-to-bottom; at most once per frame.
+  // Wheel / touch up unpins immediately so the user isn't fighting the stream.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        stickToBottomRef.current = false
+        return
+      }
+      if (e.deltaY > 0 && distanceFromBottom(el) <= STICK_BOTTOM_PX) {
+        stickToBottomRef.current = true
+      }
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchYRef.current = e.touches[0]?.clientY ?? null
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY
+      const prev = touchYRef.current
+      if (y == null || prev == null) return
+      if (y > prev + 4) stickToBottomRef.current = false
+      else if (y < prev - 4 && distanceFromBottom(el) <= STICK_BOTTOM_PX) {
+        stickToBottomRef.current = true
+      }
+      touchYRef.current = y
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+    }
+  }, [])
+
+  // Auto-scroll only while stick-to-bottom; throttled by char bucket while typing.
   useEffect(() => {
     if (!stickToBottomRef.current) return
     if (scrollRafRef.current != null) return
@@ -57,7 +104,11 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
       scrollRafRef.current = null
       const el = scrollRef.current
       if (!el || !stickToBottomRef.current) return
+      ignoreScrollRef.current = true
       el.scrollTop = el.scrollHeight
+      requestAnimationFrame(() => {
+        ignoreScrollRef.current = false
+      })
     })
     return () => {
       if (scrollRafRef.current != null) {
@@ -65,7 +116,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
         scrollRafRef.current = null
       }
     }
-  }, [lastContent, liveEvents.length, agentPhase, messages.length])
+  }, [scrollBucket, liveEvents.length, agentPhase, messages.length])
 
   const canSend = Boolean(input.trim()) && !isStreaming && !sendBlocked
 
@@ -143,11 +194,19 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
                       phase={active ? agentPhase : null}
                     />
                   )}
-                  <MarkdownMessage
-                    content={content}
-                    size="compact"
-                    className="max-w-[92%] text-[12.5px] text-white/70"
-                  />
+                  <div className="max-w-[92%]">
+                    <MarkdownMessage
+                      content={content}
+                      size="compact"
+                      className="text-[12.5px] text-white/70"
+                    />
+                    {active && (
+                      <span
+                        className="inline-block w-[1.5px] h-[0.95em] align-[-0.12em] ml-0.5 bg-white/45 animate-pulse"
+                        aria-hidden
+                      />
+                    )}
+                  </div>
                 </div>
               )
             }

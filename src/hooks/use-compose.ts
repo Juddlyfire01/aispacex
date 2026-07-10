@@ -6,9 +6,15 @@ import { useXIntelStore } from '../stores/x-intel-store'
 import { buildComposeSystem, buildHotUserPrefix } from '../lib/compose/compose-prompt'
 import { parseDraftBlock } from '../lib/compose/draft-block'
 import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
+import {
+  isRegisterPackEmpty,
+  packFromReportRegister,
+  resolveRegisterPack,
+} from '../lib/compose/register'
+import { findReportKey } from '../stores/x-intel-store'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
-import { packHotWindow } from '../lib/compose/hot-window'
+import { packHotWindowCached } from '../lib/compose/hot-window'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
 import {
@@ -29,9 +35,9 @@ import type { ChatMessage } from '../types/venice'
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
-  /** Coalesce SSE tokens into one store write per animation frame. */
+  /** SSE tokens wait here; dripped to the store for a rapid-typing feel. */
   const pendingDeltaRef = useRef('')
-  const deltaRafRef = useRef<number | null>(null)
+  const dripRafRef = useRef<number | null>(null)
   const queryClient = useQueryClient()
   const {
     isStreaming,
@@ -43,15 +49,55 @@ export function useCompose() {
     setStreaming,
   } = useComposeStore()
 
+  /** Push the whole buffer now (tool boundaries, finalize, stop). */
   const flushPendingDelta = useCallback((threadId: string) => {
-    if (deltaRafRef.current != null) {
-      cancelAnimationFrame(deltaRafRef.current)
-      deltaRafRef.current = null
+    if (dripRafRef.current != null) {
+      cancelAnimationFrame(dripRafRef.current)
+      dripRafRef.current = null
     }
     const pending = pendingDeltaRef.current
     if (!pending) return
     pendingDeltaRef.current = ''
     useComposeStore.getState().appendToLastAssistant(threadId, pending)
+  }, [])
+
+  /** Reveal pending tokens in small chunks so the stream reads like fast typing. */
+  const scheduleDrip = useCallback((threadId: string) => {
+    if (dripRafRef.current != null) return
+
+    const tick = () => {
+      dripRafRef.current = null
+      const pending = pendingDeltaRef.current
+      if (!pending) return
+
+      const backlog = pending.length
+      // Base ~3 chars/frame (~180/s); accelerate when the network gets ahead.
+      let n: number
+      if (backlog > 160) n = Math.ceil(backlog * 0.28)
+      else if (backlog > 64) n = 14
+      else if (backlog > 20) n = 7
+      else n = Math.min(3, backlog)
+
+      // Prefer ending on whitespace so chunks feel word-ish, not mid-glyph.
+      let take = n
+      if (backlog > n) {
+        const window = pending.slice(0, n + 8)
+        const sp = window.lastIndexOf(' ')
+        const nl = window.lastIndexOf('\n')
+        const breakAt = Math.max(sp, nl)
+        if (breakAt >= Math.floor(n * 0.45)) take = breakAt + 1
+      }
+
+      const chunk = pending.slice(0, take)
+      pendingDeltaRef.current = pending.slice(take)
+      useComposeStore.getState().appendToLastAssistant(threadId, chunk)
+
+      if (pendingDeltaRef.current) {
+        dripRafRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    dripRafRef.current = requestAnimationFrame(tick)
   }, [])
 
   const send = useCallback(
@@ -67,16 +113,19 @@ export function useCompose() {
       store.clearAgentEvents()
       store.setAgentPhase('Thinking')
       pendingDeltaRef.current = ''
-      if (deltaRafRef.current != null) {
-        cancelAnimationFrame(deltaRafRef.current)
-        deltaRafRef.current = null
+      if (dripRafRef.current != null) {
+        cancelAnimationFrame(dripRafRef.current)
+        dripRafRef.current = null
       }
 
       const abortController = new AbortController()
       abortRef.current = abortController
       let clearedToolActivity = false
-      /** Maps in-flight tool calls (name+args) → timeline event ids. */
+      /** Stream index → timeline event id (set on onToolStart, reused on execute). */
+      const eventByIndex = new Map<number, string>()
+      /** name+args → event id for onToolResult matching. */
       const pendingEventIds = new Map<string, string>()
+      const MIN_TOOL_DISPLAY_MS = 1000
 
       try {
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
@@ -87,7 +136,7 @@ export function useCompose() {
         const { libraryMode, budgetPct, dayWindowDays, model, xSearch, contextLimit } =
           useComposeStore.getState()
         const budget = computeHotBudget(contextLimit, budgetPct)
-        const pack = packHotWindow({
+        const pack = packHotWindowCached({
           snapshot,
           scope,
           mode: libraryMode,
@@ -106,7 +155,47 @@ export function useCompose() {
         }
 
         const xSearchOn = xSearch !== 'off'
-        const system = buildComposeSystem({ modelId: model, xSearchOn, toolsEnabled: true })
+
+        const draftRegister = useComposeStore.getState().threads[threadId]?.draft.register
+        const selfState = useXSelfStore.getState()
+        const selfId = selfState.activeAccountId ?? selfState.accountOrder[0] ?? null
+        const selfAccount = selfId ? selfState.accounts[selfId] : null
+        const selfActive =
+          selfAccount?.reportHistory.find((r) => r.id === selfAccount.activeReportId) ??
+          selfAccount?.reportHistory[0] ??
+          null
+        const youPack =
+          selfActive?.narrative.register &&
+          !isRegisterPackEmpty(packFromReportRegister(selfActive.narrative.register))
+            ? packFromReportRegister(selfActive.narrative.register)
+            : null
+
+        const otherUser = draftRegister?.otherUsername?.replace(/^@/, '') ?? ''
+        const intelState = useXIntelStore.getState()
+        const otherKey = otherUser ? findReportKey(intelState.reports, otherUser) : undefined
+        const otherReport = otherKey ? intelState.reports[otherKey] : undefined
+        const otherActive =
+          otherReport?.reportHistory.find((r) => r.id === otherReport.activeReportId) ??
+          otherReport?.reportHistory[0] ??
+          null
+        const otherPack =
+          otherActive?.narrative.register &&
+          !isRegisterPackEmpty(packFromReportRegister(otherActive.narrative.register))
+            ? packFromReportRegister(otherActive.narrative.register)
+            : null
+
+        const registerResolved = resolveRegisterPack({
+          draft: draftRegister,
+          youPack,
+          otherPack,
+        })
+
+        const system = buildComposeSystem({
+          modelId: model,
+          xSearchOn,
+          toolsEnabled: true,
+          registerInject: registerResolved.inject,
+        })
 
         // Transcript minus the trailing empty assistant placeholder.
         // UI stores raw userMessage; API latest user turn includes hot prefix.
@@ -133,6 +222,34 @@ export function useCompose() {
         const modelsCache = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
         const modelSpec = modelsCache?.models.find((m) => m.id === model) ?? null
 
+        const ensureToolEvent = (
+          index: number,
+          name: string,
+          args: Record<string, unknown>,
+        ): string => {
+          const existing = eventByIndex.get(index)
+          const label = describeToolCall(name, args)
+          const progressLabel = describeToolProgress(name, args)
+          if (existing) {
+            useComposeStore.getState().updateAgentEvent(existing, {
+              label,
+              progressLabel,
+              status: 'running',
+            })
+            return existing
+          }
+          const id = newAgentEventId()
+          eventByIndex.set(index, id)
+          useComposeStore.getState().pushAgentEvent({
+            id,
+            label,
+            progressLabel,
+            status: 'running',
+            startedAt: Date.now(),
+          })
+          return id
+        }
+
         const { content } = await runComposeAgent({
           model,
           modelSpec,
@@ -148,15 +265,7 @@ export function useCompose() {
               useComposeStore.getState().setAgentPhase('Writing')
             }
             pendingDeltaRef.current += token
-            if (deltaRafRef.current == null) {
-              deltaRafRef.current = requestAnimationFrame(() => {
-                deltaRafRef.current = null
-                const pending = pendingDeltaRef.current
-                if (!pending) return
-                pendingDeltaRef.current = ''
-                useComposeStore.getState().appendToLastAssistant(threadId, pending)
-              })
-            }
+            scheduleDrip(threadId)
           },
           onContentReset: () => {
             flushPendingDelta(threadId)
@@ -164,36 +273,54 @@ export function useCompose() {
             clearedToolActivity = false
           },
           onRoundStart: () => {
-            const s = useComposeStore.getState()
-            if (s.agentEvents.length > 0) s.setAgentPhase('Thinking')
+            eventByIndex.clear()
+            useComposeStore.getState().setAgentPhase('Thinking')
           },
-          onTool: ({ name, args }) => {
+          onToolStart: ({ index, name }) => {
             flushPendingDelta(threadId)
-            const s = useComposeStore.getState()
-            const label = describeToolCall(name, args)
-            const progressLabel = describeToolProgress(name, args)
-            const id = newAgentEventId()
-            pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
-            s.pushAgentEvent({
-              id,
-              label,
-              progressLabel,
-              status: 'running',
-              startedAt: Date.now(),
-            })
-            s.setAgentPhase(null)
+            ensureToolEvent(index, name, {})
+            useComposeStore.getState().setAgentPhase(null)
             clearedToolActivity = false
           },
-          onToolResult: ({ name, args, result }) => {
+          onTool: ({ index, name, args }) => {
+            flushPendingDelta(threadId)
+            const id = ensureToolEvent(index, name, args)
+            pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
+            useComposeStore.getState().setAgentPhase(null)
+            clearedToolActivity = false
+          },
+          onToolResult: async ({ name, args, result }) => {
             const s = useComposeStore.getState()
             const key = `${name}:${JSON.stringify(args)}`
             const id = pendingEventIds.get(key)
             pendingEventIds.delete(key)
             if (!id) return
-            s.updateAgentEvent(id, {
-              status: isToolError(result) ? 'error' : 'done',
-              detail: describeToolResult(name, result),
-            })
+
+            const status = isToolError(result) ? 'error' : 'done'
+            const detail = describeToolResult(name, result)
+            const startedAt =
+              s.agentEvents.find((e) => e.id === id)?.startedAt ?? Date.now()
+            const wait = Math.max(0, MIN_TOOL_DISPLAY_MS - (Date.now() - startedAt))
+            if (wait > 0) {
+              await new Promise<void>((resolve) => {
+                const t = setTimeout(resolve, wait)
+                abortController.signal.addEventListener(
+                  'abort',
+                  () => {
+                    clearTimeout(t)
+                    resolve()
+                  },
+                  { once: true },
+                )
+              })
+            }
+            if (abortController.signal.aborted) return
+
+            const after = useComposeStore.getState()
+            after.updateAgentEvent(id, { status, detail })
+            if (!after.agentEvents.some((e) => e.status === 'running')) {
+              after.setAgentPhase('Thinking')
+            }
           },
         })
 
@@ -250,29 +377,33 @@ export function useCompose() {
       applyDraftPatch,
       setStreaming,
       flushPendingDelta,
+      scheduleDrip,
     ],
   )
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
-    if (deltaRafRef.current != null) {
-      cancelAnimationFrame(deltaRafRef.current)
-      deltaRafRef.current = null
-    }
-    pendingDeltaRef.current = ''
     const s = useComposeStore.getState()
+    const threadId = s.activeThreadId
+    if (threadId) flushPendingDelta(threadId)
+    else {
+      if (dripRafRef.current != null) {
+        cancelAnimationFrame(dripRafRef.current)
+        dripRafRef.current = null
+      }
+      pendingDeltaRef.current = ''
+    }
     for (const e of s.agentEvents) {
       if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
     }
     const finalEvents = useComposeStore.getState().agentEvents
-    const threadId = s.activeThreadId
     if (threadId && finalEvents.length > 0) {
       s.setLastAssistantAgentEvents(threadId, finalEvents)
     }
     s.setStreaming(false)
     s.setAgentPhase(null)
     s.clearAgentEvents()
-  }, [setStreaming])
+  }, [setStreaming, flushPendingDelta])
 
   return { send, stop, isStreaming }
 }

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { packHotWindow } from './hot-window'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { clearPackHotWindowCache, packHotWindow, packHotWindowCached } from './hot-window'
 import { sampleSnapshot } from '../intel-library/test-fixtures'
 import { estimateTokens } from './token-estimate'
 
@@ -71,5 +71,47 @@ describe('packHotWindow', () => {
     expect(result.overBudget).toBe(false)
     expect(result.included).toEqual({ posts: 0, reports: 0, subjects: 0 })
     expect(result.estimatedTokens).toBe(estimateTokens(result.text))
+  })
+})
+
+describe('packHotWindowCached', () => {
+  beforeEach(() => {
+    clearPackHotWindowCache()
+  })
+
+  it('returns the same object on identical inputs', () => {
+    const snap = sampleSnapshot()
+    const input = {
+      snapshot: snap,
+      scope: { type: 'all' as const },
+      mode: 'auto' as const,
+      dayWindowDays: 7,
+      tokenBudget: 500,
+      now,
+    }
+    const a = packHotWindowCached(input)
+    const b = packHotWindowCached({ ...input, snapshot: sampleSnapshot() })
+    expect(b).toBe(a)
+  })
+
+  it('misses when budget changes', () => {
+    const snap = sampleSnapshot()
+    const a = packHotWindowCached({
+      snapshot: snap,
+      scope: { type: 'all' },
+      mode: 'auto',
+      dayWindowDays: 7,
+      tokenBudget: 500,
+      now,
+    })
+    const b = packHotWindowCached({
+      snapshot: snap,
+      scope: { type: 'all' },
+      mode: 'auto',
+      dayWindowDays: 7,
+      tokenBudget: 200,
+      now,
+    })
+    expect(b).not.toBe(a)
   })
 })

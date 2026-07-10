@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { useXIntelStore, findReportKey } from '../../stores/x-intel-store'
+import { useEffect, useRef, useState } from 'react'
+import { useXIntelStore, findReportKey, type IntelTopTab } from '../../stores/x-intel-store'
 import { TargetRail } from './target-rail'
 import { ActivityFeed } from './activity-feed'
 import { ProfileCard } from './profile-card'
@@ -15,6 +15,7 @@ import { refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
 import { isDemoTarget } from '../../lib/x-intel/fields'
 import { syncComposeContextFromActiveTarget } from '../../lib/compose/open-compose'
 import { SubTabs } from '../ui/sub-tabs'
+import { cn } from '../../lib/utils'
 
 // Top-level split: your own OAuth profile, target analysis, and the composer.
 const TOP_TABS = [
@@ -41,6 +42,19 @@ export function IntelView() {
   const setActiveTopTab = useXIntelStore((s) => s.setActiveTopTab)
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const prevTopTab = useRef(activeTopTab)
+
+  // Lazy keep-alive: mount a top tab on first visit, then hide instead of unmounting
+  // so Post (and other heavy panes) stay warm across tab switches.
+  const [mountedTabs, setMountedTabs] = useState(() => new Set<IntelTopTab>([activeTopTab]))
+
+  useEffect(() => {
+    setMountedTabs((prev) => {
+      if (prev.has(activeTopTab)) return prev
+      const next = new Set(prev)
+      next.add(activeTopTab)
+      return next
+    })
+  }, [activeTopTab])
 
   // Entering Post from Profile/Targets: carry the active target into compose context.
   useEffect(() => {
@@ -78,15 +92,14 @@ export function IntelView() {
     <div className="flex flex-col h-full min-h-0">
       <SubTabs tabs={TOP_TABS} value={activeTopTab} onChange={setActiveTopTab} className="px-4" />
 
-      {activeTopTab === 'post' ? (
-        <div className="flex-1 min-h-0">
-          <ComposeWorkspace />
-        </div>
-      ) : activeTopTab === 'me' ? (
+      {mountedTabs.has('me') && (
         // Profile ("me") tab: rail + Profile/Feed/Network sub-tab bar + content,
         // mirroring the Targets layout. SelfRail switches the active connected
         // account; the content swaps between the self profile split / feed / network.
-        <div className="flex flex-1 min-h-0">
+        <div
+          className={cn('flex flex-1 min-h-0', activeTopTab !== 'me' && 'hidden')}
+          aria-hidden={activeTopTab !== 'me'}
+        >
           <SelfRail />
 
           <div className="flex flex-col flex-1 min-w-0">
@@ -98,8 +111,13 @@ export function IntelView() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 min-h-0">
+      )}
+
+      {mountedTabs.has('targets') && (
+        <div
+          className={cn('flex flex-1 min-h-0', activeTopTab !== 'targets' && 'hidden')}
+          aria-hidden={activeTopTab !== 'targets'}
+        >
           <TargetRail />
 
           <div className="flex flex-col flex-1 min-w-0">
@@ -119,6 +137,15 @@ export function IntelView() {
               {activeSubTab === 'feed' && <ActivityFeed />}
             </div>
           </div>
+        </div>
+      )}
+
+      {mountedTabs.has('post') && (
+        <div
+          className={cn('flex-1 min-h-0', activeTopTab !== 'post' && 'hidden')}
+          aria-hidden={activeTopTab !== 'post'}
+        >
+          <ComposeWorkspace />
         </div>
       )}
     </div>

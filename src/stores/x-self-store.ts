@@ -112,6 +112,10 @@ interface XSelfState {
   markRefreshed: (id: string, section: keyof SelfSectionsRefreshed) => void
   setSynthesisSettings: (id: string, patch: Partial<SynthesisSettings>) => void
   appendReport: (id: string, snapshot: IntelReportSnapshot) => void
+  patchActiveReportRegister: (
+    id: string,
+    register: IntelReportSnapshot['narrative']['register'],
+  ) => void
   setActiveReport: (id: string, reportId: string) => void
   deleteReport: (id: string, reportId: string) => void
   setReportGenerating: (id: string, generating: boolean) => void
@@ -310,6 +314,20 @@ export const useXSelfStore = create<XSelfState>()(
               },
             },
           }
+        }),
+
+      patchActiveReportRegister: (id, register) =>
+        set((s) => {
+          const a = s.accounts[id]
+          if (!a) return s
+          const activeId = a.activeReportId ?? a.reportHistory[0]?.id
+          if (!activeId) return s
+          const reportHistory = a.reportHistory.map((snap) =>
+            snap.id === activeId
+              ? { ...snap, narrative: { ...snap.narrative, register } }
+              : snap,
+          )
+          return { accounts: { ...s.accounts, [id]: { ...a, reportHistory } } }
         }),
 
       setActiveReport: (id, reportId) =>

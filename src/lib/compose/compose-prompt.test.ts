@@ -47,6 +47,17 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/Live X\/web search is available/i)
   })
 
+  it('includes register inject when provided', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: false,
+      registerInject: 'REGISTER (draft in this exact linguistic register when writing post copy):\nDescription: terse',
+    })
+    expect(system).toMatch(/REGISTER \(draft in this exact/)
+    expect(system).toMatch(/Description: terse/)
+  })
+
   it('does not embed corpus or target dumps', () => {
     const system = buildComposeSystem({
       modelId: 'm',

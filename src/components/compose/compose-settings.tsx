@@ -2,7 +2,10 @@ import { useComposeStore, ME_CONTEXT, ALL_CONTEXT, type XSearchMode } from '../.
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
-import { modelSupportsXSearch } from '../../lib/compose/model'
+import {
+  filterComposeToolModels,
+  modelSupportsXSearch,
+} from '../../lib/compose/model'
 import { contextKeyFromScope } from '../../lib/intel-library/scope'
 import type { ComposeScope } from '../../lib/intel-library/types'
 import type { LibraryMode, PackResult } from '../../lib/compose/hot-window'
@@ -50,6 +53,7 @@ export function ComposeSettings({
   onDayWindowChange,
 }: ComposeSettingsProps) {
   const { data: models } = useModels('text')
+  const toolModels = filterComposeToolModels(models ?? [])
   const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
   const model = useComposeStore((s) => s.model)
@@ -65,7 +69,7 @@ export function ComposeSettings({
   const selfLabel = selfUsername ? `@${selfUsername.replace(/^@/, '')}` : '@me'
 
   const contextSelectValue = contextKeyFromScope(newThreadContext)
-  const xSearchSupported = models ? modelSupportsXSearch(models, model) : false
+  const xSearchSupported = modelSupportsXSearch(toolModels, model)
 
   return (
     <aside className="w-[340px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
@@ -99,14 +103,14 @@ export function ComposeSettings({
             onChange={(e) => setModel(e.target.value)}
             className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)] max-w-full"
           >
-            {(models ?? []).map((m) => (
+            {(toolModels).map((m) => (
               <option key={m.id} value={m.id}>
                 {(m.model_spec?.name || m.id) +
                   (m.model_spec?.capabilities?.supportsXSearch ? ' · X search' : '')}
               </option>
             ))}
-            {model && !models?.some((m) => m.id === model) && (
-              <option value={model}>{model}</option>
+            {model && !toolModels.some((m) => m.id === model) && (
+              <option value={model}>{model} (no tools — switch)</option>
             )}
           </select>
         </div>

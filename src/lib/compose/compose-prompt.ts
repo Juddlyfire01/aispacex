@@ -11,6 +11,8 @@ export interface ComposeSystemOpts {
   modelId: string
   xSearchOn: boolean
   toolsEnabled: boolean
+  /** Pre-formatted register inject block from resolveRegisterPack. */
+  registerInject?: string | null
 }
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
@@ -77,6 +79,10 @@ Style:
 
   if (opts.toolsEnabled) {
     parts.push(TOOLS_SPEC)
+  }
+
+  if (opts.registerInject?.trim()) {
+    parts.push(opts.registerInject.trim())
   }
 
   parts.push(BLOCK_SPEC)

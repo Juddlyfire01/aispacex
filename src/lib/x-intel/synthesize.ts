@@ -17,6 +17,7 @@ import type {
   IntelReportSnapshot,
 } from './types'
 import type { ChatCompletionResponse } from '../../types/venice'
+import { enrichRegisterFewShots } from './register-few-shots'
 
 let textModelsCache: VeniceModel[] | null = null
 
@@ -141,6 +142,7 @@ CRITICAL RULES:
 - For themes and narrativeArcs, cite EVERY post that supports the point — list all relevant post ids, not just one. Include as many as genuinely apply (some themes will have one, others several); never artificially limit the count.
 - No speculation beyond what the data supports. Distinguish observation from inference.
 - For notablePosts, return only the post id and why it matters — do not fabricate post text.
+- For register.fewShotExamples, pick 6–10 real posts that best embody the register (prefer notable / high-density). Set label (e.g. tension_framing, ranking, comparison, short_risk, brand_protection) and postId. Leave text empty — it will be filled from the real post body. Never invent post text.
 - Prose string fields may use light Markdown (bold, italics, lists) but must NOT begin with a label like "markdown:" — write the actual content directly.
 - The shape below is a schema. Replace every placeholder with real content; do not echo placeholder words like "string" or "markdown".
 
@@ -150,7 +152,11 @@ Respond with ONLY a fenced json block matching exactly this shape:
   "executiveSummary": "2-4 sentences on who this account is and its current posture",
   "strategicAssessment": "a paragraph on what this account appears to be trying to accomplish",
   "themes": [{ "name": "theme name", "evidence": "short reason plus every supporting post id (e.g. post:123, post:456, …) — cite all that apply, not just one", "weight": 0.0 }],
-  "register": { "description": "tone/style", "devices": ["rhetorical device"] },
+  "register": {
+    "description": "tone/style",
+    "devices": ["rhetorical device"],
+    "fewShotExamples": [{ "label": "short_label_like_tension_framing_or_ranking", "postId": "real post id from transcript", "text": "" }]
+  },
   "narrativeArcs": [{ "arc": "arc description", "trend": "rising|falling|stable", "evidence": "supporting detail plus every relevant post id (e.g. post:123, post:456, …)" }],
   "audienceRead": "who this content targets and why",
   "contradictions": ["notable tension or pivot"],
@@ -251,6 +257,29 @@ export function stripMarkdownLabel(s: string): string {
   return s.replace(/^\s*(?:markdown|md)\s*:\s*/i, '')
 }
 
+function parseRegister(raw: unknown): ReportNarrative['register'] {
+  if (!raw || typeof raw !== 'object') return { description: '', devices: [], fewShotExamples: [] }
+  const o = raw as {
+    description?: string
+    devices?: string[]
+    fewShotExamples?: { label?: string; postId?: string; text?: string }[]
+  }
+  const fewShotExamples = Array.isArray(o.fewShotExamples)
+    ? o.fewShotExamples
+        .filter((f) => f && (typeof f.postId === 'string' || typeof f.text === 'string'))
+        .map((f) => ({
+          label: typeof f.label === 'string' && f.label.trim() ? f.label.trim() : 'example',
+          postId: typeof f.postId === 'string' && f.postId.trim() ? f.postId.trim() : undefined,
+          text: typeof f.text === 'string' ? f.text : '',
+        }))
+    : []
+  return {
+    description: typeof o.description === 'string' ? o.description : '',
+    devices: Array.isArray(o.devices) ? o.devices.filter((d): d is string => typeof d === 'string') : [],
+    fewShotExamples,
+  }
+}
+
 export function parseReport(content: string): ReportNarrative {
   const raw = extractJson(content)
   if (!raw) throw new Error('Could not parse report response — model did not return valid JSON')
@@ -262,7 +291,7 @@ export function parseReport(content: string): ReportNarrative {
     executiveSummary: stripMarkdownLabel(r.executiveSummary ?? ''),
     strategicAssessment: stripMarkdownLabel(r.strategicAssessment ?? ''),
     themes: Array.isArray(r.themes) ? r.themes : [],
-    register: r.register ?? { description: '', devices: [] },
+    register: parseRegister(r.register),
     narrativeArcs: Array.isArray(r.narrativeArcs) ? r.narrativeArcs : [],
     audienceRead: stripMarkdownLabel(r.audienceRead ?? ''),
     contradictions: STRING_ARRAY(r.contradictions),
@@ -399,7 +428,18 @@ export async function synthesizeReport(
   if (!narrativeStream.content.trim()) {
     throw new Error('Venice report synthesis returned no content — the model may have refused or filtered the request')
   }
-  const narrative = parseReport(narrativeStream.content)
+  const parsed = parseReport(narrativeStream.content)
+  const narrative: ReportNarrative = {
+    ...parsed,
+    register: {
+      ...parsed.register,
+      fewShotExamples: enrichRegisterFewShots({
+        fewShotExamples: parsed.register.fewShotExamples,
+        notablePosts: parsed.notablePosts,
+        ownPosts: own,
+      }),
+    },
+  }
 
   const narrPrompt = narrativeStream.usage?.prompt_tokens ?? estimatedPrompt
   const narrCompletion = narrativeStream.usage?.completion_tokens ?? estimateTextTokens(narrativeStream.content)
