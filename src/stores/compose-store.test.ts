@@ -71,10 +71,16 @@ describe('compose-store', () => {
     const id = s.createThread()
     s.addMessage(id, { role: 'user', content: 'hi' })
     s.addMessage(id, { role: 'assistant', content: '' })
+    const orderBefore = useComposeStore.getState().threadOrder
+    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
     s.appendToLastAssistant(id, 'Hel')
     s.appendToLastAssistant(id, 'lo')
-    const msgs = useComposeStore.getState().threads[id].messages
+    const after = useComposeStore.getState()
+    const msgs = after.threads[id].messages
     expect(msgs[msgs.length - 1].content).toBe('Hello')
+    // Hot path must not recompute meta / reorder on every token
+    expect(after.threadOrder).toEqual(orderBefore)
+    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
   })
 
   it('applies a draft patch and bumps updatedAt', () => {

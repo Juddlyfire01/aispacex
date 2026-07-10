@@ -260,17 +260,21 @@ export const useComposeStore = create<ComposeState>()(
           mapThread(s, threadId, (t) => ({ ...t, messages: [...t.messages, message] })),
         ),
 
+      // Hot path: do NOT recomputeThreadMeta / bumpOrder / touch draft timestamps
+      // on every token — that + encrypted persist made streaming feel click-clunky.
+      // Meta is refreshed once via setLastAssistantContent when the stream ends.
       appendToLastAssistant: (threadId, token) =>
-        set((s) =>
-          mapThread(s, threadId, (t) => {
-            const msgs = [...t.messages]
-            const last = msgs[msgs.length - 1]
-            if (last?.role === 'assistant' && typeof last.content === 'string') {
-              msgs[msgs.length - 1] = { ...last, content: last.content + token }
-            }
-            return { ...t, messages: msgs }
-          }),
-        ),
+        set((s) => {
+          const thread = s.threads[threadId]
+          if (!thread) return {}
+          const last = thread.messages[thread.messages.length - 1]
+          if (last?.role !== 'assistant' || typeof last.content !== 'string') return {}
+          const msgs = thread.messages.slice()
+          msgs[msgs.length - 1] = { ...last, content: last.content + token }
+          return {
+            threads: { ...s.threads, [threadId]: { ...thread, messages: msgs } },
+          }
+        }),
 
       setLastAssistantContent: (threadId, content) =>
         set((s) =>

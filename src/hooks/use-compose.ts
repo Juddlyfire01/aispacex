@@ -15,22 +15,38 @@ import { buildHistorySnapshot } from '../lib/compose/history-library'
 import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
 
-// Compose chat via non-streaming intel agent: packs a hot-window of local
-// library data, may call intel_* tools, then extracts ```postdraft into the
+// Compose chat via streaming intel agent: packs a hot-window of local library
+// data, may call intel_* / compose_history_* tools (tool rounds stream
+// activity, final answer streams tokens), then extracts ```postdraft into the
 // thread draft and leaves clean prose in the transcript.
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
+  /** Coalesce SSE tokens into one store write per animation frame. */
+  const pendingDeltaRef = useRef('')
+  const deltaRafRef = useRef<number | null>(null)
   const queryClient = useQueryClient()
   const {
     isStreaming,
     ensureActiveThread,
     addMessage,
+    appendToLastAssistant,
     setLastAssistantContent,
     applyDraftPatch,
     setStreaming,
     setToolActivity,
   } = useComposeStore()
+
+  const flushPendingDelta = useCallback((threadId: string) => {
+    if (deltaRafRef.current != null) {
+      cancelAnimationFrame(deltaRafRef.current)
+      deltaRafRef.current = null
+    }
+    const pending = pendingDeltaRef.current
+    if (!pending) return
+    pendingDeltaRef.current = ''
+    useComposeStore.getState().appendToLastAssistant(threadId, pending)
+  }, [])
 
   const send = useCallback(
     async (userMessage: string): Promise<void> => {
@@ -42,9 +58,15 @@ export function useCompose() {
       store.addMessage(threadId, { role: 'user', content: userMessage })
       store.addMessage(threadId, { role: 'assistant', content: '' })
       store.setStreaming(true)
+      pendingDeltaRef.current = ''
+      if (deltaRafRef.current != null) {
+        cancelAnimationFrame(deltaRafRef.current)
+        deltaRafRef.current = null
+      }
 
       const abortController = new AbortController()
       abortRef.current = abortController
+      let clearedToolActivity = false
 
       try {
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
@@ -108,11 +130,37 @@ export function useCompose() {
           scope,
           xSearchOn,
           signal: abortController.signal,
+          onDelta: (token) => {
+            if (!clearedToolActivity) {
+              clearedToolActivity = true
+              useComposeStore.getState().setToolActivity(null)
+            }
+            pendingDeltaRef.current += token
+            if (deltaRafRef.current == null) {
+              deltaRafRef.current = requestAnimationFrame(() => {
+                deltaRafRef.current = null
+                const pending = pendingDeltaRef.current
+                if (!pending) return
+                pendingDeltaRef.current = ''
+                useComposeStore.getState().appendToLastAssistant(threadId, pending)
+              })
+            }
+          },
+          onContentReset: () => {
+            flushPendingDelta(threadId)
+            useComposeStore.getState().setLastAssistantContent(threadId, '')
+            clearedToolActivity = false
+          },
           onTool: ({ name }) => {
+            flushPendingDelta(threadId)
             useComposeStore.getState().setToolActivity(`Library · ${name}`)
+            clearedToolActivity = false
           },
         })
 
+        flushPendingDelta(threadId)
+
+        // Finalize: strip ```postdraft into the draft drawer; keep clean prose in chat.
         const finishedStore = useComposeStore.getState()
         if (content) {
           const { draft, visibleText } = parseDraftBlock(content)
@@ -131,10 +179,12 @@ export function useCompose() {
           finishedStore.setLastAssistantContent(threadId, '')
         }
       } catch (err) {
+        flushPendingDelta(threadId)
         if (err instanceof DOMException && err.name === 'AbortError') return
         const message = err instanceof Error ? err.message : 'Unknown error'
         useComposeStore.getState().setLastAssistantContent(threadId, `[Error: ${message}]`)
       } finally {
+        flushPendingDelta(threadId)
         const s = useComposeStore.getState()
         s.setStreaming(false)
         s.setToolActivity(null)
@@ -142,11 +192,26 @@ export function useCompose() {
       }
     },
     // store actions are stable; active thread read fresh via getState in send
-    [queryClient, ensureActiveThread, addMessage, setLastAssistantContent, applyDraftPatch, setStreaming, setToolActivity],
+    [
+      queryClient,
+      ensureActiveThread,
+      addMessage,
+      appendToLastAssistant,
+      setLastAssistantContent,
+      applyDraftPatch,
+      setStreaming,
+      setToolActivity,
+      flushPendingDelta,
+    ],
   )
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
+    if (deltaRafRef.current != null) {
+      cancelAnimationFrame(deltaRafRef.current)
+      deltaRafRef.current = null
+    }
+    pendingDeltaRef.current = ''
     const s = useComposeStore.getState()
     s.setStreaming(false)
     s.setToolActivity(null)

@@ -1,5 +1,11 @@
 import { venice } from '../venice-client'
-import type { ChatCompletionResponse, ChatMessage, VeniceModel } from '../../types/venice'
+import { parseSSEStream } from '../stream'
+import type {
+  ChatCompletionChunk,
+  ChatMessage,
+  ToolCall,
+  VeniceModel,
+} from '../../types/venice'
 import type { ComposeScope, IntelSnapshot } from '../intel-library/types'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { HistorySnapshot } from './history-library'
@@ -20,6 +26,13 @@ export interface ComposeAgentOpts {
   xSearchOn: boolean
   signal?: AbortSignal
   onTool?: (info: { name: string; args: Record<string, unknown> }) => void
+  /** Fired for each content token as the final (or intermediate) answer streams. */
+  onDelta?: (token: string) => void
+  /**
+   * Fired when a round ends in tool_calls after any content was streamed —
+   * clear the assistant placeholder so tool activity UI can take over.
+   */
+  onContentReset?: () => void
 }
 
 function safeParseArgs(raw: string | undefined): Record<string, unknown> {
@@ -43,10 +56,97 @@ function contentAsString(content: ChatMessage['content']): string {
     .join('\n')
 }
 
+/** Merge OpenAI-style streamed tool_call deltas into complete ToolCall[]. */
+export function accumulateStreamedToolCalls(
+  acc: Map<number, ToolCall>,
+  deltas: NonNullable<ChatCompletionChunk['choices'][0]['delta']['tool_calls']>,
+): void {
+  for (const part of deltas) {
+    const index = part.index ?? 0
+    const existing = acc.get(index)
+    if (!existing) {
+      acc.set(index, {
+        id: part.id ?? `call_${index}`,
+        type: 'function',
+        function: {
+          name: part.function?.name ?? '',
+          arguments: part.function?.arguments ?? '',
+        },
+      })
+      continue
+    }
+    if (part.id) existing.id = part.id
+    if (part.function?.name) {
+      existing.function.name = (existing.function.name || '') + part.function.name
+    }
+    if (part.function?.arguments) {
+      existing.function.arguments += part.function.arguments
+    }
+  }
+}
+
+interface StreamedRound {
+  content: string
+  toolCalls: ToolCall[]
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+}
+
 /**
- * Non-streaming multi-round tool loop for compose.
- * Calls Venice chat/completions with intel + history tools until the model
- * returns text without tool_calls, or MAX_TOOL_ROUNDS is hit.
+ * One streaming chat/completions round with tools enabled.
+ * Accumulates content + tool_calls from SSE deltas; reports content via onDelta.
+ */
+async function streamComposeRound(
+  opts: ComposeAgentOpts,
+  messages: ChatMessage[],
+  tools: typeof COMPOSE_INTEL_TOOLS,
+): Promise<StreamedRound> {
+  const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify({
+      model: opts.model,
+      messages,
+      stream: true,
+      stream_options: { include_usage: true },
+      temperature: 0.6,
+      max_tokens: 4096,
+      tools,
+      tool_choice: 'auto',
+      venice_parameters: { enable_x_search: opts.xSearchOn },
+    }),
+    stream: true,
+    signal: opts.signal,
+  })
+
+  let content = ''
+  const toolAcc = new Map<number, ToolCall>()
+  let usage: StreamedRound['usage']
+
+  for await (const chunk of parseSSEStream(stream, { signal: opts.signal })) {
+    if (chunk.usage) usage = chunk.usage
+    const delta = chunk.choices[0]?.delta
+    if (!delta) continue
+
+    if (delta.content) {
+      content += delta.content
+      opts.onDelta?.(delta.content)
+    }
+    if (delta.tool_calls?.length) {
+      accumulateStreamedToolCalls(toolAcc, delta.tool_calls)
+    }
+  }
+
+  const toolCalls = [...toolAcc.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, call]) => call)
+    .filter((c) => c.id && c.function.name)
+
+  return { content, toolCalls, usage }
+}
+
+/**
+ * Streaming multi-round tool loop for compose.
+ * Streams each Venice round over SSE (content tokens → onDelta). Tool rounds
+ * stay non-visible; only the final answer text is kept for the transcript.
  */
 export async function runComposeAgent(
   opts: ComposeAgentOpts,
@@ -54,45 +154,35 @@ export async function runComposeAgent(
   const messages: ChatMessage[] = [...opts.messages]
   let toolCalls = 0
   const tools = [...COMPOSE_INTEL_TOOLS, ...COMPOSE_HISTORY_TOOLS]
+  let lastContent = ''
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (opts.signal?.aborted) {
       throw new DOMException('Aborted', 'AbortError')
     }
 
-    const resp = await venice<ChatCompletionResponse>('/chat/completions', {
-      method: 'POST',
-      body: JSON.stringify({
-        model: opts.model,
-        messages,
-        temperature: 0.6,
-        max_tokens: 4096,
-        tools,
-        tool_choice: 'auto',
-        venice_parameters: { enable_x_search: opts.xSearchOn },
-      }),
-      signal: opts.signal,
-    })
+    const { content, toolCalls: calls, usage } = await streamComposeRound(
+      opts,
+      messages,
+      tools,
+    )
 
-    // Record Venice spend from response usage × model pricing (session + lifetime).
-    useVeniceCostStore.getState().addUsage(opts.modelSpec, resp.usage)
-
-    const message = resp.choices[0]?.message
-    if (!message) {
-      return { content: '', toolCalls }
-    }
+    useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
 
     const assistantMsg: ChatMessage = {
       role: 'assistant',
-      content: message.content,
-      tool_calls: message.tool_calls,
+      content: content || null,
+      tool_calls: calls.length > 0 ? calls : undefined,
     }
     messages.push(assistantMsg)
+    lastContent = content
 
-    const calls = message.tool_calls ?? []
     if (calls.length === 0) {
-      return { content: contentAsString(message.content).trim(), toolCalls }
+      return { content: content.trim(), toolCalls }
     }
+
+    // Tool round: drop any partial prose from the UI while tools run.
+    if (content) opts.onContentReset?.()
 
     for (const call of calls) {
       if (opts.signal?.aborted) {
@@ -116,7 +206,9 @@ export async function runComposeAgent(
     }
   }
 
-  // Exhausted rounds — return last assistant text if any, else a note.
+  const trimmed = lastContent.trim()
+  if (trimmed) return { content: trimmed, toolCalls }
+
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]!
     if (m.role === 'assistant') {
