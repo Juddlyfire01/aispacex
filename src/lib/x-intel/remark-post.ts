@@ -1,6 +1,6 @@
 import { findAndReplace } from 'mdast-util-find-and-replace'
 import type { Root } from 'mdast'
-import { POST_ID_RE, postHref } from './evidence'
+import { POST_ID_LINKIFY_RE, normalizePostId, postHref } from './evidence'
 
 /**
  * Remark plugin that auto-links bare X snowflake post ids (and `post:<id>`
@@ -21,13 +21,18 @@ export function remarkPost() {
       tree,
       [
         [
-          new RegExp(POST_ID_RE.source, 'g'),
-          (match: string, postId: string) => ({
-            type: 'link' as const,
-            url: postHref(postId),
-            title: null,
-            children: [{ type: 'text' as const, value: match }],
-          }),
+          new RegExp(POST_ID_LINKIFY_RE.source, 'g'),
+          (match: string, rawId: string) => {
+            const postId = normalizePostId(rawId)
+            // Not a real snowflake once commas are stripped — leave text as-is.
+            if (!postId) return false
+            return {
+              type: 'link' as const,
+              url: postHref(postId),
+              title: null,
+              children: [{ type: 'text' as const, value: match }],
+            }
+          },
         ],
       ],
       { ignore: ['link', 'linkReference', 'code', 'inlineCode'] },

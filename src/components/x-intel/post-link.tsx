@@ -38,7 +38,12 @@ export function PostLink({
       label={display}
       title={`Click for post ${postId} options`}
       items={items}
-      className={className}
+      // Mono + underline so snowflake ids read as interactive (not plain digits).
+      className={
+        className
+          ? `font-mono underline decoration-[var(--color-accent)]/35 underline-offset-2 ${className}`
+          : 'font-mono underline decoration-[var(--color-accent)]/35 underline-offset-2'
+      }
     />
   )
 }

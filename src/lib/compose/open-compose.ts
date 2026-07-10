@@ -14,9 +14,12 @@ export function openComposeForTarget(username: string) {
 }
 
 /**
- * Open Post with a new draft pre-targeted as a reply (or quote) to a specific
- * post. Best-effort author resolution: local intel stores → active target →
- * empty handle (user can fill in TargetPicker).
+ * Target the draft as a reply/quote to a specific post.
+ *
+ * When already on the Post tab with an active thread, apply the target to that
+ * draft (preserves the chat + any draft body the agent just wrote). Otherwise
+ * create a new thread. Best-effort author resolution: local intel stores →
+ * active target → empty handle (user can fill in TargetPicker).
  */
 export function openComposeForPost(
   postId: string,
@@ -28,14 +31,27 @@ export function openComposeForPost(
     kind === 'quote'
       ? { kind: 'quote', postId, username }
       : { kind: 'reply', toPostId: postId, toUsername: username }
+
+  const store = useComposeStore.getState()
+  const intel = useXIntelStore.getState()
+  const activeId = store.activeThreadId
+  const alreadyOnPost =
+    intel.activeTopTab === 'post' && activeId != null && Boolean(store.threads[activeId])
+
+  if (alreadyOnPost && activeId) {
+    // Reuse the current chat's draft so agent-written reply body is kept.
+    store.applyDraftPatch(activeId, { target })
+    store.setDraftDrawerOpen(true)
+    return
+  }
+
   const scope = username
     ? ({ type: 'target' as const, username })
-    : useComposeStore.getState().newThreadContext
-  const store = useComposeStore.getState()
+    : store.newThreadContext
   const id = store.createThread(scope, target)
   store.selectThread(id)
   store.setDraftDrawerOpen(true)
-  useXIntelStore.getState().setActiveTopTab('post')
+  intel.setActiveTopTab('post')
 }
 
 /** Look up a post author handle from local self/target intel stores. */

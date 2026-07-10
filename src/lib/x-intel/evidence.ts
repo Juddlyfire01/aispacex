@@ -14,6 +14,23 @@ export function profileUrl(username: string): string {
  */
 export const POST_ID_RE = /\b(?:post:)?(\d{15,20})\b/g
 
+/**
+ * Broader matcher used only for inline auto-linking (remarkPost). Accepts a bare
+ * snowflake OR a thousands-comma-grouped one (e.g. `2,075,587,500,908,333,628`)
+ * so a model that "prettifies" ids still gets a clickable link. Callers must run
+ * the capture through {@link normalizePostId} to strip commas and validate width.
+ */
+export const POST_ID_LINKIFY_RE = /\b(?:post:)?(\d{1,3}(?:,\d{3})+|\d{15,20})\b/g
+
+/**
+ * Normalize a raw post-id match (possibly comma-grouped) to bare digits, or null
+ * if it isn't a plausible 15–20 digit snowflake once separators are removed.
+ */
+export function normalizePostId(raw: string): string | null {
+  const digits = raw.replace(/,/g, '')
+  return digits.length >= 15 && digits.length <= 20 ? digits : null
+}
+
 /** Sentinel URL scheme for a post id inside a markdown link node. Stripped by
  *  the URL sanitiser, so it never leaks into a real anchor href. */
 export const POST_SCHEME = 'x-post:'
@@ -27,6 +44,45 @@ export function postHref(postId: string): string {
 export function postIdFromHref(href: string | undefined): string | null {
   if (!href || !href.startsWith(POST_SCHEME)) return null
   return href.slice(POST_SCHEME.length)
+}
+
+/**
+ * Extract a snowflake post id from an x.com / twitter.com status URL.
+ * Covers `/i/status/<id>` and `/@user/status/<id>` forms (with optional query).
+ */
+export function postIdFromStatusUrl(href: string | undefined): string | null {
+  if (!href) return null
+  try {
+    const u = new URL(href)
+    const host = u.hostname.replace(/^www\./, '').toLowerCase()
+    if (!isStatusHost(host)) return null
+    const m = u.pathname.match(/\/(?:i\/status|[^/]+\/status)\/(\d{15,20})(?:\/|$)/)
+    return m?.[1] ?? null
+  } catch {
+    // Relative or non-URL strings — try a loose path match.
+    const m = href.match(
+      /(?:x|twitter|fxtwitter|fixupx|vxtwitter|nitter)\.[^/\s]+\/(?:i\/status|[^/\s]+\/status)\/(\d{15,20})/i,
+    )
+    return m?.[1] ?? null
+  }
+}
+
+/**
+ * Hosts we treat as X status permalinks: canonical X/Twitter plus the common
+ * embed-fixer and Nitter mirrors the model may cite. Any `nitter.*` host counts.
+ */
+function isStatusHost(host: string): boolean {
+  if (
+    host === 'x.com' ||
+    host === 'twitter.com' ||
+    host === 'mobile.twitter.com' ||
+    host === 'fxtwitter.com' ||
+    host === 'fixupx.com' ||
+    host === 'vxtwitter.com'
+  ) {
+    return true
+  }
+  return host === 'nitter.net' || host.startsWith('nitter.')
 }
 
 /**

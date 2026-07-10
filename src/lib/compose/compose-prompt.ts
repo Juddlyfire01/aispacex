@@ -65,7 +65,8 @@ Purpose:
 
 Style:
 - Direct, evidence-first, non-sycophantic. Prefer citing handles, post ids, dates, and metrics from tools or the hot window over vibes.
-- If evidence is missing, say what is missing. Do not invent posts, metrics, or quotes.`,
+- If evidence is missing, say what is missing. Do not invent posts, metrics, or quotes.
+- When citing a post id, write it as bare digits (optionally prefixed with \`post:\`), e.g. post:2075587500908333628 — no backticks/code formatting, no thousands separators (commas), no truncation. This lets the UI turn it into a clickable link. Handles stay as @username.`,
   ]
 
   if (opts.xSearchOn) {

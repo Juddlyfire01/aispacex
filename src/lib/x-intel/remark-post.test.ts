@@ -49,6 +49,16 @@ describe('remarkPost via react-markdown', () => {
     expect(html).toContain('data-post="2072424262422663246"')
   })
 
+  it('links comma-grouped snowflake ids (model "prettified" them)', () => {
+    const html = render('see 2,075,587,500,908,333,628 for reach')
+    expect(html).toContain('data-post="2075587500908333628"')
+  })
+
+  it('does not link ordinary comma-grouped numbers', () => {
+    const html = render('reduced from 1,200,000 to 900,000 users')
+    expect(html).not.toContain('data-post')
+  })
+
   it('links slash-separated mentions and nearby post ids', () => {
     const html = render(
       'critics like @Crypdjo/@AlgodTrading — see 2073269941021929793',

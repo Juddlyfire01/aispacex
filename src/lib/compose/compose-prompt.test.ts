@@ -14,6 +14,9 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/postdraft/)
     expect(system).toMatch(/segments/)
     expect(system).toMatch(/Do not offer to draft/i)
+    // Ids must be emitted as bare digits so the UI can auto-link them.
+    expect(system).toMatch(/bare digits/i)
+    expect(system).toMatch(/no thousands separators/i)
   })
 
   it('falls back when model id is blank', () => {

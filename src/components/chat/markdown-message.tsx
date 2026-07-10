@@ -6,7 +6,7 @@ import { remarkMention } from '../../lib/x-intel/remark-mention'
 import { remarkPost } from '../../lib/x-intel/remark-post'
 import { ETH_IDENTITY_SCHEME, identityFromHref } from '../../lib/x-intel/etherscan'
 import { MENTION_SCHEME, usernameFromHref } from '../../lib/x-intel/mention'
-import { POST_SCHEME, postIdFromHref } from '../../lib/x-intel/evidence'
+import { POST_SCHEME, postIdFromHref, postIdFromStatusUrl, normalizePostId } from '../../lib/x-intel/evidence'
 import { EthAddressLink } from '../x-intel/eth-address-link'
 import { MentionLink } from '../x-intel/mention-link'
 import { PostLink } from '../x-intel/post-link'
@@ -45,6 +45,13 @@ function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'
   const [codeCopied, setCodeCopied] = useState(false)
 
   if (!className && !String(children).includes('\n')) {
+    // A model that monospaces a lone post id (`2075…`) or status URL would
+    // otherwise defeat auto-linking, since remarkPost skips inlineCode. Detect
+    // that single-token case and swap in the interactive PostLink instead.
+    const inlineText = String(children).trim()
+    const inlinePostId =
+      normalizePostId(inlineText.replace(/^post:/, '')) ?? postIdFromStatusUrl(inlineText)
+    if (inlinePostId) return <PostLink postId={inlinePostId} />
     return <code className={className} {...props}>{children}</code>
   }
 
@@ -91,7 +98,9 @@ export function MarkdownMessage({ content, size = 'full', className, canAddTarge
             if (identity) return <EthAddressLink identity={identity} />
             const username = usernameFromHref(href)
             if (username) return <MentionLink username={username} canAddTarget={canAddTarget} />
-            const postId = postIdFromHref(href)
+            // Bare snowflake ids (via remarkPost sentinel) and full status URLs
+            // both become the interactive post popover (Open in X / Add to draft).
+            const postId = postIdFromHref(href) ?? postIdFromStatusUrl(href)
             if (postId) return <PostLink postId={postId} label={children} />
             return (
               <a {...props} href={href} target="_blank" rel="noopener noreferrer ugc">
