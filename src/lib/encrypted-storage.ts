@@ -64,7 +64,10 @@ function enqueueWrite(name: string, value: string): Promise<void> {
   const existing = writeLoops.get(name)
   if (existing) return existing
 
-  const loop = (async () => {
+  // Declare first so the async body can compare identity in `finally`
+  // without TS2454 (used before assigned).
+  let loop!: Promise<void>
+  loop = (async () => {
     try {
       while (pendingValues.has(name)) {
         const next = pendingValues.get(name)
