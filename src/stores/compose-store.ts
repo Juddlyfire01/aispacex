@@ -22,7 +22,7 @@ export type XSearchMode = 'off' | 'auto' | 'on'
 
 /** Legacy session shape (persist versions < 4). */
 interface LegacyComposeSession {
-  messages: ChatMessage[]
+  messages: ComposeMessage[]
   draft: PostDraft
 }
 
