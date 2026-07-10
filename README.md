@@ -24,20 +24,32 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. If you're running in bring-your-own-key mode, connect your [Venice API key](https://venice.ai/settings/api) from the header.
+That single command starts:
+
+| Process | Port | Role |
+|---------|------|------|
+| **Vite** (UI) | **5173** | App + localStorage (your intel profiles) |
+| **vercel dev** (API) | **3000** | Serverless `/api` (proxied through Vite) |
+
+Open **http://localhost:5173**.
+
+If you're running in bring-your-own-key mode, connect your [Venice API key](https://venice.ai/settings/api) from the header.
+
+| Script | What it runs |
+|--------|----------------|
+| `npm run dev` | UI + API (recommended) |
+| `npm run dev:web` | Vite only |
+| `npm run dev:api` | API only |
 
 ### X OAuth (Intel → Connect X)
 
-Intel's X login uses server-side OAuth and HttpOnly cookies. It does **not** work with plain `npm run dev` alone — you need the `/api` serverless routes. See **[docs/x-oauth-dev.md](docs/x-oauth-dev.md)** for local setup, Vercel previews, and callback registration.
+Intel's X login uses server-side OAuth and HttpOnly cookies. With `npm run dev`, open **http://localhost:5173** and register this callback in the [X developer portal](https://developer.x.com):
 
-Quick local start:
-
-```bash
-vercel dev   # terminal 1 — API
-# terminal 2: VITE_API_TARGET=http://localhost:3000 npm run dev
+```text
+http://localhost:5173/api/x/oauth/callback
 ```
 
-Register `http://localhost:5173/api/x/oauth/callback` in the [X developer portal](https://developer.x.com).
+See **[docs/x-oauth-dev.md](docs/x-oauth-dev.md)** for previews, production callbacks, and debugging.
 
 Production callback (after deploy):
 

@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
   // the client bundle.
   const env = loadEnv(mode, process.cwd(), '')
   const veniceKey = env.VENICE_API_KEY
+  // `npm run dev` runs Vite on :5173 and vercel dev on :3000. Vite proxies /api
+  // here by default so OAuth + data stay on the 5173 origin. Override with
+  // VITE_API_TARGET, or set "off" to disable (VeniceStats uses a direct proxy).
+  const rawApiTarget = process.env.VITE_API_TARGET ?? env.VITE_API_TARGET ?? 'http://localhost:3000'
+  const apiTarget = rawApiTarget === 'off' || rawApiTarget === '' ? null : rawApiTarget
 
   return {
     plugins: [react(), tailwindcss()],
@@ -32,10 +37,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/xapi/, ''),
         },
-        // VeniceStats: when not using vercel dev, proxy API routes straight to
-        // venicestats.com. With VITE_API_TARGET the catch-all /api rule below
-        // forwards to vercel dev instead (which runs api/venicestats/proxy.ts).
-        ...(process.env.VITE_API_TARGET
+        // VeniceStats: when not proxying /api to vercel dev, hit venicestats.com
+        // directly. With apiTarget set, the catch-all /api rule below handles it.
+        ...(apiTarget
           ? {}
           : {
               '/api/venicestats': {
@@ -50,14 +54,11 @@ export default defineConfig(({ mode }) => {
                 },
               },
             }),
-        // Serverless OAuth endpoints (api/x/oauth/*, api/x/proxy/*) don't run under
-        // plain `vite`. Run them with `vercel dev` (default :3000) and start Vite
-        // with VITE_API_TARGET=http://localhost:3000 so /api forwards there. When
-        // the var is unset this proxy entry is inert and /api simply 404s in dev.
-        ...(process.env.VITE_API_TARGET
+        // Forward /api/* to vercel dev (OAuth, X session/proxy, news, etc.).
+        ...(apiTarget
           ? {
               '/api': {
-                target: process.env.VITE_API_TARGET,
+                target: apiTarget,
                 // Keep the browser Host (e.g. localhost:5173) so OAuth derives the
                 // correct redirect_uri and sets cookies on the UI origin.
                 changeOrigin: false,
