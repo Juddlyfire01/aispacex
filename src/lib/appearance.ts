@@ -1,7 +1,12 @@
 export const SCALE_STEPS = [90, 100, 110, 125] as const
 export type Scale = (typeof SCALE_STEPS)[number]
 
-export const FONT_SCALE_MAP = { sm: 0.9, md: 1, lg: 1.12 } as const
+/**
+ * Font size multipliers applied on top of interface scale.
+ * Medium is the product default and is tuned to be ≥ X’s default post body
+ * (~15–16px): body 15×1.1 = 16.5px, prose 15.5×1.1 ≈ 17px.
+ */
+export const FONT_SCALE_MAP = { sm: 0.95, md: 1.1, lg: 1.25 } as const
 export type FontScale = keyof typeof FONT_SCALE_MAP
 
 export const DENSITY_SPACE_MAP = { compact: 0.82, comfortable: 1 } as const

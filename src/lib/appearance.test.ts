@@ -9,6 +9,7 @@ import {
   resolveTypeface,
   TYPEFACE_STACKS,
   DEFAULT_TYPEFACE,
+  FONT_SCALE_MAP,
 } from './appearance'
 
 describe('appearance', () => {
@@ -70,10 +71,18 @@ describe('appearance', () => {
 
     applyAppearanceToHtml(el, { zoom: 110, fontScale: 'lg', density: 'compact', typeface: 'x' })
     expect(style.get('--ui-scale')).toBe(String(1.1))
-    expect(style.get('--font-scale')).toBe('1.12')
+    expect(style.get('--font-scale')).toBe('1.25')
     expect(style.get('--density-space')).toBe('0.82')
     expect(style.get('--font-sans')).toBe(TYPEFACE_STACKS.x.sans)
     expect(style.get('--font-mono')).toBe(TYPEFACE_STACKS.x.mono)
     expect((el as HTMLElement).dataset.typeface).toBe('x')
+  })
+
+  it('Medium font scale is at or above X default body sizing', () => {
+    // X default post body ≈ 15–16px. Medium multiplies base 15px by 1.1 → 16.5px.
+    expect(FONT_SCALE_MAP.md).toBeGreaterThanOrEqual(1.1)
+    expect(15 * FONT_SCALE_MAP.md).toBeGreaterThanOrEqual(16)
+    expect(FONT_SCALE_MAP.sm).toBeLessThan(FONT_SCALE_MAP.md)
+    expect(FONT_SCALE_MAP.md).toBeLessThan(FONT_SCALE_MAP.lg)
   })
 })

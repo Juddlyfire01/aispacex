@@ -49,10 +49,10 @@
       html.style.setProperty('--ui-scale', String(Number(scale) / 100 || 1))
       html.style.removeProperty('zoom')
 
-      var fontScale = { sm: 0.9, md: 1, lg: 1.12 }
-      if (s.fontScale && fontScale[s.fontScale]) {
-        html.style.setProperty('--font-scale', String(fontScale[s.fontScale]))
-      }
+      // Keep in sync with FONT_SCALE_MAP in src/lib/appearance.ts
+      var fontScale = { sm: 0.95, md: 1.1, lg: 1.25 }
+      var fontKey = s.fontScale && fontScale[s.fontScale] ? s.fontScale : 'md'
+      html.style.setProperty('--font-scale', String(fontScale[fontKey]))
 
       var densitySpace = s.density === 'compact' ? 0.82 : 1
       html.style.setProperty('--density-space', String(densitySpace))

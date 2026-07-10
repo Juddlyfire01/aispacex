@@ -87,7 +87,7 @@ export function DisplaySection() {
       <div>
         <Label>Font size</Label>
         <p className="text-[11px] text-[var(--color-text-tertiary)] -mt-1 mb-2">
-          Adjusts text size on top of interface scale.
+          Adjusts text size on top of interface scale. Medium matches or exceeds X&apos;s default.
         </p>
         <PillGroup
           ariaLabel="Font size"

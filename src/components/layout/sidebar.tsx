@@ -267,15 +267,30 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
       <div className={RAIL_FOOTER_CLASS}>
         <button
           type="button"
-          onClick={() => { useSettingsStore.getState().openSettings(); onMobileClose?.() }}
-          aria-label="Open settings"
+          onClick={() => {
+            const store = useSettingsStore.getState()
+            if (store.activeTab === 'settings') {
+              store.closeSettings()
+            } else {
+              store.openSettings()
+              onMobileClose?.()
+            }
+          }}
+          aria-label={activeTab === 'settings' ? 'Close settings' : 'Open settings'}
+          aria-pressed={activeTab === 'settings'}
           title="Settings"
           className={cn(
             RAIL_FOOTER_ROW_CLASS,
-            'flex-row items-center rounded-lg text-[14px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
+            'relative flex-row items-center rounded-lg text-[14px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
             expanded ? 'gap-2.5 w-full' : 'md:justify-center w-full',
+            activeTab === 'settings'
+              ? 'text-[var(--color-text-primary)]'
+              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03]',
           )}
         >
+          {activeTab === 'settings' && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full bg-[var(--color-accent)]" />
+          )}
           <SettingsIcon />
           {expanded && <span className="font-medium">Settings</span>}
         </button>
