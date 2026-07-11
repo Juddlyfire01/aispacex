@@ -1,5 +1,5 @@
 import { useBuzzMetrics, useSocial } from '../../hooks/use-venicestats'
-import { ViewLoadingFallback, LoadingState } from '../ui/spinner'
+import { ViewLoadingFallback, LoadingState, VIEW_LOADING_LABEL } from '../ui/spinner'
 import { StatsSection } from '../x-intel/stats/stats-ui'
 import { PulseStrip, MoodBadge, computePulse } from './pulse-strip'
 import { MomentumChart } from './momentum-chart'
@@ -14,8 +14,10 @@ export function SignalView() {
   const metrics = useBuzzMetrics(52)
   const social = useSocial()
 
-  if (metrics.isLoading) {
-    return <ViewLoadingFallback label="Loading signal…" />
+  // Keep the same labeled shell as Suspense until primary data is ready
+  // (isPending covers first fetch; isLoading alone can drop early).
+  if (metrics.isPending) {
+    return <ViewLoadingFallback label={VIEW_LOADING_LABEL.signal} />
   }
 
   if (metrics.isError || !metrics.data) {
@@ -58,8 +60,8 @@ export function SignalView() {
           </StatsSection>
 
           <StatsSection title="Sentiment" href={VENICESTATS_HOME}>
-            {social.isLoading ? (
-              <LoadingState className="h-32" />
+            {social.isPending ? (
+              <LoadingState className="h-32" label="Loading…" size="sm" />
             ) : social.data ? (
               <SentimentGauges social={social.data} />
             ) : (

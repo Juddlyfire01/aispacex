@@ -4,7 +4,7 @@ import { useNewsStore } from '../../stores/news-store'
 import { NEWS_CATEGORIES } from '../../lib/news/feeds'
 import type { NewsCategory, NewsItem } from '../../lib/news/types'
 import { relTime } from '../../lib/venicestats/format'
-import { ViewLoadingFallback } from '../ui/spinner'
+import { ViewLoadingFallback, VIEW_LOADING_LABEL } from '../ui/spinner'
 import { StatsSection } from '../x-intel/stats/stats-ui'
 import { CategoryRail } from './category-rail'
 import { LatestStrip } from './latest-strip'
@@ -35,6 +35,11 @@ export function NewsView() {
 
   const updated = news.dataUpdatedAt ? relTime(new Date(news.dataUpdatedAt).toISOString()) : ''
 
+  // Same full-main shell as Suspense / Signal / Stats — never nest inside page chrome.
+  if (enabledFeedIds.length > 0 && news.isPending) {
+    return <ViewLoadingFallback label={VIEW_LOADING_LABEL.news} />
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-6 w-full">
@@ -43,10 +48,6 @@ export function NewsView() {
             <p className="text-[13px] text-[var(--color-text-secondary)] max-w-sm">
               No sources enabled. Open the <span className="text-[var(--color-text-primary)]">Sources</span> panel and enable a few feeds to start reading.
             </p>
-          </div>
-        ) : news.isLoading ? (
-          <div className="flex flex-1 items-center justify-center min-h-[40vh]">
-            <ViewLoadingFallback label="Loading news…" className="h-auto" />
           </div>
         ) : news.isError ? (
           <div className="flex flex-1 items-center justify-center min-h-[40vh] px-6 text-center">

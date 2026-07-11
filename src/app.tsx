@@ -20,7 +20,7 @@ import { primeXOAuthReturnShell } from './lib/x-intel/self-orchestrate'
 import { isXOAuthReturnPending } from './lib/x-intel/self-client'
 import { useXSelfStore } from './stores/x-self-store'
 
-import { ViewLoadingFallback } from './components/ui/spinner'
+import { ViewLoadingFallback, VIEW_LOADING_LABEL } from './components/ui/spinner'
 import { XConnectFlow } from './components/x-intel/x-connect-flow'
 
 // Before first React paint: pin Intel + connecting when returning from X OAuth
@@ -29,12 +29,20 @@ primeXOAuthReturnShell()
 
 const LazyWorkflowsView = lazy(() => import('./components/workflows/workflows-view').then((m) => ({ default: m.WorkflowsView })))
 function WorkflowsView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading workflows…" />}><LazyWorkflowsView /></Suspense>
+  return (
+    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.workflows} />}>
+      <LazyWorkflowsView />
+    </Suspense>
+  )
 }
 
 const LazyPlaygroundView = lazy(() => import('./components/playground/playground-view').then((m) => ({ default: m.PlaygroundView })))
 function PlaygroundView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading playground…" />}><LazyPlaygroundView /></Suspense>
+  return (
+    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.playground} />}>
+      <LazyPlaygroundView />
+    </Suspense>
+  )
 }
 
 const LazyIntelView = lazy(() => import('./components/x-intel/intel-view').then((m) => ({ default: m.IntelView })))
@@ -44,23 +52,39 @@ function IntelView() {
   const oauthReturn = connecting || isXOAuthReturnPending()
   const fallback = oauthReturn
     ? <XConnectFlow phase="authorizing" />
-    : <ViewLoadingFallback label="Loading intel…" />
-  return <Suspense fallback={fallback}><LazyIntelView /></Suspense>
+    : <ViewLoadingFallback label={VIEW_LOADING_LABEL.intel} />
+  return (
+    <Suspense fallback={fallback}>
+      <LazyIntelView />
+    </Suspense>
+  )
 }
 
 const LazyStatsView = lazy(() => import('./components/stats/stats-view').then((m) => ({ default: m.StatsView })))
 function StatsView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading stats…" />}><LazyStatsView /></Suspense>
+  return (
+    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.stats} />}>
+      <LazyStatsView />
+    </Suspense>
+  )
 }
 
 const LazySignalView = lazy(() => import('./components/signal/signal-view').then((m) => ({ default: m.SignalView })))
 function SignalView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading signal…" />}><LazySignalView /></Suspense>
+  return (
+    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.signal} />}>
+      <LazySignalView />
+    </Suspense>
+  )
 }
 
 const LazyNewsView = lazy(() => import('./components/news/news-view').then((m) => ({ default: m.NewsView })))
 function NewsView() {
-  return <Suspense fallback={<ViewLoadingFallback label="Loading news…" />}><LazyNewsView /></Suspense>
+  return (
+    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.news} />}>
+      <LazyNewsView />
+    </Suspense>
+  )
 }
 
 const views = {
@@ -137,7 +161,9 @@ export function App() {
         />
         <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <ErrorBoundary key={activeTab}>
-            <ActiveView />
+            <div className="flex flex-col flex-1 min-h-0 h-full">
+              <ActiveView />
+            </div>
           </ErrorBoundary>
         </main>
       </div>

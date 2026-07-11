@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useVeniceCharts, useVeniceMetrics } from '../../../hooks/use-venicestats'
 import type { VeniceChartPeriod, VeniceMetrics } from '../../../lib/venicestats/types'
 import { fmtPct, fmtRatio, fmtToken, fmtUnitUsd, fmtUsd, fmtChartAxis, relUpdated } from '../../../lib/venicestats/format'
-import { LoadingState, ViewLoadingFallback } from '../../ui/spinner'
+import { LoadingState, ViewLoadingFallback, VIEW_LOADING_LABEL } from '../../ui/spinner'
 import { ChartCard, KpiCard, LineChart, monthlyBurnChartSeries, normalizeChartSeries, PeriodPicker, StatsSection } from './stats-ui'
 
 const VENICESTATS_HOME = 'https://venicestats.com'
@@ -50,8 +50,8 @@ function VvvSection({
         />
       </div>
       <ChartCard title="VVV Price (USD)" tip="Historical VVV spot price over the selected time range.">
-        {charts.isLoading ? (
-          <LoadingState className="h-[140px]" />
+        {charts.isPending ? (
+          <LoadingState className="h-[140px]" label="Loading…" size="sm" />
         ) : (
           <LineChart data={charts.data?.vvvPrice ?? []} formatY={(n, range) => fmtChartAxis(n, { prefix: '$', range })} />
         )}
@@ -89,8 +89,8 @@ function DiemSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPerio
         <KpiCard label="Remaining mintable" value={fmtToken(m.remainingMintable, 'DIEM', 2)} tip="DIEM that can still be minted before the protocol supply cap is reached." />
       </div>
       <ChartCard title="DIEM Price (USD)" tip="Historical DIEM secondary-market price over the selected time range.">
-        {charts.isLoading ? (
-          <LoadingState className="h-[140px]" />
+        {charts.isPending ? (
+          <LoadingState className="h-[140px]" label="Loading…" size="sm" />
         ) : (
           <LineChart data={charts.data?.diemPrice ?? []} color="#60a5fa" formatY={(n, range) => fmtChartAxis(n, { prefix: '$', range })} />
         )}
@@ -137,15 +137,15 @@ function StakingSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPe
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         <ChartCard title="Staking Ratio" tip="Share of circulating VVV held as sVVV over time.">
-          {charts.isLoading ? (
-            <LoadingState className="h-[140px]" />
+          {charts.isPending ? (
+            <LoadingState className="h-[140px]" label="Loading…" size="sm" />
           ) : (
             <LineChart data={charts.data?.stakingRatio ?? []} color="#34d399" formatY={(n, range) => fmtChartAxis(n, { pct: true, range })} />
           )}
         </ChartCard>
         <ChartCard title="Total Staked (sVVV)" tip="Total sVVV supply staked on-chain over time.">
-          {charts.isLoading ? (
-            <LoadingState className="h-[140px]" />
+          {charts.isPending ? (
+            <LoadingState className="h-[140px]" label="Loading…" size="sm" />
           ) : (
             <LineChart data={charts.data?.totalStaked ?? []} color="#34d399" formatY={(n, range) => fmtChartAxis(n, { range })} />
           )}
@@ -190,15 +190,15 @@ function BurnsSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPeri
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         <ChartCard title="Pro Sub Burns (daily)" tip="Daily USD spent on Pro subscription VVV buybacks.">
-          {charts.isLoading ? (
-            <LoadingState className="h-[140px]" />
+          {charts.isPending ? (
+            <LoadingState className="h-[140px]" label="Loading…" size="sm" />
           ) : (
             <LineChart data={normalizeChartSeries(charts.data?.burns, 'programmaticUsd')} color="#f97316" formatY={(n, range) => fmtChartAxis(n, { prefix: '$', range })} />
           )}
         </ChartCard>
         <ChartCard title="Monthly Buy-and-Burn (USD)" tip="Completed monthly discretionary buy-and-burn spend in USD. Current month omitted until the burn executes.">
-          {monthlyCharts.isLoading ? (
-            <LoadingState className="h-[140px]" />
+          {monthlyCharts.isPending ? (
+            <LoadingState className="h-[140px]" label="Loading…" size="sm" />
           ) : (
             <LineChart data={monthlyBurnChartSeries(monthlyCharts.data?.burnsMonthly, period)} color="#ef4444" formatY={(n, range) => fmtChartAxis(n, { prefix: '$', range })} />
           )}
@@ -211,9 +211,14 @@ function BurnsSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPeri
 export function ProtocolStatsView() {
   const [period, setPeriod] = useState<VeniceChartPeriod>('30d')
   const metrics = useVeniceMetrics()
+  const charts = useVeniceCharts(period)
+  // First navigation only: keep Suspense’s labeled shell until metrics + charts
+  // both resolve. Later period changes keep the page mounted (section spinners).
+  const initialReady = useRef(false)
+  if (!metrics.isPending && !charts.isPending) initialReady.current = true
 
-  if (metrics.isLoading) {
-    return <ViewLoadingFallback label="Loading stats…" />
+  if (!initialReady.current && (metrics.isPending || charts.isPending)) {
+    return <ViewLoadingFallback label={VIEW_LOADING_LABEL.stats} />
   }
 
   if (metrics.isError || !metrics.data) {

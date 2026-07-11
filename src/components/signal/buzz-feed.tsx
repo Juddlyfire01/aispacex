@@ -115,8 +115,8 @@ export function BuzzFeed() {
       </div>
 
       <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] divide-y divide-[var(--color-border-faint)] overflow-hidden">
-        {buzz.isLoading ? (
-          <LoadingState className="h-32" />
+        {buzz.isPending ? (
+          <LoadingState className="h-32" label="Loading…" size="sm" />
         ) : buzz.isError ? (
           <div className="flex items-center justify-center h-24 text-[11px] text-[var(--color-text-secondary)]">
             Could not load the buzz feed

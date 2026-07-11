@@ -9,6 +9,16 @@ const SPINNER_SIZES = {
 
 export type SpinnerSize = keyof typeof SPINNER_SIZES
 
+/** Shared copy for Suspense + in-view data gates so the label never changes mid-load. */
+export const VIEW_LOADING_LABEL = {
+  workflows: 'Loading workflows…',
+  playground: 'Loading playground…',
+  intel: 'Loading intel…',
+  stats: 'Loading stats…',
+  signal: 'Loading signal…',
+  news: 'Loading news…',
+} as const
+
 export function Spinner({ className, size = 'sm' }: { className?: string; size?: SpinnerSize }) {
   return (
     <svg
@@ -40,30 +50,44 @@ export function LoadingState({
       className={cn('flex flex-col items-center justify-center gap-2', className)}
       role="status"
       aria-live="polite"
+      aria-busy="true"
       aria-label={label}
     >
       <Spinner size={size} />
       {label ? (
-        <span className={cn('text-[13px] text-[var(--color-text-secondary)]', labelClassName)}>{label}</span>
+        <span
+          className={cn(
+            'text-[13px] text-[var(--color-text-secondary)] shrink-0',
+            labelClassName,
+          )}
+        >
+          {label}
+        </span>
       ) : null}
     </div>
   )
 }
 
-/** Full-view Suspense / initial-data fallback — spinner + short label. */
-export function ViewLoadingFallback({
-  label,
-  className,
-}: {
-  label: string
-  className?: string
-}) {
+/**
+ * Full-main loading shell — same absolute center on every top-level page.
+ * Use for Suspense fallbacks and in-view data gates so spinner + label never jump.
+ */
+export function ViewLoadingFallback({ label }: { label: string }) {
   return (
-    <LoadingState
-      className={cn('h-full', className)}
-      label={label}
-      size="md"
-      labelClassName="text-[12px] text-[var(--color-text-tertiary)]"
-    />
+    <div
+      className="flex flex-1 min-h-0 h-full w-full flex-col items-center justify-center"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={label}
+    >
+      {/* Fixed stack geometry: md spinner + 12px label + gap-2 — identical on every page */}
+      <div className="flex flex-col items-center gap-2">
+        <Spinner size="md" />
+        <span className="text-[12px] leading-5 text-[var(--color-text-secondary)] text-center min-h-5">
+          {label}
+        </span>
+      </div>
+    </div>
   )
 }
