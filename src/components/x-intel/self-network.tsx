@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
-import { refreshSelfPosts, refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
+import { refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
 import { runGather } from '../../lib/x-intel/orchestrate'
 import { NetworkGraphInner, collectSiblings } from './network-graph'
 
@@ -13,21 +13,21 @@ export function SelfNetwork() {
   const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
   const connected = useXSelfStore((s) => s.connected)
   const addTarget = useXIntelStore((s) => s.addTarget)
-  const [refreshing, setRefreshing] = useState<null | 'posts' | 'mentions'>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
   const profileId = account?.profile?.id ?? null
   const siblings = useMemo(() => collectSiblings(profileId), [profileId])
 
-  const runRefresh = async (mode: 'posts' | 'mentions') => {
-    setRefreshing(mode)
+  const runRefresh = async () => {
+    setRefreshing(true)
     setRefreshError(null)
     try {
-      await (mode === 'mentions' ? refreshSelfNetwork() : refreshSelfPosts())
+      await refreshSelfNetwork()
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {
-      setRefreshing(null)
+      setRefreshing(false)
     }
   }
 

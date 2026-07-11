@@ -98,8 +98,8 @@ export async function refreshProfile(username: string): Promise<void> {
 
 /**
  * Refresh the target's posts (incremental when we already hold posts), then
- * re-derive network edges from the merged set. Backs both the Feed section
- * and the Network section's base refresh.
+ * re-derive network edges from the merged set. Backs the Feed section refresh
+ * (timeline only — inbound mentions are pulled by `refreshNetwork`).
  */
 export async function refreshPosts(username: string): Promise<void> {
   const { updateReport, addCost } = useXIntelStore.getState()
@@ -132,12 +132,11 @@ export async function refreshPosts(username: string): Promise<void> {
 }
 
 /**
- * Enrich the network with inbound engagement: who is mentioning the target.
- * Uses the (previously unwired) mentions endpoint, merges the returned posts
- * into the store, and re-derives edges so the graph reflects both outbound
- * (target → others) and inbound (others → target) activity.
+ * Network tab refresh: outbound timeline (incremental) + inbound mentions in
+ * parallel — same pair as the initial `runGather`, so one Refresh covers both
+ * Outbound and Inbound views. Mentions failures are non-fatal (timeline still lands).
  */
-export async function refreshNetworkWithMentions(username: string): Promise<void> {
+export async function refreshNetwork(username: string): Promise<void> {
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
@@ -151,13 +150,24 @@ export async function refreshNetworkWithMentions(username: string): Promise<void
     profileId = profileResult.data.id
   }
 
-  const mentionsResult = await gatherMentions(profileId, auth)
+  const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
+  const sinceId = maxOwnPostId(profileId, existingPosts)
+  const [postsResult, mentionsResult] = await Promise.all([
+    gatherPosts(profileId, auth, { sinceId }),
+    gatherMentions(profileId, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
+  ])
+  addCost(key, postsResult.cost)
   addCost(key, mentionsResult.cost)
 
-  const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
-  const merged = mergePosts(existingPosts, mentionsResult.data)
+  const latestPosts = useXIntelStore.getState().reports[key]?.posts ?? existingPosts
+  const merged = mergePosts(mergePosts(latestPosts, postsResult.data), mentionsResult.data)
   const edges = deriveEdges(profileId, merged)
   updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'network', 'feed') })
+}
+
+/** @deprecated Use `refreshNetwork` — mentions are included in Network Refresh. */
+export async function refreshNetworkWithMentions(username: string): Promise<void> {
+  return refreshNetwork(username)
 }
 
 /**

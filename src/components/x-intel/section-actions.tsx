@@ -40,7 +40,7 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
   lastGatheredIso?: string
   error?: string | null
   label?: string
-  /** `compact` = stacked, right-aligned (feed/network). `bar` = full-width row (profile card). */
+  /** `compact` = status left of button (feed/network). `bar` = full-width row (profile card). */
   layout?: 'compact' | 'bar'
 }) {
   const statusText = busy ? 'Updating…' : `Updated ${relativeTime(lastGatheredIso)}`
@@ -69,11 +69,11 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
   }
 
   return (
-    <div className="flex flex-col items-end gap-0.5 shrink-0">
-      {btn}
+    <div className="flex items-center gap-2 shrink-0">
       {error
         ? <span className="text-[9px] text-red-400/70">{error}</span>
         : <span className="text-[9px] text-white/20 font-mono">{statusTextCompact}</span>}
+      {btn}
     </div>
   )
 }

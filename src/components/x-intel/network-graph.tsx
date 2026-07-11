@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { runGather, refreshPosts, refreshNetworkWithMentions } from '../../lib/x-intel/orchestrate'
+import { runGather, refreshNetwork } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
 import { type EdgeKind, type SiblingSubject } from '../../lib/x-intel/network-build'
@@ -50,12 +50,12 @@ export interface NetworkGraphInnerProps {
   subjectLabel: string
   connected: boolean
   canGather: boolean
-  refreshing: null | 'posts' | 'mentions'
+  refreshing: boolean
   refreshError: string | null
-  onRefresh: (mode: 'posts' | 'mentions') => void
+  onRefresh: () => void
   /** Called when a node is clicked; the inner graph handles the confirm/UX. */
   onAddTarget?: (username: string) => void
-  /** Whether to offer "+ Mentions" / "Add as target" affordances. */
+  /** Whether to offer "Add as target" affordances. */
   canAddTargets: boolean
   lastGatheredIso?: string
 }
@@ -90,16 +90,13 @@ export function NetworkGraphInner({
       <SectionEmpty
         title="No network gathered yet"
         hint={canGather
-          ? `Build ${subjectLabel}'s graph from their posts, or pull who's mentioning them.`
+          ? `Build ${subjectLabel}'s graph from their posts (inbound mentions are included).`
           : 'Connect your X account first (header → Connect X).'}
-        actionLabel="Gather from posts"
-        onAction={() => onRefresh('posts')}
-        busy={refreshing === 'posts'}
+        actionLabel="Gather network"
+        onAction={onRefresh}
+        busy={refreshing}
         disabled={!canGather}
         error={refreshError}
-        secondaryLabel="+ Mentions"
-        onSecondary={() => onRefresh('mentions')}
-        secondaryBusy={refreshing === 'mentions'}
       />
     )
   }
@@ -117,18 +114,21 @@ export function NetworkGraphInner({
   }
 
   const summaryParts: string[] = []
+  const summaryTips: string[] = []
   if (model && model.longTailCount > 0) {
     summaryParts.push(`+${model.longTailCount} more accounts (${model.longTailWeight} interactions) below top ${topN}`)
+    summaryTips.push(`Outside top ${topN} — raise the slider to show them.`)
   }
   if (model && model.unresolvedCount > 0) {
     summaryParts.push(`${model.unresolvedCount} unresolved`)
+    summaryTips.push(`Reply/quote/RT targets with no known handle yet.`)
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[var(--color-border-faint)] text-[10px]">
         <div className="flex items-center rounded-md border border-[var(--color-border-soft)] overflow-hidden">
-          {(['outbound', 'inbound'] as NetworkDirection[]).map((dir) => (
+          {(['inbound', 'outbound'] as NetworkDirection[]).map((dir) => (
             <button
               key={dir}
               onClick={() => setDirection(dir)}
@@ -142,7 +142,7 @@ export function NetworkGraphInner({
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
               )}
             >
-              {dir === 'outbound' ? '→ Outbound' : '← Inbound'}
+              {dir === 'outbound' ? 'Outbound' : 'Inbound'}
             </button>
           ))}
         </div>
@@ -174,6 +174,11 @@ export function NetworkGraphInner({
           <span className="w-6 text-[var(--color-text-secondary)] tabular-nums">{topN}</span>
         </label>
         <div className="flex-1" />
+        {summaryParts.length > 0 && (
+          <span className="text-[var(--color-text-tertiary)] truncate max-w-[340px] mr-1" title={summaryTips.join(' ')}>
+            {summaryParts.join(' · ')}
+          </span>
+        )}
         <div className="flex items-center rounded-md border border-[var(--color-border-soft)] overflow-hidden mr-1">
           {(['list', 'map'] as ViewMode[]).map((mode) => (
             <button
@@ -190,24 +195,9 @@ export function NetworkGraphInner({
             </button>
           ))}
         </div>
-        {summaryParts.length > 0 && (
-          <span className="text-[var(--color-text-tertiary)] truncate max-w-[340px]" title={summaryParts.join(' · ')}>
-            {summaryParts.join(' · ')}
-          </span>
-        )}
-        {canAddTargets && (
-          <button
-            onClick={() => onRefresh('mentions')}
-            disabled={!!refreshing || !canGather}
-            title="Pull who's mentioning this subject"
-            className="text-[10px] font-medium px-2 py-1 rounded-md border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {refreshing === 'mentions' ? 'Pulling…' : '+ Mentions'}
-          </button>
-        )}
         <SectionRefresh
-          onClick={() => onRefresh('posts')}
-          busy={refreshing === 'posts'}
+          onClick={onRefresh}
+          busy={refreshing}
           disabled={!canGather}
           lastGatheredIso={lastGatheredIso}
           error={refreshError}
@@ -224,7 +214,7 @@ export function NetworkGraphInner({
               </p>
               <p className="text-[11px] text-white/25">
                 {direction === 'inbound'
-                  ? 'Pull who\u2019s mentioning them with "+ Mentions", then Refresh if rows stay empty (older gathers lack author handles).'
+                  ? 'Hit Refresh to pull who\u2019s mentioning them (included with the timeline).'
                   : 'Their recent posts may be all originals (no mentions/replies/quotes/retweets).'}
               </p>
             </div>
@@ -266,22 +256,22 @@ export function NetworkGraph() {
   const report = useXIntelStore((s) => (s.activeTarget ? s.reports[s.activeTarget] : undefined))
   const addTarget = useXIntelStore((s) => s.addTarget)
   const connected = useXSelfStore((s) => s.connected)
-  const [refreshing, setRefreshing] = useState<null | 'posts' | 'mentions'>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
   const profileId = report?.profile?.id ?? null
   const siblings = useMemo(() => collectSiblings(profileId), [profileId])
 
-  const runRefresh = async (mode: 'posts' | 'mentions') => {
+  const runRefresh = async () => {
     if (!activeTarget) return
-    setRefreshing(mode)
+    setRefreshing(true)
     setRefreshError(null)
     try {
-      await (mode === 'mentions' ? refreshNetworkWithMentions(activeTarget) : refreshPosts(activeTarget))
+      await refreshNetwork(activeTarget)
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {
-      setRefreshing(null)
+      setRefreshing(false)
     }
   }
 

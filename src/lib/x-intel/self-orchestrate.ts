@@ -304,11 +304,9 @@ export async function refreshSelfPosts(opts: { maxResults?: number } = {}): Prom
   useXSelfStore.getState().setEdges(accountId, deriveEdges(account.profile.id, merged))
 }
 
-/** Refresh the active account's network by pulling mentions (who's mentioning
- *  them). Mirrors refreshNetworkWithMentions() on the target side. The edges
- *  from posts are already derived in gatherSelf/refreshSelfPosts; this is a
- *  placeholder for the self-side mentions pull (deferred until the self-side
- *  mentions endpoint is wired). For now it just re-pulls posts. */
+/** Refresh the active account's network (timeline). Mirrors `refreshNetwork()` on
+ *  the target side once a self-side mentions endpoint is wired; for now it
+ *  re-pulls posts and re-derives edges. */
 export async function refreshSelfNetwork(): Promise<void> {
   await refreshSelfPosts()
 }
