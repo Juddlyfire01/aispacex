@@ -29,6 +29,11 @@ describe('serializeDraftForCopy', () => {
     expect(serializeDraftForCopy(draftWith([`link ${url}`])).trim()).toBe(`link ${url}`)
   })
 
+  it('does not rewrite ids in long-username status URLs', () => {
+    const url = `https://x.com/verylonghandle1/status/${ID}`
+    expect(serializeDraftForCopy(draftWith([`link ${url}`])).trim()).toBe(`link ${url}`)
+  })
+
   it('appends reply target permalink', () => {
     const out = serializeDraftForCopy(
       draftWith(['nice'], { kind: 'reply', toPostId: ID, toUsername: 'bob' }),

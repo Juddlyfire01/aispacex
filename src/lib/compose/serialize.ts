@@ -4,10 +4,8 @@ import { POST_ID_RE, normalizePostId, postUrl } from '../x-intel/evidence'
 /** Rewrite bare / post: snowflakes to permalinks; leave ids inside URLs alone. */
 export function rewritePostIdsToUrls(text: string): string {
   return text.replace(new RegExp(POST_ID_RE.source, 'g'), (match, id: string, offset: number) => {
+    if (/status\/$/i.test(text.slice(Math.max(0, offset - 8), offset))) return match
     const before = text.slice(Math.max(0, offset - 32), offset)
-    if (/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/(?:i\/status|[^/\s]+\/status)\/?$/i.test(before)) {
-      return match
-    }
     if (/https?:\/\/\S*$/i.test(before)) return match
     const normalized = normalizePostId(id)
     if (!normalized) return match
@@ -18,11 +16,13 @@ export function rewritePostIdsToUrls(text: string): string {
 function targetSuffix(draft: PostDraft): string {
   if (draft.target.kind === 'reply') {
     const u = draft.target.toUsername.replace(/^@/, '')
-    return `\n\nReplying to @${u}: ${postUrl(draft.target.toPostId)}`
+    const id = normalizePostId(draft.target.toPostId) ?? draft.target.toPostId
+    return `\n\nReplying to @${u}: ${postUrl(id)}`
   }
   if (draft.target.kind === 'quote') {
     const u = draft.target.username.replace(/^@/, '')
-    return `\n\nQuoting @${u}: ${postUrl(draft.target.postId)}`
+    const id = normalizePostId(draft.target.postId) ?? draft.target.postId
+    return `\n\nQuoting @${u}: ${postUrl(id)}`
   }
   return ''
 }
