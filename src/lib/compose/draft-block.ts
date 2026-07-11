@@ -1,5 +1,13 @@
-import type { MediaItem, Poll, PostDraft, PostSegment, PostTarget, ReplySettings } from './types'
-import { emptySegment } from './types'
+import type {
+  ArticleDraft,
+  MediaItem,
+  Poll,
+  PostDraft,
+  PostSegment,
+  PostTarget,
+  ReplySettings,
+} from './types'
+import { emptyArticleDraft, emptySegment } from './types'
 
 // The compose assistant embeds a structured draft in its reply as a fenced
 // ```postdraft JSON block. We parse that out, normalize it into a partial
@@ -81,6 +89,21 @@ function normalizeTarget(raw: unknown): PostTarget | undefined {
   return undefined
 }
 
+function normalizeArticle(raw: unknown): ArticleDraft | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const a = raw as Record<string, unknown>
+  const title = coerceString(a.title) ?? ''
+  const bodyMarkdown = coerceString(a.bodyMarkdown) ?? ''
+  if (!title && !bodyMarkdown) return undefined
+  const base = emptyArticleDraft()
+  return {
+    ...base,
+    title,
+    bodyMarkdown,
+    inlineMedia: normalizeMedia(a.inlineMedia),
+  }
+}
+
 const REPLY_SETTINGS: ReplySettings[] = ['everyone', 'following', 'mentionedUsers', 'subscribers', 'verified']
 
 /**
@@ -111,6 +134,19 @@ export function parseDraftBlock(assistantContent: string): ParsedDraftBlock {
   if (typeof parsed.replySettings === 'string' && REPLY_SETTINGS.includes(parsed.replySettings as ReplySettings)) {
     draft.replySettings = parsed.replySettings as ReplySettings
   }
+
+  const format = coerceString(parsed.format)
+  const article = normalizeArticle(parsed.article)
+  if (format === 'article' || article) {
+    draft.article = article ?? emptyArticleDraft()
+  }
+
+  if (format === 'post') {
+    draft.longform = false
+  } else if (format === 'longform') {
+    draft.longform = true
+  }
+  // format === 'thread' with <2 segments: leave as model sent (no longform coercion)
 
   // Nothing usable parsed out — treat as no draft.
   if (Object.keys(draft).length === 0) return { draft: null, visibleText }

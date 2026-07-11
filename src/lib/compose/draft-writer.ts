@@ -17,13 +17,15 @@ export interface RunDraftWriterOpts {
 
 function buildWriterSystem(registerInject?: string | null): string {
   const parts = [
-    `You are the AiSpaceX draft writer. Your only job is to write X post copy.
+    `You are the AiSpaceX draft writer. Your only job is to write X post / article copy.
 
 Rules:
-- Output ONLY the post text the user would publish — plain UTF-8.
+- Output ONLY the publishable text — plain UTF-8 (or Markdown for articles).
 - No preamble, no "here's a draft", no markdown fences, no JSON, no \`\`\`postdraft.
-- No Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
-- If the brief asks for a thread, separate posts with a line containing only --- 
+- For post/thread/long-form: no Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
+- Thread: separate posts with a line containing only ---
+- Article: first line is \`# Title\`, then a blank line, then the markdown body.
+- Cite external posts with https://x.com/i/status/{id} permalinks.
 - Match X conventions: natural voice, no hashtag spam, no "As an AI".
 - Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.`,
   ]
@@ -33,12 +35,30 @@ Rules:
   return parts.join('\n\n')
 }
 
-function buildWriterUser(brief: DraftWriteBrief): string {
+/** Exported for tests. */
+export function buildWriterUser(brief: DraftWriteBrief): string {
   const lines = [`Brief:\n${brief.brief}`]
   if (brief.notes?.trim()) lines.push(`Constraints:\n${brief.notes.trim()}`)
   if (brief.target) lines.push(`Target: ${JSON.stringify(brief.target)}`)
-  if (brief.longform) lines.push('Long-form allowed (may exceed 280 characters).')
-  else lines.push('Prefer staying under 280 characters unless the brief requires otherwise.')
+  if (brief.preferredFormat && brief.preferredFormat !== 'auto') {
+    const format = brief.preferredFormat
+    let rules = `Preferred format: ${format}.`
+    if (format === 'post') {
+      rules += ' Single block, ≤280 characters, no --- separators.'
+    } else if (format === 'thread') {
+      rules += ' 2+ posts separated by a line containing only ---.'
+    } else if (format === 'longform') {
+      rules += ' Single continuous block; may exceed 280 characters.'
+    } else if (format === 'article') {
+      rules += ' Output markdown: first line `# Title`, blank line, then body.'
+    }
+    lines.push(rules)
+  }
+  if (brief.longform || brief.preferredFormat === 'longform') {
+    lines.push('Long-form allowed (may exceed 280 characters).')
+  } else if (brief.preferredFormat !== 'article') {
+    lines.push('Prefer staying under 280 characters unless the brief requires otherwise.')
+  }
   lines.push('Write the post now.')
   return lines.join('\n\n')
 }

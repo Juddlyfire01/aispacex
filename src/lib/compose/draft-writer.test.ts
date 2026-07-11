@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseDraftWriteBrief, isDraftHandoffEnabled, DRAFT_MODEL_SAME } from './draft-writer-tool'
-import { splitWriterSegments } from './draft-writer'
+import { splitWriterSegments, buildWriterUser } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { VeniceModel } from '../../types/venice'
 
@@ -54,6 +54,17 @@ describe('splitWriterSegments', () => {
   })
   it('single segment', () => {
     expect(splitWriterSegments('hello')).toEqual(['hello'])
+  })
+})
+
+describe('buildWriterUser', () => {
+  it('appends preferred format rules', () => {
+    const u = buildWriterUser({
+      brief: 'Cover VVV burns',
+      preferredFormat: 'article',
+    })
+    expect(u).toMatch(/Preferred format: article/)
+    expect(u).toMatch(/# Title/)
   })
 })
 

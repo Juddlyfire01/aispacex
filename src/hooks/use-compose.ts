@@ -147,8 +147,18 @@ export function useCompose() {
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })
         const scope = useComposeStore.getState().threads[threadId]?.context ?? thread.context
 
-        const { libraryMode, budgetPct, dayWindowDays, model, draftModel, xSearch, webSearch, contextLimit } =
-          useComposeStore.getState()
+        const {
+          libraryMode,
+          budgetPct,
+          dayWindowDays,
+          model,
+          draftModel,
+          xSearch,
+          webSearch,
+          contextLimit,
+          preferredFormat,
+        } = useComposeStore.getState()
+        const premiumCapable = getActiveAccountVerified()
         const budget = computeHotBudget(contextLimit, budgetPct)
         const pack = packHotWindowCached({
           snapshot,
@@ -215,6 +225,8 @@ export function useCompose() {
           toolsEnabled: true,
           registerInject: handoff ? null : registerResolved.inject,
           draftHandoff: handoff,
+          preferredFormat,
+          premiumCapable,
         })
 
         // Transcript minus the trailing empty assistant placeholder.
@@ -342,13 +354,17 @@ export function useCompose() {
         useComposeStore.getState().setAgentPhase('Thinking')
 
         const startDraftWriter = (brief: DraftWriteBrief) => {
+          const writerBrief: DraftWriteBrief = {
+            ...brief,
+            preferredFormat: brief.preferredFormat ?? preferredFormat,
+          }
           const s0 = useComposeStore.getState()
           s0.setDraftDrawerOpen(true)
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
-            ...(brief.target ? { target: brief.target } : {}),
-            ...(typeof brief.longform === 'boolean' ? { longform: brief.longform } : {}),
+            ...(writerBrief.target ? { target: writerBrief.target } : {}),
+            ...(typeof writerBrief.longform === 'boolean' ? { longform: writerBrief.longform } : {}),
           })
 
           let accumulated = ''
@@ -364,7 +380,7 @@ export function useCompose() {
           void runDraftWriter({
             modelId: draftModel,
             modelSpec: draftModelSpec,
-            brief,
+            brief: writerBrief,
             registerInject: registerResolved.inject,
             signal: abortController.signal,
             onDelta: (token) => {

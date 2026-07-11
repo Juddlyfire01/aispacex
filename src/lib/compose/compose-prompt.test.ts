@@ -96,6 +96,38 @@ describe('buildComposeSystem', () => {
     expect(system).not.toMatch(/===== DATA SET =====/)
     expect(system).not.toMatch(/Recent posts by @/)
   })
+
+  it('injects forced preferred format', () => {
+    const s = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: false,
+      preferredFormat: 'article',
+    })
+    expect(s).toMatch(/User prefers format: article/)
+  })
+
+  it('documents format modes in auto', () => {
+    const s = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: false,
+      preferredFormat: 'auto',
+    })
+    expect(s).toMatch(/Article/i)
+    expect(s).toMatch(/thread/i)
+  })
+
+  it('notes non-premium auto preference', () => {
+    const s = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: false,
+      preferredFormat: 'auto',
+      premiumCapable: false,
+    })
+    expect(s).toMatch(/not Premium-verified/i)
+  })
 })
 
 describe('buildHotUserPrefix', () => {

@@ -6,6 +6,8 @@
 // Optional ```postdraft blocks are a capability when the user wants post text —
 // not the purpose of every turn.
 
+import type { PreferredFormat } from './format'
+
 export interface ComposeSystemOpts {
   /** Venice model id shown in settings (e.g. "grok-…", "llama-…"). */
   modelId: string
@@ -20,7 +22,27 @@ export interface ComposeSystemOpts {
    * Do not emit ```postdraft yourself.
    */
   draftHandoff?: boolean
+  /** User format preference from compose settings. */
+  preferredFormat?: PreferredFormat
+  /** Account can natively post long-form / articles when verified. */
+  premiumCapable?: boolean
 }
+
+const FORMAT_SPEC = `Output formats (when drafting for X):
+- Post: single segment, longform false, ≤280 characters. One punchy take.
+- Thread: 2+ segments (each ≤280 unless longform). Multi-beat narrative, numbered beats, or a sequence of related posts.
+- Long-form: single segment, longform true, up to ~25k characters (Premium). Deep essay / single continuous piece that should not be split.
+- Article: populate article: { title, bodyMarkdown } — a titled structured piece with sections (and optional media). Do NOT put the article body in tweet segments; segments may be empty [].
+
+Auto decision (when format preference is Auto):
+- Punchy single take → post
+- Multi-beat / sequential points → thread
+- Deep single essay → long-form when the account is Premium-capable; otherwise prefer a tight post/thread unless the user insists
+- Titled structured piece with sections/media → article
+
+Citations:
+- In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
+- In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
 const HANDOFF_DRAFT_SPEC = `Post drafting (hand off — required when the user wants post copy):
 When the user asks for post/reply/quote/thread copy, or an update to draft text for X, call the compose_write_draft tool with a dense brief (angle, key facts/metrics, @handles, constraints). A separate draft-writer model will fill the draft drawer while you continue chatting.
@@ -32,25 +54,33 @@ Rules:
 - Still use intel_* / compose_history_* for research as needed before or after the draft handoff.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
-Only when the user asks for post/reply/quote/thread copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
+Only when the user asks for post/reply/quote/thread/article copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
 
 \`\`\`postdraft
 {
+  "format": "post",
   "segments": [{ "text": "the post text" }],
   "target": { "kind": "original" },
-  "longform": false
+  "longform": false,
+  "article": { "title": "optional title", "bodyMarkdown": "optional body" }
 }
 \`\`\`
 
 Rules for the block:
+- "format" is optional: "post" | "thread" | "longform" | "article".
+  - "post" → one segment, longform false.
+  - "thread" → 2+ segments.
+  - "longform" → one segment, longform true.
+  - "article" → populate "article" { title, bodyMarkdown }; segments may be [].
 - "segments" is an ordered array; use multiple segments ONLY for an intentional thread. Keep each segment under 280 characters unless "longform" is true.
+- "article" is optional; use for titled structured pieces (not tweet copy).
 - "target" is one of:
   - { "kind": "original" } — a standalone post (the default).
   - { "kind": "reply", "toPostId": "<id>", "toUsername": "<handle>" } — only when the user explicitly wants to reply to a specific post whose id you were given.
   - { "kind": "quote", "postId": "<id>", "username": "<handle>" } — only when quoting a specific post whose id you were given.
 - Do not invent post ids. If you don't have a real id from context, use { "kind": "original" }.
 - Match X conventions when drafting: natural voice, no hashtag spam, no "As an AI" preamble.
-- Post text is plain UTF-8 only — no Markdown (**bold**, _italic_, HTML). For emphasis use Unicode styled letters sparingly (mathematical bold/italic on A–Z/a–z). @mentions, #hashtags, $cashtags, plain https:// URLs, emojis, and line breaks are all valid. Do not use ** or __ markup.
+- Post segment text is plain UTF-8 only — no Markdown (**bold**, _italic_, HTML). For emphasis use Unicode styled letters sparingly (mathematical bold/italic on A–Z/a–z). @mentions, #hashtags, $cashtags, plain https:// URLs, emojis, and line breaks are all valid. Do not use ** or __ markup. Article bodyMarkdown may use Markdown.
 - Put your normal reply BEFORE the block as prose. Never mention the block itself to the user.
 - Do not offer to draft or revise a post unless the user asked for writing, a post, a reply, a thread, or similar. Analysis and research answers should end without a draft pitch.`
 
@@ -96,6 +126,21 @@ Style:
   if (opts.xSearchOn) {
     parts.push(
       `Live X/Twitter search is available. Use it when the user needs fresher or broader X context than the local library — recent posts, current framing, ongoing threads. Prefer real, current context over assumptions. Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`,
+    )
+  }
+
+  parts.push(FORMAT_SPEC)
+  if (opts.preferredFormat && opts.preferredFormat !== 'auto') {
+    parts.push(
+      `User prefers format: ${opts.preferredFormat}. Produce that shape unless they explicitly ask otherwise this turn.`,
+    )
+  } else {
+    parts.push(
+      `Preferred format is Auto — choose post, thread, long-form, or article from the request using the format rules above.${
+        opts.premiumCapable === false
+          ? ' Account is not Premium-verified: prefer post/thread unless they insist on long-form/article (copy path).'
+          : ''
+      }`,
     )
   }
 

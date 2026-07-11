@@ -51,4 +51,37 @@ Let me know if you want changes.`
     const result = parseDraftBlock(content)
     expect(result.draft).toBeNull()
   })
+
+  it('parses article-only draft as usable', () => {
+    const content = `\`\`\`postdraft
+{ "format": "article", "article": { "title": "Why VVV", "bodyMarkdown": "## Intro\\n\\nBody." }, "segments": [] }
+\`\`\``
+    const result = parseDraftBlock(content)
+    expect(result.draft).not.toBeNull()
+    expect(result.draft?.article).toEqual({
+      title: 'Why VVV',
+      bodyMarkdown: '## Intro\n\nBody.',
+      inlineMedia: [],
+    })
+  })
+
+  it('sets longform from format post/longform', () => {
+    const post = parseDraftBlock(
+      '```postdraft\n{ "format": "post", "segments": [{ "text": "hi" }], "longform": true }\n```',
+    )
+    expect(post.draft?.longform).toBe(false)
+
+    const long = parseDraftBlock(
+      '```postdraft\n{ "format": "longform", "segments": [{ "text": "essay" }] }\n```',
+    )
+    expect(long.draft?.longform).toBe(true)
+  })
+
+  it('leaves short thread segments as model sent', () => {
+    const result = parseDraftBlock(
+      '```postdraft\n{ "format": "thread", "segments": [{ "text": "only one" }] }\n```',
+    )
+    expect(result.draft?.segments).toHaveLength(1)
+    expect(result.draft?.longform).toBeUndefined()
+  })
 })

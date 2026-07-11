@@ -2,6 +2,7 @@
 // streams post copy into the drawer while chat continues.
 
 import type { ToolDefinition } from '../../types/venice'
+import type { PreferredFormat } from './format'
 import type { PostTarget } from './types'
 
 /** Persisted sentinel — main model writes postdraft itself. */
@@ -15,6 +16,8 @@ export interface DraftWriteBrief {
   target?: PostTarget
   longform?: boolean
   notes?: string
+  /** Injected from compose settings — not from the tool schema. */
+  preferredFormat?: PreferredFormat
 }
 
 export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
