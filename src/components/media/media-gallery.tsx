@@ -46,7 +46,8 @@ export function MediaGallery({
 
   const handleClearAll = () => {
     if (items.length === 0) return
-    if (!window.confirm(`Clear all ${items.length} ${kind}${items.length === 1 ? '' : 's'} from this gallery?`)) return
+    const label = kind === 'audio' ? 'track' : kind
+    if (!window.confirm(`Clear all ${items.length} ${label}${items.length === 1 ? '' : 's'} from this gallery?`)) return
     setSelectedId(null)
     onClearAll()
   }
@@ -54,6 +55,8 @@ export function MediaGallery({
   if (items.length === 0 && pendingCount === 0) {
     return <>{empty}</>
   }
+
+  const kindLabel = kind === 'audio' ? (items.length === 1 ? 'track' : 'tracks') : `${kind}${items.length === 1 ? '' : 's'}`
 
   return (
     <>
@@ -65,13 +68,17 @@ export function MediaGallery({
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
             {selected.kind === 'image' ? (
               <img src={selected.objectUrl} alt="Generated" className="max-w-[90vw] max-h-[75vh] rounded-xl shadow-2xl object-contain" />
-            ) : (
+            ) : selected.kind === 'video' ? (
               <video
                 controls
                 autoPlay
                 src={selected.objectUrl}
                 className="max-w-[90vw] max-h-[75vh] rounded-xl shadow-2xl bg-black"
               />
+            ) : (
+              <div className="w-[min(90vw,420px)] rounded-xl border border-white/[0.08] bg-white/[0.03] p-6">
+                <audio controls autoPlay src={selected.objectUrl} className="w-full" />
+              </div>
             )}
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 max-w-[90vw]">
               <p className="text-[12px] text-white/40 mb-1">
@@ -124,8 +131,8 @@ export function MediaGallery({
       <div className="flex flex-col gap-4 h-full">
         <div className="flex items-center justify-between shrink-0">
           <p className="text-[13px] text-white/35">
-            {items.length} {kind}{items.length === 1 ? '' : 's'}
-            {pendingCount > 0 ? ' · generating…' : ''}
+            {items.length} {kindLabel}
+            {pendingCount > 0 ? ` · ${pendingCount} generating…` : ''}
           </p>
           {items.length > 0 && (
             <button
@@ -142,7 +149,11 @@ export function MediaGallery({
           {pendingCount > 0 && Array.from({ length: pendingCount }).map((_, i) => (
             <div
               key={`skel-${i}`}
-              className={kind === 'video' ? 'aspect-video rounded-xl skeleton' : 'aspect-square rounded-xl skeleton'}
+              className={
+                kind === 'video' ? 'aspect-video rounded-xl skeleton'
+                  : kind === 'audio' ? 'aspect-[4/3] rounded-xl skeleton'
+                    : 'aspect-square rounded-xl skeleton'
+              }
             />
           ))}
           {items.map((item, i) => (
@@ -154,7 +165,7 @@ export function MediaGallery({
                   className="w-full rounded-xl cursor-pointer border border-white/[0.05] hover:border-white/[0.18] transition-all duration-200"
                   onClick={() => setSelectedId(item.id)}
                 />
-              ) : (
+              ) : item.kind === 'video' ? (
                 <video
                   muted
                   preload="metadata"
@@ -162,6 +173,15 @@ export function MediaGallery({
                   className="w-full aspect-video rounded-xl cursor-pointer border border-white/[0.05] hover:border-white/[0.18] transition-all duration-200 bg-black object-cover"
                   onClick={() => setSelectedId(item.id)}
                 />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className="w-full aspect-[4/3] rounded-xl border border-white/[0.05] hover:border-white/[0.18] bg-white/[0.03] transition-all duration-200 flex flex-col items-center justify-center gap-2 px-3 text-left"
+                >
+                  <AudioIcon />
+                  <span className="text-[12px] text-white/45 line-clamp-3 w-full text-center">{item.prompt}</span>
+                </button>
               )}
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                 <button
@@ -212,6 +232,15 @@ function TrashIcon({ size = 14 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
       <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
+function AudioIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/35">
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
     </svg>
   )
 }

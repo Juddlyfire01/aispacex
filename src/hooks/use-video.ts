@@ -1,185 +1,286 @@
-import { useMutation } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { blobFromUrl } from '../lib/media-blob'
+import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import type { VideoQueueRequest, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
 
 const POLL_INTERVAL_MS = 3000
-const MAX_ATTEMPTS = 200 // ~10 minutes
+const MAX_ATTEMPTS = 200
 
 function isPermanentError(err: unknown): boolean {
   return err instanceof VeniceAPIError && err.status >= 400 && err.status < 500
 }
 
-export function useVideo() {
-  const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
-  const [completedBlob, setCompletedBlob] = useState<Blob | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null)
-  const [issues, setIssues] = useState<string[] | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
-  const tickRef = useRef<ReturnType<typeof setInterval>>(undefined)
-  const requestIdRef = useRef<string | null>(null)
-  const modelRef = useRef<string | null>(null)
-  const downloadUrlRef = useRef<string | null>(null)
-  const startedAtRef = useRef<number | null>(null)
-  const attemptsRef = useRef(0)
-  const cancelledRef = useRef(false)
+export interface VideoJobMeta {
+  prompt: string
+  negativePrompt?: string
+  model: string
+  extras?: Record<string, string | number | boolean>
+}
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = undefined }
-    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = undefined }
+export type VideoJobStatus = 'queueing' | 'queued' | 'processing' | 'completed' | 'failed'
+
+export interface VideoJob {
+  id: string
+  status: VideoJobStatus
+  model: string
+  queueId?: string
+  downloadUrl?: string
+  error?: string
+  suggestedPrompt?: string | null
+  issues?: string[] | null
+  elapsedMs: number
+  blob?: Blob
+  meta: VideoJobMeta
+  startedAt: number
+}
+
+interface JobRuntime {
+  poll?: ReturnType<typeof setInterval>
+  tick?: ReturnType<typeof setInterval>
+  cancelled: boolean
+  attempts: number
+}
+
+function isActive(status: VideoJobStatus) {
+  return status === 'queueing' || status === 'queued' || status === 'processing'
+}
+
+export function useVideo() {
+  const [jobs, setJobs] = useState<VideoJob[]>([])
+  const jobsRef = useRef<VideoJob[]>([])
+  const runtimesRef = useRef<Map<string, JobRuntime>>(new Map())
+
+  const syncJobs = useCallback((updater: (prev: VideoJob[]) => VideoJob[]) => {
+    setJobs((prev) => {
+      const next = updater(prev)
+      jobsRef.current = next
+      return next
+    })
   }, [])
 
-  useEffect(() => () => stopPolling(), [stopPolling])
+  const patchJob = useCallback((id: string, patch: Partial<VideoJob>) => {
+    syncJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...patch } : j)))
+  }, [syncJobs])
 
-  const finishWithBlob = useCallback((blob: Blob) => {
-    setCompletedBlob(blob)
-    setStatus('completed')
-    stopPolling()
-  }, [stopPolling])
+  const stopJobTimers = useCallback((id: string) => {
+    const rt = runtimesRef.current.get(id)
+    if (!rt) return
+    if (rt.poll) clearInterval(rt.poll)
+    if (rt.tick) clearInterval(rt.tick)
+    rt.poll = undefined
+    rt.tick = undefined
+  }, [])
 
-  const startPolling = useCallback(() => {
-    attemptsRef.current = 0
-    startedAtRef.current = Date.now()
-    setElapsedMs(0)
+  const removeRuntime = useCallback((id: string) => {
+    stopJobTimers(id)
+    runtimesRef.current.delete(id)
+  }, [stopJobTimers])
 
-    tickRef.current = setInterval(() => {
-      if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current)
+  useEffect(() => () => {
+    for (const id of [...runtimesRef.current.keys()]) removeRuntime(id)
+  }, [removeRuntime])
+
+  const startPolling = useCallback((jobId: string) => {
+    const rt = runtimesRef.current.get(jobId)
+    if (!rt) return
+    rt.attempts = 0
+    rt.cancelled = false
+
+    rt.tick = setInterval(() => {
+      const job = jobsRef.current.find((j) => j.id === jobId)
+      if (!job || !isActive(job.status)) return
+      patchJob(jobId, { elapsedMs: Date.now() - job.startedAt })
     }, 1000)
 
-    pollRef.current = setInterval(async () => {
-      if (cancelledRef.current) return
-      attemptsRef.current += 1
-      if (attemptsRef.current > MAX_ATTEMPTS) {
-        stopPolling()
-        setError('Generation took too long. Cancel and try again, or check your Venice dashboard.')
-        setStatus('failed')
+    rt.poll = setInterval(async () => {
+      const runtime = runtimesRef.current.get(jobId)
+      if (!runtime || runtime.cancelled) return
+      const job = jobsRef.current.find((j) => j.id === jobId)
+      if (!job?.queueId) return
+
+      runtime.attempts += 1
+      if (runtime.attempts > MAX_ATTEMPTS) {
+        stopJobTimers(jobId)
+        patchJob(jobId, {
+          status: 'failed',
+          error: 'Generation took too long. Cancel and try again, or check your Venice dashboard.',
+        })
         return
       }
+
       try {
-        // /video/retrieve returns one of three things:
-        //  - JSON {status:"PROCESSING"} while still processing
-        //  - JSON {status:"COMPLETED",...} for VPS-backed models (fetch download_url)
-        //  - binary video/mp4 for non-VPS models once complete
         const res = await veniceFetch('/video/retrieve', {
           method: 'POST',
-          body: JSON.stringify({ model: modelRef.current, queue_id: requestIdRef.current, delete_media_on_completion: true }),
+          body: JSON.stringify({
+            model: job.model,
+            queue_id: job.queueId,
+            delete_media_on_completion: true,
+          }),
         })
+        if (runtime.cancelled) return
         const contentType = res.headers.get('content-type') ?? ''
 
         if (contentType.startsWith('video/')) {
           const blob = await res.blob()
-          finishWithBlob(blob)
+          if (runtime.cancelled) return
+          stopJobTimers(jobId)
+          patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
           return
         }
 
         const result = (await res.json()) as VideoRetrieveResponse
         const s = result.status?.toLowerCase() as VideoRetrieveResponse['status'] | undefined
-        setStatus(s ?? 'processing')
+        if (s === 'queued' || s === 'processing') {
+          patchJob(jobId, { status: s })
+          return
+        }
 
         if (s === 'completed') {
-          const url = result.video_url || downloadUrlRef.current
+          const url = result.video_url || job.downloadUrl
           if (!url) {
-            setError('Generation completed but no video URL was returned.')
-            setStatus('failed')
-            stopPolling()
+            stopJobTimers(jobId)
+            patchJob(jobId, { status: 'failed', error: 'Generation completed but no video URL was returned.' })
             return
           }
           try {
             const blob = await blobFromUrl(url)
-            if (cancelledRef.current) return
-            finishWithBlob(blob.type ? blob : new Blob([blob], { type: 'video/mp4' }))
+            if (runtime.cancelled) return
+            stopJobTimers(jobId)
+            patchJob(jobId, {
+              status: 'completed',
+              blob: blob.type ? blob : new Blob([blob], { type: 'video/mp4' }),
+              elapsedMs: Date.now() - job.startedAt,
+            })
           } catch (fetchErr) {
-            setError(fetchErr instanceof Error ? fetchErr.message : 'Failed to download completed video')
-            setStatus('failed')
-            stopPolling()
+            stopJobTimers(jobId)
+            patchJob(jobId, {
+              status: 'failed',
+              error: fetchErr instanceof Error ? fetchErr.message : 'Failed to download completed video',
+            })
           }
-        } else if (s === 'failed') {
-          setError(result.error ?? 'Video generation failed')
-          stopPolling()
+          return
+        }
+
+        if (s === 'failed') {
+          stopJobTimers(jobId)
+          patchJob(jobId, { status: 'failed', error: result.error ?? 'Video generation failed' })
         }
       } catch (err) {
         if (isPermanentError(err)) {
-          stopPolling()
-          setError(err instanceof Error ? err.message : 'Polling failed')
-          setStatus('failed')
+          stopJobTimers(jobId)
+          patchJob(jobId, {
+            status: 'failed',
+            error: err instanceof Error ? err.message : 'Polling failed',
+          })
           return
         }
-        if (attemptsRef.current >= MAX_ATTEMPTS) {
-          setError(err instanceof Error ? err.message : 'Polling failed')
-          stopPolling()
+        if (runtime.attempts >= MAX_ATTEMPTS) {
+          stopJobTimers(jobId)
+          patchJob(jobId, {
+            status: 'failed',
+            error: err instanceof Error ? err.message : 'Polling failed',
+          })
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [finishWithBlob, stopPolling])
+  }, [patchJob, stopJobTimers])
 
-  const queueMutation = useMutation({
-    mutationFn: (req: VideoQueueRequest) =>
-      venice<VideoQueueResponse>('/video/queue', {
+  const activeCount = jobs.filter((j) => isActive(j.status)).length
+  const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
+
+  const queue = useCallback(async (req: VideoQueueRequest, meta: VideoJobMeta) => {
+    if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
+      throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} videos. Wait for one to finish.`)
+    }
+
+    const id = crypto.randomUUID()
+    const startedAt = Date.now()
+    const job: VideoJob = {
+      id,
+      status: 'queueing',
+      model: req.model,
+      meta,
+      startedAt,
+      elapsedMs: 0,
+    }
+    runtimesRef.current.set(id, { cancelled: false, attempts: 0 })
+    syncJobs((prev) => [job, ...prev])
+
+    try {
+      const data = await venice<VideoQueueResponse>('/video/queue', {
         method: 'POST',
         body: JSON.stringify(req),
-      }),
-    onSuccess: (data) => {
-      cancelledRef.current = false
-      modelRef.current = data.model
-      requestIdRef.current = data.queue_id || data.id || ''
-      downloadUrlRef.current = data.download_url ?? null
-      setStatus('queued')
-      setCompletedBlob(null)
-      setError(null)
-      setSuggestedPrompt(null)
-      setIssues(null)
-      startPolling()
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Queue failed')
-      if (err instanceof VeniceAPIError) {
-        setSuggestedPrompt(err.suggestedPrompt ?? null)
-        setIssues(err.issues ?? null)
-      } else {
-        setSuggestedPrompt(null)
-        setIssues(null)
-      }
-      setStatus('failed')
-    },
-  })
+      })
+      const rt = runtimesRef.current.get(id)
+      if (!rt || rt.cancelled) return id
 
-  const cancel = useCallback(() => {
-    cancelledRef.current = true
-    stopPolling()
-    setStatus('idle')
-    setError(null)
-    setSuggestedPrompt(null)
-    setIssues(null)
-    setCompletedBlob(null)
-    requestIdRef.current = null
-    modelRef.current = null
-    downloadUrlRef.current = null
-    startedAtRef.current = null
-    setElapsedMs(0)
-  }, [stopPolling])
+      patchJob(id, {
+        status: 'queued',
+        model: data.model,
+        queueId: data.queue_id || data.id || '',
+        downloadUrl: data.download_url ?? undefined,
+      })
+      startPolling(id)
+      return id
+    } catch (err) {
+      removeRuntime(id)
+      const suggestedPrompt = err instanceof VeniceAPIError ? err.suggestedPrompt ?? null : null
+      const issues = err instanceof VeniceAPIError ? err.issues ?? null : null
+      patchJob(id, {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Queue failed',
+        suggestedPrompt,
+        issues,
+      })
+      throw err
+    }
+  }, [patchJob, removeRuntime, startPolling, syncJobs])
 
-  const reset = useCallback(() => {
-    cancel()
-  }, [cancel])
+  const dismissJob = useCallback((id: string) => {
+    removeRuntime(id)
+    syncJobs((prev) => prev.filter((j) => j.id !== id))
+  }, [removeRuntime, syncJobs])
 
-  const consumeCompletedBlob = useCallback(() => {
-    setCompletedBlob(null)
-  }, [])
+  const cancelJob = useCallback((id: string) => {
+    const rt = runtimesRef.current.get(id)
+    if (rt) rt.cancelled = true
+    removeRuntime(id)
+    syncJobs((prev) => prev.filter((j) => j.id !== id))
+  }, [removeRuntime, syncJobs])
+
+  const cancelAll = useCallback(() => {
+    const activeIds = jobsRef.current.filter((j) => isActive(j.status)).map((j) => j.id)
+    for (const id of activeIds) {
+      const rt = runtimesRef.current.get(id)
+      if (rt) rt.cancelled = true
+      removeRuntime(id)
+    }
+    syncJobs((prev) => prev.filter((j) => !isActive(j.status)))
+  }, [removeRuntime, syncJobs])
+
+  /** Remove completed job after its blob has been persisted to the gallery. */
+  const takeCompleted = useCallback((id: string): VideoJob | null => {
+    const job = jobsRef.current.find((j) => j.id === id && j.status === 'completed' && j.blob)
+    if (!job) return null
+    dismissJob(id)
+    return job
+  }, [dismissJob])
+
+  const latestError = jobs.find((j) => j.status === 'failed')
 
   return {
-    queue: queueMutation.mutate,
-    isQueueing: queueMutation.isPending,
-    status,
-    completedBlob,
-    consumeCompletedBlob,
-    error,
-    suggestedPrompt,
-    issues,
-    elapsedMs,
-    cancel,
-    reset,
+    queue,
+    jobs,
+    activeCount,
+    atCapacity,
+    maxConcurrent: MAX_CONCURRENT_MEDIA_JOBS,
+    cancelJob,
+    cancelAll,
+    dismissJob,
+    takeCompleted,
+    error: latestError?.error ?? null,
+    suggestedPrompt: latestError?.suggestedPrompt ?? null,
+    issues: latestError?.issues ?? null,
   }
 }

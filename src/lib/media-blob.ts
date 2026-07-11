@@ -22,6 +22,9 @@ export function extensionForMime(mime: string): string {
   if (mime === 'image/jpeg') return 'jpg'
   if (mime === 'image/webp') return 'webp'
   if (mime === 'image/png') return 'png'
+  if (mime === 'audio/mpeg' || mime === 'audio/mp3') return 'mp3'
+  if (mime === 'audio/wav' || mime === 'audio/x-wav') return 'wav'
+  if (mime.startsWith('audio/')) return 'audio'
   if (mime.startsWith('video/')) return 'mp4'
   return 'bin'
 }

@@ -3,11 +3,14 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
 import { useTTS, useTranscription } from '../../hooks/use-audio'
-import { useBlobUrl } from '../../hooks/use-blob-url'
+import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, ErrorText, EmptyState } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
+import { LoadingState } from '../ui/spinner'
 import { SegmentedControl } from '../ui/sub-tabs'
+import { MediaGallery } from '../media/media-gallery'
+import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
 import { toast } from '../../stores/toast-store'
 
 const AUDIO_EXAMPLES = [
@@ -63,13 +66,15 @@ export function AudioView() {
   const [voice, setVoice] = useState('')
   const [speed, setSpeed] = useState(1)
   const [format, setFormat] = useState<string>('mp3')
-  const [audioUrl, setAudioBlob] = useBlobUrl()
   const [file, setFile] = useState<File | null>(null)
   const [transcript, setTranscript] = useState('')
+  const [pendingTts, setPendingTts] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const gallery = useMediaGallery('audio')
   const tts = useTTS()
   const transcription = useTranscription()
+  const atCapacity = pendingTts >= MAX_CONCURRENT_MEDIA_JOBS
 
   const modelVoices = useMemo(() => {
     const m = models?.find((x) => x.id === model)
@@ -97,11 +102,28 @@ export function AudioView() {
 
   const handleTTS = () => {
     if (!text.trim()) return
+    if (atCapacity) {
+      toast.error('Limit reached', `You can run up to ${MAX_CONCURRENT_MEDIA_JOBS} speech jobs at once.`)
+      return
+    }
+    const trimmed = text.trim()
+    const responseFormat = format as typeof FORMATS[number]
+    setPendingTts((n) => n + 1)
     tts.mutate(
-      { model, input: text.trim(), voice, speed, response_format: format as typeof FORMATS[number] },
+      { model, input: trimmed, voice, speed, response_format: responseFormat },
       {
-        onSuccess: (blob) => setAudioBlob(blob),
+        onSuccess: (blob) => {
+          void gallery.add({
+            kind: 'audio',
+            blob,
+            mimeType: blob.type || `audio/${responseFormat === 'mp3' ? 'mpeg' : responseFormat}`,
+            prompt: trimmed,
+            model,
+            extras: { voice, speed, format: responseFormat },
+          })
+        },
         onError: (err) => toast.fromError(err, 'TTS failed'),
+        onSettled: () => setPendingTts((n) => Math.max(0, n - 1)),
       },
     )
   }
@@ -138,7 +160,14 @@ export function AudioView() {
               <input type="range" min={0.25} max={4} step={0.25} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className="w-full" />
             </div>
           </div>
-          <PrimaryButton onClick={handleTTS} disabled={!text.trim() || !voice || !apiKey} loading={tts.isPending} size="lg">Generate Speech</PrimaryButton>
+          <PrimaryButton
+            onClick={handleTTS}
+            disabled={!text.trim() || !voice || !apiKey || atCapacity}
+            loading={pendingTts > 0}
+            size="lg"
+          >
+            {pendingTts > 0 ? `Generate another (${pendingTts}/${MAX_CONCURRENT_MEDIA_JOBS})` : 'Generate Speech'}
+          </PrimaryButton>
           {tts.error && <ErrorText>{tts.error.message}</ErrorText>}
         </>
       ) : (
@@ -161,54 +190,50 @@ export function AudioView() {
     </>
   )
 
-  const output = (
-    <div className="flex flex-col min-h-full">
-        {tab === 'tts' ? (
-          audioUrl ? (
-            <div className="flex flex-col gap-4 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <Label>Output</Label>
-                <a href={audioUrl} download={`venice-speech.${format}`} className="text-[14px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-1.5">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-                  Download
-                </a>
-              </div>
-              <audio controls src={audioUrl} className="w-full" />
-              <div className="bg-white/[0.02] border border-white/[0.04] rounded-lg p-4">
-                <p className="text-[15px] text-white/30 leading-relaxed">{text}</p>
-              </div>
-            </div>
+  const output = tab === 'tts' ? (
+    <MediaGallery
+      kind="audio"
+      items={gallery.items}
+      pendingCount={pendingTts}
+      onRemove={gallery.remove}
+      onClearAll={gallery.clearAll}
+      onUsePrompt={(p) => setText(p)}
+      empty={
+        <div className="flex items-center justify-center h-full">
+          {pendingTts > 0 ? (
+            <LoadingState label="Generating…" size="lg" />
           ) : !text ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="max-w-md w-full flex flex-col gap-2">
-                <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
-                {AUDIO_EXAMPLES.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setText(p)}
-                    className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+            <div className="max-w-md w-full flex flex-col gap-2">
+              <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
+              {AUDIO_EXAMPLES.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setText(p)}
+                  className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
+                >
+                  {p}
+                </button>
+              ))}
             </div>
           ) : (
             <EmptyState>Press Generate to synthesize speech</EmptyState>
-          )
-        ) : (
-          transcript ? (
-            <div className="flex flex-col gap-3 animate-fade-in">
-              <Label>Transcript</Label>
-              <div className="bg-[var(--color-bg-raised)] border border-[var(--color-border-faint)] rounded-xl p-6 text-[15px] text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
-                {transcript}
-              </div>
-            </div>
-          ) : (
-            <EmptyState>Transcript appears here</EmptyState>
-          )
-        )}
+          )}
+        </div>
+      }
+    />
+  ) : (
+    <div className="flex flex-col min-h-full">
+      {transcript ? (
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <Label>Transcript</Label>
+          <div className="bg-[var(--color-bg-raised)] border border-[var(--color-border-faint)] rounded-xl p-6 text-[15px] text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
+            {transcript}
+          </div>
+        </div>
+      ) : (
+        <EmptyState>Transcript appears here</EmptyState>
+      )}
     </div>
   )
 

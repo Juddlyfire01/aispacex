@@ -31,19 +31,13 @@ export function VideoView() {
   const [imageName, setImageName] = useState('')
   const [audioEnabled, setAudioEnabled] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
-  const lastJobRef = useRef<{
-    prompt: string
-    negativePrompt?: string
-    model: string
-    extras?: Record<string, string | number | boolean>
-  } | null>(null)
 
   const gallery = useMediaGallery('video')
   const {
-    queue, isQueueing, status, completedBlob, consumeCompletedBlob,
-    error, suggestedPrompt, issues, reset, cancel, elapsedMs,
+    queue, jobs, activeCount, atCapacity, maxConcurrent,
+    cancelAll, dismissJob, takeCompleted,
+    error, suggestedPrompt, issues,
   } = useVideo()
-  const isProcessing = status === 'queued' || status === 'processing'
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -71,20 +65,21 @@ export function VideoView() {
 
   // Persist completed videos into the gallery
   useEffect(() => {
-    if (!completedBlob || !lastJobRef.current) return
-    const job = lastJobRef.current
-    const blob = completedBlob
-    consumeCompletedBlob()
-    void gallery.add({
-      kind: 'video',
-      blob,
-      mimeType: blob.type || 'video/mp4',
-      prompt: job.prompt,
-      negativePrompt: job.negativePrompt,
-      model: job.model,
-      extras: job.extras,
-    })
-  }, [completedBlob, consumeCompletedBlob, gallery.add])
+    const ids = jobs.filter((j) => j.status === 'completed' && j.blob).map((j) => j.id)
+    for (const id of ids) {
+      const taken = takeCompleted(id)
+      if (!taken?.blob) continue
+      void gallery.add({
+        kind: 'video',
+        blob: taken.blob,
+        mimeType: taken.blob.type || 'video/mp4',
+        prompt: taken.meta.prompt,
+        negativePrompt: taken.meta.negativePrompt,
+        model: taken.meta.model,
+        extras: taken.meta.extras,
+      })
+    }
+  }, [jobs, takeCompleted, gallery.add])
 
   // Build option lists from constraints
   const durationOpts = useMemo(() =>
@@ -128,6 +123,10 @@ export function VideoView() {
       toast.error('Prompt too short', `Must be at least ${MIN_PROMPT_LENGTH} characters.`)
       return
     }
+    if (atCapacity) {
+      toast.error('Limit reached', `You can run up to ${maxConcurrent} videos at once.`)
+      return
+    }
     const trimmedPrompt = prompt.trim()
     const trimmedNegative = negativePrompt.trim() || undefined
     const req: VideoQueueRequest = {
@@ -148,13 +147,12 @@ export function VideoView() {
     if (effectiveDuration) extras.duration = effectiveDuration
     if (effectiveResolution) extras.resolution = effectiveResolution
     if (effectiveAspect) extras.aspectRatio = effectiveAspect
-    lastJobRef.current = {
+    void queue(req, {
       prompt: trimmedPrompt,
       negativePrompt: trimmedNegative,
       model: activeModel.id,
       extras: Object.keys(extras).length ? extras : undefined,
-    }
-    queue(req)
+    }).catch(() => { /* error surfaced on job */ })
   }
 
   // Tags for model capabilities
@@ -297,26 +295,33 @@ export function VideoView() {
 
         <PrimaryButton
           onClick={handleGenerate}
-          disabled={!prompt.trim() || promptTooShort || !apiKey || !activeModel || isQueueing || isProcessing || (mode === 'image' && !imageUrl)}
-          loading={isQueueing || isProcessing}
+          disabled={!prompt.trim() || promptTooShort || !apiKey || !activeModel || atCapacity || (mode === 'image' && !imageUrl)}
+          loading={activeCount > 0}
         >
-          {isProcessing ? (status === 'queued' ? 'Queued...' : 'Processing...') : 'Generate Video'}
+          {activeCount > 0 ? `Generate another (${activeCount}/${maxConcurrent})` : 'Generate Video'}
         </PrimaryButton>
-        {(isProcessing || isQueueing) && (
+        {activeCount > 0 && (
           <button
             type="button"
-            onClick={cancel}
+            onClick={cancelAll}
             className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors self-start"
           >
-            Cancel generation
-            {elapsedMs > 0 ? ` · ${formatElapsed(elapsedMs)}` : ''}
+            Cancel all ({activeCount})
           </button>
         )}
       {error && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <ErrorText>{error}</ErrorText>
-            <button onClick={reset} className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors">Reset</button>
+            <button
+              onClick={() => {
+                const failed = jobs.find((j) => j.status === 'failed')
+                if (failed) dismissJob(failed.id)
+              }}
+              className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+            >
+              Dismiss
+            </button>
           </div>
           {issues && issues.length > 0 && (
             <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
@@ -328,7 +333,7 @@ export function VideoView() {
               <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
               <p className="text-[13.5px] text-white/70 leading-relaxed">{suggestedPrompt}</p>
               <button
-                onClick={() => { setPrompt(suggestedPrompt); reset(); }}
+                onClick={() => { setPrompt(suggestedPrompt) }}
                 className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
               >
                 Use this prompt
@@ -344,7 +349,7 @@ export function VideoView() {
     <MediaGallery
       kind="video"
       items={gallery.items}
-      pendingCount={isProcessing || isQueueing ? 1 : 0}
+      pendingCount={activeCount}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
       onUsePrompt={(p, neg) => {
@@ -353,28 +358,24 @@ export function VideoView() {
       }}
       empty={
         <div className="flex items-center justify-center flex-1 h-full text-white/30 text-[15px]">
-          {isProcessing || isQueueing ? (
+          {activeCount > 0 ? (
             <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
               <Spinner size="lg" />
               <span className="text-white/55 text-center">
-                {status === 'queued' ? 'Queued — waiting for a slot' : 'Generating your video'}
-                {elapsedMs > 0 && (
-                  <span className="block text-[12px] text-white/30 font-mono mt-1">
-                    {formatElapsed(elapsedMs)} · typically 30s–2min
-                  </span>
-                )}
+                Generating {activeCount} video{activeCount === 1 ? '' : 's'}…
+                <span className="block text-[12px] text-white/30 mt-1">typically 30s–2min each</span>
               </span>
               <button
-                onClick={cancel}
+                onClick={cancelAll}
                 className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
               >
-                Cancel
+                Cancel all
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <span>Generated videos appear here</span>
-              <span className="text-[12px] text-white/35">Average generation time: 30s–2min</span>
+              <span className="text-[12px] text-white/35">Run up to {maxConcurrent} in parallel</span>
             </div>
           )}
         </div>
@@ -385,13 +386,6 @@ export function VideoView() {
   return <GenerationView controls={controls} output={output} />
 }
 
-function formatElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
-}
-
-// Duration slider for models with many duration options (e.g. Kling O3 with 3s-15s)
 function DurationSlider({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   const idx = options.indexOf(value)
   const currentIdx = idx >= 0 ? idx : 0

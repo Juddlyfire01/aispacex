@@ -3,10 +3,12 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
 import { useMusic } from '../../hooks/use-music'
+import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, ErrorText, PillGroup } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { Spinner } from '../ui/spinner'
+import { MediaGallery } from '../media/media-gallery'
 import { getMusicCapabilities } from '../../lib/music-capabilities'
 import { cn } from '../../lib/utils'
 import { toast } from '../../stores/toast-store'
@@ -32,8 +34,6 @@ export function MusicView() {
   const [lyricsOptimizer, setLyricsOptimizer] = useState(false)
   const [voice, setVoice] = useState('')
 
-  // Reset model-dependent controls whenever the selected model changes so the
-  // values stay within the new model's supported ranges.
   useEffect(() => {
     setDuration(caps.defaultDuration)
     setInstrumental(false)
@@ -42,17 +42,38 @@ export function MusicView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model])
 
-  const { queue, isQueueing, status, audioUrl, error, suggestedPrompt, issues, reset, cancel, elapsedMs } = useMusic()
-  const isProcessing = status === 'queued' || status === 'processing'
+  const gallery = useMediaGallery('audio')
+  const {
+    queue, jobs, activeCount, atCapacity, maxConcurrent,
+    cancelAll, dismissJob, takeCompleted,
+    error, suggestedPrompt, issues,
+  } = useMusic()
 
   const minPromptLength = caps.minPromptLength
   const promptLen = prompt.trim().length
   const promptTooShort = promptLen > 0 && promptLen < minPromptLength
 
-  // When the optimizer auto-generates lyrics, the API rejects a manual
-  // `lyrics_prompt`, so we hide/disable the lyrics field while it's on.
   const optimizerActive = caps.supportsLyricsOptimizer && lyricsOptimizer
   const lyricsMissing = caps.lyricsRequired && !optimizerActive && !lyrics.trim()
+
+  useEffect(() => {
+    const ids = jobs.filter((j) => j.status === 'completed' && j.blob).map((j) => j.id)
+    for (const id of ids) {
+      const taken = takeCompleted(id)
+      if (!taken?.blob) continue
+      void gallery.add({
+        kind: 'audio',
+        blob: taken.blob,
+        mimeType: taken.blob.type || 'audio/mpeg',
+        prompt: taken.meta.prompt,
+        model: taken.meta.model,
+        extras: {
+          ...taken.meta.extras,
+          ...(taken.meta.lyrics ? { lyrics: taken.meta.lyrics } : {}),
+        },
+      })
+    }
+  }, [jobs, takeCompleted, gallery.add])
 
   const handleGenerate = () => {
     if (!prompt.trim()) return
@@ -65,25 +86,35 @@ export function MusicView() {
       toast.error('Lyrics required', `${name} requires lyrics. Add lyrics${caps.supportsLyricsOptimizer ? ' or enable the lyrics optimizer' : ''}.`)
       return
     }
+    if (atCapacity) {
+      toast.error('Limit reached', `You can run up to ${maxConcurrent} tracks at once.`)
+      return
+    }
 
-    const req: MusicQueueRequest = { model, prompt: prompt.trim() }
+    const trimmedPrompt = prompt.trim()
+    const trimmedLyrics = lyrics.trim() || undefined
+    const req: MusicQueueRequest = { model, prompt: trimmedPrompt }
 
     if (optimizerActive) {
       req.lyrics_optimizer = true
-    } else if (caps.supportsLyrics && lyrics.trim()) {
-      req.lyrics_prompt = lyrics.trim()
+    } else if (caps.supportsLyrics && trimmedLyrics) {
+      req.lyrics_prompt = trimmedLyrics
     }
     if (caps.supportsDuration) req.duration_seconds = clamp(duration, caps.minDuration, caps.maxDuration)
     if (caps.supportsForceInstrumental && instrumental) req.force_instrumental = true
     if (caps.supportsVoice && voice) req.voice = voice
 
-    queue(req)
-  }
+    const extras: Record<string, string | number | boolean> = {}
+    if (caps.supportsDuration) extras.duration = clamp(duration, caps.minDuration, caps.maxDuration)
+    if (instrumental) extras.instrumental = true
+    if (voice) extras.voice = voice
 
-  const useSuggestedPrompt = () => {
-    if (!suggestedPrompt) return
-    setPrompt(suggestedPrompt)
-    reset()
+    void queue(req, {
+      prompt: trimmedPrompt,
+      lyrics: trimmedLyrics,
+      model,
+      extras: Object.keys(extras).length ? extras : undefined,
+    }).catch(() => { /* surfaced on job */ })
   }
 
   const durationStep = caps.maxDuration > 60 ? 5 : 1
@@ -183,17 +214,34 @@ export function MusicView() {
 
       <PrimaryButton
         onClick={handleGenerate}
-        disabled={!prompt.trim() || promptTooShort || lyricsMissing || !apiKey || isQueueing || isProcessing}
-        loading={isQueueing || isProcessing}
+        disabled={!prompt.trim() || promptTooShort || lyricsMissing || !apiKey || atCapacity}
+        loading={activeCount > 0}
         size="lg"
       >
-        {isProcessing ? (status === 'queued' ? 'Queued…' : 'Generating…') : 'Generate Music'}
+        {activeCount > 0 ? `Generate another (${activeCount}/${maxConcurrent})` : 'Generate Music'}
       </PrimaryButton>
+      {activeCount > 0 && (
+        <button
+          type="button"
+          onClick={cancelAll}
+          className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors self-start"
+        >
+          Cancel all ({activeCount})
+        </button>
+      )}
       {error && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <ErrorText>{error}</ErrorText>
-            <button onClick={reset} className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors">Reset</button>
+            <button
+              onClick={() => {
+                const failed = jobs.find((j) => j.status === 'failed')
+                if (failed) dismissJob(failed.id)
+              }}
+              className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+            >
+              Dismiss
+            </button>
           </div>
           {issues && issues.length > 0 && (
             <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
@@ -205,7 +253,7 @@ export function MusicView() {
               <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
               <p className="text-[13.5px] text-white/70 leading-relaxed">{suggestedPrompt}</p>
               <button
-                onClick={useSuggestedPrompt}
+                onClick={() => setPrompt(suggestedPrompt)}
                 className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
               >
                 Use this prompt
@@ -218,63 +266,49 @@ export function MusicView() {
   )
 
   const output = (
-    <div className="flex flex-col h-full">
-        {audioUrl ? (
-          <div className="animate-fade-in flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <Label>Output</Label>
-              <a href={audioUrl} download="venice-music.mp3" target="_blank" rel="noopener noreferrer" className="text-[14px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-1.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-                Download
-              </a>
+    <MediaGallery
+      kind="audio"
+      items={gallery.items}
+      pendingCount={activeCount}
+      onRemove={gallery.remove}
+      onClearAll={gallery.clearAll}
+      onUsePrompt={(p) => setPrompt(p)}
+      empty={
+        <div className="flex items-center justify-center flex-1 h-full text-white/30 text-[15px]">
+          {activeCount > 0 ? (
+            <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
+              <Spinner size="lg" />
+              <span className="text-white/55 text-center">
+                Composing {activeCount} track{activeCount === 1 ? '' : 's'}…
+                <span className="block text-[12px] text-white/30 mt-1">typically 20s–90s each</span>
+              </span>
+              <button
+                onClick={cancelAll}
+                className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
+              >
+                Cancel all
+              </button>
             </div>
-            <audio controls src={audioUrl} className="w-full" />
-            <div className="bg-white/[0.02] border border-white/[0.04] rounded-lg p-4">
-              <p className="text-[15px] text-white/30 leading-relaxed">{prompt}</p>
-              {lyrics && <p className="text-[14px] text-white/15 mt-2 italic">{lyrics}</p>}
-            </div>
-            <button onClick={reset} className="self-start text-[14px] text-white/15 hover:text-white/35 transition-colors">Generate another</button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center flex-1 text-white/30 text-[15px]">
-            {isProcessing ? (
-              <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
-                <Spinner size="lg" />
-                <span className="text-white/55 text-center">
-                  {status === 'queued' ? 'Queued — waiting for a slot' : 'Composing your track'}
-                  {elapsedMs > 0 && (
-                    <span className="block text-[12px] text-white/30 font-mono mt-1">
-                      {formatElapsedMusic(elapsedMs)} · typically 20s–90s
-                    </span>
-                  )}
-                </span>
+          ) : !prompt ? (
+            <div className="max-w-md w-full flex flex-col gap-2">
+              <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
+              {MUSIC_EXAMPLES.map((p) => (
                 <button
-                  onClick={cancel}
-                  className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
+                  key={p}
+                  type="button"
+                  onClick={() => setPrompt(p)}
+                  className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
                 >
-                  Cancel
+                  {p}
                 </button>
-              </div>
-            ) : !prompt ? (
-              <div className="max-w-md w-full flex flex-col gap-2">
-                <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
-                {MUSIC_EXAMPLES.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPrompt(p)}
-                    className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span>Press Generate to create your track</span>
-            )}
-          </div>
-        )}
-    </div>
+              ))}
+            </div>
+          ) : (
+            <span>Press Generate to create your track</span>
+          )}
+        </div>
+      }
+    />
   )
 
   return <GenerationView controls={controls} output={output} />
@@ -286,12 +320,6 @@ const MUSIC_EXAMPLES = [
   'Synthwave with retro arpeggios, warm pads, gated reverb drums — 105 bpm',
   'Acoustic folk fingerpicking, soft female vocals, intimate room sound',
 ]
-
-function formatElapsedMusic(ms: number): string {
-  const s = Math.floor(ms / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
-}
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (

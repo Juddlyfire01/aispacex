@@ -12,6 +12,7 @@ import { LoadingState } from '../ui/spinner'
 import { MediaGallery } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
 import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
+import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
 import { VeniceAPIError } from '../../lib/venice-client'
 import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
@@ -63,6 +64,9 @@ export function ImageView() {
   const [variants, setVariants] = useState(1)
   const [hideWatermark] = useState(true)
   const [safeMode, setSafeMode] = useState(false)
+  const [pendingJobs, setPendingJobs] = useState(0)
+  const [pendingSlots, setPendingSlots] = useState(0)
+  const [lastError, setLastError] = useState<Error | null>(null)
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -95,11 +99,16 @@ export function ImageView() {
 
   const mutation = useImageGenerate()
   const styleOptions = [{ value: '', label: 'None' }, ...(styles?.map((s) => ({ value: s, label: s })) ?? [])]
+  const atCapacity = pendingJobs >= MAX_CONCURRENT_MEDIA_JOBS
 
   const handleGenerate = () => {
     if (!prompt.trim()) return
     if (prompt.trim().length < MIN_PROMPT_LENGTH) {
       toast.error('Prompt too short', `Must be at least ${MIN_PROMPT_LENGTH} characters.`)
+      return
+    }
+    if (atCapacity) {
+      toast.error('Limit reached', `You can run up to ${MAX_CONCURRENT_MEDIA_JOBS} image jobs at once.`)
       return
     }
     const size = DEFAULT_SIZE_MAP[Number(sizeIdx)]
@@ -115,7 +124,6 @@ export function ImageView() {
       steps,
     }
 
-    // Use aspect_ratio for models that support it, otherwise use width/height
     if (hasAspectRatios && aspectRatio) {
       req.aspect_ratio = aspectRatio
     } else if (!hasAspectRatios) {
@@ -123,7 +131,6 @@ export function ImageView() {
       req.height = size.h
     }
 
-    // Resolution for models that support named resolutions
     if (hasResolutions && resolution) {
       req.resolution = resolution
     }
@@ -135,6 +142,10 @@ export function ImageView() {
     if (hasAspectRatios && aspectRatio) extras.aspectRatio = aspectRatio
     if (hasResolutions && resolution) extras.resolution = resolution
 
+    setLastError(null)
+    setPendingJobs((n) => n + 1)
+    const jobVariants = variants
+    setPendingSlots((n) => n + jobVariants)
     mutation.mutate(
       req as unknown as Parameters<typeof mutation.mutate>[0],
       {
@@ -154,6 +165,13 @@ export function ImageView() {
               })
             }
           })()
+        },
+        onError: (err) => {
+          setLastError(err instanceof Error ? err : new Error('Generate failed'))
+        },
+        onSettled: () => {
+          setPendingJobs((n) => Math.max(0, n - 1))
+          setPendingSlots((n) => Math.max(0, n - jobVariants))
         },
       },
     )
@@ -222,12 +240,17 @@ export function ImageView() {
         </button>
       </div>
 
-      <PrimaryButton onClick={handleGenerate} disabled={!prompt.trim() || promptTooShort || !apiKey} loading={mutation.isPending} size="lg">
-        {mutation.isPending ? 'Generating…' : 'Generate'}
+      <PrimaryButton
+        onClick={handleGenerate}
+        disabled={!prompt.trim() || promptTooShort || !apiKey || atCapacity}
+        loading={pendingJobs > 0}
+        size="lg"
+      >
+        {pendingJobs > 0 ? `Generate another (${pendingJobs}/${MAX_CONCURRENT_MEDIA_JOBS})` : 'Generate'}
       </PrimaryButton>
-      {mutation.error && (() => {
-        const apiErr = mutation.error instanceof VeniceAPIError ? mutation.error : null
-        const errMsg = mutation.error.message
+      {lastError && (() => {
+        const apiErr = lastError instanceof VeniceAPIError ? lastError : null
+        const errMsg = lastError.message
         const sug = apiErr?.suggestedPrompt
         const iss = apiErr?.issues
         return (
@@ -260,7 +283,7 @@ export function ImageView() {
     <MediaGallery
       kind="image"
       items={gallery.items}
-      pendingCount={mutation.isPending ? variants : 0}
+      pendingCount={pendingSlots}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
       onUsePrompt={(p, neg) => {
@@ -269,7 +292,7 @@ export function ImageView() {
       }}
       empty={
         <div className="flex items-center justify-center h-full">
-          {mutation.isPending ? (
+          {pendingJobs > 0 ? (
             <LoadingState label="Generating…" size="lg" />
           ) : (
             <ExamplePrompts items={IMAGE_EXAMPLES} onPick={setPrompt} />
