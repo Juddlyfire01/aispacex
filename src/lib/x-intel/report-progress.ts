@@ -7,11 +7,14 @@ import {
   type ReportCallKind,
 } from './token-estimate'
 
+const PRESTREAM_COMPUTING_MS = 1000
+const PRESTREAM_SENDING_MS = 2000
+
 export interface ReportProgressHandle {
   toastId: number
-  /** Thin prepare stage (analytics) — may only paint for a frame. */
+  /** Start pre-stream hold schedule (Computing → Sending → Waiting). */
   markPrepare: () => void
-  /** Start of a streamed LLM call. */
+  /** Arm the active streamed LLM phase (label applies after first token). */
   markPhase: (phase: ReportCallKind) => void
   /** Token progress within the current streamed call. */
   onStreamTokens: (phase: ReportCallKind, receivedTokens: number, expectedTokens: number) => void
@@ -37,12 +40,12 @@ export function beginReportProgress(opts: {
   const toastId = toast.progress('Generating report', {
     description: subject,
     progress: 0.03,
-    progressLabel: hasChangeStep
-      ? 'Preparing · then narrative + changes'
-      : 'Preparing · then writing narrative',
+    progressLabel: 'Computing…',
   })
 
   let lastProgress = 0.03
+  let streamingStarted = false
+  const prestreamTimers: ReturnType<typeof setTimeout>[] = []
 
   const setProgress = (progress: number, progressLabel: string) => {
     // Monotonic bar — never jump backwards if estimates overshoot mid-stream.
@@ -51,34 +54,70 @@ export function beginReportProgress(opts: {
     toast.update(toastId, { progress: next, progressLabel })
   }
 
+  const clearPrestream = () => {
+    for (const t of prestreamTimers) clearTimeout(t)
+    prestreamTimers.length = 0
+  }
+
+  const writingLabel = (phase: ReportCallKind, frac?: number): string => {
+    const step = phase === 'narrative' ? 1 : 2
+    const base = phaseLabel(phase)
+    const pct =
+      frac === undefined ? undefined : `… ~${Math.round(frac * 100)}%`
+    const suffix = pct ?? '…'
+    return totalSteps === 1
+      ? `${base}${suffix}`
+      : `Step ${step} of ${totalSteps} · ${base}${suffix}`
+  }
+
+  const enterStreaming = () => {
+    if (streamingStarted) return
+    streamingStarted = true
+    clearPrestream()
+  }
+
   return {
     toastId,
     markPrepare: () => {
-      setProgress(0.04, 'Computing analytics…')
-    },
-    markPhase: (phase) => {
-      const step = phase === 'narrative' ? 1 : 2
-      const base = mapReportStreamProgress(phase, 0, hasChangeStep)
-      setProgress(
-        base,
-        totalSteps === 1
-          ? `${phaseLabel(phase)}…`
-          : `Step ${step} of ${totalSteps} · ${phaseLabel(phase)}…`,
+      if (streamingStarted) return
+      clearPrestream()
+      setProgress(0.04, 'Computing…')
+      prestreamTimers.push(
+        setTimeout(() => {
+          if (streamingStarted) return
+          setProgress(0.05, 'Sending…')
+          prestreamTimers.push(
+            setTimeout(() => {
+              if (streamingStarted) return
+              setProgress(0.06, 'Waiting…')
+            }, PRESTREAM_SENDING_MS),
+          )
+        }, PRESTREAM_COMPUTING_MS),
       )
     },
+    markPhase: (phase) => {
+      if (streamingStarted) {
+        const base = mapReportStreamProgress(phase, 0, hasChangeStep)
+        setProgress(base, writingLabel(phase))
+      }
+      // Pre-stream: holds own the label until the first token.
+    },
     onStreamTokens: (phase, receivedTokens, expectedTokens) => {
+      enterStreaming()
       const frac = streamCallFraction(receivedTokens, expectedTokens)
       const overall = mapReportStreamProgress(phase, frac, hasChangeStep)
-      const step = phase === 'narrative' ? 1 : 2
-      const pct = Math.round(frac * 100)
-      const label =
-        totalSteps === 1
-          ? `${phaseLabel(phase)}… ~${pct}%`
-          : `Step ${step} of ${totalSteps} · ${phaseLabel(phase)}… ~${pct}%`
-      setProgress(overall, label)
+      setProgress(overall, writingLabel(phase, frac))
     },
-    complete: (title, description) => toast.complete(toastId, title, description),
-    fail: (title, description) => toast.fail(toastId, title, description),
+    complete: (title, description) => {
+      clearPrestream()
+      streamingStarted = true
+      toast.complete(toastId, title, description)
+    },
+    fail: (title, description) => {
+      clearPrestream()
+      streamingStarted = true
+      toast.fail(toastId, title, description)
+    },
   }
 }
 
