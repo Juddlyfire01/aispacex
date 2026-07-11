@@ -25,18 +25,18 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Hand off post/reply/quote/thread copy to the draft writer model. Call this when the user wants post text for X. Pass a dense brief (angle, key facts, handles, constraints). Do NOT emit a postdraft fence yourself — the writer fills the draft drawer.',
+      'Hand off post/reply/quote/thread/article/long-form copy to the draft writer model. Call when the user wants publishable X text. Pass a dense brief (angle, key facts, handles, constraints, optional cover image prompt). Do NOT emit a postdraft fence yourself — the writer fills the draft drawer. When the user prefers Articles, still call this tool; do not paste the full article into chat.',
     parameters: {
       type: 'object',
       properties: {
         brief: {
           type: 'string',
           description:
-            'Dense writing brief: intent, key facts/metrics, @handles, tone notes, must-include / must-avoid. Enough for a writer with no tool access.',
+            'Dense writing brief: intent, key facts/metrics, @handles, tone notes, must-include / must-avoid. For articles include section outline. If an image/cover prompt is requested, include it as a separate note labeled Image prompt — the writer will keep it out of the article body.',
         },
         target: {
           type: 'object',
-          description: 'Post target. Default original.',
+          description: 'Post target. Default original. Ignored for Articles.',
           properties: {
             kind: { type: 'string', enum: ['original', 'reply', 'quote'] },
             toPostId: { type: 'string' },
@@ -47,11 +47,12 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         },
         longform: {
           type: 'boolean',
-          description: 'Allow long-form (>280) when appropriate.',
+          description:
+            'Allow Premium long-form tweet (>280). Do NOT set true for X Articles — Articles are a separate format controlled by the user preference.',
         },
         notes: {
           type: 'string',
-          description: 'Hard constraints e.g. keep under 280, include NFA, ranking format.',
+          description: 'Hard constraints e.g. keep under 280, include NFA, ranking format, image style.',
         },
       },
       required: ['brief'],

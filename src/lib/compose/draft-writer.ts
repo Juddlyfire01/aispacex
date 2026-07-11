@@ -6,6 +6,9 @@ import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { VeniceModel } from '../../types/venice'
 import type { DraftWriteBrief } from './draft-writer-tool'
 
+export { parseArticleFromWriterText, splitArticleImagePrompt } from './article-parse'
+export type { ParsedWriterArticle } from './article-parse'
+
 export interface RunDraftWriterOpts {
   modelId: string
   modelSpec?: VeniceModel | null
@@ -24,8 +27,16 @@ Rules:
 - No preamble, no "here's a draft", no markdown fences, no JSON, no \`\`\`postdraft.
 - For post/thread/long-form: no Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
 - Thread: separate posts with a line containing only ---
-- Article: first line is \`# Title\`, then a blank line, then the markdown body.
-- Cite external posts with https://x.com/i/status/{id} permalinks.
+- Article:
+  - First line is \`# Title\`, then a blank line, then the markdown body ONLY.
+  - Do NOT put image prompts, "Image Prompt:", or illustration directions in the article body.
+  - If the brief asks for an image/cover prompt, append it AFTER the body in a separate block:
+\`\`\`
+---IMAGE_PROMPT---
+<prompt text only>
+\`\`\`
+  - Never label the output as "long-form post" — Articles are a distinct X format.
+- Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).
 - Match X conventions: natural voice, no hashtag spam, no "As an AI".
 - Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.`,
   ]
@@ -50,16 +61,20 @@ export function buildWriterUser(brief: DraftWriteBrief): string {
     } else if (format === 'longform') {
       rules += ' Single continuous block; may exceed 280 characters.'
     } else if (format === 'article') {
-      rules += ' Output markdown: first line `# Title`, blank line, then body.'
+      rules +=
+        ' X Article format (not a Premium long-form tweet). Output `# Title`, blank line, markdown body. Put any image/cover prompt after ---IMAGE_PROMPT--- only — never inside the body.'
     }
     lines.push(rules)
   }
-  if (brief.longform || brief.preferredFormat === 'longform') {
+  if (brief.preferredFormat === 'article') {
+    lines.push('Write the X Article now (title + body; optional ---IMAGE_PROMPT--- block).')
+  } else if (brief.longform || brief.preferredFormat === 'longform') {
     lines.push('Long-form allowed (may exceed 280 characters).')
-  } else if (brief.preferredFormat !== 'article') {
+    lines.push('Write the post now.')
+  } else {
     lines.push('Prefer staying under 280 characters unless the brief requires otherwise.')
+    lines.push('Write the post now.')
   }
-  lines.push('Write the post now.')
   return lines.join('\n\n')
 }
 
@@ -72,25 +87,12 @@ export function splitWriterSegments(text: string): string[] {
   return parts.length > 0 ? parts : [text.trim()].filter(Boolean)
 }
 
-/** Parse `# Title` + body markdown from draft-writer article output. */
-export function parseArticleFromWriterText(text: string): { title: string; bodyMarkdown: string } {
-  const trimmed = text.trim()
-  const match = trimmed.match(/^#\s+([^\n]+)\n+([\s\S]*)$/)
-  if (match) {
-    return { title: match[1].trim(), bodyMarkdown: match[2].trim() }
-  }
-  const titleOnly = trimmed.match(/^#\s+([^\n]+)$/)
-  if (titleOnly) {
-    return { title: titleOnly[1].trim(), bodyMarkdown: '' }
-  }
-  return { title: '', bodyMarkdown: trimmed }
-}
-
 /**
  * Stream draft copy from the writer model. Returns full accumulated text.
  * Caller applies tokens to the draft drawer via onDelta.
  */
 export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> {
+  const isArticle = opts.brief.preferredFormat === 'article'
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
@@ -102,7 +104,8 @@ export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> 
       stream: true,
       stream_options: { include_usage: true },
       temperature: 0.7,
-      max_tokens: 2048,
+      // Articles need room for long markdown; posts/threads stay smaller.
+      max_tokens: isArticle ? 8192 : 2048,
     }),
     stream: true,
     signal: opts.signal,

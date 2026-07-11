@@ -49,6 +49,11 @@ export interface ArticleDraft {
   contentState?: unknown
   cover?: MediaItem
   inlineMedia: MediaItem[]
+  /**
+   * Cover/illustration prompt for the article — not published as article body.
+   * Populated from writer `---IMAGE_PROMPT---` sections or the ArticleComposer field.
+   */
+  imagePrompt?: string
 }
 
 export interface PostDraft {

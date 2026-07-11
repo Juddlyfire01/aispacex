@@ -357,6 +357,10 @@ export function useCompose() {
           const writerBrief: DraftWriteBrief = {
             ...brief,
             preferredFormat: brief.preferredFormat ?? preferredFormat,
+            // Articles are not Premium long-form tweets — never carry longform:true into the writer.
+            ...( (brief.preferredFormat ?? preferredFormat) === 'article'
+              ? { longform: false }
+              : {}),
           }
           const prefFormat = writerBrief.preferredFormat ?? preferredFormat
           const wantsArticle = prefFormat === 'article'
@@ -366,9 +370,9 @@ export function useCompose() {
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
-            ...(writerBrief.target ? { target: writerBrief.target } : {}),
+            ...(writerBrief.target && !wantsArticle ? { target: writerBrief.target } : {}),
             ...(wantsArticle
-              ? { article: emptyArticleDraft(), longform: false }
+              ? { article: emptyArticleDraft(), longform: false, target: { kind: 'original' } }
               : {
                   article: undefined,
                   ...(typeof writerBrief.longform === 'boolean'
@@ -382,7 +386,9 @@ export function useCompose() {
           useComposeStore.getState().pushAgentEvent({
             id: writerEventId,
             label: 'Draft writer finished',
-            progressLabel: `Draft writer streaming (${draftModel})`,
+            progressLabel: wantsArticle
+              ? `Article writer streaming (${draftModel})`
+              : `Draft writer streaming (${draftModel})`,
             status: 'running',
             startedAt: Date.now(),
           })
@@ -397,8 +403,10 @@ export function useCompose() {
                 cover: current?.cover,
                 inlineMedia: current?.inlineMedia ?? [],
                 contentState: current?.contentState,
+                imagePrompt: parsed.imagePrompt ?? current?.imagePrompt,
               },
               longform: false,
+              target: { kind: 'original' },
             })
           }
 

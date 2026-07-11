@@ -1,5 +1,6 @@
 import type { PostDraft } from './types'
 import { POST_ID_RE, normalizePostId, postUrl } from '../x-intel/evidence'
+import { splitArticleImagePrompt } from './article-parse'
 
 /** Rewrite bare / post: snowflakes to permalinks; leave ids inside URLs alone. */
 export function rewritePostIdsToUrls(text: string): string {
@@ -31,7 +32,9 @@ function serializeArticle(draft: PostDraft): string | null {
   const a = draft.article
   if (!a) return null
   const title = a.title.trim()
-  const body = rewritePostIdsToUrls(a.bodyMarkdown ?? '')
+  // Strip any image-prompt section that leaked into bodyMarkdown.
+  const { body: cleanBody } = splitArticleImagePrompt(a.bodyMarkdown ?? '')
+  const body = rewritePostIdsToUrls(cleanBody)
   if (!title && !body.trim()) return null
   const head = title ? `${title}\n\n` : ''
   return `${head}${body}`.trim() + targetSuffix(draft)

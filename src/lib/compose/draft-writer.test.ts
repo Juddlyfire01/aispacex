@@ -57,6 +57,45 @@ describe('splitWriterSegments', () => {
   })
 })
 
+describe('parseArticleFromWriterText', () => {
+  it('parses # Title and body', () => {
+    expect(parseArticleFromWriterText('# Hello\n\nBody paragraph')).toEqual({
+      title: 'Hello',
+      bodyMarkdown: 'Body paragraph',
+      imagePrompt: undefined,
+    })
+  })
+
+  it('treats body-only text as bodyMarkdown', () => {
+    expect(parseArticleFromWriterText('Just a body')).toEqual({
+      title: '',
+      bodyMarkdown: 'Just a body',
+      imagePrompt: undefined,
+    })
+  })
+
+  it('splits ---IMAGE_PROMPT--- out of the body', () => {
+    expect(
+      parseArticleFromWriterText(
+        '# Title\n\nArticle body.\n\n---IMAGE_PROMPT---\nneon vault, cyan lattice',
+      ),
+    ).toEqual({
+      title: 'Title',
+      bodyMarkdown: 'Article body.',
+      imagePrompt: 'neon vault, cyan lattice',
+    })
+  })
+
+  it('splits Image Prompt: heading out of the body', () => {
+    const parsed = parseArticleFromWriterText(
+      '# Title\n\nBody text.\n\nImage Prompt (techno abstract style):\nAbstract neon vault',
+    )
+    expect(parsed.title).toBe('Title')
+    expect(parsed.bodyMarkdown).toBe('Body text.')
+    expect(parsed.imagePrompt).toMatch(/Abstract neon vault/)
+  })
+})
+
 describe('buildWriterUser', () => {
   it('appends preferred format rules', () => {
     const u = buildWriterUser({
@@ -65,22 +104,8 @@ describe('buildWriterUser', () => {
     })
     expect(u).toMatch(/Preferred format: article/)
     expect(u).toMatch(/# Title/)
-  })
-})
-
-describe('parseArticleFromWriterText', () => {
-  it('parses # Title and body', () => {
-    expect(parseArticleFromWriterText('# Hello\n\nBody paragraph')).toEqual({
-      title: 'Hello',
-      bodyMarkdown: 'Body paragraph',
-    })
-  })
-
-  it('treats body-only text as bodyMarkdown', () => {
-    expect(parseArticleFromWriterText('Just a body')).toEqual({
-      title: '',
-      bodyMarkdown: 'Just a body',
-    })
+    expect(u).toMatch(/IMAGE_PROMPT/)
+    expect(u).not.toMatch(/Long-form allowed/)
   })
 })
 

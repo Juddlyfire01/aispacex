@@ -3,6 +3,7 @@
 // then creates + publishes the article. Errors mirror XPostError / XMediaError.
 
 import { markdownToContentState } from './article-draftjs'
+import { splitArticleImagePrompt } from './article-parse'
 import type { MediaItem, PostDraft } from './types'
 import { uploadImageDataUrl, XMediaError } from './x-media-client'
 import type { PostResult } from './x-post-client'
@@ -58,7 +59,7 @@ export async function publishArticleDraft(draft: PostDraft): Promise<PostResult>
   if (!article) throw new XArticleError('Draft has no article payload.', 400, false)
 
   const title = article.title.trim()
-  const bodyMarkdown = article.bodyMarkdown ?? ''
+  const { body: bodyMarkdown } = splitArticleImagePrompt(article.bodyMarkdown ?? '')
   if (!title) throw new XArticleError('Article title is required.', 400, false)
   if (!bodyMarkdown.trim() && article.inlineMedia.length === 0) {
     throw new XArticleError('Article body is required.', 400, false)

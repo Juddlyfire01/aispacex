@@ -1,4 +1,4 @@
-import type {
+import {
   ArticleDraft,
   MediaItem,
   Poll,
@@ -8,6 +8,7 @@ import type {
   ReplySettings,
 } from './types'
 import { emptyArticleDraft, emptySegment } from './types'
+import { splitArticleImagePrompt } from './article-parse'
 
 // The compose assistant embeds a structured draft in its reply as a fenced
 // ```postdraft JSON block. We parse that out, normalize it into a partial
@@ -93,7 +94,9 @@ function normalizeArticle(raw: unknown): ArticleDraft | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const a = raw as Record<string, unknown>
   const title = coerceString(a.title) ?? ''
-  const bodyMarkdown = coerceString(a.bodyMarkdown) ?? ''
+  const rawBody = coerceString(a.bodyMarkdown) ?? ''
+  const { body: bodyMarkdown, imagePrompt: splitPrompt } = splitArticleImagePrompt(rawBody)
+  const imagePrompt = coerceString(a.imagePrompt) ?? splitPrompt
   if (!title && !bodyMarkdown) return undefined
   const base = emptyArticleDraft()
   return {
@@ -101,6 +104,7 @@ function normalizeArticle(raw: unknown): ArticleDraft | undefined {
     title,
     bodyMarkdown,
     inlineMedia: normalizeMedia(a.inlineMedia),
+    ...(imagePrompt ? { imagePrompt } : {}),
   }
 }
 

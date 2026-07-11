@@ -31,26 +31,29 @@ export interface ComposeSystemOpts {
 const FORMAT_SPEC = `Output formats (when drafting for X):
 - Post: single segment, longform false, ≤280 characters. One punchy take.
 - Thread: 2+ segments (each ≤280 unless longform). Multi-beat narrative, numbered beats, or a sequence of related posts.
-- Long-form: single segment, longform true, up to ~25k characters (Premium). Deep essay / single continuous piece that should not be split.
-- Article: populate article: { title, bodyMarkdown } — a titled structured piece with sections (and optional media). Do NOT put the article body in tweet segments; segments may be empty [].
+- Long-form: single segment, longform true, up to ~25k characters (Premium tweet). Deep essay as ONE tweet — NOT an X Article.
+- Article: X Articles format — populate article: { title, bodyMarkdown }. Titled structured piece with sections (and optional media). Do NOT put the article body in tweet segments; segments may be []. Do NOT confuse Article with Premium long-form tweets.
+- If the user asks for an image/cover prompt with an Article, keep it out of bodyMarkdown — the draft writer stores it separately as an image prompt.
 
 Auto decision (when format preference is Auto):
 - Punchy single take → post
 - Multi-beat / sequential points → thread
-- Deep single essay → long-form when the account is Premium-capable; otherwise prefer a tight post/thread unless the user insists
-- Titled structured piece with sections/media → article
+- Deep single essay as a Premium tweet → long-form when the account is Premium-capable; otherwise prefer a tight post/thread unless the user insists
+- Titled structured piece with sections/media (or user preference Article) → article
 
 Citations:
 - In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
 - In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
-const HANDOFF_DRAFT_SPEC = `Post drafting (hand off — required when the user wants post copy):
-When the user asks for post/reply/quote/thread copy, or an update to draft text for X, call the compose_write_draft tool with a dense brief (angle, key facts/metrics, @handles, constraints). A separate draft-writer model will fill the draft drawer while you continue chatting.
+const HANDOFF_DRAFT_SPEC = `Post drafting (hand off — required when the user wants publishable X copy):
+When the user asks for post/reply/quote/thread/article/long-form copy, or an update to draft text for X, call the compose_write_draft tool with a dense brief (angle, key facts/metrics, @handles, constraints, optional cover image prompt). A separate draft-writer model will fill the draft drawer while you continue chatting.
 
 Rules:
 - Do NOT append a postdraft fence yourself. Never invent one.
-- After calling compose_write_draft, continue your normal prose reply (analysis, rationale, options). Mention that the draft is writing in the drawer only if natural — do not narrate tool mechanics.
-- Do not offer to draft unless the user asked for writing, a post, a reply, a thread, or similar.
+- Do NOT paste the full draft into chat — hand off via the tool so the drawer owns the copy.
+- After calling compose_write_draft, continue your normal prose reply (short confirmation, rationale, options). Mention that the draft is writing in the drawer only if natural — do not narrate tool mechanics.
+- Respect the user's Preferred format. If it is Article, still call compose_write_draft (do not set longform:true — Articles ≠ Premium long-form tweets). Put any image/cover prompt in the brief as a separate note, not as the article body.
+- Do not offer to draft unless the user asked for writing, a post, a reply, a thread, an article, or similar.
 - Still use intel_* / compose_history_* for research as needed before or after the draft handoff.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
