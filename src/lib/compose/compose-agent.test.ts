@@ -101,10 +101,19 @@ describe('runComposeAgent', () => {
 
     const body = JSON.parse(veniceMock.mock.calls[0]![1].body as string) as {
       stream: boolean
-      tools: unknown[]
+      tools: Array<{ function: { name: string } }>
     }
     expect(body.stream).toBe(true)
     expect(body.tools.length).toBeGreaterThan(0)
+    const toolNames = body.tools.map((t) => t.function.name)
+    expect(toolNames).toEqual(
+      expect.arrayContaining([
+        'stats_protocol',
+        'stats_market',
+        'stats_social',
+        'stats_wallet',
+      ]),
+    )
   })
 
   it('runs tool round then streams final text', async () => {

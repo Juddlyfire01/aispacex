@@ -12,6 +12,7 @@ import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { HistorySnapshot } from './history-library'
 import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
+import { COMPOSE_STATS_TOOLS, executeStatsTool } from './stats-tools'
 import {
   COMPOSE_WRITE_DRAFT_TOOL,
   COMPOSE_WRITE_DRAFT_TOOL_NAME,
@@ -266,6 +267,7 @@ export async function runComposeAgent(
   const tools: ToolDefinition[] = [
     ...COMPOSE_INTEL_TOOLS,
     ...COMPOSE_HISTORY_TOOLS,
+    ...COMPOSE_STATS_TOOLS,
     ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
   ]
   let lastContent = ''
@@ -341,6 +343,8 @@ export async function runComposeAgent(
         }
       } else if (name.startsWith('compose_history_')) {
         result = executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
+      } else if (name.startsWith('stats_')) {
+        result = await executeStatsTool(name, args, { signal: opts.signal })
       } else {
         result = executeIntelTool(name, args, {
           snapshot: opts.snapshot,
