@@ -71,6 +71,8 @@ interface ComposeState {
   createThread: (context?: ComposeScope, target?: PostTarget) => string
   selectThread: (id: string | null) => void
   deleteThread: (id: string) => void
+  /** Remove many threads in one store update (history rail bulk delete). */
+  deleteThreads: (ids: string[]) => void
   ensureActiveThread: () => string
   getActiveThread: () => ComposeThread | undefined
   setNewThreadContext: (scope: ComposeScope) => void
@@ -324,13 +326,20 @@ export const useComposeStore = create<ComposeState>()(
 
       selectThread: (id) => set({ activeThreadId: id }),
 
-      deleteThread: (id) =>
+      deleteThread: (id) => get().deleteThreads([id]),
+
+      deleteThreads: (ids) =>
         set((s) => {
-          const { [id]: _removed, ...rest } = s.threads
-          const threadOrder = s.threadOrder.filter((tid) => tid !== id)
+          if (ids.length === 0) return s
+          const idSet = new Set(ids)
+          const threads = { ...s.threads }
+          for (const id of idSet) delete threads[id]
+          const threadOrder = s.threadOrder.filter((tid) => !idSet.has(tid))
           const activeThreadId =
-            s.activeThreadId === id ? (threadOrder[0] ?? null) : s.activeThreadId
-          return { threads: rest, threadOrder, activeThreadId }
+            s.activeThreadId && idSet.has(s.activeThreadId)
+              ? (threadOrder[0] ?? null)
+              : s.activeThreadId
+          return { threads, threadOrder, activeThreadId }
         }),
 
       ensureActiveThread: () => {

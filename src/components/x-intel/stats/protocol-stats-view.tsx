@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useVeniceCharts, useVeniceMetrics } from '../../../hooks/use-venicestats'
 import type { VeniceChartPeriod, VeniceMetrics } from '../../../lib/venicestats/types'
 import { fmtPct, fmtRatio, fmtToken, fmtUnitUsd, fmtUsd, fmtChartAxis, relUpdated } from '../../../lib/venicestats/format'
-import { LoadingState } from '../../ui/spinner'
+import { LoadingState, ViewLoadingFallback } from '../../ui/spinner'
 import { ChartCard, KpiCard, LineChart, monthlyBurnChartSeries, normalizeChartSeries, PeriodPicker, StatsSection } from './stats-ui'
 
 const VENICESTATS_HOME = 'https://venicestats.com'
@@ -213,11 +213,7 @@ export function ProtocolStatsView() {
   const metrics = useVeniceMetrics()
 
   if (metrics.isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center min-h-0">
-        <LoadingState size="md" />
-      </div>
-    )
+    return <ViewLoadingFallback label="Loading stats…" />
   }
 
   if (metrics.isError || !metrics.data) {

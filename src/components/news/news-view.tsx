@@ -4,7 +4,7 @@ import { useNewsStore } from '../../stores/news-store'
 import { NEWS_CATEGORIES } from '../../lib/news/feeds'
 import type { NewsCategory, NewsItem } from '../../lib/news/types'
 import { relTime } from '../../lib/venicestats/format'
-import { LoadingState } from '../ui/spinner'
+import { ViewLoadingFallback } from '../ui/spinner'
 import { StatsSection } from '../x-intel/stats/stats-ui'
 import { CategoryRail } from './category-rail'
 import { LatestStrip } from './latest-strip'
@@ -46,7 +46,7 @@ export function NewsView() {
           </div>
         ) : news.isLoading ? (
           <div className="flex flex-1 items-center justify-center min-h-[40vh]">
-            <LoadingState size="md" />
+            <ViewLoadingFallback label="Loading news…" className="h-auto" />
           </div>
         ) : news.isError ? (
           <div className="flex flex-1 items-center justify-center min-h-[40vh] px-6 text-center">

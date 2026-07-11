@@ -4,8 +4,11 @@ import {
   messagePreview,
   estimateThreadTokens,
   contextBadgeLabel,
+  formatDayLabel,
   formatRelativeTime,
   formatTokenCount,
+  groupThreadsByDay,
+  localDayKey,
   scopeToPathSegment,
   threadExportFilename,
   threadToJson,
@@ -72,6 +75,34 @@ describe('formatRelativeTime', () => {
   it('returns a non-empty string', () => {
     const iso = new Date().toISOString()
     expect(formatRelativeTime(iso, new Date()).length).toBeGreaterThan(0)
+  })
+})
+
+describe('formatDayLabel / groupThreadsByDay', () => {
+  const now = new Date(2026, 6, 11, 15, 0, 0) // Jul 11, 2026 local
+
+  it('labels today, yesterday, and older calendar dates', () => {
+    expect(formatDayLabel(new Date(2026, 6, 11, 9, 0, 0).toISOString(), now)).toBe(
+      'Today',
+    )
+    expect(formatDayLabel(new Date(2026, 6, 10, 20, 0, 0).toISOString(), now)).toBe(
+      'Yesterday',
+    )
+    expect(formatDayLabel(new Date(2026, 6, 9, 12, 0, 0).toISOString(), now)).toBe(
+      'Jul 9, 2026',
+    )
+  })
+
+  it('groups consecutive same-day threads preserving order', () => {
+    const a = { id: 'a', updatedAt: new Date(2026, 6, 11, 14, 0, 0).toISOString() }
+    const b = { id: 'b', updatedAt: new Date(2026, 6, 11, 10, 0, 0).toISOString() }
+    const c = { id: 'c', updatedAt: new Date(2026, 6, 10, 8, 0, 0).toISOString() }
+    const groups = groupThreadsByDay([a, b, c], now)
+    expect(groups).toHaveLength(2)
+    expect(groups[0]!.label).toBe('Today')
+    expect(groups[0]!.threads.map((t) => t.id)).toEqual(['a', 'b'])
+    expect(groups[1]!.label).toBe('Yesterday')
+    expect(groups[1]!.dayKey).toBe(localDayKey(c.updatedAt, now))
   })
 })
 

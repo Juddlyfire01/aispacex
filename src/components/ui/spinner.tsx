@@ -50,11 +50,17 @@ export function LoadingState({
   )
 }
 
-/** Full-view Suspense fallback — spinner + short label. */
-export function ViewLoadingFallback({ label }: { label: string }) {
+/** Full-view Suspense / initial-data fallback — spinner + short label. */
+export function ViewLoadingFallback({
+  label,
+  className,
+}: {
+  label: string
+  className?: string
+}) {
   return (
     <LoadingState
-      className="h-full"
+      className={cn('h-full', className)}
       label={label}
       size="md"
       labelClassName="text-[12px] text-[var(--color-text-tertiary)]"

@@ -71,6 +71,66 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   return iso.slice(0, 10)
 }
 
+/** Local calendar day key `YYYY-MM-DD` for an ISO timestamp. */
+export function localDayKey(iso: string, now: Date = new Date()): string {
+  const t = Date.parse(iso)
+  const d = Number.isNaN(t) ? now : new Date(t)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/**
+ * Day divider label for history rail: Today / Yesterday / `Mon D, YYYY`.
+ * Pass `now` for tests. Uses local calendar days.
+ */
+export function formatDayLabel(iso: string, now: Date = new Date()): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return ''
+  const d = new Date(t)
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.round(
+    (startOfToday.getTime() - startOfDay.getTime()) / 86_400_000,
+  )
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+export type DayGroup<T extends { updatedAt: string }> = {
+  label: string
+  dayKey: string
+  threads: T[]
+}
+
+/**
+ * Group a newest-first thread list into local calendar-day buckets of `updatedAt`.
+ * Preserves input order; consecutive same-day items share one group.
+ */
+export function groupThreadsByDay<T extends { updatedAt: string }>(
+  threads: T[],
+  now: Date = new Date(),
+): DayGroup<T>[] {
+  const groups: DayGroup<T>[] = []
+  let current: DayGroup<T> | null = null
+  for (const thread of threads) {
+    const dayKey = localDayKey(thread.updatedAt, now)
+    const label = formatDayLabel(thread.updatedAt, now)
+    if (!current || current.dayKey !== dayKey) {
+      current = { label, dayKey, threads: [] }
+      groups.push(current)
+    }
+    current.threads.push(thread)
+  }
+  return groups
+}
+
 export function recomputeThreadMeta(input: {
   messages: ChatMessage[]
   draft: PostDraft

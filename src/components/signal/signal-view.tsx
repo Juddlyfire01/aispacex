@@ -1,5 +1,5 @@
 import { useBuzzMetrics, useSocial } from '../../hooks/use-venicestats'
-import { LoadingState } from '../ui/spinner'
+import { ViewLoadingFallback, LoadingState } from '../ui/spinner'
 import { StatsSection } from '../x-intel/stats/stats-ui'
 import { PulseStrip, MoodBadge, computePulse } from './pulse-strip'
 import { MomentumChart } from './momentum-chart'
@@ -15,11 +15,7 @@ export function SignalView() {
   const social = useSocial()
 
   if (metrics.isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center min-h-0">
-        <LoadingState size="md" />
-      </div>
-    )
+    return <ViewLoadingFallback label="Loading signal…" />
   }
 
   if (metrics.isError || !metrics.data) {
