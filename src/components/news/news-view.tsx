@@ -88,7 +88,7 @@ export function NewsView() {
               </aside>
               <div className="min-w-0">
                 {activeCategory === 'bookmarks' && displayItems.length === 0 ? (
-                  <div className="flex items-center justify-center h-40 rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] text-[12px] text-[var(--color-text-secondary)]">
+                  <div className="flex items-center justify-center h-40 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-card)] text-[12px] text-[var(--color-text-secondary)]">
                     No bookmarks yet — expand an article and tap the bookmark icon.
                   </div>
                 ) : (

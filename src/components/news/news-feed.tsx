@@ -52,7 +52,7 @@ export function NewsFeed({ items, failures }: {
         </div>
       )}
 
-      <div className="rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] divide-y divide-[var(--color-border-faint)] overflow-hidden">
+      <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-card)] divide-y divide-[var(--color-border-faint)] overflow-hidden">
         {filtered.length === 0 ? (
           <div className="flex items-center justify-center h-24 text-[11px] text-[var(--color-text-secondary)]">
             No matching articles

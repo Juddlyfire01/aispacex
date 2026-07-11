@@ -560,7 +560,7 @@ export function ProfileOverview({
           </svg>
         </button>
         {settingsOpen && (
-          <div className="rounded-lg border border-[var(--color-border-card)] bg-[var(--color-bg-card)] p-3 space-y-3">
+          <div className="rounded-lg border border-white/[0.05] bg-[var(--color-bg-card)] p-3 space-y-3">
             <label className="block text-[11px] text-white/40">
               Model
               <select
