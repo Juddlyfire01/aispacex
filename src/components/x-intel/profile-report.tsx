@@ -444,18 +444,6 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
               ))}
             </div>
           )}
-          {(n.register.fewShotExamples?.length ?? 0) > 0 && (
-            <div className="mt-2 space-y-1.5">
-              <p className="text-[10px] text-white/30 uppercase tracking-wide">Few-shot anchors</p>
-              {n.register.fewShotExamples!.slice(0, 6).map((ex, i) => (
-                <div key={`${ex.postId ?? i}-${ex.label}`} className="text-[10px] text-white/40">
-                  <span className="text-white/55">{ex.label}</span>
-                  {ex.postId && <span className="font-mono text-white/25"> post:{ex.postId}</span>}
-                  <p className="text-white/30 mt-0.5 line-clamp-2">{ex.text}</p>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
       )}
       {n.narrativeArcs.length > 0 && (
