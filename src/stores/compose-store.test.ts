@@ -158,6 +158,20 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().toolActivity).toBeNull()
   })
 
+  it('migrateComposeState version < 9 sets preferredFormat to auto', () => {
+    const migrated = migrateComposeState(
+      {
+        threads: {},
+        threadOrder: [],
+        activeThreadId: null,
+        model: 'grok',
+        webSearch: 'auto',
+      },
+      8,
+    )
+    expect(migrated.preferredFormat).toBe('auto')
+  })
+
   it('migrateComposeState v3 sessions → v4 threads', () => {
     const olderDraft = emptyDraft({ kind: 'original' })
     olderDraft.updatedAt = '2024-01-01T00:00:00.000Z'

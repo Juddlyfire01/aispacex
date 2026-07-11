@@ -12,6 +12,7 @@ import { CheckboxField } from '../ui/checkbox'
 import { SegmentEditor } from './segment-editor'
 import { TargetPicker } from './target-picker'
 import { RegisterControls } from './register-controls'
+import { FormatPreference } from './format-preference'
 
 interface PostComposerProps {
   threadId: string
@@ -51,6 +52,8 @@ export function PostComposer({ threadId }: PostComposerProps) {
           Clear
         </button>
       </div>
+
+      <FormatPreference />
 
       <TargetPicker threadId={threadId} target={draft.target} />
 

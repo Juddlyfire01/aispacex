@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { LibraryMode } from '../lib/compose/hot-window'
+import type { PreferredFormat } from '../lib/compose/format'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
 import type { RegisterDefault } from '../lib/compose/register'
@@ -19,6 +20,7 @@ export const ALL_CONTEXT = '__all__'
 
 export type { LibraryMode }
 export type { ComposeThread }
+export type { PreferredFormat }
 
 export type XSearchMode = 'off' | 'auto' | 'on'
 /** Same off/auto/on shape as X search — Venice `enable_web_search`. */
@@ -42,6 +44,8 @@ interface ComposeState {
   xSearch: XSearchMode
   /** Venice native web search (`enable_web_search`). */
   webSearch: WebSearchMode
+  /** Preferred draft format; auto lets the model choose. */
+  preferredFormat: PreferredFormat
   isStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
   longformPreference: boolean
@@ -94,6 +98,7 @@ interface ComposeState {
   setDraftModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
   setWebSearch: (mode: WebSearchMode) => void
+  setPreferredFormat: (format: PreferredFormat) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
   setRegisterDefault: (def: RegisterDefault) => void
@@ -186,6 +191,9 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (version < 8 && state.webSearch == null) {
     state.webSearch = 'auto'
   }
+  if (version < 9 && state.preferredFormat == null) {
+    state.preferredFormat = 'auto'
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -253,6 +261,7 @@ export const useComposeStore = create<ComposeState>()(
       draftModel: '',
       xSearch: 'auto',
       webSearch: 'auto',
+      preferredFormat: 'auto',
       isStreaming: false,
       longformPreference: true,
       registerDefault: { ...DEFAULT_REGISTER_DEFAULT },
@@ -445,6 +454,7 @@ export const useComposeStore = create<ComposeState>()(
       setDraftModel: (model) => set({ draftModel: model }),
       setXSearch: (mode) => set({ xSearch: mode }),
       setWebSearch: (mode) => set({ webSearch: mode }),
+      setPreferredFormat: (format) => set({ preferredFormat: format }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
       setRegisterDefault: (def) => set({ registerDefault: def }),
@@ -464,7 +474,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 8,
+      version: 9,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -477,6 +487,7 @@ export const useComposeStore = create<ComposeState>()(
         draftModel: state.draftModel,
         xSearch: state.xSearch,
         webSearch: state.webSearch,
+        preferredFormat: state.preferredFormat,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,
         libraryMode: state.libraryMode,
