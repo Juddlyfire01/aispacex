@@ -1,6 +1,6 @@
-export const MEDIA_CAPS = { image: 50, video: 20, audio: 30 } as const
+export const MEDIA_CAPS = { image: 50, video: 20, music: 30, tts: 30 } as const
 
-export type MediaKind = 'image' | 'video' | 'audio'
+export type MediaKind = 'image' | 'video' | 'music' | 'tts'
 
 export interface MediaGalleryRecord {
   id: string

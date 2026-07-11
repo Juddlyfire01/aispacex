@@ -42,7 +42,7 @@ export function MusicView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model])
 
-  const gallery = useMediaGallery('audio')
+  const gallery = useMediaGallery('music')
   const {
     queue, jobs, activeCount, atCapacity, maxConcurrent,
     cancelAll, dismissJob, takeCompleted,
@@ -62,7 +62,7 @@ export function MusicView() {
       const taken = takeCompleted(id)
       if (!taken?.blob) continue
       void gallery.add({
-        kind: 'audio',
+        kind: 'music',
         blob: taken.blob,
         mimeType: taken.blob.type || 'audio/mpeg',
         prompt: taken.meta.prompt,
@@ -267,7 +267,7 @@ export function MusicView() {
 
   const output = (
     <MediaGallery
-      kind="audio"
+      kind="music"
       items={gallery.items}
       pendingCount={activeCount}
       onRemove={gallery.remove}

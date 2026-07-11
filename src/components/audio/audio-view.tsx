@@ -71,7 +71,7 @@ export function AudioView() {
   const [pendingTts, setPendingTts] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const gallery = useMediaGallery('audio')
+  const gallery = useMediaGallery('tts')
   const tts = useTTS()
   const transcription = useTranscription()
   const atCapacity = pendingTts >= MAX_CONCURRENT_MEDIA_JOBS
@@ -114,7 +114,7 @@ export function AudioView() {
       {
         onSuccess: (blob) => {
           void gallery.add({
-            kind: 'audio',
+            kind: 'tts',
             blob,
             mimeType: blob.type || `audio/${responseFormat === 'mp3' ? 'mpeg' : responseFormat}`,
             prompt: trimmed,
@@ -192,7 +192,7 @@ export function AudioView() {
 
   const output = tab === 'tts' ? (
     <MediaGallery
-      kind="audio"
+      kind="tts"
       items={gallery.items}
       pendingCount={pendingTts}
       onRemove={gallery.remove}

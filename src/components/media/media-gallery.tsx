@@ -46,7 +46,7 @@ export function MediaGallery({
 
   const handleClearAll = () => {
     if (items.length === 0) return
-    const label = kind === 'audio' ? 'track' : kind
+    const label = kindLabelSingular(kind)
     if (!window.confirm(`Clear all ${items.length} ${label}${items.length === 1 ? '' : 's'} from this gallery?`)) return
     setSelectedId(null)
     onClearAll()
@@ -56,7 +56,8 @@ export function MediaGallery({
     return <>{empty}</>
   }
 
-  const kindLabel = kind === 'audio' ? (items.length === 1 ? 'track' : 'tracks') : `${kind}${items.length === 1 ? '' : 's'}`
+  const label = kindLabelPlural(kind, items.length)
+  const isSound = kind === 'music' || kind === 'tts'
 
   return (
     <>
@@ -131,7 +132,7 @@ export function MediaGallery({
       <div className="flex flex-col gap-4 h-full">
         <div className="flex items-center justify-between shrink-0">
           <p className="text-[13px] text-white/35">
-            {items.length} {kindLabel}
+            {items.length} {label}
             {pendingCount > 0 ? ` · ${pendingCount} generating…` : ''}
           </p>
           {items.length > 0 && (
@@ -151,7 +152,7 @@ export function MediaGallery({
               key={`skel-${i}`}
               className={
                 kind === 'video' ? 'aspect-video rounded-xl skeleton'
-                  : kind === 'audio' ? 'aspect-[4/3] rounded-xl skeleton'
+                  : isSound ? 'aspect-[4/3] rounded-xl skeleton'
                     : 'aspect-square rounded-xl skeleton'
               }
             />
@@ -243,4 +244,16 @@ function AudioIcon() {
       <circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
     </svg>
   )
+}
+
+function kindLabelSingular(kind: MediaKind): string {
+  if (kind === 'music') return 'track'
+  if (kind === 'tts') return 'clip'
+  return kind
+}
+
+function kindLabelPlural(kind: MediaKind, count: number): string {
+  if (kind === 'music') return count === 1 ? 'track' : 'tracks'
+  if (kind === 'tts') return count === 1 ? 'clip' : 'clips'
+  return `${kind}${count === 1 ? '' : 's'}`
 }
