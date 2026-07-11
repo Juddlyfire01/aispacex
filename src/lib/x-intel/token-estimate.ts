@@ -112,9 +112,14 @@ export function streamCallFraction(receivedTokens: number, expectedTokens: numbe
   return Math.min(0.97, Math.max(0, receivedTokens / expectedTokens))
 }
 
+/** End of pre-stream band (Computing → Sending → Waiting). Stream phases continue from here. */
+export const REPORT_PRESTREAM_END = 0.18
+const REPORT_NARRATIVE_END_WITH_CHANGE = 0.70
+const REPORT_STREAM_CAP = 0.97
+
 /**
  * Map a call's stream fraction into overall report-job progress (0–1).
- * Prepare is a thin head; narrative (and optional change) fill the rest.
+ * Continues after the pre-stream band — bar never resets between stages.
  */
 export function mapReportStreamProgress(
   phase: ReportCallKind,
@@ -123,13 +128,13 @@ export function mapReportStreamProgress(
 ): number {
   const f = Math.min(1, Math.max(0, streamFrac))
   if (!hasChangeStep) {
-    // 5% headroom after prepare → 95% at end of narrative stream
-    return 0.05 + f * 0.90
+    // Pre-stream end → ~97% across narrative
+    return REPORT_PRESTREAM_END + f * (REPORT_STREAM_CAP - REPORT_PRESTREAM_END)
   }
   if (phase === 'narrative') {
-    // 5% → ~72%
-    return 0.05 + f * 0.67
+    // Pre-stream end → ~70%
+    return REPORT_PRESTREAM_END + f * (REPORT_NARRATIVE_END_WITH_CHANGE - REPORT_PRESTREAM_END)
   }
-  // 72% → ~95%
-  return 0.72 + f * 0.23
+  // ~70% → ~97%
+  return REPORT_NARRATIVE_END_WITH_CHANGE + f * (REPORT_STREAM_CAP - REPORT_NARRATIVE_END_WITH_CHANGE)
 }
