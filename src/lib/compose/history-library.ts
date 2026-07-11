@@ -57,7 +57,12 @@ export function listThreads(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         t.preview.toLowerCase().includes(q) ||
-        t.messages.some((m) => messageContentString(m).toLowerCase().includes(q)),
+        t.messages.some((m) => messageContentString(m).toLowerCase().includes(q)) ||
+        (t.compressArchives ?? []).some(
+          (a) =>
+            a.summary.toLowerCase().includes(q) ||
+            a.messages.some((m) => messageContentString(m).toLowerCase().includes(q)),
+        ),
     )
   }
   const limit = Math.min(100, Math.max(1, opts?.limit ?? 50))
@@ -89,6 +94,37 @@ export function grepHistory(
         index,
         snippet: raw.length > 200 ? `${raw.slice(0, 200)}…` : raw,
       })
+    }
+    // Cold compress stacks — searchable even after live transcript was trimmed.
+    for (const arch of t.compressArchives ?? []) {
+      if (hits.length >= limit) break
+      const summaryHay = arch.summary.toLowerCase()
+      if (terms.every((term) => summaryHay.includes(term))) {
+        hits.push({
+          threadId: t.id,
+          title: t.title,
+          role: 'cold-summary',
+          index: -1,
+          snippet:
+            `[cold ${arch.id}] ` +
+            (arch.summary.length > 180 ? `${arch.summary.slice(0, 180)}…` : arch.summary),
+        })
+      }
+      for (let index = 0; index < arch.messages.length; index++) {
+        if (hits.length >= limit) break
+        const m = arch.messages[index]!
+        const raw = messageContentString(m)
+        const hay = raw.toLowerCase()
+        if (!terms.every((term) => hay.includes(term))) continue
+        hits.push({
+          threadId: t.id,
+          title: t.title,
+          role: `cold:${m.role}`,
+          index,
+          snippet:
+            `[cold ${arch.id}] ` + (raw.length > 180 ? `${raw.slice(0, 180)}…` : raw),
+        })
+      }
     }
     if (hits.length >= limit) break
   }
@@ -157,6 +193,12 @@ export function getThread(
   const t = snap.threads.find((x) => x.id === id)
   if (!t) return { error: 'thread_not_found' }
   const max = opts?.maxMessages ?? 40
-  if (t.messages.length <= max) return t
-  return { ...t, messages: t.messages.slice(-max) }
+  const live =
+    t.messages.length <= max ? t.messages : t.messages.slice(-max)
+  // Include cold stacks so the agent can recover compressed detail.
+  return {
+    ...t,
+    messages: live,
+    compressArchives: t.compressArchives ?? [],
+  }
 }

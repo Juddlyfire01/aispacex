@@ -3,7 +3,12 @@ import { useComposeStore } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
-import { pickComposeModel, modelIdSupportsFunctionCalling, pickDefaultDraftModel } from '../../lib/compose/model'
+import {
+  pickComposeModel,
+  pickDefaultDraftModel,
+  shouldUpgradeComposeResearchModel,
+  shouldUpgradeDraftModel,
+} from '../../lib/compose/model'
 import { DRAFT_MODEL_SAME } from '../../lib/compose/draft-writer-tool'
 import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
 import { packHotWindowCached } from '../../lib/compose/hot-window'
@@ -15,11 +20,11 @@ import { ComposeSettings } from './compose-settings'
 import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
 
-/** Mirrors You/Others Profile | Feed | Network chrome; only Profile is wired today. */
+/** Post chrome: Composer is wired; other slots reserved (blank labels). */
 const POST_SUB_TABS = [
-  { id: 'profile' as const, label: 'Profile' },
-  { id: 'feed' as const, label: 'Feed' },
-  { id: 'network' as const, label: 'Network' },
+  { id: 'profile' as const, label: 'Composer' },
+  { id: 'feed' as const, label: '' },
+  { id: 'network' as const, label: '' },
 ]
 
 type PostSubTab = (typeof POST_SUB_TABS)[number]['id']
@@ -58,35 +63,22 @@ export function ComposeWorkspace() {
 
   const [activeSubTab, setActiveSubTab] = useState<PostSubTab>('profile')
 
-  // Resolve default once the list loads; migrate off models that cannot call tools.
+  // Research model: latest standard Grok (tool + X search). Follows catalog upgrades
+  // when the user was still on the previous default.
   useEffect(() => {
     if (!models || models.length === 0) return
-    if (!model || !modelIdSupportsFunctionCalling(models, model)) {
+    if (shouldUpgradeComposeResearchModel(model, models)) {
       setModel(pickComposeModel(models))
     }
   }, [model, models, setModel])
 
-  // Seed draft writer to Venice most_uncensored (latest Uncensored SKU).
-  // Migrate prior mistaken seed that used catalog `default` (GLM) as writer default.
+  // Draft writer: Venice most_uncensored (latest Uncensored SKU). Follows trait moves
+  // (1.2 → 1.3 / 2.0) when still on the previous default.
   useEffect(() => {
     if (!models || models.length === 0) return
-    const preferred = pickDefaultDraftModel(models, mostUncensoredModelId)
-    if (!draftModel) {
-      setDraftModel(preferred)
-      return
-    }
     if (draftModel === DRAFT_MODEL_SAME) return
-    if (!models.some((m) => m.id === draftModel)) {
-      setDraftModel(preferred)
-      return
-    }
-    if (
-      defaultModelId &&
-      mostUncensoredModelId &&
-      draftModel === defaultModelId &&
-      draftModel !== mostUncensoredModelId
-    ) {
-      setDraftModel(mostUncensoredModelId)
+    if (shouldUpgradeDraftModel(draftModel, models, mostUncensoredModelId, defaultModelId)) {
+      setDraftModel(pickDefaultDraftModel(models, mostUncensoredModelId))
     }
   }, [draftModel, models, mostUncensoredModelId, defaultModelId, setDraftModel])
 
@@ -173,7 +165,14 @@ export function ComposeWorkspace() {
                 onDayWindowChange={setDayWindowDays}
               />
               <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
-                {threadId ? <ComposeChat threadId={threadId} sendBlocked={sendBlocked} /> : null}
+                {threadId ? (
+                  <ComposeChat
+                    threadId={threadId}
+                    sendBlocked={sendBlocked}
+                    hotText={pack.text}
+                    hotTokens={pack.estimatedTokens}
+                  />
+                ) : null}
                 <DraftDrawer />
               </div>
             </div>

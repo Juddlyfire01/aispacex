@@ -68,14 +68,18 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
 
   const running = events.filter((e) => e.status === 'running')
   const current = running[running.length - 1]
-  // Live header flips with the tool: Reading… / Searching… / Writing… etc.
-  const headerText = current
-    ? current.progressLabel || current.label
-    : active
-      ? (phase ?? 'Working')
-      : events.length === 1
-        ? events[0]!.label
-        : `${events.length} steps`
+  // Prefer explicit phase (Thinking / Compressing thread / Writing) when set;
+  // otherwise live header follows the active tool step.
+  const headerText =
+    active && phase
+      ? phase
+      : current
+        ? current.progressLabel || current.label
+        : active
+          ? 'Working'
+          : events.length === 1
+            ? events[0]!.label
+            : `${events.length} steps`
 
   // Live: always show full list under the indicator.
   // Done: collapsed to a one-line summary; expand reveals the same full history.

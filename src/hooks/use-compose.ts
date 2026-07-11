@@ -31,6 +31,14 @@ import {
   newAgentEventId,
 } from '../lib/compose/agent-events'
 import { buildHistorySnapshot } from '../lib/compose/history-library'
+import {
+  isContextOverflowError,
+  KEEP_RECENT_MIN,
+  payloadNeedsCompress,
+  planThreadCompress,
+  type CompressStage,
+} from '../lib/compose/thread-compress'
+import { modelSupportsXSearch, filterComposeToolModels } from '../lib/compose/model'
 import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
 
@@ -139,7 +147,7 @@ export function useCompose() {
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })
         const scope = useComposeStore.getState().threads[threadId]?.context ?? thread.context
 
-        const { libraryMode, budgetPct, dayWindowDays, model, draftModel, xSearch, contextLimit } =
+        const { libraryMode, budgetPct, dayWindowDays, model, draftModel, xSearch, webSearch, contextLimit } =
           useComposeStore.getState()
         const budget = computeHotBudget(contextLimit, budgetPct)
         const pack = packHotWindowCached({
@@ -160,7 +168,10 @@ export function useCompose() {
           return
         }
 
-        const xSearchOn = xSearch !== 'off'
+        const modelsCacheEarly = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
+        const toolModels = filterComposeToolModels(modelsCacheEarly?.models ?? [])
+        const xSearchOn =
+          xSearch !== 'off' && modelSupportsXSearch(toolModels, model)
 
         const draftRegister = useComposeStore.getState().threads[threadId]?.draft.register
         const selfState = useXSelfStore.getState()
@@ -200,6 +211,7 @@ export function useCompose() {
         const system = buildComposeSystem({
           modelId: model,
           xSearchOn,
+          webSearchOn: webSearch !== 'off',
           toolsEnabled: true,
           registerInject: handoff ? null : registerResolved.inject,
           draftHandoff: handoff,
@@ -207,25 +219,20 @@ export function useCompose() {
 
         // Transcript minus the trailing empty assistant placeholder.
         // UI stores raw userMessage; API latest user turn includes hot prefix.
-        const active = useComposeStore.getState().threads[threadId]
-        const history = (active?.messages ?? []).filter((m) =>
-          typeof m.content === 'string' ? m.content !== '' : true,
-        )
-        // Strip UI-only agentEvents before sending to Venice.
-        const apiHistory = history.map((m, i) => {
-          const { agentEvents: _ae, ...rest } = m
-          if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
-            return { ...rest, content: buildHotUserPrefix(pack.text, userMessage) }
-          }
-          return rest
-        })
-        const apiMessages: ChatMessage[] = [{ role: 'system', content: system }, ...apiHistory]
-
-        const composeState = useComposeStore.getState()
-        const historySnapshot = buildHistorySnapshot(
-          composeState.threads,
-          composeState.threadOrder,
-        )
+        const buildApiMessages = (): ChatMessage[] => {
+          const active = useComposeStore.getState().threads[threadId]
+          const history = (active?.messages ?? []).filter((m) =>
+            typeof m.content === 'string' ? m.content !== '' : true,
+          )
+          const apiHistory = history.map((m, i) => {
+            const { agentEvents: _ae, ...rest } = m
+            if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
+              return { ...rest, content: buildHotUserPrefix(pack.text, userMessage) }
+            }
+            return rest
+          })
+          return [{ role: 'system', content: system }, ...apiHistory]
+        }
 
         const modelsCache = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
         const modelSpec = modelsCache?.models.find((m) => m.id === model) ?? null
@@ -233,6 +240,106 @@ export function useCompose() {
           handoff && draftModel
             ? (modelsCache?.models.find((m) => m.id === draftModel) ?? null)
             : null
+
+        const pushCompressEvent = (
+          label: string,
+          progressLabel: string,
+          status: 'running' | 'done' = 'done',
+          detail?: string,
+        ): string => {
+          const id = newAgentEventId()
+          useComposeStore.getState().pushAgentEvent({
+            id,
+            label,
+            progressLabel,
+            detail,
+            status,
+            startedAt: Date.now(),
+          })
+          return id
+        }
+
+        const onCompressStage = (stage: CompressStage) => {
+          switch (stage.kind) {
+            case 'read':
+              pushCompressEvent(
+                'Read thread',
+                'Reading thread',
+                'done',
+                `${stage.messageCount} msgs · archive ${stage.archiveCount}`,
+              )
+              break
+            case 'summarize':
+              pushCompressEvent('Summarized earlier turns', 'Summarizing earlier turns', 'running')
+              break
+            case 'saved':
+              {
+                const s = useComposeStore.getState()
+                const running = s.agentEvents.find(
+                  (e) => e.status === 'running' && e.progressLabel.includes('Summarizing'),
+                )
+                if (running) {
+                  s.updateAgentEvent(running.id, {
+                    status: 'done',
+                    label: 'Summarized earlier turns',
+                  })
+                }
+                pushCompressEvent(
+                  'Saved to cold history',
+                  'Saving to cold history',
+                  'done',
+                  `${stage.messageCount} msgs`,
+                )
+              }
+              break
+            case 'rebuilt':
+              pushCompressEvent(
+                'Rebuilt transcript',
+                'Rebuilding transcript',
+                'done',
+                `kept ${stage.keptCount}`,
+              )
+              break
+          }
+        }
+
+        const runCompressIfNeeded = async (
+          apiMessages: ChatMessage[],
+          opts: { force: boolean },
+        ): Promise<ChatMessage[]> => {
+          const needs =
+            opts.force || payloadNeedsCompress(system, apiMessages, contextLimit)
+          if (!needs) return apiMessages
+
+          const live = useComposeStore.getState().threads[threadId]?.messages ?? []
+          // Need more than KEEP to archive anything meaningful.
+          if (live.length <= KEEP_RECENT_MIN && !opts.force) return apiMessages
+
+          useComposeStore.getState().setAgentPhase('Compressing thread')
+          const plan = await planThreadCompress({
+            messages: live,
+            modelId: model,
+            modelSpec,
+            forceAggressive: opts.force,
+            signal: abortController.signal,
+            onStage: onCompressStage,
+          })
+          if (!plan) return apiMessages
+
+          useComposeStore
+            .getState()
+            .applyThreadCompress(threadId, plan.archive, plan.nextMessages)
+          return buildApiMessages()
+        }
+
+        let apiMessages = buildApiMessages()
+        apiMessages = await runCompressIfNeeded(apiMessages, { force: false })
+        // Second pass if still over after a soft compress (very long recent tail).
+        if (payloadNeedsCompress(system, apiMessages, contextLimit)) {
+          apiMessages = await runCompressIfNeeded(apiMessages, { force: true })
+        }
+
+        useComposeStore.getState().setAgentPhase('Thinking')
 
         const startDraftWriter = (brief: DraftWriteBrief) => {
           const s0 = useComposeStore.getState()
@@ -344,80 +451,138 @@ export function useCompose() {
           return id
         }
 
-        const { content } = await runComposeAgent({
-          model,
-          modelSpec,
-          messages: apiMessages,
-          snapshot,
-          historySnapshot,
-          scope,
-          xSearchOn,
-          signal: abortController.signal,
-          onDraftHandoff: handoff ? startDraftWriter : undefined,
-          onDelta: (token) => {
-            if (!clearedToolActivity) {
-              clearedToolActivity = true
-              useComposeStore.getState().setAgentPhase('Writing')
-            }
-            pendingDeltaRef.current += token
-            scheduleDrip(threadId)
-          },
-          onContentReset: () => {
-            flushPendingDelta(threadId)
-            useComposeStore.getState().setLastAssistantContent(threadId, '')
-            clearedToolActivity = false
-          },
-          onRoundStart: () => {
-            eventByIndex.clear()
-            useComposeStore.getState().setAgentPhase('Thinking')
-          },
-          onToolStart: ({ index, name }) => {
-            flushPendingDelta(threadId)
-            ensureToolEvent(index, name, {})
-            useComposeStore.getState().setAgentPhase(null)
-            clearedToolActivity = false
-          },
-          onTool: ({ index, name, args }) => {
-            flushPendingDelta(threadId)
-            const id = ensureToolEvent(index, name, args)
-            pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
-            useComposeStore.getState().setAgentPhase(null)
-            clearedToolActivity = false
-          },
-          onToolResult: async ({ name, args, result }) => {
-            const s = useComposeStore.getState()
-            const key = `${name}:${JSON.stringify(args)}`
-            const id = pendingEventIds.get(key)
-            pendingEventIds.delete(key)
-            if (!id) return
+        const runAgent = async (messages: ChatMessage[]) => {
+          const composeState = useComposeStore.getState()
+          const historySnapshot = buildHistorySnapshot(
+            composeState.threads,
+            composeState.threadOrder,
+          )
+          return runComposeAgent({
+            model,
+            modelSpec,
+            messages,
+            snapshot,
+            historySnapshot,
+            scope,
+            xSearchOn,
+            webSearch,
+            signal: abortController.signal,
+            onDraftHandoff: handoff ? startDraftWriter : undefined,
+            onWebSearch: ({ phase, resultCount }) => {
+              const s = useComposeStore.getState()
+              if (phase === 'start') {
+                const id = newAgentEventId()
+                pendingEventIds.set('__web_search__', id)
+                s.pushAgentEvent({
+                  id,
+                  label: 'Searched web',
+                  progressLabel: 'Searching web',
+                  status: 'running',
+                  startedAt: Date.now(),
+                })
+                s.setAgentPhase(null)
+                clearedToolActivity = false
+                return
+              }
+              const id = pendingEventIds.get('__web_search__')
+              pendingEventIds.delete('__web_search__')
+              const detail =
+                resultCount && resultCount > 0
+                  ? `${resultCount} result${resultCount === 1 ? '' : 's'}`
+                  : undefined
+              if (id) {
+                s.updateAgentEvent(id, { status: 'done', detail })
+              } else {
+                s.pushAgentEvent({
+                  id: newAgentEventId(),
+                  label: 'Searched web',
+                  progressLabel: 'Searching web',
+                  detail,
+                  status: 'done',
+                  startedAt: Date.now(),
+                })
+              }
+              const stillRunning = useComposeStore
+                .getState()
+                .agentEvents.some((e) => e.status === 'running')
+              if (!stillRunning) s.setAgentPhase('Thinking')
+            },
+            onDelta: (token) => {
+              if (!clearedToolActivity) {
+                clearedToolActivity = true
+                useComposeStore.getState().setAgentPhase('Writing')
+              }
+              pendingDeltaRef.current += token
+              scheduleDrip(threadId)
+            },
+            onContentReset: () => {
+              flushPendingDelta(threadId)
+              useComposeStore.getState().setLastAssistantContent(threadId, '')
+              clearedToolActivity = false
+            },
+            onRoundStart: () => {
+              eventByIndex.clear()
+              useComposeStore.getState().setAgentPhase('Thinking')
+            },
+            onToolStart: ({ index, name }) => {
+              flushPendingDelta(threadId)
+              ensureToolEvent(index, name, {})
+              useComposeStore.getState().setAgentPhase(null)
+              clearedToolActivity = false
+            },
+            onTool: ({ index, name, args }) => {
+              flushPendingDelta(threadId)
+              const id = ensureToolEvent(index, name, args)
+              pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
+              useComposeStore.getState().setAgentPhase(null)
+              clearedToolActivity = false
+            },
+            onToolResult: async ({ name, args, result }) => {
+              const s = useComposeStore.getState()
+              const key = `${name}:${JSON.stringify(args)}`
+              const id = pendingEventIds.get(key)
+              pendingEventIds.delete(key)
+              if (!id) return
 
-            const status = isToolError(result) ? 'error' : 'done'
-            const detail = describeToolResult(name, result)
-            const startedAt =
-              s.agentEvents.find((e) => e.id === id)?.startedAt ?? Date.now()
-            const wait = Math.max(0, MIN_TOOL_DISPLAY_MS - (Date.now() - startedAt))
-            if (wait > 0) {
-              await new Promise<void>((resolve) => {
-                const t = setTimeout(resolve, wait)
-                abortController.signal.addEventListener(
-                  'abort',
-                  () => {
-                    clearTimeout(t)
-                    resolve()
-                  },
-                  { once: true },
-                )
-              })
-            }
-            if (abortController.signal.aborted) return
+              const status = isToolError(result) ? 'error' : 'done'
+              const detail = describeToolResult(name, result)
+              const startedAt =
+                s.agentEvents.find((e) => e.id === id)?.startedAt ?? Date.now()
+              const wait = Math.max(0, MIN_TOOL_DISPLAY_MS - (Date.now() - startedAt))
+              if (wait > 0) {
+                await new Promise<void>((resolve) => {
+                  const t = setTimeout(resolve, wait)
+                  abortController.signal.addEventListener(
+                    'abort',
+                    () => {
+                      clearTimeout(t)
+                      resolve()
+                    },
+                    { once: true },
+                  )
+                })
+              }
+              if (abortController.signal.aborted) return
 
-            const after = useComposeStore.getState()
-            after.updateAgentEvent(id, { status, detail })
-            if (!after.agentEvents.some((e) => e.status === 'running')) {
-              after.setAgentPhase('Thinking')
-            }
-          },
-        })
+              const after = useComposeStore.getState()
+              after.updateAgentEvent(id, { status, detail })
+              if (!after.agentEvents.some((e) => e.status === 'running')) {
+                after.setAgentPhase('Thinking')
+              }
+            },
+          })
+        }
+
+        let content: string
+        try {
+          ;({ content } = await runAgent(apiMessages))
+        } catch (err) {
+          if (!isContextOverflowError(err)) throw err
+          // Payload still too large — force compress + one resend.
+          apiMessages = await runCompressIfNeeded(apiMessages, { force: true })
+          useComposeStore.getState().setAgentPhase('Thinking')
+          ;({ content } = await runAgent(apiMessages))
+        }
 
         flushPendingDelta(threadId)
 
@@ -443,7 +608,10 @@ export function useCompose() {
         flushPendingDelta(threadId)
         if (err instanceof DOMException && err.name === 'AbortError') return
         const message = err instanceof Error ? err.message : 'Unknown error'
-        useComposeStore.getState().setLastAssistantContent(threadId, `[Error: ${message}]`)
+        const hint = isContextOverflowError(err)
+          ? ' Context was still too large after compress — try a shorter message or lower the hot-window budget.'
+          : ''
+        useComposeStore.getState().setLastAssistantContent(threadId, `[Error: ${message}]${hint}`)
       } finally {
         flushPendingDelta(threadId)
         const s = useComposeStore.getState()

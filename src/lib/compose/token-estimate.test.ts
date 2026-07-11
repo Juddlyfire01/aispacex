@@ -3,6 +3,9 @@ import {
   estimateTokens,
   resolveContextLimit,
   computeHotBudget,
+  estimateComposeContextPct,
+  estimateComposeContextBreakdown,
+  COMPLETION_RESERVE,
   DEFAULT_CONTEXT_FALLBACK,
   DEFAULT_BUDGET_PCT,
 } from './token-estimate'
@@ -47,5 +50,68 @@ describe('computeHotBudget', () => {
     const high = computeHotBudget(100_000, 0.9)
     expect(low).toBe(computeHotBudget(100_000, 0.25))
     expect(high).toBe(computeHotBudget(100_000, 0.75))
+  })
+})
+
+describe('estimateComposeContextPct', () => {
+  it('scales with messages and completion reserve', () => {
+    const pct = estimateComposeContextPct({
+      system: 'abcd',
+      messages: [{ content: 'efgh' }],
+      contextLimit: COMPLETION_RESERVE * 2,
+    })
+    expect(pct).toBeGreaterThan(0.5)
+    expect(pct).toBeLessThanOrEqual(1)
+  })
+
+  it('folds hot text into a pending user turn', () => {
+    const without = estimateComposeContextPct({
+      system: 'sys',
+      messages: [],
+      pendingUserText: 'hi',
+      contextLimit: 50_000,
+    })
+    const withHot = estimateComposeContextPct({
+      system: 'sys',
+      messages: [],
+      pendingUserText: 'hi',
+      hotText: 'x'.repeat(4_000),
+      contextLimit: 50_000,
+    })
+    expect(withHot).toBeGreaterThan(without)
+  })
+})
+
+describe('estimateComposeContextBreakdown', () => {
+  it('splits system, tools, hot, conversation, and reserve', () => {
+    const b = estimateComposeContextBreakdown({
+      system: 'sys'.repeat(50),
+      messages: [{ role: 'user', content: 'hello world' }],
+      pendingUserText: 'next',
+      hotText: 'HOT'.repeat(100),
+      toolsJson: '{"tools":[]}',
+      contextLimit: 100_000,
+      coldArchiveCount: 2,
+    })
+    expect(b.segments.map((s) => s.id)).toEqual([
+      'system',
+      'tools',
+      'hot',
+      'conversation',
+      'reserve',
+    ])
+    expect(b.coldArchiveCount).toBe(2)
+    expect(b.usedTokens).toBe(b.segments.reduce((n, s) => n + s.tokens, 0))
+  })
+
+  it('prefers hotTokens over re-estimating hotText', () => {
+    const b = estimateComposeContextBreakdown({
+      system: 'sys',
+      messages: [],
+      hotText: 'x'.repeat(40_000),
+      hotTokens: 12_500,
+      contextLimit: 100_000,
+    })
+    expect(b.segments.find((s) => s.id === 'hot')?.tokens).toBe(12_500)
   })
 })

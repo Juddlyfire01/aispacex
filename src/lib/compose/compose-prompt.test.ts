@@ -40,11 +40,18 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/active chat transcript/i)
   })
 
-  it('xSearchOn adds live search capability blurb', () => {
+  it('xSearchOn adds live X search capability blurb', () => {
     const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ modelId: 'm', xSearchOn: true, toolsEnabled: false })
-    expect(off).not.toMatch(/Live X\/web search is available/i)
-    expect(on).toMatch(/Live X\/web search is available/i)
+    expect(off).not.toMatch(/Live X\/Twitter search is available/i)
+    expect(on).toMatch(/Live X\/Twitter search is available/i)
+  })
+
+  it('webSearchOn adds live web search capability blurb', () => {
+    const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, webSearchOn: false, toolsEnabled: false })
+    const on = buildComposeSystem({ modelId: 'm', xSearchOn: false, webSearchOn: true, toolsEnabled: false })
+    expect(off).not.toMatch(/Live web search is available/i)
+    expect(on).toMatch(/Live web search is available/i)
   })
 
   it('includes register inject when provided', () => {

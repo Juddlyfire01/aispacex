@@ -8,6 +8,15 @@ export type ComposeMessage = ChatMessage & {
   agentEvents?: AgentEvent[]
 }
 
+/** One compress pass — raw messages moved out of the live transcript for cold search. */
+export interface CompressArchive {
+  id: string
+  createdAt: string
+  summary: string
+  messageCount: number
+  messages: ComposeMessage[]
+}
+
 export interface ComposeThread {
   id: string
   context: ComposeScope
@@ -18,4 +27,9 @@ export interface ComposeThread {
   draft: PostDraft
   tokenEstimate: number
   preview: string
+  /**
+   * Cold compress stacks (newest first). Live `messages` hold a summary marker
+   * plus recent turns; full text of older turns lives here for history search.
+   */
+  compressArchives?: CompressArchive[]
 }

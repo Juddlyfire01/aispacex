@@ -43,7 +43,7 @@ export const COMPOSE_HISTORY_TOOLS: ToolDefinition[] = [
     function: {
       name: 'compose_history_grep',
       description:
-        'Full-text search across prior compose thread messages (AND terms). Returns snippets with threadId you can pass to compose_history_get.',
+        'Full-text search across prior compose thread messages and cold compress archives (AND terms). Returns snippets with threadId you can pass to compose_history_get. Cold hits are prefixed with [cold …].',
       parameters: {
         type: 'object',
         properties: {
@@ -89,7 +89,7 @@ export const COMPOSE_HISTORY_TOOLS: ToolDefinition[] = [
     function: {
       name: 'compose_history_get',
       description:
-        'Fetch one prior compose thread by id (messages capped; default last 40). Use ids from list/grep/glob only — never invent thread ids.',
+        'Fetch one prior compose thread by id (live messages capped; default last 40). Includes compressArchives (cold stacks, newest first) when the thread was auto-compressed. Use ids from list/grep/glob only — never invent thread ids.',
       parameters: {
         type: 'object',
         properties: {

@@ -4,6 +4,10 @@ import {
   modelSupportsXSearch,
   modelIdSupportsFunctionCalling,
   filterComposeToolModels,
+  sortComposeResearchModels,
+  shouldUpgradeComposeResearchModel,
+  shouldUpgradeDraftModel,
+  pickDefaultDraftModel,
   COMPOSE_FALLBACK_MODEL,
 } from './model'
 import type { VeniceModel } from '../../types/venice'
@@ -15,6 +19,7 @@ function model(
     tools?: boolean
     created?: number
     traits?: string[]
+    name?: string
   },
 ): VeniceModel {
   return {
@@ -23,6 +28,7 @@ function model(
     created: opts?.created ?? 0,
     owned_by: 'venice',
     model_spec: {
+      name: opts?.name,
       capabilities: {
         supportsXSearch: opts?.xSearch,
         supportsFunctionCalling: opts?.tools ?? true,
@@ -101,6 +107,87 @@ describe('pickComposeModel', () => {
   it('returns fallback id when no tool models exist', () => {
     const models = [model('gemma', { tools: false, xSearch: true })]
     expect(pickComposeModel(models)).toBe(COMPOSE_FALLBACK_MODEL)
+  })
+})
+
+describe('sortComposeResearchModels', () => {
+  it('pins the preferred research default first', () => {
+    const models = [
+      model('zzz-tools', { name: 'Zed', xSearch: false }),
+      model('grok-4-3', { name: 'Grok 4.3', xSearch: true }),
+      model('aaa-tools', { name: 'Aaa', xSearch: false }),
+    ]
+    const sorted = sortComposeResearchModels(models, 'grok-4-3')
+    expect(sorted.map((m) => m.id)[0]).toBe('grok-4-3')
+  })
+})
+
+describe('shouldUpgradeComposeResearchModel', () => {
+  it('upgrades empty / non-tool / missing', () => {
+    const models = [model('grok-4-3', { xSearch: true }), model('plain', { xSearch: false })]
+    expect(shouldUpgradeComposeResearchModel('', models)).toBe(true)
+    expect(shouldUpgradeComposeResearchModel('gone', models)).toBe(true)
+    expect(
+      shouldUpgradeComposeResearchModel(
+        'no-tools',
+        [...models, model('no-tools', { tools: false, xSearch: true })],
+      ),
+    ).toBe(true)
+  })
+
+  it('follows previous default when a newer standard grok ships', () => {
+    const models = [
+      model('grok-4-3', { xSearch: true }),
+      model('grok-5', { xSearch: true, name: 'Grok 5.0' }),
+    ]
+    expect(shouldUpgradeComposeResearchModel('grok-4-3', models)).toBe(true)
+    expect(pickComposeModel(models)).toBe('grok-5')
+  })
+
+  it('does not upgrade an intentional older non-default pick', () => {
+    const models = [
+      model('grok-4-1', { xSearch: true, name: 'Grok 4.1' }),
+      model('grok-4-3', { xSearch: true, name: 'Grok 4.3' }),
+      model('grok-5', { xSearch: true, name: 'Grok 5.0' }),
+    ]
+    // Previous default would be grok-4-3, not grok-4-1
+    expect(shouldUpgradeComposeResearchModel('grok-4-1', models)).toBe(false)
+  })
+
+  it('does not upgrade when already on preferred', () => {
+    const models = [model('grok-4-3', { xSearch: true })]
+    expect(shouldUpgradeComposeResearchModel('grok-4-3', models)).toBe(false)
+  })
+})
+
+describe('shouldUpgradeDraftModel', () => {
+  it('follows most_uncensored when a newer Venice Uncensored ships', () => {
+    const models = [
+      model('venice-uncensored-1-2'),
+      model('venice-uncensored-1-3', { traits: ['most_uncensored'] }),
+    ]
+    expect(shouldUpgradeDraftModel('venice-uncensored-1-2', models, 'venice-uncensored-1-3')).toBe(
+      true,
+    )
+    expect(pickDefaultDraftModel(models, 'venice-uncensored-1-3')).toBe('venice-uncensored-1-3')
+  })
+
+  it('upgrades mistaken catalog default seed', () => {
+    const models = [
+      model('zai-org-glm-4.7', { traits: ['default'] }),
+      model('venice-uncensored-1-2', { traits: ['most_uncensored'] }),
+    ]
+    expect(
+      shouldUpgradeDraftModel('zai-org-glm-4.7', models, 'venice-uncensored-1-2', 'zai-org-glm-4.7'),
+    ).toBe(true)
+  })
+
+  it('does not upgrade a non-uncensored intentional pick', () => {
+    const models = [
+      model('writer-a'),
+      model('venice-uncensored-1-2', { traits: ['most_uncensored'] }),
+    ]
+    expect(shouldUpgradeDraftModel('writer-a', models, 'venice-uncensored-1-2')).toBe(false)
   })
 })
 

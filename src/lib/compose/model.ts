@@ -28,10 +28,12 @@ function pickFallbackModel(models: VeniceModel[]): string {
 }
 
 /**
- * Pick the default compose model (tool-capable only):
- * 1. Highest-version Grok with `supportsXSearch` (walk down Groks if needed)
+ * Pick the default compose research model (tool-capable only):
+ * 1. Highest-version standard Grok with `supportsXSearch` (walk down Groks if needed)
  * 2. Any other X-search-capable model
  * 3. `venice-uncensored-1-2`, else the model tagged with the `default` trait
+ *
+ * Recomputed from the live catalog — when Venice ships a newer Grok, this id moves.
  */
 export function pickComposeModel(models: VeniceModel[]): string {
   const eligible = filterComposeToolModels(models)
@@ -45,6 +47,47 @@ export function pickComposeModel(models: VeniceModel[]): string {
   if (xSearch.length > 0) return xSearch[0]!.id
 
   return pickFallbackModel(eligible)
+}
+
+/**
+ * Pin the live research default first, then alphabetical by display name.
+ */
+export function sortComposeResearchModels(
+  models: VeniceModel[],
+  preferredModelId?: string,
+): VeniceModel[] {
+  const eligible = filterComposeToolModels(models)
+  const pinned = preferredModelId || pickComposeModel(eligible)
+  return [...eligible].sort((a, b) => {
+    const aPin = a.id === pinned ? 0 : 1
+    const bPin = b.id === pinned ? 0 : 1
+    if (aPin !== bPin) return aPin - bPin
+    const an = a.model_spec?.name || a.id
+    const bn = b.model_spec?.name || b.id
+    return an.localeCompare(bn)
+  })
+}
+
+/**
+ * True when the stored research model should move to the live catalog default.
+ * Upgrades empty / missing / non-tool picks, and follows the latest standard Grok
+ * when the user was still on the previous default (not an intentional older pick).
+ */
+export function shouldUpgradeComposeResearchModel(
+  model: string,
+  models: VeniceModel[],
+): boolean {
+  if (!models.length) return false
+  const preferred = pickComposeModel(models)
+  if (!model) return true
+  if (!modelIdSupportsFunctionCalling(models, model)) return true
+  if (!models.some((m) => m.id === model)) return true
+  if (model === preferred) return false
+
+  // Still on previous catalog default → follow when Venice ships a newer Grok.
+  const withoutPreferred = models.filter((m) => m.id !== preferred)
+  if (withoutPreferred.length === 0) return false
+  return pickComposeModel(withoutPreferred) === model
 }
 
 /** Whether a given model id (from the loaded list) supports X search. */
@@ -62,6 +105,10 @@ function isVeniceUncensoredModel(m: VeniceModel): boolean {
     m.model_spec?.traits?.includes('most_uncensored') === true ||
     /^venice-uncensored/i.test(m.id)
   )
+}
+
+function isVeniceUncensoredId(id: string): boolean {
+  return /^venice-uncensored/i.test(id)
 }
 
 /**
@@ -89,7 +136,7 @@ export function sortDraftWriterModels(
 
 /**
  * Draft writer default: Venice `most_uncensored` trait (latest Uncensored SKU),
- * else hardcoded fallback id.
+ * else hardcoded fallback id. Moves when Venice retags `most_uncensored` (e.g. 1.3 / 2.0).
  */
 export function pickDefaultDraftModel(
   models: VeniceModel[],
@@ -99,4 +146,36 @@ export function pickDefaultDraftModel(
     return mostUncensoredModelId
   }
   return resolveMostUncensoredModelId(models, undefined) || COMPOSE_FALLBACK_MODEL
+}
+
+/**
+ * True when the stored draft writer should move to the live most_uncensored SKU.
+ * Follows Venice trait updates when the user was still on the previous default.
+ */
+export function shouldUpgradeDraftModel(
+  draftModel: string,
+  models: VeniceModel[],
+  mostUncensoredModelId?: string,
+  catalogDefaultModelId?: string,
+): boolean {
+  if (!models.length) return false
+  const preferred = pickDefaultDraftModel(models, mostUncensoredModelId)
+  if (!draftModel) return true
+  if (!models.some((m) => m.id === draftModel)) return true
+  if (draftModel === preferred) return false
+
+  // Prior mistaken seed: catalog `default` (e.g. GLM) instead of most_uncensored.
+  if (
+    catalogDefaultModelId &&
+    draftModel === catalogDefaultModelId &&
+    draftModel !== preferred
+  ) {
+    return true
+  }
+
+  if (!isVeniceUncensoredId(draftModel)) return false
+
+  const withoutPreferred = models.filter((m) => m.id !== preferred)
+  if (withoutPreferred.length === 0) return false
+  return pickDefaultDraftModel(withoutPreferred, undefined) === draftModel
 }

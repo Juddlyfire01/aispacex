@@ -32,6 +32,8 @@ export interface ComposeAgentOpts {
   historySnapshot: HistorySnapshot
   scope: ComposeScope
   xSearchOn: boolean
+  /** Venice `enable_web_search` — off / auto / on. */
+  webSearch?: 'off' | 'auto' | 'on'
   signal?: AbortSignal
   /**
    * Fired as soon as a tool name is known in the SSE stream (before args finish
@@ -55,6 +57,14 @@ export interface ComposeAgentOpts {
   }) => void | Promise<void>
   /** Fired when a new model round starts (1-based). */
   onRoundStart?: (round: number) => void
+  /**
+   * Native Venice web search lifecycle for the activity timeline.
+   * `start` when search may run; `done` when results (or citations) arrive.
+   */
+  onWebSearch?: (info: {
+    phase: 'start' | 'done'
+    resultCount?: number
+  }) => void
   /** Fired for each content token as the final (or intermediate) answer streams. */
   onDelta?: (token: string) => void
   /**
@@ -128,6 +138,20 @@ interface StreamedRound {
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }
 
+function countSearchResults(chunk: ChatCompletionChunk): number | null {
+  const raw = chunk.venice_search_results
+  if (Array.isArray(raw)) return raw.length
+  if (raw && typeof raw === 'object') {
+    const docs = (raw as { documents?: unknown[]; results?: unknown[] }).documents
+      ?? (raw as { results?: unknown[] }).results
+    if (Array.isArray(docs)) return docs.length
+    return 1
+  }
+  const cites = chunk.venice_parameters?.web_search_citations
+  if (Array.isArray(cites) && cites.length > 0) return cites.length
+  return null
+}
+
 /**
  * One streaming chat/completions round with tools enabled.
  * Accumulates content + tool_calls from SSE deltas; reports content via onDelta
@@ -138,6 +162,9 @@ async function streamComposeRound(
   messages: ChatMessage[],
   tools: ToolDefinition[],
 ): Promise<StreamedRound> {
+  const webSearch = opts.webSearch ?? 'off'
+  const webSearchEnabled = webSearch !== 'off'
+
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
@@ -149,7 +176,16 @@ async function streamComposeRound(
       max_tokens: 4096,
       tools,
       tool_choice: 'auto',
-      venice_parameters: { enable_x_search: opts.xSearchOn },
+      venice_parameters: {
+        enable_x_search: opts.xSearchOn,
+        enable_web_search: webSearch,
+        ...(webSearchEnabled
+          ? {
+              include_search_results_in_stream: true,
+              enable_web_citations: true,
+            }
+          : {}),
+      },
     }),
     stream: true,
     signal: opts.signal,
@@ -162,9 +198,27 @@ async function streamComposeRound(
   let toolsStarted = false
   let contentResetFired = false
   let usage: StreamedRound['usage']
+  let webSearchStarted = false
+  let webSearchDone = false
+
+  if (webSearchEnabled) {
+    webSearchStarted = true
+    opts.onWebSearch?.({ phase: 'start' })
+  }
 
   for await (const chunk of parseSSEStream(stream, { signal: opts.signal })) {
     if (chunk.usage) usage = chunk.usage
+
+    const resultCount = countSearchResults(chunk)
+    if (resultCount != null && !webSearchDone) {
+      if (!webSearchStarted) {
+        webSearchStarted = true
+        opts.onWebSearch?.({ phase: 'start' })
+      }
+      webSearchDone = true
+      opts.onWebSearch?.({ phase: 'done', resultCount })
+    }
+
     const delta = chunk.choices[0]?.delta
     if (!delta) continue
 
@@ -195,6 +249,11 @@ async function streamComposeRound(
         opts.onToolStart?.({ index, id: call.id, name })
       }
     }
+  }
+
+  // Auto mode may skip search — settle the "Searching…" step so it doesn't hang.
+  if (webSearchStarted && !webSearchDone) {
+    opts.onWebSearch?.({ phase: 'done', resultCount: 0 })
   }
 
   const toolCalls = [...toolAcc.entries()]

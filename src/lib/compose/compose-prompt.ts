@@ -10,6 +10,8 @@ export interface ComposeSystemOpts {
   /** Venice model id shown in settings (e.g. "grok-…", "llama-…"). */
   modelId: string
   xSearchOn: boolean
+  /** Venice native web search enabled (auto/on). */
+  webSearchOn?: boolean
   toolsEnabled: boolean
   /** Pre-formatted register inject block from resolveRegisterPack. */
   registerInject?: string | null
@@ -71,7 +73,7 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
     `You are ${modelId}, running privately via Venice.ai inside AiSpaceX Post.
 
 Environment:
-- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data, a searchable cold library, prior chat history tools, and (when enabled) live X/web search.
+- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data, a searchable cold library, prior chat history tools, and (when enabled) live web and/or X search.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 
 Purpose:
@@ -85,9 +87,15 @@ Style:
 - When citing a post id, write it as bare digits (optionally prefixed with \`post:\`), e.g. post:2075587500908333628 — no backticks/code formatting, no thousands separators (commas), no truncation. This lets the UI turn it into a clickable link. Handles stay as @username.`,
   ]
 
+  if (opts.webSearchOn) {
+    parts.push(
+      `Live web search is available. Use it when the user needs fresher or broader context than the local library — current news, pages, and public sources. Prefer real, current context over assumptions. Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`,
+    )
+  }
+
   if (opts.xSearchOn) {
     parts.push(
-      `Live X/web search is available. Use it when the user needs fresher or broader context than the local library — recent posts, current framing, ongoing threads. Prefer real, current context over assumptions. Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`,
+      `Live X/Twitter search is available. Use it when the user needs fresher or broader X context than the local library — recent posts, current framing, ongoing threads. Prefer real, current context over assumptions. Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`,
     )
   }
 

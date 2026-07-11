@@ -1,10 +1,25 @@
 import { cn } from '../../lib/utils'
 import { Spinner } from './spinner'
 
-export function Label({ children, htmlFor, hint }: { children: React.ReactNode; htmlFor?: string; hint?: string }) {
+export function Label({
+  children,
+  htmlFor,
+  hint,
+  title,
+}: {
+  children: React.ReactNode
+  htmlFor?: string
+  hint?: string
+  /** Native tooltip on the label text (e.g. help copy without eating row space). */
+  title?: string
+}) {
   return (
     <div className="flex items-baseline justify-between mb-1.5">
-      <label htmlFor={htmlFor} className="block text-[11.5px] font-medium text-[var(--color-text-secondary)] uppercase tracking-[0.06em]">
+      <label
+        htmlFor={htmlFor}
+        title={title}
+        className="block text-[11.5px] font-medium text-[var(--color-text-secondary)] uppercase tracking-[0.06em]"
+      >
         {children}
       </label>
       {hint && <span className="text-[11px] text-[var(--color-text-tertiary)]">{hint}</span>}
@@ -90,23 +105,31 @@ export function GhostButton({ onClick, children, disabled, ariaLabel }: { onClic
   )
 }
 
-export function PillGroup({ options, value, onChange, ariaLabel }: {
+export function PillGroup({ options, value, onChange, ariaLabel, disabled }: {
   options: Array<{ value: string; label: string }>
   value: string
   onChange: (v: string) => void
   ariaLabel?: string
+  disabled?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="flex flex-wrap gap-1">
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      aria-disabled={disabled || undefined}
+      className={cn('flex flex-wrap gap-1', disabled && 'opacity-40')}
+    >
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           role="radio"
           aria-checked={o.value === value}
+          disabled={disabled}
           onClick={() => onChange(o.value)}
           className={cn(
             'text-[13px] font-medium px-2.5 py-1 rounded-md border transition-all duration-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]',
+            'disabled:cursor-not-allowed disabled:hover:text-[var(--color-text-secondary)] disabled:hover:border-[var(--color-border-soft)]',
             o.value === value
               ? 'border-[var(--color-border-strong)] bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
               : 'border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]',

@@ -5,7 +5,7 @@ import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
 import type { RegisterDefault } from '../lib/compose/register'
 import { DEFAULT_REGISTER_DEFAULT } from '../lib/compose/register'
-import type { ComposeMessage, ComposeThread } from '../lib/compose/thread-types'
+import type { ComposeMessage, ComposeThread, CompressArchive } from '../lib/compose/thread-types'
 import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import type { ComposeScope } from '../lib/intel-library/types'
@@ -21,6 +21,8 @@ export type { LibraryMode }
 export type { ComposeThread }
 
 export type XSearchMode = 'off' | 'auto' | 'on'
+/** Same off/auto/on shape as X search — Venice `enable_web_search`. */
+export type WebSearchMode = 'off' | 'auto' | 'on'
 
 /** Legacy session shape (persist versions < 4). */
 interface LegacyComposeSession {
@@ -38,6 +40,8 @@ interface ComposeState {
   /** Draft writer: 'same' = main model emits postdraft; else a Venice model id. */
   draftModel: string
   xSearch: XSearchMode
+  /** Venice native web search (`enable_web_search`). */
+  webSearch: WebSearchMode
   isStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
   longformPreference: boolean
@@ -70,6 +74,12 @@ interface ComposeState {
   /** Attach the completed agent step timeline to the last assistant message. */
   setLastAssistantAgentEvents: (threadId: string, events: AgentEvent[]) => void
   deleteLastMessage: (threadId: string) => void
+  /** Stack a cold compress archive (newest first) and replace live messages. */
+  applyThreadCompress: (
+    threadId: string,
+    archive: CompressArchive,
+    nextMessages: ComposeMessage[],
+  ) => void
 
   applyDraftPatch: (threadId: string, patch: Partial<PostDraft>) => void
   setSegmentText: (threadId: string, segmentId: string, text: string) => void
@@ -83,6 +93,7 @@ interface ComposeState {
   setModel: (model: string) => void
   setDraftModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
+  setWebSearch: (mode: WebSearchMode) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
   setRegisterDefault: (def: RegisterDefault) => void
@@ -167,6 +178,14 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
     // Empty until models load — workspace seeds Venice default trait.
     state.draftModel = ''
   }
+  if (version < 7 && state.threads) {
+    for (const thread of Object.values(state.threads as Record<string, ComposeThread>)) {
+      if (!Array.isArray(thread.compressArchives)) thread.compressArchives = []
+    }
+  }
+  if (version < 8 && state.webSearch == null) {
+    state.webSearch = 'auto'
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -195,6 +214,7 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
         draft,
         tokenEstimate: meta.tokenEstimate,
         preview: meta.preview,
+        compressArchives: [],
       }
       entries.push({ id, key, updatedAt: draft.updatedAt ?? meta.updatedAt })
     }
@@ -232,6 +252,7 @@ export const useComposeStore = create<ComposeState>()(
       model: '',
       draftModel: '',
       xSearch: 'auto',
+      webSearch: 'auto',
       isStreaming: false,
       longformPreference: true,
       registerDefault: { ...DEFAULT_REGISTER_DEFAULT },
@@ -263,6 +284,7 @@ export const useComposeStore = create<ComposeState>()(
           draft,
           tokenEstimate: meta.tokenEstimate,
           preview: meta.preview,
+          compressArchives: [],
         }
         set((prev) => ({
           threads: { ...prev.threads, [id]: thread },
@@ -349,6 +371,15 @@ export const useComposeStore = create<ComposeState>()(
           mapThread(s, threadId, (t) => ({ ...t, messages: t.messages.slice(0, -1) })),
         ),
 
+      applyThreadCompress: (threadId, archive, nextMessages) =>
+        set((s) =>
+          mapThread(s, threadId, (t) => ({
+            ...t,
+            compressArchives: [archive, ...(t.compressArchives ?? [])],
+            messages: nextMessages,
+          })),
+        ),
+
       applyDraftPatch: (threadId, patch) =>
         set((s) => mapDraft(s, threadId, (draft) => ({ ...draft, ...patch }))),
 
@@ -413,6 +444,7 @@ export const useComposeStore = create<ComposeState>()(
       setModel: (model) => set({ model }),
       setDraftModel: (model) => set({ draftModel: model }),
       setXSearch: (mode) => set({ xSearch: mode }),
+      setWebSearch: (mode) => set({ webSearch: mode }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
       setRegisterDefault: (def) => set({ registerDefault: def }),
@@ -432,7 +464,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 6,
+      version: 8,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -444,6 +476,7 @@ export const useComposeStore = create<ComposeState>()(
         model: state.model,
         draftModel: state.draftModel,
         xSearch: state.xSearch,
+        webSearch: state.webSearch,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,
         libraryMode: state.libraryMode,

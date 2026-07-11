@@ -1,8 +1,19 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useCompose } from '../../hooks/use-compose'
+import { useModels } from '../../hooks/use-models'
 import { MarkdownMessage } from '../chat/markdown-message'
 import { AgentActivity } from './agent-activity'
+import { ContextRing } from './context-ring'
+import { ContextUsagePopup } from './context-usage-popup'
+import { buildComposeSystem } from '../../lib/compose/compose-prompt'
+import { isDraftHandoffEnabled } from '../../lib/compose/draft-writer-tool'
+import { COMPOSE_INTEL_TOOLS } from '../../lib/compose/intel-tools'
+import { COMPOSE_HISTORY_TOOLS } from '../../lib/compose/history-tools'
+import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
+import { filterComposeToolModels, modelSupportsXSearch } from '../../lib/compose/model'
+import { estimateComposeContextBreakdown } from '../../lib/compose/token-estimate'
+import { messageContentString } from '../../lib/compose/thread-meta'
 import type { ComposeMessage } from '../../lib/compose/thread-types'
 
 /** Only this close to the bottom counts as "following" the stream. */
@@ -17,15 +28,33 @@ function distanceFromBottom(el: HTMLElement): number {
 interface ComposeChatProps {
   threadId: string
   sendBlocked?: boolean
+  /** Hot-window text for the next send (for context % estimate). */
+  hotText?: string
+  /** Same pack.estimatedTokens shown in the Hot window meter — keep displays aligned. */
+  hotTokens?: number
 }
 
-export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
+export function ComposeChat({
+  threadId,
+  sendBlocked,
+  hotText = '',
+  hotTokens,
+}: ComposeChatProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const liveEvents = useComposeStore((s) => s.agentEvents)
   const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
+  const model = useComposeStore((s) => s.model)
+  const draftModel = useComposeStore((s) => s.draftModel)
+  const xSearch = useComposeStore((s) => s.xSearch)
+  const webSearch = useComposeStore((s) => s.webSearch)
+  const contextLimit = useComposeStore((s) => s.contextLimit)
+  const { data: models } = useModels('text')
+  const toolModels = useMemo(() => filterComposeToolModels(models ?? []), [models])
   const { send, stop, isStreaming } = useCompose()
   const [input, setInput] = useState('')
+  const [usageOpen, setUsageOpen] = useState(false)
+  const ringRef = useRef<HTMLButtonElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   /** Skip onScroll while we programmatically pin to bottom. */
@@ -38,6 +67,46 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
     () => (thread?.messages ?? []) as ComposeMessage[],
     [thread?.messages],
   )
+
+  const contextBreakdown = useMemo(() => {
+    const handoff = isDraftHandoffEnabled(draftModel)
+    const system = buildComposeSystem({
+      modelId: model,
+      xSearchOn: xSearch !== 'off' && modelSupportsXSearch(toolModels, model),
+      webSearchOn: webSearch !== 'off',
+      toolsEnabled: true,
+      draftHandoff: handoff,
+    })
+    const tools = [
+      ...COMPOSE_INTEL_TOOLS,
+      ...COMPOSE_HISTORY_TOOLS,
+      ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
+    ]
+    return estimateComposeContextBreakdown({
+      system,
+      messages,
+      pendingUserText: input,
+      hotText,
+      hotTokens,
+      toolsJson: JSON.stringify(tools),
+      contextLimit,
+      coldArchiveCount: thread?.compressArchives?.length ?? 0,
+      contentOf: messageContentString,
+    })
+  }, [
+    model,
+    draftModel,
+    xSearch,
+    webSearch,
+    toolModels,
+    messages,
+    input,
+    hotText,
+    hotTokens,
+    contextLimit,
+    thread?.compressArchives,
+  ])
+
   const lastContent =
     typeof messages[messages.length - 1]?.content === 'string'
       ? (messages[messages.length - 1]!.content as string)
@@ -47,6 +116,7 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
   // New thread → re-attach follow (and jump to bottom once messages load).
   useEffect(() => {
     stickToBottomRef.current = true
+    setUsageOpen(false)
   }, [threadId])
 
   const onScroll = useCallback(() => {
@@ -257,10 +327,24 @@ export function ComposeChat({ threadId, sendBlocked }: ComposeChatProps) {
             Draft
           </button>
           {sendBlocked && (
-            <span className="text-[10px] text-amber-400/60 truncate">
-              Hot window over budget — adjust library settings
+            <span className="text-[10px] text-amber-400/60 truncate min-w-0">
+              Hot window over budget — adjust hot-window settings
             </span>
           )}
+          <span className="ml-auto relative">
+            <ContextRing
+              pct={contextBreakdown.pct}
+              onClick={() => setUsageOpen((o) => !o)}
+              buttonRef={ringRef}
+              expanded={usageOpen}
+            />
+            <ContextUsagePopup
+              open={usageOpen}
+              onClose={() => setUsageOpen(false)}
+              breakdown={contextBreakdown}
+              anchorRef={ringRef}
+            />
+          </span>
         </div>
       </div>
     </div>

@@ -179,6 +179,19 @@ export interface ChatCompletionChunk {
   }>
   /** Present on the final chunk when the provider supports stream usage. */
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+  /**
+   * When `include_search_results_in_stream` is true, the first chunk may carry
+   * Venice web-search hits (array or object — treat presence as “search ran”).
+   */
+  venice_search_results?: unknown
+  venice_parameters?: {
+    web_search_citations?: Array<{
+      url?: string
+      title?: string
+      content?: string
+      date?: string
+    }>
+  }
 }
 
 export interface ChatCompletionResponse {

@@ -1,5 +1,6 @@
 import type { LibraryMode, PackResult } from '../../lib/compose/hot-window'
 import type { LibraryCounts } from '../../lib/intel-library/types'
+import { formatTokens } from '../../lib/utils'
 
 export interface LibraryMeterProps {
   pack: PackResult
@@ -30,14 +31,6 @@ const DAY_OPTIONS: { label: string; value: number | null }[] = [
   { label: 'All', value: null },
 ]
 
-function formatTokens(n: number): string {
-  if (n >= 1000) {
-    const k = n / 1000
-    return `${k >= 10 ? Math.round(k) : Math.round(k * 10) / 10}k`
-  }
-  return String(Math.round(n))
-}
-
 function selectClass() {
   return 'bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-1.5 py-0.5 text-[11px] text-white/70 outline-none'
 }
@@ -61,8 +54,6 @@ export function LibraryMeter({
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/40">
-        <span className="text-white/30">Library</span>
-
         <div className="flex rounded-md overflow-hidden border border-white/[0.05]">
           {(['auto', 'custom'] as const).map((mode) => (
             <button
@@ -114,16 +105,37 @@ export function LibraryMeter({
         </label>
       </div>
 
-      <div className="text-[11px] text-white/35 tabular-nums truncate">
-        Hot ~{formatTokens(pack.estimatedTokens)} · Budget {formatTokens(budget)} ({pctLabel}% of{' '}
-        {formatTokens(contextLimit)}
-        {limitAssumed ? '†' : ''}) · Headroom {formatTokens(headroom)} · Library {counts.posts} posts ·{' '}
-        {counts.reports} reports
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] tabular-nums min-w-0">
+        <div className="min-w-0">
+          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Hot</div>
+          <div className="text-white/55 truncate">~{formatTokens(pack.estimatedTokens)}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Budget</div>
+          <div className="text-white/55 truncate" title={`${pctLabel}% of ${formatTokens(contextLimit)}${limitAssumed ? ' (assumed)' : ''}`}>
+            {formatTokens(budget)}
+            <span className="text-white/30">
+              {' '}
+              ({pctLabel}% of {formatTokens(contextLimit)}
+              {limitAssumed ? '†' : ''})
+            </span>
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Headroom</div>
+          <div className="text-white/55 truncate">{formatTokens(headroom)}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Corpus</div>
+          <div className="text-white/55 truncate">
+            {counts.posts} posts · {counts.reports} reports
+          </div>
+        </div>
       </div>
 
       {libraryMode === 'custom' && pack.overBudget && (
         <div className="text-[11px] text-amber-400/80 bg-amber-400/10 border border-amber-400/20 rounded-md px-2 py-1">
-          Hot {formatTokens(pack.estimatedTokens)} exceeds budget {formatTokens(budget)} — raise budget,
+          Hot ~{formatTokens(pack.estimatedTokens)} exceeds budget {formatTokens(budget)} — raise budget,
           shorten window, switch to Auto, or narrow context
         </div>
       )}

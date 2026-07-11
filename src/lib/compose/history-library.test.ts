@@ -184,4 +184,26 @@ describe('getThread', () => {
   it('returns error for missing id', () => {
     expect(getThread(snap, 'nope')).toEqual({ error: 'thread_not_found' })
   })
+
+  it('greps cold compress archives', () => {
+    const cold = makeThread({
+      id: 't-cold',
+      context: { type: 'me' },
+      title: 'Compressed chat',
+      messages: [{ role: 'assistant', content: '[Earlier conversation compressed]' }],
+      compressArchives: [
+        {
+          id: 'arch-1',
+          createdAt: '2026-07-09T10:00:00.000Z',
+          summary: 'Discussed neon cactus branding',
+          messageCount: 1,
+          messages: [{ role: 'user', content: 'Remember the neon cactus hook' }],
+        },
+      ],
+    })
+    const s = buildHistorySnapshot({ 't-cold': cold }, ['t-cold'])
+    const hits = grepHistory(s, { query: 'neon cactus' })
+    expect(hits.some((h) => h.snippet.includes('[cold'))).toBe(true)
+    expect(hits.some((h) => h.snippet.toLowerCase().includes('cactus'))).toBe(true)
+  })
 })
