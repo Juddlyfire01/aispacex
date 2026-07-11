@@ -1,5 +1,12 @@
 import { cn } from '../../lib/utils'
-import { useSettingsStore, type Scale, type FontScale, type Density, type Typeface } from '../../stores/settings-store'
+import {
+  useSettingsStore,
+  type Scale,
+  type FontScale,
+  type Density,
+  type Typeface,
+  type SurfaceEmphasis,
+} from '../../stores/settings-store'
 import { SCALE_STEPS, TYPEFACE_OPTIONS } from '../../lib/appearance'
 import { Label, PillGroup } from '../ui/shared'
 import { ThemeSwatches } from './theme-swatches'
@@ -17,6 +24,11 @@ const TYPEFACE_PILLS = TYPEFACE_OPTIONS.map((o) => ({ value: o.value, label: o.l
 const DENSITY_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'comfortable', label: 'Comfortable' },
   { value: 'compact', label: 'Compact' },
+]
+
+const SURFACE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'quiet', label: 'Quiet' },
+  { value: 'strong', label: 'Raised' },
 ]
 
 function cnToggle(on: boolean) {
@@ -46,6 +58,8 @@ export function DisplaySection() {
   const toggleReduceMotion = useSettingsStore((s) => s.toggleReduceMotion)
   const density = useSettingsStore((s) => s.density)
   const setDensity = useSettingsStore((s) => s.setDensity)
+  const surfaceEmphasis = useSettingsStore((s) => s.surfaceEmphasis)
+  const setSurfaceEmphasis = useSettingsStore((s) => s.setSurfaceEmphasis)
 
   const typefaceHint =
     TYPEFACE_OPTIONS.find((o) => o.value === typeface)?.hint ?? TYPEFACE_OPTIONS[0].hint
@@ -107,6 +121,19 @@ export function DisplaySection() {
           options={DENSITY_OPTIONS}
           value={density}
           onChange={(v) => setDensity(v as Density)}
+        />
+      </div>
+
+      <div>
+        <Label>Card surfaces</Label>
+        <p className="text-[11px] text-[var(--color-text-tertiary)] -mt-1 mb-2">
+          Quiet keeps inset panels soft; Raised adds stronger separation from the page.
+        </p>
+        <PillGroup
+          ariaLabel="Card surfaces"
+          options={SURFACE_OPTIONS}
+          value={surfaceEmphasis}
+          onChange={(v) => setSurfaceEmphasis(v as SurfaceEmphasis)}
         />
       </div>
 

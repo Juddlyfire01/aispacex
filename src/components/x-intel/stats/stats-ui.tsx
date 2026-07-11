@@ -75,7 +75,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        'rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] px-3.5 py-2.5 min-h-[5rem] flex flex-col justify-between',
+        'rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] px-3.5 py-2.5 min-h-[5rem] flex flex-col justify-between',
         cardHoverCls,
         className,
       )}
@@ -110,7 +110,7 @@ export function ChartCard({
   return (
     <div
       className={cn(
-        'rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] p-3',
+        'rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] p-3',
         cardHoverCls,
         className,
       )}

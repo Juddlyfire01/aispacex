@@ -32,6 +32,7 @@ describe('appearance-persist', () => {
       fontScale: 'lg',
       typeface: 'aispace',
       density: 'compact',
+      surfaceEmphasis: 'strong',
       reduceMotion: true,
     })
     expect(localStorage.getItem(APPEARANCE_STORAGE_KEY)).toContain('light')
@@ -41,6 +42,7 @@ describe('appearance-persist', () => {
       fontScale: 'lg',
       typeface: 'aispace',
       density: 'compact',
+      surfaceEmphasis: 'strong',
       reduceMotion: true,
     })
   })
@@ -52,6 +54,7 @@ describe('appearance-persist', () => {
       fontScale: 'md',
       typeface: 'aispace',
       density: 'comfortable',
+      surfaceEmphasis: 'quiet',
       reduceMotion: false,
     })
   })

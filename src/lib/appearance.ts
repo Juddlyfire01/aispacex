@@ -12,6 +12,15 @@ export type FontScale = keyof typeof FONT_SCALE_MAP
 export const DENSITY_SPACE_MAP = { compact: 0.82, comfortable: 1 } as const
 export type Density = keyof typeof DENSITY_SPACE_MAP
 
+/** Inset card punchiness — quiet matches Intel panels; strong matches prior Stats raised. */
+export const SURFACE_EMPHASIS_IDS = ['quiet', 'strong'] as const
+export type SurfaceEmphasis = (typeof SURFACE_EMPHASIS_IDS)[number]
+export const DEFAULT_SURFACE_EMPHASIS: SurfaceEmphasis = 'quiet'
+
+export function resolveSurfaceEmphasis(value: unknown): SurfaceEmphasis {
+  return value === 'strong' ? 'strong' : DEFAULT_SURFACE_EMPHASIS
+}
+
 /**
  * Typeface family themes — free/system stacks that evoke each product.
  * Proprietary faces (Chirp, CursorGothic, Aeonik/Canela) are not redistributable.
@@ -89,6 +98,7 @@ export interface AppearanceSnapshot {
   fontScale?: FontScale | string
   typeface?: Typeface | string
   density?: Density | string
+  surfaceEmphasis?: SurfaceEmphasis | string
   reduceMotion?: boolean
 }
 
@@ -150,6 +160,7 @@ export function applyAppearanceToHtml(el: HTMLElement, appearance: AppearanceSna
   const densitySpace = DENSITY_SPACE_MAP[densityKey in DENSITY_SPACE_MAP ? densityKey : 'comfortable']
   const typeface = resolveTypeface(appearance.typeface)
   const stacks = TYPEFACE_STACKS[typeface]
+  const surfaceEmphasis = resolveSurfaceEmphasis(appearance.surfaceEmphasis)
 
   el.style.removeProperty('zoom')
   el.style.setProperty('--ui-scale', String(scaleToFactor(scale)))
@@ -158,6 +169,7 @@ export function applyAppearanceToHtml(el: HTMLElement, appearance: AppearanceSna
   el.style.setProperty('--font-sans', stacks.sans)
   el.style.setProperty('--font-mono', stacks.mono)
   el.dataset.typeface = typeface
+  el.dataset.surface = surfaceEmphasis
 
   if (appearance.theme) {
     el.dataset.theme = appearance.theme

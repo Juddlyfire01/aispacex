@@ -3,7 +3,14 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { writeAppearanceSnapshot } from '../lib/appearance-persist'
 import { DEFAULT_THEME } from '../lib/theme-palettes'
-import { DEFAULT_TYPEFACE, resolveTypeface, type Typeface } from '../lib/appearance'
+import {
+  DEFAULT_SURFACE_EMPHASIS,
+  DEFAULT_TYPEFACE,
+  resolveSurfaceEmphasis,
+  resolveTypeface,
+  type SurfaceEmphasis,
+  type Typeface,
+} from '../lib/appearance'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
 export type SettingsCategory = 'profile' | 'display' | 'data'
@@ -11,7 +18,7 @@ export type Theme = 'dark' | 'venice' | 'grey' | 'light'
 export type Scale = 90 | 100 | 110 | 125
 export type FontScale = 'sm' | 'md' | 'lg'
 export type Density = 'compact' | 'comfortable'
-export type { Typeface }
+export type { Typeface, SurfaceEmphasis }
 
 interface SettingsState {
   activeTab: Tab
@@ -36,6 +43,8 @@ interface SettingsState {
   toggleReduceMotion: () => void
   density: Density
   setDensity: (d: Density) => void
+  surfaceEmphasis: SurfaceEmphasis
+  setSurfaceEmphasis: (s: SurfaceEmphasis) => void
   profileName: string
   setProfileName: (name: string) => void
 
@@ -78,6 +87,8 @@ export const useSettingsStore = create<SettingsState>()(
       toggleReduceMotion: () => set((s) => ({ reduceMotion: !s.reduceMotion })),
       density: 'comfortable',
       setDensity: (d) => set({ density: d }),
+      surfaceEmphasis: DEFAULT_SURFACE_EMPHASIS,
+      setSurfaceEmphasis: (s) => set({ surfaceEmphasis: s }),
       profileName: '',
       setProfileName: (name) => set({ profileName: name }),
 
@@ -94,7 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'venice-settings',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<SettingsState> & { zoom?: Scale }
@@ -107,6 +118,7 @@ export const useSettingsStore = create<SettingsState>()(
           typeface: resolveTypeface(s.typeface),
           reduceMotion: s.reduceMotion ?? false,
           density: s.density ?? 'comfortable',
+          surfaceEmphasis: resolveSurfaceEmphasis(s.surfaceEmphasis),
           profileName: s.profileName ?? '',
           activeTab: remapDeprecatedTab(s.activeTab),
           lastNonSettingsTab: remapDeprecatedTab(s.lastNonSettingsTab),
@@ -123,6 +135,7 @@ export const useSettingsStore = create<SettingsState>()(
           fontScale: state.fontScale,
           typeface: state.typeface,
           density: state.density,
+          surfaceEmphasis: state.surfaceEmphasis,
           reduceMotion: state.reduceMotion,
         })
       },

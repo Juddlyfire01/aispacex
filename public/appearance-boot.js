@@ -58,6 +58,7 @@
       html.style.setProperty('--density-space', String(densitySpace))
       if (s.density) html.dataset.density = s.density
       if (s.reduceMotion) html.dataset.reduceMotion = String(s.reduceMotion)
+      html.dataset.surface = s.surfaceEmphasis === 'strong' ? 'strong' : 'quiet'
 
       var typefaceKey = s.typeface && TYPEFACES[s.typeface] ? s.typeface : DEFAULT_TYPEFACE
       var stacks = TYPEFACES[typefaceKey]
@@ -67,6 +68,7 @@
     } else {
       // First visit or mirror not written yet — leave data-theme from <html>.
       html.dataset.theme = theme
+      html.dataset.surface = 'quiet'
       html.style.colorScheme = 'dark'
       var def = TYPEFACES[DEFAULT_TYPEFACE]
       html.style.setProperty('--font-sans', def.sans)

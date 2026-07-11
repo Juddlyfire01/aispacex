@@ -7,6 +7,7 @@ import {
   xLogoHrefForTheme,
   scaleToFactor,
   resolveTypeface,
+  resolveSurfaceEmphasis,
   TYPEFACE_STACKS,
   DEFAULT_TYPEFACE,
   FONT_SCALE_MAP,
@@ -76,6 +77,30 @@ describe('appearance', () => {
     expect(style.get('--font-sans')).toBe(TYPEFACE_STACKS.x.sans)
     expect(style.get('--font-mono')).toBe(TYPEFACE_STACKS.x.mono)
     expect((el as HTMLElement).dataset.typeface).toBe('x')
+    expect((el as HTMLElement).dataset.surface).toBe('quiet')
+  })
+
+  it('resolveSurfaceEmphasis defaults to quiet', () => {
+    expect(resolveSurfaceEmphasis(undefined)).toBe('quiet')
+    expect(resolveSurfaceEmphasis('strong')).toBe('strong')
+    expect(resolveSurfaceEmphasis('nope')).toBe('quiet')
+  })
+
+  it('applyAppearanceToHtml sets data-surface for raised cards', () => {
+    const style = new Map<string, string>()
+    const el = {
+      style: {
+        setProperty: (k: string, v: string) => style.set(k, v),
+        removeProperty: (k: string) => {
+          style.delete(k)
+          return ''
+        },
+      },
+      dataset: {} as DOMStringMap,
+    } as unknown as HTMLElement
+
+    applyAppearanceToHtml(el, { surfaceEmphasis: 'strong', typeface: 'aispace' })
+    expect((el as HTMLElement).dataset.surface).toBe('strong')
   })
 
   it('Medium font scale is at or above X default body sizing', () => {

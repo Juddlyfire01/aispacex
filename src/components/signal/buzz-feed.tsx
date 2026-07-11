@@ -114,7 +114,7 @@ export function BuzzFeed() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] divide-y divide-[var(--color-border-faint)] overflow-hidden">
+      <div className="rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] divide-y divide-[var(--color-border-faint)] overflow-hidden">
         {buzz.isPending ? (
           <LoadingState className="h-32" label="Loading…" size="sm" />
         ) : buzz.isError ? (

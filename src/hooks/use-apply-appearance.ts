@@ -19,6 +19,7 @@ export function useApplyAppearance() {
   const typeface = useSettingsStore((s) => s.typeface)
   const reduceMotion = useSettingsStore((s) => s.reduceMotion)
   const density = useSettingsStore((s) => s.density)
+  const surfaceEmphasis = useSettingsStore((s) => s.surfaceEmphasis)
   const [hydrated, setHydrated] = useState(() => useSettingsStore.persist.hasHydrated())
 
   useEffect(() => {
@@ -30,10 +31,10 @@ export function useApplyAppearance() {
 
   useEffect(() => {
     if (!hydrated) return
-    const appearance = { theme, scale, fontScale, typeface, density, reduceMotion }
+    const appearance = { theme, scale, fontScale, typeface, density, surfaceEmphasis, reduceMotion }
     applyAppearanceToHtml(document.documentElement, appearance)
     document.documentElement.dataset.density = density
     document.documentElement.dataset.reduceMotion = String(reduceMotion)
     writeAppearanceSnapshot(appearance)
-  }, [hydrated, theme, scale, fontScale, typeface, reduceMotion, density])
+  }, [hydrated, theme, scale, fontScale, typeface, reduceMotion, density, surfaceEmphasis])
 }

@@ -10,6 +10,7 @@ describe('settings-store', () => {
       fontScale: 'md',
       reduceMotion: false,
       density: 'comfortable',
+      surfaceEmphasis: 'quiet',
       profileName: '',
       lastNonSettingsTab: 'intel',
     })
@@ -21,6 +22,13 @@ describe('settings-store', () => {
       useSettingsStore.getState().setTheme(t)
       expect(useSettingsStore.getState().theme).toBe(t)
     }
+  })
+
+  it('setSurfaceEmphasis accepts quiet and strong', () => {
+    useSettingsStore.getState().setSurfaceEmphasis('strong')
+    expect(useSettingsStore.getState().surfaceEmphasis).toBe('strong')
+    useSettingsStore.getState().setSurfaceEmphasis('quiet')
+    expect(useSettingsStore.getState().surfaceEmphasis).toBe('quiet')
   })
 
   it('setScale accepts the allowed steps', () => {

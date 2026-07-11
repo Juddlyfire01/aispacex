@@ -13,7 +13,7 @@ export function TopVoices({ authors, limit = 10 }: { authors: TopAuthor[]; limit
     )
   }
   return (
-    <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] divide-y divide-[var(--color-border-faint)]">
+    <div className="rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] divide-y divide-[var(--color-border-faint)]">
       {top.map((a, i) => (
         <a
           key={a.handle}

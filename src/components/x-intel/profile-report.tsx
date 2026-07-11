@@ -137,7 +137,7 @@ function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Pos
 /** A small labeled stat cell. */
 function Stat({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
   return (
-    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-2.5 py-2">
+    <div className="rounded-lg border border-[var(--color-border-card)] bg-[var(--color-bg-card)] px-2.5 py-2">
       <div className="text-[9px] uppercase tracking-wide text-white/25">
         <Tooltip tip={tip}>{label}</Tooltip>
       </div>
@@ -517,7 +517,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
                 <button
                   key={np.postId}
                   onClick={() => onJumpToPost(np.postId)}
-                  className="text-left w-full rounded-lg border border-white/[0.05] bg-white/[0.015] p-2.5 hover:border-white/15 transition-colors"
+                  className="text-left w-full rounded-lg border border-[var(--color-border-card)] bg-[var(--color-bg-card)] p-2.5 hover:border-[var(--color-border-strong)] transition-colors"
                 >
                   {post ? (
                     <p className="text-[12px] text-white/65">{post.text.slice(0, 140)}{post.text.length > 140 ? '…' : ''}</p>
@@ -585,7 +585,7 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
             key={r.id}
             className={cn(
               'group/report relative shrink-0 rounded-lg border px-2.5 py-1.5 cursor-pointer transition-colors',
-              active ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.06]' : 'border-white/[0.06] bg-white/[0.015] hover:border-white/[0.15]',
+              active ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.06]' : 'border-[var(--color-border-card)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-strong)]',
             )}
             onClick={() => onSelect(r.id)}
           >

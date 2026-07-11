@@ -1,5 +1,5 @@
-import type { AppearanceSnapshot, Density, FontScale, Scale, Typeface } from './appearance'
-import { DEFAULT_TYPEFACE, resolveTypeface, SCALE_STEPS } from './appearance'
+import type { AppearanceSnapshot, Density, FontScale, Scale, SurfaceEmphasis, Typeface } from './appearance'
+import { DEFAULT_TYPEFACE, resolveSurfaceEmphasis, resolveTypeface, SCALE_STEPS } from './appearance'
 
 /** Plaintext localStorage key — readable by the pre-React FOUC boot script.
  *  Sensitive settings stay in the encrypted `venice-settings` blob; only
@@ -20,6 +20,7 @@ export function writeAppearanceSnapshot(appearance: AppearanceSnapshot): void {
       fontScale: appearance.fontScale,
       typeface: resolveTypeface(appearance.typeface),
       density: appearance.density,
+      surfaceEmphasis: resolveSurfaceEmphasis(appearance.surfaceEmphasis),
       reduceMotion: appearance.reduceMotion ?? false,
     }
     localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(payload))
@@ -42,7 +43,10 @@ export function readAppearanceSnapshot(): AppearanceSnapshot | null {
 
 /** Normalize a partial snapshot for applying to <html>. */
 export function normalizeAppearance(s: AppearanceSnapshot): Required<
-  Pick<AppearanceSnapshot, 'theme' | 'scale' | 'fontScale' | 'typeface' | 'density' | 'reduceMotion'>
+  Pick<
+    AppearanceSnapshot,
+    'theme' | 'scale' | 'fontScale' | 'typeface' | 'density' | 'surfaceEmphasis' | 'reduceMotion'
+  >
 > {
   const rawScale = s.scale ?? s.zoom ?? 100
   const scale = (SCALE_STEPS.includes(rawScale as Scale) ? rawScale : 100) as Scale
@@ -50,12 +54,14 @@ export function normalizeAppearance(s: AppearanceSnapshot): Required<
   const density = (s.density === 'compact' ? 'compact' : 'comfortable') as Density
   const theme = isThemeKey(s.theme) ? s.theme : 'dark'
   const typeface = resolveTypeface(s.typeface) as Typeface
+  const surfaceEmphasis = resolveSurfaceEmphasis(s.surfaceEmphasis) as SurfaceEmphasis
   return {
     theme,
     scale,
     fontScale,
     typeface,
     density,
+    surfaceEmphasis,
     reduceMotion: Boolean(s.reduceMotion),
   }
 }

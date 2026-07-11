@@ -12,7 +12,7 @@ export function LatestStrip({ items }: { items: NewsItem[] }) {
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 w-56 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] p-3 hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-accent)]/[0.04] transition-colors"
+          className="shrink-0 w-56 rounded-xl border border-[var(--color-border-card)] bg-[var(--color-bg-card)] p-3 hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-accent)]/[0.04] transition-colors"
         >
           <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-secondary)]">
             <span className="font-medium text-[var(--color-text-primary)] truncate">{item.sourceName}</span>
