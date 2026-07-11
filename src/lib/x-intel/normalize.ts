@@ -1,6 +1,7 @@
 // src/lib/x-intel/normalize.ts
 import type { XUserRaw, XPostRaw, XPostEntities, Profile, Post, Edge } from './types'
 import { condenseUrlLabel } from './linkify'
+import { explicitOutboundMentions, threadPrefixMentions } from './activity'
 
 function mapBioUrls(raw: XUserRaw): Profile['bioUrls'] {
   return (raw.entities?.description?.urls ?? []).map((u) => ({
@@ -94,7 +95,9 @@ export function profileNeedsLinkRefresh(profile: Profile): boolean {
 const KIND_MAP: Record<string, Post['kind']> = {
   replied_to: 'reply',
   quoted: 'quote',
+  // X historically used `retweeted`; current API responses use `reposted`.
   retweeted: 'retweet',
+  reposted: 'retweet',
 }
 
 function mapMentions(mentions: XPostEntities['mentions'] | undefined): Post['mentions'] {
@@ -115,13 +118,20 @@ function resolvePostBody(raw: XPostRaw): { text: string; entities: XPostRaw['ent
   return { text: raw.text, entities: raw.entities }
 }
 
-export function normalizePost(raw: XPostRaw): Post {
+export function normalizePost(
+  raw: XPostRaw,
+  includes?: { users?: XUserRaw[]; tweets?: XPostRaw[] },
+): Post {
   const m = raw.public_metrics
   const ref = raw.referenced_tweets?.[0]
   const { text, entities } = resolvePostBody(raw)
+  const tweetById = new Map((includes?.tweets ?? []).map((t) => [t.id, t]))
+  const userById = new Map((includes?.users ?? []).map((u) => [u.id, u]))
+
   return {
     id: raw.id,
     authorId: raw.author_id ?? '',
+    authorUsername: raw.author_id ? (userById.get(raw.author_id)?.username ?? '') : '',
     text,
     lang: raw.lang ?? 'und',
     createdAt: raw.created_at ?? '',
@@ -134,7 +144,17 @@ export function normalizePost(raw: XPostRaw): Post {
       bookmarks: m?.bookmark_count ?? 0,
     },
     kind: ref ? (KIND_MAP[ref.type] ?? 'original') : 'original',
-    referenced: raw.referenced_tweets?.map((r) => ({ id: r.id, type: r.type })) ?? [],
+    referenced: (raw.referenced_tweets ?? []).map((r) => {
+      const included = tweetById.get(r.id)
+      const authorId = included?.author_id
+      const authorUsername = authorId ? userById.get(authorId)?.username : undefined
+      return {
+        id: r.id,
+        type: r.type,
+        ...(authorId ? { authorId } : {}),
+        ...(authorUsername ? { authorUsername } : {}),
+      }
+    }),
     urls: entities?.urls?.map((u) => ({ expanded: u.expanded_url, display: u.display_url, title: u.title })) ?? [],
     mentions: mapMentions(entities?.mentions),
     mediaKeys: raw.attachments?.media_keys ?? [],
@@ -156,14 +176,21 @@ export function deriveEdges(sourceUserId: string, posts: Post[]): Edge[] {
       if (isPlaceholder(existing.target) && !isPlaceholder(edge.target)) {
         existing.target = edge.target
       }
+      // Prefer a resolved username over an empty one
+      if (!existing.targetUsername && edge.targetUsername) {
+        existing.targetUsername = edge.targetUsername
+      }
     } else {
       map.set(key, { ...edge, weight: 1 })
     }
   }
 
   for (const post of posts) {
-    for (const mn of post.mentions) {
-      bump(`mention:${mn.username}`, {
+    // Only deliberate @mentions — strip RT-echoed handles and reply/quote thread prefixes.
+    // Without this, people mentioned inside content the subject RTs/replies to get
+    // falsely attributed as subject→them engagement.
+    for (const mn of explicitOutboundMentions(post)) {
+      bump(`mention:${mn.username.toLowerCase()}`, {
         source: sourceUserId,
         target: mn.id || `user:${mn.username}`,
         targetUsername: mn.username,
@@ -174,10 +201,32 @@ export function deriveEdges(sourceUserId: string, posts: Post[]): Edge[] {
     for (const ref of post.referenced) {
       const kind = KIND_MAP[ref.type]
       if (!kind || kind === 'original') continue
-      bump(`${kind}:${ref.id}`, {
+      // Prefer the referenced author's identity when the gather expansion filled it in.
+      // Fallback for already-stored posts gathered before that expansion: the RT
+      // attribution / reply-prefix @handle is the person being engaged.
+      let authorId = ref.authorId
+      let authorUsername = ref.authorUsername
+      if (!authorUsername) {
+        if (kind === 'retweet' && post.mentions[0]) {
+          authorUsername = post.mentions[0].username
+          authorId = post.mentions[0].id || authorId
+        } else if (kind === 'reply' || kind === 'quote') {
+          const prefix = threadPrefixMentions(post)[0]
+          if (prefix) {
+            authorUsername = prefix.username
+            authorId = prefix.id || authorId
+          }
+        }
+      }
+      const target = authorId || `post:${ref.id}`
+      const targetUsername = authorUsername || ''
+      const key = authorId
+        ? `${kind}:user:${authorId}`
+        : `${kind}:post:${ref.id}`
+      bump(key, {
         source: sourceUserId,
-        target: `post:${ref.id}`, // placeholder — resolved to a user id on demand
-        targetUsername: '',
+        target,
+        targetUsername,
         kind,
         lastSeen: post.createdAt,
       })

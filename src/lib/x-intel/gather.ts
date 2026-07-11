@@ -45,7 +45,7 @@ export async function gatherPosts(
   if (!resp.data && resp.errors?.length) {
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
-  const posts = (resp.data ?? []).map(normalizePost)
+  const posts = (resp.data ?? []).map((raw) => normalizePost(raw, resp.includes))
   return { data: posts, cost: estimateCost('posts', posts.length) }
 }
 
@@ -65,7 +65,7 @@ export async function gatherMentions(
   if (!resp.data && resp.errors?.length) {
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
-  const posts = (resp.data ?? []).map(normalizePost)
+  const posts = (resp.data ?? []).map((raw) => normalizePost(raw, resp.includes))
   return { data: posts, cost: estimateCost('posts', posts.length) }
 }
 

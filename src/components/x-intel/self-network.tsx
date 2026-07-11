@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfPosts, refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
 import { runGather } from '../../lib/x-intel/orchestrate'
-import { NetworkGraphInner } from './network-graph'
+import { NetworkGraphInner, collectSiblings } from './network-graph'
 
 /** Network sub-tab for the self Profile tab. Wires the shared NetworkGraphInner
  *  to the active self account's edges. Clicking a node offers to add that
@@ -15,6 +15,9 @@ export function SelfNetwork() {
   const addTarget = useXIntelStore((s) => s.addTarget)
   const [refreshing, setRefreshing] = useState<null | 'posts' | 'mentions'>(null)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+
+  const profileId = account?.profile?.id ?? null
+  const siblings = useMemo(() => collectSiblings(profileId), [profileId])
 
   const runRefresh = async (mode: 'posts' | 'mentions') => {
     setRefreshing(mode)
@@ -43,6 +46,8 @@ export function SelfNetwork() {
     <NetworkGraphInner
       profile={account.profile}
       edges={account.edges}
+      posts={account.posts}
+      siblings={siblings}
       subjectLabel={`@${account.username}`}
       connected={connected}
       canGather={connected}

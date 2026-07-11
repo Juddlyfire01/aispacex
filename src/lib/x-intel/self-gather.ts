@@ -27,7 +27,7 @@ async function gatherSelfPostLike(
     max_results: String(opts.maxResults ?? 50),
   })
   if (!resp.data && resp.errors?.length) throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
-  return (resp.data ?? []).map(normalizePost)
+  return (resp.data ?? []).map((raw) => normalizePost(raw, resp.includes))
 }
 
 /** The connected user's own timeline. */

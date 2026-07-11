@@ -128,7 +128,18 @@ describe('normalizePost', () => {
   it('derives kind for reply, retweet, original', () => {
     expect(normalizePost({ ...rawPost, referenced_tweets: [{ type: 'replied_to', id: '1' }] }).kind).toBe('reply')
     expect(normalizePost({ ...rawPost, referenced_tweets: [{ type: 'retweeted', id: '1' }] }).kind).toBe('retweet')
+    expect(normalizePost({ ...rawPost, referenced_tweets: [{ type: 'reposted', id: '1' }] }).kind).toBe('retweet')
     expect(normalizePost({ ...rawPost, referenced_tweets: undefined }).kind).toBe('original')
+  })
+
+  it('resolves referenced authors from includes', () => {
+    const p = normalizePost(rawPost, {
+      tweets: [{ id: '888', text: 'hi', author_id: '77' }],
+      users: [{ id: '77', name: 'Venice', username: 'venice_ai' }],
+    })
+    expect(p.referenced[0]).toEqual({
+      id: '888', type: 'quoted', authorId: '77', authorUsername: 'venice_ai',
+    })
   })
 
   it('uses note_tweet for long-form post text and entities', () => {
@@ -162,12 +173,68 @@ describe('deriveEdges', () => {
   })
 
   it('creates quote/reply edges keyed to referenced post ids when author unknown', () => {
-    const p = normalizePost(rawPost) // quoted post 888, author unknown
+    const p = normalizePost(rawPost) // quoted post 888, author unknown; body mention is not a prefix
     const edges = deriveEdges('42', [p])
     const quote = edges.find((e) => e.kind === 'quote')
     expect(quote).toBeDefined()
     expect(quote!.target).toBe('post:888') // placeholder until resolved
     expect(quote!.targetUsername).toBe('')
+  })
+
+  it('does not count RT-echoed @mentions as deliberate mentions', () => {
+    const p = normalizePost({
+      ...rawPost,
+      id: 'rt1',
+      text: 'RT @deedydas: Top 20 Startups feat @EoghanH',
+      referenced_tweets: [{ type: 'reposted', id: '777' }],
+      entities: { mentions: [
+        { username: 'deedydas', id: '99', start: 3, end: 12 },
+        { username: 'EoghanH', id: 'e1', start: 35, end: 43 },
+      ] },
+    })
+    const edges = deriveEdges('42', [p])
+    expect(edges.find((e) => e.kind === 'mention')).toBeUndefined()
+    const rt = edges.find((e) => e.kind === 'retweet')
+    expect(rt).toBeDefined()
+    // Fallback: first mention on an RT is the reposted author when includes are absent
+    expect(rt!.targetUsername).toBe('deedydas')
+    expect(rt!.target).toBe('99')
+  })
+
+  it('resolves retweet edges to the referenced author when includes are present', () => {
+    const p = normalizePost({
+      ...rawPost,
+      id: 'rt2',
+      text: 'RT @deedydas: hello',
+      referenced_tweets: [{ type: 'reposted', id: '777' }],
+      entities: { mentions: [{ username: 'deedydas', id: '99', start: 3, end: 12 }] },
+    }, {
+      tweets: [{ id: '777', text: 'hello', author_id: '99' }],
+      users: [{ id: '99', name: 'DD', username: 'deedydas' }],
+    })
+    const edges = deriveEdges('42', [p])
+    const rt = edges.find((e) => e.kind === 'retweet')
+    expect(rt!.targetUsername).toBe('deedydas')
+    expect(rt!.target).toBe('99')
+    expect(edges.find((e) => e.kind === 'mention')).toBeUndefined()
+  })
+
+  it('strips reply thread-prefix @handles from mention edges', () => {
+    const p = normalizePost({
+      ...rawPost,
+      id: 'r1',
+      text: '@root @parent cc @venice_ai',
+      referenced_tweets: [{ type: 'replied_to', id: '111' }],
+      entities: { mentions: [
+        { username: 'root', id: '1', start: 0, end: 5 },
+        { username: 'parent', id: '2', start: 6, end: 13 },
+        { username: 'venice_ai', id: '77', start: 17, end: 27 },
+      ] },
+    })
+    const edges = deriveEdges('42', [p])
+    expect(edges.filter((e) => e.kind === 'mention').map((e) => e.targetUsername)).toEqual(['venice_ai'])
+    const reply = edges.find((e) => e.kind === 'reply')
+    expect(reply!.targetUsername).toBe('root') // prefix fallback → person replied to
   })
 
   it('returns empty array for no posts', () => {

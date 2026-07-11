@@ -146,10 +146,16 @@ function mentionsMatchingLeadingUsernames(
  * @mentions the author deliberately added. Excludes:
  * - retweets (RT @author: attribution + echoed tweet mentions)
  * - reply / quote thread prefixes (contiguous leading @handles)
+ *
+ * Also treats posts whose `referenced` list contains a retweeted/reposted entry
+ * as retweets even when `post.kind` was mis-normalized to `original` (X began
+ * returning `reposted` while our map only knew `retweeted`).
  */
 export function explicitOutboundMentions(post: Post): Post['mentions'] {
   if (!post.mentions.length) return []
-  if (post.kind === 'retweet') return []
+  const isRepost = post.kind === 'retweet'
+    || post.referenced.some((r) => r.type === 'retweeted' || r.type === 'reposted')
+  if (isRepost) return []
   if (post.kind === 'reply' || post.kind === 'quote') {
     const prefixKeys = new Set(threadPrefixMentions(post).map(mentionKey))
     return post.mentions.filter((m) => !prefixKeys.has(mentionKey(m)))

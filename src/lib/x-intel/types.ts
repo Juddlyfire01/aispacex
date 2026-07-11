@@ -25,12 +25,20 @@ export interface Profile {
 export interface Post {
   id: string
   authorId: string
+  /** Handle of the author when known from gather `includes.users`. Empty on legacy rows. */
+  authorUsername: string
   text: string
   lang: string
   createdAt: string
   metrics: { impressions: number; likes: number; reposts: number; replies: number; quotes: number; bookmarks: number }
   kind: 'original' | 'reply' | 'quote' | 'retweet'
-  referenced: { id: string; type: string }[]
+  /**
+   * Referenced tweets (reply parent / quoted / reposted). `authorId` /
+   * `authorUsername` are filled when the gather expansion
+   * `referenced_tweets.id.author_id` is present — needed so RT/reply/quote
+   * edges resolve to a person instead of a `post:` placeholder.
+   */
+  referenced: { id: string; type: string; authorId?: string; authorUsername?: string }[]
   urls: { expanded: string; display: string; title?: string }[]
   mentions: { username: string; id: string; start?: number; end?: number }[]
   mediaKeys: string[]
@@ -307,7 +315,7 @@ export interface XPostRaw {
     quote_count: number
     bookmark_count?: number
   }
-  referenced_tweets?: { type: 'replied_to' | 'quoted' | 'retweeted'; id: string }[]
+  referenced_tweets?: { type: 'replied_to' | 'quoted' | 'retweeted' | 'reposted'; id: string }[]
   entities?: XPostEntities
   /** Full text + entities for long-form posts (>280 chars). Root `text` is truncated. */
   note_tweet?: { text?: string; entities?: XPostEntities }
@@ -317,6 +325,7 @@ export interface XPostRaw {
 
 export interface XPaginatedResponse<T> {
   data?: T[]
+  includes?: { users?: XUserRaw[]; tweets?: XPostRaw[] }
   meta?: { newest_id?: string; oldest_id?: string; result_count: number; next_token?: string }
   errors?: { title: string; detail: string }[]
 }

@@ -128,6 +128,20 @@ describe('threadPrefixMentions', () => {
     expect(explicitOutboundMentions(p)).toEqual([])
     expect(postFeedFilterKeys(profile, p)).toEqual(['retweet'])
   })
+
+  it('treats mis-normalized reposts (kind=original, type=reposted) as retweets for mention stripping', () => {
+    const p = post({
+      id: 'rt-legacy',
+      kind: 'original',
+      text: 'RT @deedydas: hello @EoghanH',
+      referenced: [{ id: '777', type: 'reposted' }],
+      mentions: [
+        { username: 'deedydas', id: '99', start: 3, end: 12 },
+        { username: 'EoghanH', id: 'e1', start: 20, end: 28 },
+      ],
+    })
+    expect(explicitOutboundMentions(p)).toEqual([])
+  })
 })
 
 describe('postFeedFilterKeys', () => {

@@ -1,30 +1,51 @@
 import { useMemo, useState } from 'react'
-import { ReactFlow, Background, Controls, type Node, type Edge as FlowEdge } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { runGather, refreshPosts, refreshNetworkWithMentions } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
-import type { Edge, Profile } from '../../lib/x-intel/types'
+import { type EdgeKind, type SiblingSubject } from '../../lib/x-intel/network-build'
+import { buildNetworkFromPosts, type NetworkDirection } from '../../lib/x-intel/network-direction'
+import { NetworkBubbleMap, KIND_COLORS } from './network-bubble-map'
+import { NetworkRankedList } from './network-ranked-list'
+import type { Edge, Post, Profile } from '../../lib/x-intel/types'
 import { cn } from '../../lib/utils'
 
-function readToken(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#111114'
-}
+const KINDS: EdgeKind[] = ['mention', 'reply', 'quote', 'retweet']
+const TOP_N_DEFAULT = 25
+const TOP_N_MIN = 10
+const TOP_N_MAX = 75
 
-const KIND_COLORS: Record<Edge['kind'], string> = {
-  mention: '#60a5fa',
-  reply: '#34d399',
-  quote: '#c084fc',
-  retweet: '#fbbf24',
-}
+type ViewMode = 'list' | 'map'
 
-const KINDS: Edge['kind'][] = ['mention', 'reply', 'quote', 'retweet']
+/** id → { username } directory for attributing inbound authors, assembled from
+ *  tracked siblings, post author handles, and mention entities (zero cost). */
+function buildAuthorDirectory(
+  siblings: SiblingSubject[] | undefined,
+  posts: Post[] | undefined,
+): Map<string, { username: string }> {
+  const dir = new Map<string, { username: string }>()
+  for (const s of siblings ?? []) {
+    if (s.id && s.username) dir.set(s.id, { username: s.username })
+  }
+  for (const p of posts ?? []) {
+    if (p.authorId && p.authorUsername && !dir.has(p.authorId)) {
+      dir.set(p.authorId, { username: p.authorUsername })
+    }
+    for (const m of p.mentions) {
+      if (m.id && m.username && !dir.has(m.id)) dir.set(m.id, { username: m.username })
+    }
+  }
+  return dir
+}
 
 export interface NetworkGraphInnerProps {
   profile: Profile | null
   edges: Edge[]
+  /** Subject's stored posts (outbound + inbound) for cross-link derivation. */
+  posts?: Post[]
+  /** Other tracked subjects (targets + self accounts) for cross-links/avatars. */
+  siblings?: SiblingSubject[]
   /** Active subject label for empty-state copy (e.g. "@username"). */
   subjectLabel: string
   connected: boolean
@@ -39,67 +60,32 @@ export interface NetworkGraphInnerProps {
   lastGatheredIso?: string
 }
 
-/** Presentational network graph — props-driven so it can be wired to either a
- *  target or the connected self account. */
+/** Presentational network bubble map — props-driven so it can be wired to
+ *  either a target or the connected self account. */
 export function NetworkGraphInner({
-  profile, edges, subjectLabel, connected, canGather, refreshing, refreshError,
-  onRefresh, onAddTarget, canAddTargets, lastGatheredIso,
+  profile, edges, posts, siblings, subjectLabel, connected, canGather, refreshing,
+  refreshError, onRefresh, onAddTarget, canAddTargets, lastGatheredIso,
 }: NetworkGraphInnerProps) {
-  const [kindFilter, setKindFilter] = useState<Set<Edge['kind']>>(new Set(KINDS))
-  const [minWeight, setMinWeight] = useState(2)
+  const [kindFilter, setKindFilter] = useState<Set<EdgeKind>>(new Set(KINDS))
+  const [topN, setTopN] = useState(TOP_N_DEFAULT)
+  const [view, setView] = useState<ViewMode>('list')
+  const [direction, setDirection] = useState<NetworkDirection>('outbound')
 
-  const filteredEdges = useMemo(
-    () => edges.filter((e) => kindFilter.has(e.kind) && e.weight >= minWeight),
-    [edges, kindFilter, minWeight],
-  )
-
-  const { nodes, flowEdges } = useMemo(() => {
-    if (!profile) return { nodes: [] as Node[], flowEdges: [] as FlowEdge[] }
-
-    const maxWeight = Math.max(1, ...filteredEdges.map((e) => e.weight))
-    const nodes: Node[] = [{
-      id: profile.id,
-      position: { x: 0, y: 0 },
-      data: { label: `@${profile.username}` },
-      style: { background: '#fff', color: '#000', fontSize: 12, fontWeight: 600, borderRadius: 999, padding: '6px 14px', border: 'none' },
-    }]
-
-    // circular layout around the pinned-center subject
-    // De-duplicate node IDs: the same target can appear across multiple edge kinds
-    const placed = new Set<string>([profile.id])
-    let placedCount = 0
-    filteredEdges.forEach((e) => {
-      if (placed.has(e.target)) return // node already placed; edge still wires to it
-      placed.add(e.target)
-      const angle = (2 * Math.PI * placedCount) / filteredEdges.length
-      const radius = 260
-      const size = 10 + (e.weight / maxWeight) * 16
-      nodes.push({
-        id: e.target,
-        position: { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius },
-        data: { label: e.targetUsername ? `@${e.targetUsername}` : `unknown (${e.target.slice(0, 12)}…)` },
-        style: {
-          background: readToken('--color-bg-raised'), color: readToken('--color-text-secondary'), fontSize: size,
-          borderRadius: 999, padding: '4px 10px', border: `1px solid ${KIND_COLORS[e.kind]}55`,
-        },
-      })
-      placedCount++
+  // Posts-first model: direction is decided by who authored each post, not by
+  // the blended Edge ledger (which is outbound-shaped and ate inbound).
+  const model = useMemo(() => {
+    if (!profile || !posts || posts.length === 0) return null
+    return buildNetworkFromPosts(profile, posts, {
+      direction,
+      kinds: kindFilter,
+      topN,
+      authorDirectory: buildAuthorDirectory(siblings, posts),
+      siblings,
     })
-
-    const flowEdges: FlowEdge[] = filteredEdges.map((e) => ({
-      id: `${e.kind}-${e.target}`,
-      source: profile!.id,
-      target: e.target,
-      label: `${e.kind} × ${e.weight}`,
-      style: { stroke: KIND_COLORS[e.kind], strokeWidth: Math.min(1 + e.weight, 6), opacity: 0.6 },
-      labelStyle: { fill: 'rgba(255,255,255,0.35)', fontSize: 9 },
-    }))
-
-    return { nodes, flowEdges }
-  }, [profile, filteredEdges])
+  }, [profile, posts, siblings, direction, kindFilter, topN])
 
   // No graph yet: nothing gathered, no profile, or gathered posts had no references.
-  if (!profile || edges.length === 0) {
+  if (!profile || (!posts?.length && edges.length === 0)) {
     return (
       <SectionEmpty
         title="No network gathered yet"
@@ -118,13 +104,9 @@ export function NetworkGraphInner({
     )
   }
 
-  const unresolved = edges.filter((e) => !e.targetUsername && e.target.startsWith('post:'))
-
-  const onNodeClick = (_: unknown, node: Node) => {
-    const label = String(node.data.label)
-    if (!label.startsWith('@') || node.id === profile!.id) return
+  const onNodeClick = (username: string) => {
     if (!canAddTargets || !onAddTarget) return
-    const username = label.slice(1)
+    if (username.toLowerCase() === profile.username.toLowerCase()) return
     if (!connected) {
       alert('Connect your X account (header → Connect X) to add profiles from the network graph.')
       return
@@ -134,16 +116,44 @@ export function NetworkGraphInner({
     }
   }
 
+  const summaryParts: string[] = []
+  if (model && model.longTailCount > 0) {
+    summaryParts.push(`+${model.longTailCount} more accounts (${model.longTailWeight} interactions) below top ${topN}`)
+  }
+  if (model && model.unresolvedCount > 0) {
+    summaryParts.push(`${model.unresolvedCount} unresolved`)
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[var(--color-border-faint)] text-[10px]">
+        <div className="flex items-center rounded-md border border-[var(--color-border-soft)] overflow-hidden">
+          {(['outbound', 'inbound'] as NetworkDirection[]).map((dir) => (
+            <button
+              key={dir}
+              onClick={() => setDirection(dir)}
+              title={dir === 'outbound'
+                ? `Who ${subjectLabel} engages (their mentions, replies, quotes, retweets)`
+                : `Who engages ${subjectLabel} (mentions, replies, quotes, retweets of them)`}
+              className={cn(
+                'px-2 py-[3px] text-[10px] font-medium transition-colors',
+                direction === dir
+                  ? 'bg-[var(--color-accent)]/20 text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
+              )}
+            >
+              {dir === 'outbound' ? '→ Outbound' : '← Inbound'}
+            </button>
+          ))}
+        </div>
+        <span className="w-px h-3.5 bg-[var(--color-border-faint)]" />
         {KINDS.map((k) => (
           <button
             key={k}
             onClick={() => setKindFilter((s) => {
               const next = new Set(s)
               if (next.has(k)) next.delete(k); else next.add(k)
-              return next
+              return next.size === 0 ? s : next
             })}
             className={cn(
               'px-2 py-[2px] rounded-full font-medium transition-all border',
@@ -154,17 +164,36 @@ export function NetworkGraphInner({
             {k}
           </button>
         ))}
-        <label className="flex items-center gap-1 text-[var(--color-text-tertiary)] ml-2">
-          weight ≥
+        <label className="flex items-center gap-1.5 text-[var(--color-text-tertiary)] ml-2">
+          top
           <input
-            type="number" min={1} value={minWeight}
-            onChange={(e) => setMinWeight(Math.max(1, Number(e.target.value)))}
-            className="w-10 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded px-1 py-px text-[var(--color-text-secondary)] outline-none"
+            type="range" min={TOP_N_MIN} max={TOP_N_MAX} step={5} value={topN}
+            onChange={(e) => setTopN(Number(e.target.value))}
+            className="w-24 accent-[var(--color-accent)]"
           />
+          <span className="w-6 text-[var(--color-text-secondary)] tabular-nums">{topN}</span>
         </label>
         <div className="flex-1" />
-        {unresolved.length > 0 && (
-          <span className="text-[var(--color-text-tertiary)]">{unresolved.length} unresolved (quote/reply accounts need a post lookup — future)</span>
+        <div className="flex items-center rounded-md border border-[var(--color-border-soft)] overflow-hidden mr-1">
+          {(['list', 'map'] as ViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setView(mode)}
+              className={cn(
+                'px-2 py-[3px] text-[10px] font-medium capitalize transition-colors',
+                view === mode
+                  ? 'bg-white/10 text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
+              )}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        {summaryParts.length > 0 && (
+          <span className="text-[var(--color-text-tertiary)] truncate max-w-[340px]" title={summaryParts.join(' · ')}>
+            {summaryParts.join(' · ')}
+          </span>
         )}
         {canAddTargets && (
           <button
@@ -185,20 +214,50 @@ export function NetworkGraphInner({
         />
       </div>
       <div className="flex-1 min-h-0">
-        <ReactFlow
-          nodes={nodes}
-          edges={flowEdges}
-          onNodeClick={onNodeClick}
-          fitView
-          colorMode="dark"
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="rgba(255,255,255,0.04)" />
-          <Controls />
-        </ReactFlow>
+        {model && model.nodes.length === 0
+          ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
+              <p className="text-[12px] text-white/40">
+                {direction === 'inbound'
+                  ? `No inbound engagement gathered for ${subjectLabel} yet.`
+                  : `No outbound engagement found in ${subjectLabel}'s gathered posts.`}
+              </p>
+              <p className="text-[11px] text-white/25">
+                {direction === 'inbound'
+                  ? 'Pull who\u2019s mentioning them with "+ Mentions", then Refresh if rows stay empty (older gathers lack author handles).'
+                  : 'Their recent posts may be all originals (no mentions/replies/quotes/retweets).'}
+              </p>
+            </div>
+          )
+          : model && (view === 'map'
+            ? <NetworkBubbleMap model={model} onNodeClick={canAddTargets ? onNodeClick : undefined} />
+            : <NetworkRankedList model={model} direction={direction} onNodeClick={canAddTargets ? onNodeClick : undefined} />)}
       </div>
     </div>
   )
+}
+
+/** Collect sibling subjects (other tracked targets + cached self accounts) so
+ *  the builder can draw cross-links and reuse known avatars. */
+export function collectSiblings(excludeProfileId: string | null): SiblingSubject[] {
+  const { reports } = useXIntelStore.getState()
+  const { accounts } = useXSelfStore.getState()
+  const out: SiblingSubject[] = []
+  const seen = new Set<string>()
+
+  for (const report of Object.values(reports)) {
+    const p = report.profile
+    if (!p || p.id === excludeProfileId || seen.has(p.id)) continue
+    seen.add(p.id)
+    out.push({ id: p.id, username: p.username, avatarUrl: p.avatarUrl || null, edges: report.edges ?? [] })
+  }
+  for (const account of Object.values(accounts)) {
+    const p = account.profile
+    if (!p || p.id === excludeProfileId || seen.has(p.id)) continue
+    seen.add(p.id)
+    out.push({ id: p.id, username: p.username, avatarUrl: p.avatarUrl || null, edges: account.edges })
+  }
+  return out
 }
 
 /** Target-side wrapper: pulls the active target's data from useXIntelStore. */
@@ -209,6 +268,9 @@ export function NetworkGraph() {
   const connected = useXSelfStore((s) => s.connected)
   const [refreshing, setRefreshing] = useState<null | 'posts' | 'mentions'>(null)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+
+  const profileId = report?.profile?.id ?? null
+  const siblings = useMemo(() => collectSiblings(profileId), [profileId])
 
   const runRefresh = async (mode: 'posts' | 'mentions') => {
     if (!activeTarget) return
@@ -240,6 +302,8 @@ export function NetworkGraph() {
     <NetworkGraphInner
       profile={report.profile}
       edges={report.edges ?? []}
+      posts={report.posts}
+      siblings={siblings}
       subjectLabel={`@${activeTarget}`}
       connected={connected}
       canGather={canGather}

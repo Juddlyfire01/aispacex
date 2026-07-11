@@ -17,6 +17,8 @@ export const POST_FIELDS = [
 
 export const POST_EXPANSIONS = [
   'author_id', 'attachments.media_keys', 'referenced_tweets.id',
+  // Needed so RT/reply/quote edges resolve to the referenced author, not a post: placeholder.
+  'referenced_tweets.id.author_id',
 ] as const
 
 export const USER_EXPANSIONS = ['pinned_tweet_id', 'affiliation.user_id'] as const
