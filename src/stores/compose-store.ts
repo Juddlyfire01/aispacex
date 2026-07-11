@@ -46,6 +46,10 @@ interface ComposeState {
   xSearch: XSearchMode
   /** Venice native web search (`enable_web_search`). */
   webSearch: WebSearchMode
+  /** X News API tools (`x_news_*`) in the compose agent. Default on. */
+  xNewsOn: boolean
+  /** X News search recency window in hours. Default 24. */
+  xNewsMaxAgeHours: number
   /** Preferred draft format; auto lets the model choose. */
   preferredFormat: PreferredFormat
   isStreaming: boolean
@@ -114,6 +118,8 @@ interface ComposeState {
   setDraftModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
   setWebSearch: (mode: WebSearchMode) => void
+  setXNewsOn: (on: boolean) => void
+  setXNewsMaxAgeHours: (hours: number) => void
   setPreferredFormat: (format: PreferredFormat) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
@@ -213,6 +219,10 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (version < 10 && state.draftDrawerWidthPct == null) {
     state.draftDrawerWidthPct = 50
   }
+  if (version < 11) {
+    if (state.xNewsOn == null) state.xNewsOn = true
+    if (state.xNewsMaxAgeHours == null) state.xNewsMaxAgeHours = 24
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -281,6 +291,8 @@ export const useComposeStore = create<ComposeState>()(
       draftModel: '',
       xSearch: 'auto',
       webSearch: 'auto',
+      xNewsOn: true,
+      xNewsMaxAgeHours: 24,
       preferredFormat: 'auto',
       isStreaming: false,
       draftWriterStreaming: false,
@@ -513,6 +525,11 @@ export const useComposeStore = create<ComposeState>()(
       setDraftModel: (model) => set({ draftModel: model }),
       setXSearch: (mode) => set({ xSearch: mode }),
       setWebSearch: (mode) => set({ webSearch: mode }),
+      setXNewsOn: (on) => set({ xNewsOn: on }),
+      setXNewsMaxAgeHours: (hours) =>
+        set({
+          xNewsMaxAgeHours: Math.min(168, Math.max(1, Math.round(hours) || 24)),
+        }),
       setPreferredFormat: (format) => set({ preferredFormat: format }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
@@ -533,7 +550,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 10,
+      version: 11,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -546,6 +563,8 @@ export const useComposeStore = create<ComposeState>()(
         draftModel: state.draftModel,
         xSearch: state.xSearch,
         webSearch: state.webSearch,
+        xNewsOn: state.xNewsOn,
+        xNewsMaxAgeHours: state.xNewsMaxAgeHours,
         preferredFormat: state.preferredFormat,
         draftDrawerWidthPct: state.draftDrawerWidthPct,
         longformPreference: state.longformPreference,

@@ -112,8 +112,36 @@ describe('runComposeAgent', () => {
         'stats_market',
         'stats_social',
         'stats_wallet',
+        'news_read',
+        'x_news_search',
+        'x_news_get',
       ]),
     )
+  })
+
+  it('omits x_news tools when xNewsOn is false', async () => {
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([chunk({ content: 'ok', finish_reason: 'stop' })]),
+    )
+    await runComposeAgent({
+      model: 'test',
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'hi' },
+      ],
+      snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] },
+      scope: { type: 'all' },
+      xSearchOn: false,
+      xNewsOn: false,
+    })
+    const body = JSON.parse(veniceMock.mock.calls[0]![1].body as string) as {
+      tools: Array<{ function: { name: string } }>
+    }
+    const toolNames = body.tools.map((t) => t.function.name)
+    expect(toolNames).toContain('news_read')
+    expect(toolNames).not.toContain('x_news_search')
+    expect(toolNames).not.toContain('x_news_get')
   })
 
   it('runs tool round then streams final text', async () => {

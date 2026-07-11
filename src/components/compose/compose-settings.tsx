@@ -64,6 +64,10 @@ export function ComposeSettings({
   const setXSearch = useComposeStore((s) => s.setXSearch)
   const webSearch = useComposeStore((s) => s.webSearch)
   const setWebSearch = useComposeStore((s) => s.setWebSearch)
+  const xNewsOn = useComposeStore((s) => s.xNewsOn)
+  const setXNewsOn = useComposeStore((s) => s.setXNewsOn)
+  const xNewsMaxAgeHours = useComposeStore((s) => s.xNewsMaxAgeHours)
+  const setXNewsMaxAgeHours = useComposeStore((s) => s.setXNewsMaxAgeHours)
   const xSearchSupported = modelSupportsXSearch(toolModels, model)
 
   return (
@@ -147,6 +151,41 @@ export function ComposeSettings({
           />
           {!xSearchSupported && (
             <p className="mt-1 text-[10px] text-amber-400/60">Selected model lacks X search</p>
+          )}
+        </div>
+
+        <div>
+          <Label title="AI news stories clustered from posts on X (requires connected X account)">
+            X News
+          </Label>
+          <PillGroup
+            ariaLabel="X News tools"
+            options={[
+              { value: 'on', label: 'on' },
+              { value: 'off', label: 'off' },
+            ]}
+            value={xNewsOn ? 'on' : 'off'}
+            onChange={(v) => setXNewsOn(v === 'on')}
+          />
+          {xNewsOn && (
+            <div className="mt-2">
+              <Label htmlFor="compose-x-news-age" title="max_age_hours for x_news_search">
+                X News recency
+              </Label>
+              <select
+                id="compose-x-news-age"
+                value={String(xNewsMaxAgeHours)}
+                onChange={(e) => setXNewsMaxAgeHours(Number(e.target.value))}
+                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+              >
+                <option value="6">6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+                <option value="48">48 hours</option>
+                <option value="72">3 days</option>
+                <option value="168">7 days</option>
+              </select>
+            </div>
           )}
         </div>
 

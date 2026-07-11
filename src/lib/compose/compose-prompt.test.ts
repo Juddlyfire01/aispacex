@@ -28,12 +28,12 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/^You are unknown-model,/m)
   })
 
-  it('toolsEnabled adds intel, history, and VeniceStats tool rules', () => {
+  it('toolsEnabled adds intel, history, VeniceStats, and news_read rules', () => {
     const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: true })
     expect(off).not.toMatch(/intel_\*/)
     expect(off).not.toMatch(/stats_protocol/)
-    expect(off).not.toMatch(/stats_market|stats_social|stats_wallet/)
+    expect(off).not.toMatch(/news_read/)
     expect(on).toMatch(/intel_\*/)
     expect(on).toMatch(/HOT WINDOW/i)
     expect(on).toMatch(/Never invent post ids/i)
@@ -41,7 +41,28 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/Never invent thread ids/i)
     expect(on).toMatch(/stats_protocol/)
     expect(on).toMatch(/VeniceStats/)
+    expect(on).toMatch(/news_read/)
+    expect(on).toMatch(/BOOKMARKED NEWS/)
     expect(on).not.toMatch(/compose_write_draft/)
+    expect(on).not.toMatch(/x_news_search/)
+  })
+
+  it('xNewsOn adds X News tool rules', () => {
+    const off = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      xNewsOn: false,
+    })
+    const on = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      xNewsOn: true,
+    })
+    expect(off).not.toMatch(/x_news_search/)
+    expect(on).toMatch(/x_news_search/)
+    expect(on).toMatch(/x_news_get/)
   })
 
   it('xSearchOn adds live X search capability blurb', () => {

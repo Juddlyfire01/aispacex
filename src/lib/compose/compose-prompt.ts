@@ -14,6 +14,8 @@ export interface ComposeSystemOpts {
   xSearchOn: boolean
   /** Venice native web search enabled (auto/on). */
   webSearchOn?: boolean
+  /** X News API tools enabled. */
+  xNewsOn?: boolean
   toolsEnabled: boolean
   /** Pre-formatted register inject block from resolveRegisterPack. */
   registerInject?: string | null
@@ -102,6 +104,10 @@ Research / intel (library):
 Compose history:
 - compose_history_* — list/glob/grep/get prior compose threads (paths like history/{me|all|target/@user}/{threadId}). Never invent thread ids.
 
+Bookmarked RSS news:
+- BOOKMARKED NEWS in the hot window lists starred stories (id, source, title, url) — pointers only.
+- news_read — fetch the full main-article text for a bookmarked story (id or url). Call only when that story is relevant.
+
 VeniceStats (live protocol + pulse):
 - stats_protocol / stats_market / stats_social / stats_wallet — each takes an "action" (e.g. price, staking, burns, buzz, wallet). Prefer these for live VVV/DIEM/protocol/community numbers over guessing or web search.
 - Prefer a focused call (overview, price, buzz_metrics) before many parallel actions.
@@ -116,6 +122,10 @@ Rules:
 - If a tool returns empty, say so; do not fabricate.
 - Analysis and "find a post to reply to" stay in chat.`
 
+const X_NEWS_TOOLS_SPEC = `X News (live stories clustered from posts on X):
+- x_news_search / x_news_get — search or fetch AI-generated X News stories (summary, hook, clustered post ids). Use for breaking topics on X; recency follows compose settings.
+- Prefer bookmarked RSS + news_read for curated external articles; use X News for live X narrative.`
+
 const HANDOFF_TOOLS_EXTRA = `Drafting tool:
 - compose_write_draft — hands a brief to the draft writer; fills the Draft drawer. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting.`
 
@@ -126,7 +136,7 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
     `You are ${modelId}, running privately via Venice.ai inside AiSpaceX Post.
 
 Environment:
-- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data, a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web and/or X search.
+- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 
 Purpose:
@@ -169,6 +179,7 @@ Style:
 
   if (opts.toolsEnabled) {
     parts.push(TOOLS_SPEC)
+    if (opts.xNewsOn) parts.push(X_NEWS_TOOLS_SPEC)
     if (opts.draftHandoff) parts.push(HANDOFF_TOOLS_EXTRA)
   }
 

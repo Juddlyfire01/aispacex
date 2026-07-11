@@ -13,6 +13,8 @@ import type { HistorySnapshot } from './history-library'
 import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
 import { COMPOSE_STATS_TOOLS, executeStatsTool } from './stats-tools'
+import { executeNewsTool, getComposeNewsTools } from './news-tools'
+import type { NewsItem } from '../news/types'
 import {
   COMPOSE_WRITE_DRAFT_TOOL,
   COMPOSE_WRITE_DRAFT_TOOL_NAME,
@@ -35,6 +37,12 @@ export interface ComposeAgentOpts {
   xSearchOn: boolean
   /** Venice `enable_web_search` — off / auto / on. */
   webSearch?: 'off' | 'auto' | 'on'
+  /** Include X News tools (default true from settings). */
+  xNewsOn?: boolean
+  /** X News search max_age_hours (default 24). */
+  xNewsMaxAgeHours?: number
+  /** RSS news bookmarks for news_read resolution. */
+  newsBookmarks?: NewsItem[]
   signal?: AbortSignal
   /**
    * Fired as soon as a tool name is known in the SSE stream (before args finish
@@ -264,10 +272,12 @@ export async function runComposeAgent(
   const messages: ChatMessage[] = [...opts.messages]
   let toolCalls = 0
   const handoff = typeof opts.onDraftHandoff === 'function'
+  const xNewsOn = opts.xNewsOn !== false
   const tools: ToolDefinition[] = [
     ...COMPOSE_INTEL_TOOLS,
     ...COMPOSE_HISTORY_TOOLS,
     ...COMPOSE_STATS_TOOLS,
+    ...getComposeNewsTools({ xNewsOn }),
     ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
   ]
   let lastContent = ''
@@ -345,6 +355,13 @@ export async function runComposeAgent(
         result = executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
       } else if (name.startsWith('stats_')) {
         result = await executeStatsTool(name, args, { signal: opts.signal })
+      } else if (name === 'news_read' || name.startsWith('x_news_')) {
+        result = await executeNewsTool(name, args, {
+          bookmarks: opts.newsBookmarks ?? [],
+          xNewsOn,
+          xNewsMaxAgeHours: opts.xNewsMaxAgeHours ?? 24,
+          signal: opts.signal,
+        })
       } else {
         result = executeIntelTool(name, args, {
           snapshot: opts.snapshot,

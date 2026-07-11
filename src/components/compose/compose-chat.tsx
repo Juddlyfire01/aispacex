@@ -11,6 +11,7 @@ import { isDraftHandoffEnabled } from '../../lib/compose/draft-writer-tool'
 import { COMPOSE_INTEL_TOOLS } from '../../lib/compose/intel-tools'
 import { COMPOSE_HISTORY_TOOLS } from '../../lib/compose/history-tools'
 import { COMPOSE_STATS_TOOLS } from '../../lib/compose/stats-tools'
+import { getComposeNewsTools } from '../../lib/compose/news-tools'
 import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
 import { filterComposeToolModels, modelSupportsXSearch } from '../../lib/compose/model'
 import { estimateComposeContextBreakdown } from '../../lib/compose/token-estimate'
@@ -49,6 +50,7 @@ export function ComposeChat({
   const draftModel = useComposeStore((s) => s.draftModel)
   const xSearch = useComposeStore((s) => s.xSearch)
   const webSearch = useComposeStore((s) => s.webSearch)
+  const xNewsOn = useComposeStore((s) => s.xNewsOn)
   const contextLimit = useComposeStore((s) => s.contextLimit)
   const { data: models } = useModels('text')
   const toolModels = useMemo(() => filterComposeToolModels(models ?? []), [models])
@@ -75,6 +77,7 @@ export function ComposeChat({
       modelId: model,
       xSearchOn: xSearch !== 'off' && modelSupportsXSearch(toolModels, model),
       webSearchOn: webSearch !== 'off',
+      xNewsOn,
       toolsEnabled: true,
       draftHandoff: handoff,
     })
@@ -82,6 +85,7 @@ export function ComposeChat({
       ...COMPOSE_INTEL_TOOLS,
       ...COMPOSE_HISTORY_TOOLS,
       ...COMPOSE_STATS_TOOLS,
+      ...getComposeNewsTools({ xNewsOn }),
       ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
     ]
     return estimateComposeContextBreakdown({
@@ -100,6 +104,7 @@ export function ComposeChat({
     draftModel,
     xSearch,
     webSearch,
+    xNewsOn,
     toolModels,
     messages,
     input,

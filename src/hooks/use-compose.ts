@@ -22,6 +22,8 @@ import { emptyArticleDraft, emptySegment, type PostDraft } from '../lib/compose/
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
+import { mergeHotWithNewsBookmarks } from '../lib/compose/news-hot'
+import { useNewsStore } from '../stores/news-store'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
 import {
@@ -156,6 +158,8 @@ export function useCompose() {
           draftModel,
           xSearch,
           webSearch,
+          xNewsOn,
+          xNewsMaxAgeHours,
           contextLimit,
           preferredFormat,
         } = useComposeStore.getState()
@@ -169,6 +173,8 @@ export function useCompose() {
           tokenBudget: budget,
           now: new Date(),
         })
+        const newsBookmarks = useNewsStore.getState().bookmarks
+        const { text: hotText } = mergeHotWithNewsBookmarks(pack.text, newsBookmarks)
 
         if (libraryMode === 'custom' && pack.overBudget) {
           store.setLastAssistantContent(
@@ -223,6 +229,7 @@ export function useCompose() {
           modelId: model,
           xSearchOn,
           webSearchOn: webSearch !== 'off',
+          xNewsOn,
           toolsEnabled: true,
           registerInject: handoff ? null : registerResolved.inject,
           draftHandoff: handoff,
@@ -240,7 +247,7 @@ export function useCompose() {
           const apiHistory = history.map((m, i) => {
             const { agentEvents: _ae, ...rest } = m
             if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
-              return { ...rest, content: buildHotUserPrefix(pack.text, userMessage) }
+              return { ...rest, content: buildHotUserPrefix(hotText, userMessage) }
             }
             return rest
           })
@@ -590,6 +597,9 @@ export function useCompose() {
             scope,
             xSearchOn,
             webSearch,
+            xNewsOn,
+            xNewsMaxAgeHours,
+            newsBookmarks,
             signal: abortController.signal,
             onDraftHandoff: handoff ? startDraftWriter : undefined,
             forceDraftHandoff:
