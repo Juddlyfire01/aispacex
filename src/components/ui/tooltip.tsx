@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom'
 import { computeFloatingRect } from '../../lib/floating-panel'
 import { cn } from '../../lib/utils'
+import { hasTooltipTip } from './tooltip-tip'
 
 const OPEN_DELAY_MS = 200
 const PANEL_WIDTH = 240
@@ -46,6 +47,7 @@ export function Tooltip({
   side = 'top',
   className,
   underline = true,
+  focusable = true,
 }: {
   tip?: string
   children: ReactNode
@@ -53,6 +55,8 @@ export function Tooltip({
   className?: string
   /** Dotted underline on the trigger — default for metric labels. */
   underline?: boolean
+  /** Set false when nested inside a link or button. */
+  focusable?: boolean
 }) {
   const tipId = useId()
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -90,6 +94,8 @@ export function Tooltip({
 
   useLayoutEffect(() => {
     if (open) reposition()
+    // Intentionally omit reposition identity; refs + side/tip drive placement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matches InlinePopover pattern
   }, [open, tip, side])
 
   useEffect(() => {
@@ -106,25 +112,27 @@ export function Tooltip({
       window.removeEventListener('resize', onViewportChange)
       window.removeEventListener('scroll', onViewportChange, true)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open/side gate listeners; refs are stable
   }, [open, side])
 
-  if (!tip) return <>{children}</>
+  if (!hasTooltipTip(tip)) return <>{children}</>
 
   return (
     <>
       <span
         ref={anchorRef}
-        tabIndex={0}
+        tabIndex={focusable ? 0 : undefined}
         className={cn(
-          'inline-flex min-w-0 max-w-full cursor-help outline-none focus-visible:text-[var(--color-accent)]',
+          'inline-flex min-w-0 max-w-full cursor-help outline-none',
+          focusable && 'focus-visible:text-[var(--color-accent)]',
           underline && 'border-b border-dotted border-[var(--color-text-tertiary)]',
           className,
         )}
         aria-describedby={open ? tipId : undefined}
         onMouseEnter={scheduleOpen}
         onMouseLeave={close}
-        onFocus={scheduleOpen}
-        onBlur={close}
+        onFocus={focusable ? scheduleOpen : undefined}
+        onBlur={focusable ? close : undefined}
       >
         {children}
       </span>

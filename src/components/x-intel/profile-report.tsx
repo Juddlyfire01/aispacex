@@ -12,6 +12,7 @@ import { partitionPosts } from '../../lib/x-intel/activity'
 import { splitEvidence, profileUrl } from '../../lib/x-intel/evidence'
 import type { IntelReportSnapshot, ReportAnalytics, ChangeSummary, Post, Profile } from '../../lib/x-intel/types'
 import { formatTokens, cn } from '../../lib/utils'
+import { Tooltip } from '../ui/tooltip'
 import { ReportExportButton } from './report-export-button'
 
 /** Compact markdown renderer reusing the shared prose styling. Strips any
@@ -134,10 +135,12 @@ function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Pos
 }
 
 /** A small labeled stat cell. */
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
   return (
     <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-2.5 py-2">
-      <div className="text-[9px] uppercase tracking-wide text-white/25">{label}</div>
+      <div className="text-[9px] uppercase tracking-wide text-white/25">
+        <Tooltip tip={tip}>{label}</Tooltip>
+      </div>
       <div className="text-[13px] font-mono text-white/80 mt-0.5">{value}</div>
       {sub && <div className="text-[9px] text-white/25 font-mono">{sub}</div>}
     </div>
@@ -271,10 +274,25 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
       <section>
         <SectionTitle>Fundamentals</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Stat label="Account age" value={`${f.accountAgeDays}d`} sub={`${f.lifetimeVelocity}/day lifetime`} />
-          <Stat label="Follow ratio" value={`${f.followerFollowingRatio}:1`} sub={f.followRatioLabel} />
-          <Stat label="Listed" value={formatTokens(f.listed)} />
-          <Stat label="Analyzed" value={`${c.total} posts`} sub={a.cadence.spanDays > 0 ? `over ${a.cadence.spanDays}d` : undefined} />
+          <Stat
+            label="Account age"
+            value={`${f.accountAgeDays}d`}
+            sub={`${f.lifetimeVelocity}/day lifetime`}
+            tip="Days since the account was created, with lifetime posts per day."
+          />
+          <Stat
+            label="Follow ratio"
+            value={`${f.followerFollowingRatio}:1`}
+            sub={f.followRatioLabel}
+            tip="Followers divided by accounts followed."
+          />
+          <Stat label="Listed" value={formatTokens(f.listed)} tip="Public lists that include this profile." />
+          <Stat
+            label="Analyzed"
+            value={`${c.total} posts`}
+            sub={a.cadence.spanDays > 0 ? `over ${a.cadence.spanDays}d` : undefined}
+            tip="Posts in the gathered set used for this analytics pass."
+          />
         </div>
       </section>
 
@@ -282,10 +300,30 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
       <section>
         <SectionTitle>Engagement (analyzed set)</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Stat label="Eng. rate" value={pct(e.engagementRate)} sub="likes / impr." />
-          <Stat label="Bookmark rate" value={pct(e.bookmarkRate)} sub="saves / impr." />
-          <Stat label="Amplification" value={pct(e.amplificationRate)} sub="reposts / impr." />
-          <Stat label="Avg likes" value={formatTokens(e.likes.avg)} sub={`max ${formatTokens(e.likes.max)}`} />
+          <Stat
+            label="Eng. rate"
+            value={pct(e.engagementRate)}
+            sub="likes / impr."
+            tip="Average likes per impression across analyzed posts."
+          />
+          <Stat
+            label="Bookmark rate"
+            value={pct(e.bookmarkRate)}
+            sub="saves / impr."
+            tip="Average bookmarks per impression across analyzed posts."
+          />
+          <Stat
+            label="Amplification"
+            value={pct(e.amplificationRate)}
+            sub="reposts / impr."
+            tip="Average reposts per impression across analyzed posts."
+          />
+          <Stat
+            label="Avg likes"
+            value={formatTokens(e.likes.avg)}
+            sub={`max ${formatTokens(e.likes.max)}`}
+            tip="Mean likes per analyzed post, with the single-post max."
+          />
         </div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-white/30">
           <span>impr avg {formatTokens(e.impressions.avg)}</span>

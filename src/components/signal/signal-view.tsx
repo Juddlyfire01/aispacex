@@ -46,20 +46,37 @@ export function SignalView() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-8 w-full">
-        <StatsSection title="Pulse" titleExtra={<MoodBadge mood={pulse.mood} />} href={VENICESTATS_BUZZ}>
+        <StatsSection
+          title="Pulse"
+          tip="Snapshot of Venice conversation volume, reach, and community mood."
+          titleExtra={<MoodBadge mood={pulse.mood} />}
+          href={VENICESTATS_BUZZ}
+        >
           <PulseStrip m={m} social={social.data} />
         </StatsSection>
 
-        <StatsSection title="Narrative Momentum" href={VENICESTATS_BUZZ}>
+        <StatsSection
+          title="Narrative Momentum"
+          tip="How Venice mention volume and reach trend across recent weeks."
+          href={VENICESTATS_BUZZ}
+        >
           <MomentumChart m={m} />
         </StatsSection>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-8 items-start">
-          <StatsSection title="Top Voices" href={VENICESTATS_BUZZ}>
+          <StatsSection
+            title="Top Voices"
+            tip="Authors driving the most Venice-related conversation in the window."
+            href={VENICESTATS_BUZZ}
+          >
             <TopVoices authors={m.topAuthors} />
           </StatsSection>
 
-          <StatsSection title="Sentiment" href={VENICESTATS_HOME}>
+          <StatsSection
+            title="Sentiment"
+            tip="External community and social sentiment signals around Venice tokens."
+            href={VENICESTATS_HOME}
+          >
             {social.isPending ? (
               <LoadingState className="h-32" label="Loading…" size="sm" />
             ) : social.data ? (
@@ -72,7 +89,11 @@ export function SignalView() {
           </StatsSection>
         </div>
 
-        <StatsSection title="Buzz Feed" href={VENICESTATS_BUZZ}>
+        <StatsSection
+          title="Buzz Feed"
+          tip="Recent curated Venice mentions and community posts from VeniceStats."
+          href={VENICESTATS_BUZZ}
+        >
           <BuzzFeed />
         </StatsSection>
 

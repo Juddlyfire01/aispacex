@@ -4,6 +4,7 @@ import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-act
 import { ActivityGlance } from './activity-glance'
 import { VerifiedBadge } from './verified-badge'
 import { Checkbox } from '../ui/checkbox'
+import { Tooltip } from '../ui/tooltip'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from '../layout/rail-footer'
 import { formatTokens, cn } from '../../lib/utils'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
@@ -77,12 +78,24 @@ function formatJoined(iso: string): string {
   return `Joined ${d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
 }
 
-function ProfileStat({ value, label, capitalize }: { value: string; label: string; capitalize?: boolean }) {
+function ProfileStat({
+  value,
+  label,
+  tip,
+  capitalize,
+}: {
+  value: string
+  label: string
+  tip?: string
+  capitalize?: boolean
+}) {
   return (
     <span className="text-[11px] text-white/30">
       <b className="text-white/80 font-semibold">{value}</b>
       {' '}
-      <span className={capitalize ? 'capitalize' : undefined}>{label}</span>
+      <Tooltip tip={tip}>
+        <span className={capitalize ? 'capitalize' : undefined}>{label}</span>
+      </Tooltip>
     </span>
   )
 }
@@ -485,14 +498,40 @@ export function ProfileOverview({
         )}
 
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-          <ProfileStat value={formatTokens(profile.metrics.following)} label="Following" capitalize />
-          <ProfileStat value={formatTokens(profile.metrics.followers)} label="Followers" capitalize />
-          <ProfileStat value={formatTokens(profile.metrics.posts)} label="posts" />
-          <ProfileStat value={formatTokens(profile.metrics.listed)} label="listed" />
+          <ProfileStat
+            value={formatTokens(profile.metrics.following)}
+            label="Following"
+            tip="Accounts this profile follows on X."
+            capitalize
+          />
+          <ProfileStat
+            value={formatTokens(profile.metrics.followers)}
+            label="Followers"
+            tip="Accounts following this profile on X."
+            capitalize
+          />
+          <ProfileStat
+            value={formatTokens(profile.metrics.posts)}
+            label="posts"
+            tip="Lifetime public posts attributed to this profile."
+          />
+          <ProfileStat
+            value={formatTokens(profile.metrics.listed)}
+            label="listed"
+            tip="Public lists that include this profile."
+          />
           {gatherExtras && (
             <>
-              <ProfileStat value={formatTokens(gatherExtras.bookmarks)} label="bookmarks" />
-              <ProfileStat value={formatTokens(gatherExtras.likes)} label="likes gathered" />
+              <ProfileStat
+                value={formatTokens(gatherExtras.bookmarks)}
+                label="bookmarks"
+                tip="Bookmarked posts gathered for this report window."
+              />
+              <ProfileStat
+                value={formatTokens(gatherExtras.likes)}
+                label="likes gathered"
+                tip="Liked posts gathered for this report window."
+              />
             </>
           )}
         </div>

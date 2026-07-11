@@ -1,6 +1,7 @@
 import type { BuzzMetrics, SocialMetrics } from '../../lib/venicestats/signal-types'
 import { fmtCompact, fmtPct } from '../../lib/venicestats/format'
 import { KpiCard } from '../x-intel/stats/stats-ui'
+import { Tooltip } from '../ui/tooltip'
 import { cn } from '../../lib/utils'
 
 /**
@@ -32,17 +33,31 @@ export function computePulse(m: BuzzMetrics) {
 }
 
 const MOOD_META = {
-  heating: { label: 'Heating up', cls: 'text-orange-400 border-orange-400/30 bg-orange-400/[0.08]' },
-  cooling: { label: 'Cooling', cls: 'text-sky-400 border-sky-400/30 bg-sky-400/[0.08]' },
-  steady: { label: 'Steady', cls: 'text-[var(--color-text-secondary)] border-[var(--color-border-soft)] bg-transparent' },
+  heating: {
+    label: 'Heating up',
+    cls: 'text-orange-400 border-orange-400/30 bg-orange-400/[0.08]',
+    tip: 'Week-over-week Venice mentions rose more than 10%.',
+  },
+  cooling: {
+    label: 'Cooling',
+    cls: 'text-sky-400 border-sky-400/30 bg-sky-400/[0.08]',
+    tip: 'Week-over-week Venice mentions fell more than 10%.',
+  },
+  steady: {
+    label: 'Steady',
+    cls: 'text-[var(--color-text-secondary)] border-[var(--color-border-soft)] bg-transparent',
+    tip: 'Week-over-week Venice mentions changed by 10% or less.',
+  },
 } as const
 
 export function MoodBadge({ mood }: { mood: keyof typeof MOOD_META }) {
   const meta = MOOD_META[mood]
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em]', meta.cls)}>
-      {meta.label}
-    </span>
+    <Tooltip tip={meta.tip} underline={false}>
+      <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em]', meta.cls)}>
+        {meta.label}
+      </span>
+    </Tooltip>
   )
 }
 

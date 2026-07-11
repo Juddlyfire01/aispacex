@@ -3,6 +3,7 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { VeniceKeysMark, XMark } from '../ui/brand-marks'
+import { Tooltip } from '../ui/tooltip'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_STACK_CLASS } from '../layout/rail-footer'
 import { cn } from '../../lib/utils'
 
@@ -186,15 +187,15 @@ export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderVie
 
       <div className={cn(RAIL_FOOTER_STACK_CLASS, 'relative')}>
         <div className="flex h-[13px] items-center justify-between gap-1.5 text-[9px] leading-none text-[var(--color-text-tertiary)]">
-          <span className="shrink-0" title="This load">
-            Session
-          </span>
+          <Tooltip tip="API spend for this browser session." underline={false} focusable={false}>
+            <span className="shrink-0">Session</span>
+          </Tooltip>
           <span className="font-mono tabular-nums shrink-0">${session.toFixed(3)}</span>
         </div>
         <div className="flex h-[15px] items-center justify-between gap-1.5 text-[11px] leading-none text-[var(--color-text-secondary)]">
-          <span className="shrink-0" title="All time">
-            Total
-          </span>
+          <Tooltip tip="All-time API spend tracked in this app." underline={false} focusable={false}>
+            <span className="shrink-0">Total</span>
+          </Tooltip>
           <span className="font-mono shrink-0 tabular-nums">${total.toFixed(3)}</span>
         </div>
 

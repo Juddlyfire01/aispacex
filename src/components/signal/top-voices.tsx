@@ -1,5 +1,6 @@
 import type { TopAuthor } from '../../lib/venicestats/signal-types'
 import { fmtCompact } from '../../lib/venicestats/format'
+import { Tooltip } from '../ui/tooltip'
 
 /** Ranked "who's driving the conversation" list from buzz metrics topAuthors. */
 export function TopVoices({ authors, limit = 10 }: { authors: TopAuthor[]; limit?: number }) {
@@ -29,14 +30,28 @@ export function TopVoices({ authors, limit = 10 }: { authors: TopAuthor[]; limit
               @{a.handle}
             </div>
             <div className="text-[10px] font-mono text-[var(--color-text-secondary)]">
-              {fmtCompact(a.count, 0)} posts · {fmtCompact(a.totalViews, 1)} views
+              <Tooltip
+                tip="Tracked Venice-related posts from this author in the current window."
+                underline={false}
+                focusable={false}
+              >
+                <span>{fmtCompact(a.count, 0)} posts</span>
+              </Tooltip>
+              {' · '}
+              <Tooltip tip="Sum of view counts across those tracked posts." underline={false} focusable={false}>
+                <span>{fmtCompact(a.totalViews, 1)} views</span>
+              </Tooltip>
             </div>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[12px] font-semibold font-mono text-[var(--color-text-primary)]">
               {fmtCompact(a.buzzScore, 1)}
             </div>
-            <div className="text-[9px] uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">buzz</div>
+            <Tooltip tip="Composite influence score from post volume and reach." focusable={false}>
+              <span className="text-[9px] uppercase tracking-[0.06em] text-[var(--color-text-secondary)]">
+                buzz
+              </span>
+            </Tooltip>
           </div>
         </a>
       ))}
