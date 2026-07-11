@@ -233,9 +233,11 @@ export function buildStatsRequest(
         case 'leaderboard': {
           const mode = str(args.mode)
           if (mode && /staking/i.test(mode)) {
-            return vs('/api/venetians', pickParams(args, ['mode', 'limit']) ?? { mode })
+            const params = pickParams(args, ['limit']) ?? {}
+            params.mode = 'topStaking'
+            return vs('/api/venetians', params)
           }
-          return vs('/api/holders', pickParams(args, ['limit', 'page']))
+          return vs('/api/holders', pickParams(args, ['limit', 'page', 'sort']))
         }
         default:
           return unknownAction(domain, action)
