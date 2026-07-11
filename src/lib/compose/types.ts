@@ -43,6 +43,14 @@ export type PostTarget =
 
 export type ReplySettings = 'everyone' | 'following' | 'mentionedUsers' | 'subscribers' | 'verified'
 
+export interface ArticleDraft {
+  title: string
+  bodyMarkdown: string
+  contentState?: unknown
+  cover?: MediaItem
+  inlineMedia: MediaItem[]
+}
+
 export interface PostDraft {
   id: string
   segments: PostSegment[]
@@ -54,8 +62,8 @@ export interface PostDraft {
   replySettings?: ReplySettings
   /** Linguistic register for the next compose turn (style transfer). */
   register?: DraftRegister
-  /** Optional article payload (Task 5 expands ArticleDraft). */
-  article?: { title: string; bodyMarkdown: string }
+  /** Optional X Articles payload (title + body + media). */
+  article?: ArticleDraft
   createdAt: string
   updatedAt: string
 }
@@ -67,6 +75,10 @@ function newId(): string {
 
 export function emptySegment(): PostSegment {
   return { id: newId(), text: '', media: [] }
+}
+
+export function emptyArticleDraft(): ArticleDraft {
+  return { title: '', bodyMarkdown: '', inlineMedia: [] }
 }
 
 export function emptyDraft(
