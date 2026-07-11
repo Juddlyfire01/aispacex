@@ -25,8 +25,8 @@ export interface Profile {
 export interface Post {
   id: string
   authorId: string
-  /** Handle of the author when known from gather `includes.users`. Empty on legacy rows. */
-  authorUsername: string
+  /** Handle of the author when known from gather `includes.users`. Absent/empty on legacy rows. */
+  authorUsername?: string
   text: string
   lang: string
   createdAt: string
