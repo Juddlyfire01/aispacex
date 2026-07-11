@@ -12,6 +12,12 @@ import {
   resolveRegisterPack,
 } from '../lib/compose/register'
 import { findReportKey } from '../stores/x-intel-store'
+import {
+  isDraftHandoffEnabled,
+  type DraftWriteBrief,
+} from '../lib/compose/draft-writer-tool'
+import { runDraftWriter, splitWriterSegments } from '../lib/compose/draft-writer'
+import { emptySegment } from '../lib/compose/types'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
@@ -133,7 +139,7 @@ export function useCompose() {
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })
         const scope = useComposeStore.getState().threads[threadId]?.context ?? thread.context
 
-        const { libraryMode, budgetPct, dayWindowDays, model, xSearch, contextLimit } =
+        const { libraryMode, budgetPct, dayWindowDays, model, draftModel, xSearch, contextLimit } =
           useComposeStore.getState()
         const budget = computeHotBudget(contextLimit, budgetPct)
         const pack = packHotWindowCached({
@@ -190,11 +196,13 @@ export function useCompose() {
           otherPack,
         })
 
+        const handoff = isDraftHandoffEnabled(draftModel)
         const system = buildComposeSystem({
           modelId: model,
           xSearchOn,
           toolsEnabled: true,
-          registerInject: registerResolved.inject,
+          registerInject: handoff ? null : registerResolved.inject,
+          draftHandoff: handoff,
         })
 
         // Transcript minus the trailing empty assistant placeholder.
@@ -221,6 +229,92 @@ export function useCompose() {
 
         const modelsCache = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
         const modelSpec = modelsCache?.models.find((m) => m.id === model) ?? null
+        const draftModelSpec =
+          handoff && draftModel
+            ? (modelsCache?.models.find((m) => m.id === draftModel) ?? null)
+            : null
+
+        const startDraftWriter = (brief: DraftWriteBrief) => {
+          const s0 = useComposeStore.getState()
+          s0.setDraftDrawerOpen(true)
+          const seg = emptySegment()
+          s0.applyDraftPatch(threadId, {
+            segments: [seg],
+            ...(brief.target ? { target: brief.target } : {}),
+            ...(typeof brief.longform === 'boolean' ? { longform: brief.longform } : {}),
+          })
+
+          let accumulated = ''
+          const writerEventId = newAgentEventId()
+          useComposeStore.getState().pushAgentEvent({
+            id: writerEventId,
+            label: 'Draft writer finished',
+            progressLabel: `Draft writer streaming (${draftModel})`,
+            status: 'running',
+            startedAt: Date.now(),
+          })
+
+          void runDraftWriter({
+            modelId: draftModel,
+            modelSpec: draftModelSpec,
+            brief,
+            registerInject: registerResolved.inject,
+            signal: abortController.signal,
+            onDelta: (token) => {
+              accumulated += token
+              const texts = splitWriterSegments(accumulated)
+              const stable = texts.map((text, i) => ({
+                id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
+                text,
+                media: [] as { id: string; kind: 'image' | 'video' | 'gif' }[],
+              }))
+              useComposeStore.getState().applyDraftPatch(threadId, { segments: stable })
+            },
+          })
+            .then((finalText) => {
+              const texts = splitWriterSegments(finalText || accumulated)
+              const segments =
+                texts.length > 0
+                  ? texts.map((text, i) => ({
+                      id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
+                      text,
+                      media: [],
+                    }))
+                  : [{ ...seg, text: accumulated }]
+              const store = useComposeStore.getState()
+              const isVerified = getActiveAccountVerified()
+              const pref = store.longformPreference
+              const patch = {
+                segments,
+                ...(brief.target ? { target: brief.target } : {}),
+                ...(typeof brief.longform === 'boolean' ? { longform: brief.longform } : {}),
+              }
+              const gated = syncDraftForVerification(
+                { ...store.threads[threadId]!.draft, ...patch },
+                isVerified,
+                pref,
+              )
+              store.applyDraftPatch(threadId, gated ? { ...patch, ...gated } : patch)
+              store.updateAgentEvent(writerEventId, {
+                status: 'done',
+                detail: texts.length > 1 ? `${texts.length} segments` : 'ready',
+              })
+            })
+            .catch((err) => {
+              if (err instanceof DOMException && err.name === 'AbortError') {
+                useComposeStore.getState().updateAgentEvent(writerEventId, {
+                  status: 'done',
+                  detail: 'cancelled',
+                })
+                return
+              }
+              const message = err instanceof Error ? err.message : 'Draft writer failed'
+              useComposeStore.getState().updateAgentEvent(writerEventId, {
+                status: 'error',
+                detail: message,
+              })
+            })
+        }
 
         const ensureToolEvent = (
           index: number,
@@ -259,6 +353,7 @@ export function useCompose() {
           scope,
           xSearchOn,
           signal: abortController.signal,
+          onDraftHandoff: handoff ? startDraftWriter : undefined,
           onDelta: (token) => {
             if (!clearedToolActivity) {
               clearedToolActivity = true

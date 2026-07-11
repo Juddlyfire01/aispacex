@@ -53,6 +53,8 @@ export function describeToolProgress(name: string, args: Record<string, unknown>
       return `Browsing chat history ${q(args.pattern) || 'paths'}`
     case 'compose_history_get':
       return 'Reading a past post chat'
+    case 'compose_write_draft':
+      return 'Handing off to draft writer'
     default:
       return name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
   }
@@ -85,6 +87,8 @@ export function describeToolCall(name: string, args: Record<string, unknown>): s
       return `Browsed chat history ${q(args.pattern) || 'paths'}`
     case 'compose_history_get':
       return 'Read a past post chat'
+    case 'compose_write_draft':
+      return 'Handed off to draft writer'
     default:
       // Fallback: de-snake the raw name ("intel_grep" → "Intel grep").
       return name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
@@ -112,6 +116,7 @@ export function describeToolResult(name: string, result: unknown): string | unde
       const noun = nounFor(name)
       return `${arr.length} ${noun}${arr.length === 1 ? '' : 's'}`
     }
+    if (name === 'compose_write_draft' && obj.status === 'started') return 'streaming'
   }
   return undefined
 }

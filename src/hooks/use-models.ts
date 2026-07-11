@@ -18,6 +18,7 @@ export function useModels(type?: string) {
     ...query,
     data: query.data?.models,
     defaultModelId: query.data?.defaultModelId ?? fallbackModelId(type),
+    mostUncensoredModelId: query.data?.mostUncensoredModelId ?? '',
   }
 }
 

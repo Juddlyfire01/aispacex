@@ -5,7 +5,9 @@ import { useModels } from '../../hooks/use-models'
 import {
   filterComposeToolModels,
   modelSupportsXSearch,
+  sortDraftWriterModels,
 } from '../../lib/compose/model'
+import { DRAFT_MODEL_SAME } from '../../lib/compose/draft-writer-tool'
 import { contextKeyFromScope } from '../../lib/intel-library/scope'
 import type { ComposeScope } from '../../lib/intel-library/types'
 import type { LibraryMode, PackResult } from '../../lib/compose/hot-window'
@@ -52,12 +54,15 @@ export function ComposeSettings({
   onBudgetPctChange,
   onDayWindowChange,
 }: ComposeSettingsProps) {
-  const { data: models } = useModels('text')
+  const { data: models, mostUncensoredModelId } = useModels('text')
   const toolModels = filterComposeToolModels(models ?? [])
+  const writerModels = sortDraftWriterModels(models ?? [], mostUncensoredModelId)
   const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
+  const draftModel = useComposeStore((s) => s.draftModel)
+  const setDraftModel = useComposeStore((s) => s.setDraftModel)
   const xSearch = useComposeStore((s) => s.xSearch)
   const setXSearch = useComposeStore((s) => s.setXSearch)
   const targets = useXIntelStore((s) => s.targets)
@@ -103,7 +108,7 @@ export function ComposeSettings({
             onChange={(e) => setModel(e.target.value)}
             className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)] max-w-full"
           >
-            {(toolModels).map((m) => (
+            {toolModels.map((m) => (
               <option key={m.id} value={m.id}>
                 {(m.model_spec?.name || m.id) +
                   (m.model_spec?.capabilities?.supportsXSearch ? ' · X search' : '')}
@@ -113,6 +118,33 @@ export function ComposeSettings({
               <option value={model}>{model} (no tools — switch)</option>
             )}
           </select>
+        </div>
+
+        <div>
+          <Label htmlFor="compose-draft-model" hint="Writes post copy when the main model hands off">
+            Draft writer
+          </Label>
+          <select
+            id="compose-draft-model"
+            value={draftModel || DRAFT_MODEL_SAME}
+            onChange={(e) => setDraftModel(e.target.value)}
+            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)] max-w-full"
+          >
+            <option value={DRAFT_MODEL_SAME}>Same as main</option>
+            {writerModels.map((m) => {
+              const name = m.model_spec?.name || m.id
+              const isPinned =
+                Boolean(mostUncensoredModelId) && m.id === mostUncensoredModelId
+              return (
+                <option key={m.id} value={m.id}>
+                  {name}{isPinned ? ' · default' : ''}
+                </option>
+              )
+            })}
+          </select>
+          <p className="mt-1 text-[10px] text-[var(--color-text-tertiary)]">
+            Main model researches; draft writer streams the post into the drawer.
+          </p>
         </div>
 
         <div>

@@ -4,6 +4,7 @@ import type {
   ChatCompletionChunk,
   ChatMessage,
   ToolCall,
+  ToolDefinition,
   VeniceModel,
 } from '../../types/venice'
 import type { ComposeScope, IntelSnapshot } from '../intel-library/types'
@@ -11,6 +12,13 @@ import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { HistorySnapshot } from './history-library'
 import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
+import {
+  COMPOSE_WRITE_DRAFT_TOOL,
+  COMPOSE_WRITE_DRAFT_TOOL_NAME,
+  parseDraftWriteBrief,
+  type DraftWriteBrief,
+} from './draft-writer-tool'
+import { parseDraftBlock } from './draft-block'
 
 export const MAX_TOOL_ROUNDS = 6
 
@@ -49,6 +57,11 @@ export interface ComposeAgentOpts {
   onRoundStart?: (round: number) => void
   /** Fired for each content token as the final (or intermediate) answer streams. */
   onDelta?: (token: string) => void
+  /**
+   * When set, compose_write_draft is available. Called fire-and-forget when the
+   * main model hands off — do not await; chat continues while the writer runs.
+   */
+  onDraftHandoff?: (brief: DraftWriteBrief) => void
   /**
    * Fired when a round ends in tool_calls after any content was streamed —
    * clear the assistant placeholder so tool activity UI can take over.
@@ -123,7 +136,7 @@ interface StreamedRound {
 async function streamComposeRound(
   opts: ComposeAgentOpts,
   messages: ChatMessage[],
-  tools: typeof COMPOSE_INTEL_TOOLS,
+  tools: ToolDefinition[],
 ): Promise<StreamedRound> {
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
@@ -202,7 +215,12 @@ export async function runComposeAgent(
 ): Promise<{ content: string; toolCalls: number }> {
   const messages: ChatMessage[] = [...opts.messages]
   let toolCalls = 0
-  const tools = [...COMPOSE_INTEL_TOOLS, ...COMPOSE_HISTORY_TOOLS]
+  const handoff = typeof opts.onDraftHandoff === 'function'
+  const tools: ToolDefinition[] = [
+    ...COMPOSE_INTEL_TOOLS,
+    ...COMPOSE_HISTORY_TOOLS,
+    ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
+  ]
   let lastContent = ''
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -227,7 +245,13 @@ export async function runComposeAgent(
     lastContent = content
 
     if (callEntries.length === 0) {
-      return { content: content.trim(), toolCalls }
+      const final = content.trim()
+      // In handoff mode, strip any leaked postdraft from the main model.
+      if (handoff) {
+        const { visibleText } = parseDraftBlock(final)
+        return { content: visibleText.trim() || final, toolCalls }
+      }
+      return { content: final, toolCalls }
     }
 
     // Tool round: clear UI preamble if mid-stream didn't already.
@@ -240,12 +264,35 @@ export async function runComposeAgent(
       const name = call.function?.name ?? ''
       const args = safeParseArgs(call.function?.arguments)
       opts.onTool?.({ index, id: call.id, name, args })
-      const result = name.startsWith('compose_history_')
-        ? executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
-        : executeIntelTool(name, args, {
-            snapshot: opts.snapshot,
-            scope: opts.scope,
-          })
+
+      let result: unknown
+      if (name === COMPOSE_WRITE_DRAFT_TOOL_NAME) {
+        const brief = parseDraftWriteBrief(args)
+        if (!brief.brief) {
+          result = { error: 'compose_write_draft requires a non-empty brief' }
+        } else {
+          // Fire-and-forget — chat continues while the writer streams.
+          try {
+            opts.onDraftHandoff?.(brief)
+            result = {
+              status: 'started',
+              message: 'Draft writer is streaming into the draft drawer.',
+            }
+          } catch (err) {
+            result = {
+              error: err instanceof Error ? err.message : 'Failed to start draft writer',
+            }
+          }
+        }
+      } else if (name.startsWith('compose_history_')) {
+        result = executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
+      } else {
+        result = executeIntelTool(name, args, {
+          snapshot: opts.snapshot,
+          scope: opts.scope,
+        })
+      }
+
       toolCalls++
       await opts.onToolResult?.({ index, id: call.id, name, args, result })
       messages.push({
@@ -257,13 +304,25 @@ export async function runComposeAgent(
   }
 
   const trimmed = lastContent.trim()
-  if (trimmed) return { content: trimmed, toolCalls }
+  if (trimmed) {
+    if (handoff) {
+      const { visibleText } = parseDraftBlock(trimmed)
+      return { content: visibleText.trim() || trimmed, toolCalls }
+    }
+    return { content: trimmed, toolCalls }
+  }
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]!
     if (m.role === 'assistant') {
       const text = contentAsString(m.content).trim()
-      if (text) return { content: text, toolCalls }
+      if (text) {
+        if (handoff) {
+          const { visibleText } = parseDraftBlock(text)
+          return { content: visibleText.trim() || text, toolCalls }
+        }
+        return { content: text, toolCalls }
+      }
     }
   }
 

@@ -13,7 +13,21 @@ export interface ComposeSystemOpts {
   toolsEnabled: boolean
   /** Pre-formatted register inject block from resolveRegisterPack. */
   registerInject?: string | null
+  /**
+   * When true, drafting must go through compose_write_draft (second model).
+   * Do not emit ```postdraft yourself.
+   */
+  draftHandoff?: boolean
 }
+
+const HANDOFF_DRAFT_SPEC = `Post drafting (hand off — required when the user wants post copy):
+When the user asks for post/reply/quote/thread copy, or an update to draft text for X, call the compose_write_draft tool with a dense brief (angle, key facts/metrics, @handles, constraints). A separate draft-writer model will fill the draft drawer while you continue chatting.
+
+Rules:
+- Do NOT append a postdraft fence yourself. Never invent one.
+- After calling compose_write_draft, continue your normal prose reply (analysis, rationale, options). Mention that the draft is writing in the drawer only if natural — do not narrate tool mechanics.
+- Do not offer to draft unless the user asked for writing, a post, a reply, a thread, or similar.
+- Still use intel_* / compose_history_* for research as needed before or after the draft handoff.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
 Only when the user asks for post/reply/quote/thread copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
@@ -85,7 +99,7 @@ Style:
     parts.push(opts.registerInject.trim())
   }
 
-  parts.push(BLOCK_SPEC)
+  parts.push(opts.draftHandoff ? HANDOFF_DRAFT_SPEC : BLOCK_SPEC)
   return parts.join('\n\n')
 }
 

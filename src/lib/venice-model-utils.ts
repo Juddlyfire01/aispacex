@@ -8,6 +8,8 @@ interface ModelsTraitsResponse {
 export interface ModelsQueryResult {
   models: VeniceModel[]
   defaultModelId: string
+  /** Venice `most_uncensored` trait when present (e.g. venice-uncensored-1-2). */
+  mostUncensoredModelId: string
 }
 
 /** Utility image SKUs — not text-to-image generate; handled on Image → Edit / Upscale / Remove BG. */
@@ -46,6 +48,31 @@ export function resolveDefaultModelId(
   return fallback
 }
 
+/** Resolve Venice's `most_uncensored` trait — traits map, then model tag, then latest venice-uncensored* id. */
+export function resolveMostUncensoredModelId(
+  models: VeniceModel[],
+  traits: Record<string, string> | undefined,
+): string {
+  const traitId = traits?.most_uncensored
+  if (traitId && models.some((m) => m.id === traitId)) return traitId
+
+  const tagged = models.find((m) => m.model_spec?.traits?.includes('most_uncensored'))
+  if (tagged) return tagged.id
+
+  // Prefer core Venice Uncensored SKUs (not e2ee- / role-play variants) by version-ish id.
+  const veniceCore = models
+    .filter((m) => /^venice-uncensored(-\d+)?(-\d+)?$/i.test(m.id) || /^venice-uncensored-\d+-\d+$/i.test(m.id))
+    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))
+  if (veniceCore[0]) return veniceCore[0].id
+
+  const anyVeniceUncensored = models
+    .filter((m) => /^venice-uncensored/i.test(m.id))
+    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))
+  if (anyVeniceUncensored[0]) return anyVeniceUncensored[0].id
+
+  return ''
+}
+
 export function fallbackModelId(type: string | undefined): string {
   return (type && FALLBACK_MODEL_ID[type]) || ''
 }
@@ -59,5 +86,6 @@ export async function fetchModelsBundle(type: string): Promise<ModelsQueryResult
   ])
   const models = filterModelsForPicker(type, modelsRes.data)
   const defaultModelId = resolveDefaultModelId(models, traitsRes.data, type)
-  return { models, defaultModelId }
+  const mostUncensoredModelId = resolveMostUncensoredModelId(models, traitsRes.data)
+  return { models, defaultModelId, mostUncensoredModelId }
 }

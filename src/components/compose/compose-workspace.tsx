@@ -3,7 +3,8 @@ import { useComposeStore } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
-import { pickComposeModel, modelIdSupportsFunctionCalling } from '../../lib/compose/model'
+import { pickComposeModel, modelIdSupportsFunctionCalling, pickDefaultDraftModel } from '../../lib/compose/model'
+import { DRAFT_MODEL_SAME } from '../../lib/compose/draft-writer-tool'
 import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
 import { packHotWindowCached } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
@@ -34,13 +35,15 @@ function PostSubTabPlaceholder({ label }: { label: string }) {
 }
 
 export function ComposeWorkspace() {
-  const { data: models } = useModels('text')
+  const { data: models, defaultModelId, mostUncensoredModelId } = useModels('text')
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
   const threads = useComposeStore((s) => s.threads)
   const ensureActiveThread = useComposeStore((s) => s.ensureActiveThread)
   const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
+  const draftModel = useComposeStore((s) => s.draftModel)
+  const setDraftModel = useComposeStore((s) => s.setDraftModel)
   const setContextLimit = useComposeStore((s) => s.setContextLimit)
   const contextLimit = useComposeStore((s) => s.contextLimit)
   const libraryMode = useComposeStore((s) => s.libraryMode)
@@ -62,6 +65,30 @@ export function ComposeWorkspace() {
       setModel(pickComposeModel(models))
     }
   }, [model, models, setModel])
+
+  // Seed draft writer to Venice most_uncensored (latest Uncensored SKU).
+  // Migrate prior mistaken seed that used catalog `default` (GLM) as writer default.
+  useEffect(() => {
+    if (!models || models.length === 0) return
+    const preferred = pickDefaultDraftModel(models, mostUncensoredModelId)
+    if (!draftModel) {
+      setDraftModel(preferred)
+      return
+    }
+    if (draftModel === DRAFT_MODEL_SAME) return
+    if (!models.some((m) => m.id === draftModel)) {
+      setDraftModel(preferred)
+      return
+    }
+    if (
+      defaultModelId &&
+      mostUncensoredModelId &&
+      draftModel === defaultModelId &&
+      draftModel !== mostUncensoredModelId
+    ) {
+      setDraftModel(mostUncensoredModelId)
+    }
+  }, [draftModel, models, mostUncensoredModelId, defaultModelId, setDraftModel])
 
   // Keep contextLimit in sync with the selected model for hot-window budgeting.
   useEffect(() => {

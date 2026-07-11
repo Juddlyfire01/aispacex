@@ -35,6 +35,8 @@ interface ComposeState {
   newThreadContext: ComposeScope
   draftDrawerOpen: boolean
   model: string
+  /** Draft writer: 'same' = main model emits postdraft; else a Venice model id. */
+  draftModel: string
   xSearch: XSearchMode
   isStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
@@ -79,6 +81,7 @@ interface ComposeState {
   resetDraft: (threadId: string) => void
 
   setModel: (model: string) => void
+  setDraftModel: (model: string) => void
   setXSearch: (mode: XSearchMode) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
@@ -160,6 +163,10 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (version < 5 && state.registerDefault == null) {
     state.registerDefault = { ...DEFAULT_REGISTER_DEFAULT }
   }
+  if (version < 6 && state.draftModel == null) {
+    // Empty until models load — workspace seeds Venice default trait.
+    state.draftModel = ''
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -223,6 +230,7 @@ export const useComposeStore = create<ComposeState>()(
       newThreadContext: { type: 'all' },
       draftDrawerOpen: false,
       model: '',
+      draftModel: '',
       xSearch: 'auto',
       isStreaming: false,
       longformPreference: true,
@@ -403,6 +411,7 @@ export const useComposeStore = create<ComposeState>()(
         ),
 
       setModel: (model) => set({ model }),
+      setDraftModel: (model) => set({ draftModel: model }),
       setXSearch: (mode) => set({ xSearch: mode }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
@@ -423,7 +432,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 5,
+      version: 6,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -433,6 +442,7 @@ export const useComposeStore = create<ComposeState>()(
         activeThreadId: state.activeThreadId,
         newThreadContext: state.newThreadContext,
         model: state.model,
+        draftModel: state.draftModel,
         xSearch: state.xSearch,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,

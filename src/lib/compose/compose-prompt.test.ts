@@ -58,6 +58,28 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/Description: terse/)
   })
 
+  it('includes handoff draft tool instructions when draftHandoff', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      draftHandoff: true,
+    })
+    expect(system).toMatch(/compose_write_draft/)
+    expect(system).toMatch(/Do NOT append a postdraft fence/i)
+    expect(system).not.toMatch(/```postdraft\n/)
+  })
+
+  it('includes postdraft block spec when not handoff', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: false,
+      draftHandoff: false,
+    })
+    expect(system).toMatch(/postdraft/)
+    expect(system).not.toMatch(/compose_write_draft/)
+  })
   it('does not embed corpus or target dumps', () => {
     const system = buildComposeSystem({
       modelId: 'm',

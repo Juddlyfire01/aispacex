@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { ModelTrait, VeniceModel } from '../types/venice'
-import { filterModelsForPicker, resolveDefaultModelId } from './venice-model-utils'
+import {
+  filterModelsForPicker,
+  resolveDefaultModelId,
+  resolveMostUncensoredModelId,
+} from './venice-model-utils'
 
 const model = (id: string, traits: ModelTrait[] = []): VeniceModel => ({
   id,
@@ -38,5 +42,25 @@ describe('resolveDefaultModelId', () => {
 
   it('uses type fallback when no trait matches', () => {
     expect(resolveDefaultModelId([model('tts-qwen3-0-6b')], {}, 'tts')).toBe('tts-kokoro')
+  })
+})
+
+describe('resolveMostUncensoredModelId', () => {
+  it('prefers traits map most_uncensored', () => {
+    const models = [
+      model('venice-uncensored-1-1'),
+      model('venice-uncensored-1-2', ['most_uncensored']),
+    ]
+    expect(
+      resolveMostUncensoredModelId(models, { most_uncensored: 'venice-uncensored-1-2' }),
+    ).toBe('venice-uncensored-1-2')
+  })
+
+  it('falls back to per-model most_uncensored trait', () => {
+    const models = [
+      model('other'),
+      model('venice-uncensored-1-2', ['most_uncensored']),
+    ]
+    expect(resolveMostUncensoredModelId(models, {})).toBe('venice-uncensored-1-2')
   })
 })
