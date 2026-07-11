@@ -32,7 +32,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         brief: {
           type: 'string',
           description:
-            'Dense writing brief: intent, key facts/metrics, @handles, tone notes, must-include / must-avoid. For articles include section outline. If an image/cover prompt is requested, include it as a separate note labeled Image prompt — the writer will keep it out of the article body.',
+            'Dense writing brief: intent, key facts/metrics, @handles, tone notes, must-include / must-avoid. For articles include section outline. Do not include image/cover prompts here — those stay in chat.',
         },
         target: {
           type: 'object',
@@ -52,7 +52,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         },
         notes: {
           type: 'string',
-          description: 'Hard constraints e.g. keep under 280, include NFA, ranking format, image style.',
+          description: 'Hard constraints e.g. keep under 280, include NFA, ranking format.',
         },
       },
       required: ['brief'],

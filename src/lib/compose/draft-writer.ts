@@ -29,12 +29,7 @@ Rules:
 - Thread: separate posts with a line containing only ---
 - Article:
   - First line is \`# Title\`, then a blank line, then the markdown body ONLY.
-  - Do NOT put image prompts, "Image Prompt:", or illustration directions in the article body.
-  - If the brief asks for an image/cover prompt, append it AFTER the body in a separate block:
-\`\`\`
----IMAGE_PROMPT---
-<prompt text only>
-\`\`\`
+  - Never include image prompts, "Image Prompt:", illustration directions, or \`---IMAGE_PROMPT---\` blocks. Image prompts are handled in chat by the research model, not in article copy.
   - Never label the output as "long-form post" — Articles are a distinct X format.
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).
 - Match X conventions: natural voice, no hashtag spam, no "As an AI".
@@ -62,12 +57,12 @@ export function buildWriterUser(brief: DraftWriteBrief): string {
       rules += ' Single continuous block; may exceed 280 characters.'
     } else if (format === 'article') {
       rules +=
-        ' X Article format (not a Premium long-form tweet). Output `# Title`, blank line, markdown body. Put any image/cover prompt after ---IMAGE_PROMPT--- only — never inside the body.'
+        ' X Article format (not a Premium long-form tweet). Output `# Title`, blank line, markdown body only. Do not include any image/cover prompt in the output.'
     }
     lines.push(rules)
   }
   if (brief.preferredFormat === 'article') {
-    lines.push('Write the X Article now (title + body; optional ---IMAGE_PROMPT--- block).')
+    lines.push('Write the X Article now (title + body only — no image prompts).')
   } else if (brief.longform || brief.preferredFormat === 'longform') {
     lines.push('Long-form allowed (may exceed 280 characters).')
     lines.push('Write the post now.')

@@ -407,7 +407,6 @@ export function useCompose() {
                 cover: current?.cover,
                 inlineMedia: current?.inlineMedia ?? [],
                 contentState: current?.contentState,
-                imagePrompt: parsed.imagePrompt ?? current?.imagePrompt,
               },
               longform: false,
               target: { kind: 'original' },

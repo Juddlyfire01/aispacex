@@ -95,8 +95,8 @@ function normalizeArticle(raw: unknown): ArticleDraft | undefined {
   const a = raw as Record<string, unknown>
   const title = coerceString(a.title) ?? ''
   const rawBody = coerceString(a.bodyMarkdown) ?? ''
-  const { body: bodyMarkdown, imagePrompt: splitPrompt } = splitArticleImagePrompt(rawBody)
-  const imagePrompt = coerceString(a.imagePrompt) ?? splitPrompt
+  // Strip any leaked image-prompt section from body; prompts belong in chat.
+  const { body: bodyMarkdown } = splitArticleImagePrompt(rawBody)
   if (!title && !bodyMarkdown) return undefined
   const base = emptyArticleDraft()
   return {
@@ -104,7 +104,6 @@ function normalizeArticle(raw: unknown): ArticleDraft | undefined {
     title,
     bodyMarkdown,
     inlineMedia: normalizeMedia(a.inlineMedia),
-    ...(imagePrompt ? { imagePrompt } : {}),
   }
 }
 

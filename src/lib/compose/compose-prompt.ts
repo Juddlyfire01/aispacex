@@ -32,8 +32,8 @@ const FORMAT_SPEC = `Output formats (when drafting for X):
 - Post: single segment, longform false, ≤280 characters. One punchy take.
 - Thread: 2+ segments (each ≤280 unless longform). Multi-beat narrative, numbered beats, or a sequence of related posts.
 - Long-form: single segment, longform true, up to ~25k characters (Premium tweet). Deep essay as ONE tweet — NOT an X Article.
-- Article: X Articles format — populate article: { title, bodyMarkdown }. Titled structured piece with sections (and optional media). Do NOT put the article body in tweet segments; segments may be []. Do NOT confuse Article with Premium long-form tweets.
-- If the user asks for an image/cover prompt with an Article, keep it out of bodyMarkdown — the draft writer stores it separately as an image prompt.
+- Article: X Articles format — populate article: { title, bodyMarkdown }. Titled structured piece with sections (and optional uploaded media). Do NOT put the article body in tweet segments; segments may be []. Do NOT confuse Article with Premium long-form tweets.
+- Image / cover prompts: never put them in the article body or draft fields. If the user wants an image prompt, give it in chat on its own turn (after handing the article to the draft tool).
 
 Auto decision (when format preference is Auto):
 - Punchy single take → post
@@ -53,14 +53,15 @@ HARD RULES — violating these breaks the product:
 2. NEVER paste the full draft, article body, thread posts, or image prompt into chat. The draft drawer owns the copy.
 3. NEVER emit a \`\`\`postdraft fence. Never invent one.
 4. Chat reply after the tool call must stay SHORT: confirmation + light rationale/options only (a few sentences). No full manuscript in chat.
-5. Respect Preferred format. If it is Article: still call compose_write_draft; do NOT set longform:true (Articles ≠ Premium long-form tweets). Put any cover/image prompt in the brief as a separate note labeled "Image prompt".
+5. Respect Preferred format. If it is Article: still call compose_write_draft; do NOT set longform:true (Articles ≠ Premium long-form tweets). Do NOT put image/cover prompts in the writer brief as manuscript text — after the tool call, surface any image prompt in your short chat reply (or a follow-up turn).
 6. Do not offer to draft unless the user asked for writing/copy. Analysis-only answers need no tool call.
 7. Use intel_* / compose_history_* for research before or after the handoff as needed.`
 
 const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE LOCK (user Preferred format = Article + draft writer enabled):
 - Any request to draft/write/revise an article MUST go through compose_write_draft.
-- Forbidden in chat: the article title+body, sectioned essay, or image prompt text.
-- Allowed in chat: brief status ("Draft is writing into the drawer…") and questions/edits about direction.
+- Forbidden in chat: the full article title+body or a sectioned essay manuscript.
+- Allowed in chat: brief status ("Draft is writing into the drawer…"), direction questions, and — on a separate beat — an image/cover prompt if the user asked for one.
+- Never force an image prompt into the article body or a draft-drawer field; keep prompts in chat.
 - If you already researched facts, put them in the tool brief — do not reprint the article in the assistant message.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):

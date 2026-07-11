@@ -25,7 +25,7 @@ describe('looksLikeLeakedArticle', () => {
 })
 
 describe('salvageLeakedArticleFromChat', () => {
-  it('parses title, body, and image prompt into article payload', () => {
+  it('parses title and body into article; surfaces image prompt in chat', () => {
     const content = `# Title Here
 
 Body of the article with enough length ${'x'.repeat(500)}
@@ -40,7 +40,9 @@ neon vault lattice`
     expect(salvaged).not.toBeNull()
     expect(salvaged!.article.title).toBe('Title Here')
     expect(salvaged!.article.bodyMarkdown).not.toMatch(/Image Prompt/i)
-    expect(salvaged!.article.imagePrompt).toMatch(/neon vault/i)
+    expect(salvaged!.article).not.toHaveProperty('imagePrompt')
     expect(salvaged!.chatMessage).toMatch(/drawer/i)
+    expect(salvaged!.chatMessage).toMatch(/Image prompt:/i)
+    expect(salvaged!.chatMessage).toMatch(/neon vault/i)
   })
 })

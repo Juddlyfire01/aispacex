@@ -33,6 +33,7 @@ export interface SalvagedArticleChat {
 
 /**
  * Move a leaked chat article into draft.article and return short chat replacement text.
+ * Any stripped image-prompt section is returned in chat (not stored on the draft).
  */
 export function salvageLeakedArticleFromChat(content: string): SalvagedArticleChat | null {
   const prefer = looksLikeLeakedArticle(content, true)
@@ -47,12 +48,13 @@ export function salvageLeakedArticleFromChat(content: string): SalvagedArticleCh
     ...emptyArticleDraft(),
     title: parsed.title || 'Untitled',
     bodyMarkdown: parsed.bodyMarkdown,
-    ...(parsed.imagePrompt ? { imagePrompt: parsed.imagePrompt } : {}),
   }
 
-  return {
-    article,
-    chatMessage:
-      'Draft is in the drawer (Article). I moved the copy out of chat so you can edit/publish there. Say if you want changes.',
+  let chatMessage =
+    'Draft is in the drawer (Article). I moved the copy out of chat so you can edit/publish there. Say if you want changes.'
+  if (parsed.imagePrompt?.trim()) {
+    chatMessage += `\n\nImage prompt:\n${parsed.imagePrompt.trim()}`
   }
+
+  return { article, chatMessage }
 }

@@ -128,21 +128,6 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
         />
       </label>
 
-      <label className="block text-[11px] text-white/40">
-        Cover image prompt
-        <textarea
-          value={article.imagePrompt ?? ''}
-          onChange={(e) =>
-            patchArticle({
-              ...article,
-              imagePrompt: e.target.value.trim() ? e.target.value : undefined,
-            })
-          }
-          placeholder="Optional illustration prompt (not published in the article body)…"
-          className="w-full mt-1 min-h-[72px] bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2.5 py-2 text-[12px] text-white/70 outline-none focus:border-[var(--color-border-strong)] placeholder:text-white/20 resize-y leading-relaxed"
-        />
-      </label>
-
       <div className="space-y-2">
         <div className="text-[11px] text-white/40">Cover image</div>
         {article.cover ? (

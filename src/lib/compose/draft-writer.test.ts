@@ -74,7 +74,7 @@ describe('parseArticleFromWriterText', () => {
     })
   })
 
-  it('splits ---IMAGE_PROMPT--- out of the body', () => {
+  it('strips ---IMAGE_PROMPT--- out of the body (not stored on draft)', () => {
     expect(
       parseArticleFromWriterText(
         '# Title\n\nArticle body.\n\n---IMAGE_PROMPT---\nneon vault, cyan lattice',
@@ -86,7 +86,7 @@ describe('parseArticleFromWriterText', () => {
     })
   })
 
-  it('splits Image Prompt: heading out of the body', () => {
+  it('strips Image Prompt: heading out of the body', () => {
     const parsed = parseArticleFromWriterText(
       '# Title\n\nBody text.\n\nImage Prompt (techno abstract style):\nAbstract neon vault',
     )
@@ -104,7 +104,8 @@ describe('buildWriterUser', () => {
     })
     expect(u).toMatch(/Preferred format: article/)
     expect(u).toMatch(/# Title/)
-    expect(u).toMatch(/IMAGE_PROMPT/)
+    expect(u).toMatch(/no image prompts/i)
+    expect(u).not.toMatch(/IMAGE_PROMPT/)
     expect(u).not.toMatch(/Long-form allowed/)
   })
 })
