@@ -36,6 +36,8 @@ describe('beginReportProgress pre-stream holds', () => {
     const p = beginReportProgress({ subject: '@alice', hasChangeStep: false })
     p.markPrepare()
     p.markPhase('narrative')
+    // synthesize's pre-flight 0-token probe must not kill the holds
+    p.onStreamTokens('narrative', 0, 1000)
     expect(labelOf(p.toastId)).toBe('Computing…')
 
     vi.advanceTimersByTime(1000)
@@ -45,6 +47,16 @@ describe('beginReportProgress pre-stream holds', () => {
     expect(labelOf(p.toastId)).toMatch(/Writing narrative/)
 
     vi.advanceTimersByTime(5000)
+    expect(labelOf(p.toastId)).toMatch(/Writing narrative/)
+  })
+
+  it('zero-token probe leaves Waiting hold intact until real tokens', () => {
+    const p = beginReportProgress({ subject: '@alice', hasChangeStep: false })
+    p.markPrepare()
+    p.onStreamTokens('narrative', 0, 1000)
+    vi.advanceTimersByTime(3000)
+    expect(labelOf(p.toastId)).toBe('Waiting…')
+    p.onStreamTokens('narrative', 40, 1000)
     expect(labelOf(p.toastId)).toMatch(/Writing narrative/)
   })
 

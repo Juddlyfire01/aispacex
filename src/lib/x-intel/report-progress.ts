@@ -103,6 +103,9 @@ export function beginReportProgress(opts: {
       // Pre-stream: holds own the label until the first token.
     },
     onStreamTokens: (phase, receivedTokens, expectedTokens) => {
+      // synthesize emits a 0-token probe before the HTTP call — ignore it so
+      // Computing/Sending/Waiting holds can run until the first real SSE delta.
+      if (!streamingStarted && receivedTokens <= 0) return
       enterStreaming()
       const frac = streamCallFraction(receivedTokens, expectedTokens)
       const overall = mapReportStreamProgress(phase, frac, hasChangeStep)
