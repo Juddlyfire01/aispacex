@@ -54,6 +54,8 @@ export interface PostDraft {
   replySettings?: ReplySettings
   /** Linguistic register for the next compose turn (style transfer). */
   register?: DraftRegister
+  /** Optional article payload (Task 5 expands ArticleDraft). */
+  article?: { title: string; bodyMarkdown: string }
   createdAt: string
   updatedAt: string
 }
