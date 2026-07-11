@@ -99,7 +99,17 @@ export function describeToolCall(name: string, args: Record<string, unknown>): s
       return 'Read a past post chat'
     case 'compose_write_draft':
       return 'Handed off to draft writer'
+    case 'news_read':
+      return 'Read bookmarked article'
+    case 'x_news_search':
+      return `Searched X News for ${q(args.query) || 'stories'}`
+    case 'x_news_get':
+      return 'Fetched X News story'
     default:
+      if (name.startsWith('stats_')) {
+        const action = typeof args.action === 'string' ? args.action : ''
+        return action ? `Fetched VeniceStats ${action}` : `Fetched ${name.replace(/_/g, ' ')}`
+      }
       // Fallback: de-snake the raw name ("intel_grep" → "Intel grep").
       return name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
   }
