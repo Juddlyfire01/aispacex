@@ -10,6 +10,7 @@ import { buildComposeSystem } from '../../lib/compose/compose-prompt'
 import { isDraftHandoffEnabled } from '../../lib/compose/draft-writer-tool'
 import { COMPOSE_INTEL_TOOLS } from '../../lib/compose/intel-tools'
 import { COMPOSE_HISTORY_TOOLS } from '../../lib/compose/history-tools'
+import { COMPOSE_STATS_TOOLS } from '../../lib/compose/stats-tools'
 import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
 import { filterComposeToolModels, modelSupportsXSearch } from '../../lib/compose/model'
 import { estimateComposeContextBreakdown } from '../../lib/compose/token-estimate'
@@ -80,6 +81,7 @@ export function ComposeChat({
     const tools = [
       ...COMPOSE_INTEL_TOOLS,
       ...COMPOSE_HISTORY_TOOLS,
+      ...COMPOSE_STATS_TOOLS,
       ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
     ]
     return estimateComposeContextBreakdown({

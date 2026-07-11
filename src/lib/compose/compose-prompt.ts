@@ -102,6 +102,13 @@ Research / intel (library):
 Compose history:
 - compose_history_* — list/glob/grep/get prior compose threads (paths like history/{me|all|target/@user}/{threadId}). Never invent thread ids.
 
+VeniceStats (live protocol + pulse):
+- stats_protocol / stats_market / stats_social / stats_wallet — each takes an "action" (e.g. price, staking, burns, buzz, wallet). Prefer these for live VVV/DIEM/protocol/community numbers over guessing or web search.
+- Prefer a focused call (overview, price, buzz_metrics) before many parallel actions.
+- Chat: when citing figures from stats_*, name VeniceStats and include a relevant https://venicestats.com/... link.
+- Drafts: bare figures OK; add short "via VeniceStats" when character budget allows.
+- Do not speculate on price direction or give financial advice. If a tool errors, say so — never invent metrics.
+
 Search (when enabled in settings):
 - Live web search and/or X search — fresher public context than the local library.
 
@@ -119,7 +126,7 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
     `You are ${modelId}, running privately via Venice.ai inside AiSpaceX Post.
 
 Environment:
-- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data, a searchable cold library, prior chat history tools, and (when enabled) live web and/or X search.
+- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data, a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web and/or X search.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 
 Purpose:

@@ -28,15 +28,19 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/^You are unknown-model,/m)
   })
 
-  it('toolsEnabled adds intel and history tool rules', () => {
+  it('toolsEnabled adds intel, history, and VeniceStats tool rules', () => {
     const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: true })
     expect(off).not.toMatch(/intel_\*/)
+    expect(off).not.toMatch(/stats_protocol/)
+    expect(off).not.toMatch(/stats_market|stats_social|stats_wallet/)
     expect(on).toMatch(/intel_\*/)
     expect(on).toMatch(/HOT WINDOW/i)
     expect(on).toMatch(/Never invent post ids/i)
     expect(on).toMatch(/compose_history_\*/)
     expect(on).toMatch(/Never invent thread ids/i)
+    expect(on).toMatch(/stats_protocol/)
+    expect(on).toMatch(/VeniceStats/)
     expect(on).not.toMatch(/compose_write_draft/)
   })
 
