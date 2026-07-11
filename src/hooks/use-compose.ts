@@ -16,8 +16,8 @@ import {
   isDraftHandoffEnabled,
   type DraftWriteBrief,
 } from '../lib/compose/draft-writer-tool'
-import { runDraftWriter, splitWriterSegments } from '../lib/compose/draft-writer'
-import { emptySegment } from '../lib/compose/types'
+import { runDraftWriter, splitWriterSegments, parseArticleFromWriterText } from '../lib/compose/draft-writer'
+import { emptyArticleDraft, emptySegment } from '../lib/compose/types'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
@@ -358,13 +358,18 @@ export function useCompose() {
             ...brief,
             preferredFormat: brief.preferredFormat ?? preferredFormat,
           }
+          const wantsArticle = writerBrief.preferredFormat === 'article'
           const s0 = useComposeStore.getState()
           s0.setDraftDrawerOpen(true)
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
             ...(writerBrief.target ? { target: writerBrief.target } : {}),
-            ...(typeof writerBrief.longform === 'boolean' ? { longform: writerBrief.longform } : {}),
+            ...(wantsArticle
+              ? { article: emptyArticleDraft(), longform: false }
+              : typeof writerBrief.longform === 'boolean'
+                ? { longform: writerBrief.longform }
+                : {}),
           })
 
           let accumulated = ''
@@ -377,6 +382,21 @@ export function useCompose() {
             startedAt: Date.now(),
           })
 
+          const applyArticleText = (text: string) => {
+            const parsed = parseArticleFromWriterText(text)
+            const current = useComposeStore.getState().threads[threadId]?.draft.article
+            useComposeStore.getState().applyDraftPatch(threadId, {
+              article: {
+                title: parsed.title,
+                bodyMarkdown: parsed.bodyMarkdown,
+                cover: current?.cover,
+                inlineMedia: current?.inlineMedia ?? [],
+                contentState: current?.contentState,
+              },
+              longform: false,
+            })
+          }
+
           void runDraftWriter({
             modelId: draftModel,
             modelSpec: draftModelSpec,
@@ -385,6 +405,10 @@ export function useCompose() {
             signal: abortController.signal,
             onDelta: (token) => {
               accumulated += token
+              if (wantsArticle) {
+                applyArticleText(accumulated)
+                return
+              }
               const texts = splitWriterSegments(accumulated)
               const stable = texts.map((text, i) => ({
                 id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
@@ -395,16 +419,26 @@ export function useCompose() {
             },
           })
             .then((finalText) => {
-              const texts = splitWriterSegments(finalText || accumulated)
+              const store = useComposeStore.getState()
+              const text = finalText || accumulated
+              const looksLikeArticle = /^#\s+\S/.test(text.trim())
+              if (wantsArticle || looksLikeArticle) {
+                applyArticleText(text)
+                store.updateAgentEvent(writerEventId, {
+                  status: 'done',
+                  detail: 'article ready',
+                })
+                return
+              }
+              const texts = splitWriterSegments(text)
               const segments =
                 texts.length > 0
-                  ? texts.map((text, i) => ({
+                  ? texts.map((segText, i) => ({
                       id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
-                      text,
+                      text: segText,
                       media: [],
                     }))
                   : [{ ...seg, text: accumulated }]
-              const store = useComposeStore.getState()
               const isVerified = getActiveAccountVerified()
               const pref = store.longformPreference
               const patch = {

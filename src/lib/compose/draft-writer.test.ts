@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseDraftWriteBrief, isDraftHandoffEnabled, DRAFT_MODEL_SAME } from './draft-writer-tool'
-import { splitWriterSegments, buildWriterUser } from './draft-writer'
+import { splitWriterSegments, buildWriterUser, parseArticleFromWriterText } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { VeniceModel } from '../../types/venice'
 
@@ -65,6 +65,22 @@ describe('buildWriterUser', () => {
     })
     expect(u).toMatch(/Preferred format: article/)
     expect(u).toMatch(/# Title/)
+  })
+})
+
+describe('parseArticleFromWriterText', () => {
+  it('parses # Title and body', () => {
+    expect(parseArticleFromWriterText('# Hello\n\nBody paragraph')).toEqual({
+      title: 'Hello',
+      bodyMarkdown: 'Body paragraph',
+    })
+  })
+
+  it('treats body-only text as bodyMarkdown', () => {
+    expect(parseArticleFromWriterText('Just a body')).toEqual({
+      title: '',
+      bodyMarkdown: 'Just a body',
+    })
   })
 })
 

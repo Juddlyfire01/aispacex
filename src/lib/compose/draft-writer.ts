@@ -72,6 +72,20 @@ export function splitWriterSegments(text: string): string[] {
   return parts.length > 0 ? parts : [text.trim()].filter(Boolean)
 }
 
+/** Parse `# Title` + body markdown from draft-writer article output. */
+export function parseArticleFromWriterText(text: string): { title: string; bodyMarkdown: string } {
+  const trimmed = text.trim()
+  const match = trimmed.match(/^#\s+([^\n]+)\n+([\s\S]*)$/)
+  if (match) {
+    return { title: match[1].trim(), bodyMarkdown: match[2].trim() }
+  }
+  const titleOnly = trimmed.match(/^#\s+([^\n]+)$/)
+  if (titleOnly) {
+    return { title: titleOnly[1].trim(), bodyMarkdown: '' }
+  }
+  return { title: '', bodyMarkdown: trimmed }
+}
+
 /**
  * Stream draft copy from the writer model. Returns full accumulated text.
  * Caller applies tokens to the draft drawer via onDelta.

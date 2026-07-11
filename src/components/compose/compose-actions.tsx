@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { resolveDraftFormat } from '../../lib/compose/format'
 import { classifyPostability } from '../../lib/compose/postability'
 import { serializeDraftForCopy } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
@@ -34,10 +35,13 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
 
   const { draft } = thread
   const postability = classifyPostability(draft, CAPS)
+  const isArticle = resolveDraftFormat(draft) === 'article'
   const longform = effectiveLongform(draft.longform, isVerified)
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
-  const overLimit = draft.segments.some((s) => tweetLength(s.text) > limit)
-  const empty = draft.segments.every((s) => s.text.trim() === '' && s.media.length === 0)
+  const overLimit = isArticle ? false : draft.segments.some((s) => tweetLength(s.text) > limit)
+  const empty = isArticle
+    ? !(draft.article?.title.trim() || draft.article?.bodyMarkdown.trim())
+    : draft.segments.every((s) => s.text.trim() === '' && s.media.length === 0)
   const blocked = empty || overLimit
 
   const copy = async () => {

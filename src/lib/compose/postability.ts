@@ -1,3 +1,4 @@
+import { resolveDraftFormat } from './format'
 import type { PostDraft } from './types'
 
 // X pay-per-use blocks several actions on self-serve tiers, so not every draft
@@ -20,13 +21,19 @@ const QUOTE_REASON =
   'Quote-posts are not available via the X API on pay-per-use. Copy this to X to post it manually.'
 const MEDIA_REASON =
   'Posting media through the API is not enabled yet. Copy this to X to post it manually.'
+const ARTICLE_REASON =
+  'Article publishing via X API lands next — Copy to X for now.'
 
 /**
  * Decide how a draft can be published. Originals (single or thread) post
  * natively; replies and quotes are copy-only per X PAYG rules; any media
- * routes to copy until native upload is enabled.
+ * routes to copy until native upload is enabled. Articles are copy-only until
+ * the Articles API path is wired.
  */
 export function classifyPostability(draft: PostDraft, caps: PostabilityCaps): Postability {
+  if (resolveDraftFormat(draft) === 'article') {
+    return { mode: 'copy', reason: ARTICLE_REASON }
+  }
   if (draft.target.kind === 'reply') return { mode: 'copy', reason: REPLY_REASON }
   if (draft.target.kind === 'quote') return { mode: 'copy', reason: QUOTE_REASON }
 

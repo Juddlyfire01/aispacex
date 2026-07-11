@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { classifyPostability } from './postability'
-import { emptyDraft, emptySegment } from './types'
+import { emptyArticleDraft, emptyDraft, emptySegment } from './types'
 import type { PostDraft } from './types'
 
 const caps = { mediaNativeSupported: false }
@@ -8,6 +8,12 @@ const caps = { mediaNativeSupported: false }
 function withMedia(): PostDraft {
   const draft = emptyDraft({ kind: 'original' })
   draft.segments = [{ ...emptySegment(), media: [{ id: 'm1', kind: 'image', dataUrl: 'data:...' }] }]
+  return draft
+}
+
+function withArticle(): PostDraft {
+  const draft = emptyDraft({ kind: 'original' })
+  draft.article = { ...emptyArticleDraft(), title: 'Hello', bodyMarkdown: 'World' }
   return draft
 }
 
@@ -38,5 +44,11 @@ describe('classifyPostability', () => {
 
   it('posts media natively once supported', () => {
     expect(classifyPostability(withMedia(), { mediaNativeSupported: true })).toEqual({ mode: 'api' })
+  })
+
+  it('routes articles to copy until Articles API is wired', () => {
+    const result = classifyPostability(withArticle(), caps)
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/article/i)
   })
 })
