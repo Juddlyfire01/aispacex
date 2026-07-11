@@ -46,17 +46,19 @@ describe('classifyPostability', () => {
     expect(classifyPostability(withMedia(), { mediaNativeSupported: true })).toEqual({ mode: 'api' })
   })
 
-  it('routes articles to copy until Articles API is wired', () => {
-    const result = classifyPostability(withArticle(), caps)
-    expect(result.mode).toBe('copy')
-    expect(result.reason).toMatch(/article/i)
+  it('posts articles natively via the Articles API path', () => {
+    expect(classifyPostability(withArticle(), caps)).toEqual({ mode: 'api' })
   })
 
-  it('routes preferredFormat article to copy even when draft.article is empty', () => {
+  it('posts preferredFormat article natively even when draft.article is empty', () => {
     const draft = emptyDraft({ kind: 'original' })
-    const result = classifyPostability(draft, caps, 'article')
-    expect(result.mode).toBe('copy')
-    expect(result.reason).toMatch(/article/i)
+    expect(classifyPostability(draft, caps, 'article')).toEqual({ mode: 'api' })
+  })
+
+  it('prefers article api mode over reply/quote copy for article drafts', () => {
+    const draft = emptyDraft({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
+    draft.article = { ...emptyArticleDraft(), title: 'Hello', bodyMarkdown: 'World' }
+    expect(classifyPostability(draft, caps)).toEqual({ mode: 'api' })
   })
 
   it('does not treat auto preference as article without article content', () => {

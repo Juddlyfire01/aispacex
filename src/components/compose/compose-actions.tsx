@@ -7,6 +7,8 @@ import { serializeDraftForCopy } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
 import { effectiveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
 import { TWEET_LIMIT, LONGFORM_LIMIT } from '../../lib/compose/types'
+import { publishArticleDraft, XArticleError } from '../../lib/compose/x-article-client'
+import { XMediaError } from '../../lib/compose/x-media-client'
 import { postDraft, XPostError } from '../../lib/compose/x-post-client'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
@@ -58,11 +60,13 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
     setPostedUrl(null)
     setNeedsReconnect(false)
     try {
-      const result = await postDraft(prepareDraftForPost(draft, isVerified, longformPreference))
+      const result = isArticle
+        ? await publishArticleDraft(draft)
+        : await postDraft(prepareDraftForPost(draft, isVerified, longformPreference))
       setPostedUrl(result.url)
       resetDraft(threadId)
     } catch (e) {
-      if (e instanceof XPostError) {
+      if (e instanceof XPostError || e instanceof XArticleError || e instanceof XMediaError) {
         setError(e.message)
         setNeedsReconnect(e.needsReconnect)
       } else {
@@ -106,7 +110,15 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
             title={!connected ? 'Connect your X account (header → Connect X)' : undefined}
             className="px-3 py-1.5 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {posting ? 'Posting…' : draft.segments.length > 1 ? 'Post thread' : 'Post to X'}
+            {isArticle
+              ? posting
+                ? 'Publishing…'
+                : 'Publish article'
+              : posting
+                ? 'Posting…'
+                : draft.segments.length > 1
+                  ? 'Post thread'
+                  : 'Post to X'}
           </button>
         ) : null}
         <button

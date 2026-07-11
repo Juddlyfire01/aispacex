@@ -21,14 +21,12 @@ const QUOTE_REASON =
   'Quote-posts are not available via the X API on pay-per-use. Copy this to X to post it manually.'
 const MEDIA_REASON =
   'Posting media through the API is not enabled yet. Copy this to X to post it manually.'
-const ARTICLE_REASON =
-  'Article publishing via X API lands next — Copy to X for now.'
 
 /**
- * Decide how a draft can be published. Originals (single or thread) post
- * natively; replies and quotes are copy-only per X PAYG rules; any media
- * routes to copy until native upload is enabled. Articles are copy-only until
- * the Articles API path is wired.
+ * Decide how a draft can be published. Articles post natively via the Articles
+ * API (media uploaded inside that path). Originals (single or thread) post
+ * natively; replies and quotes are copy-only per X PAYG rules; segment media
+ * routes to copy until native upload is enabled.
  */
 export function classifyPostability(
   draft: PostDraft,
@@ -36,7 +34,7 @@ export function classifyPostability(
   preferredFormat?: PreferredFormat,
 ): Postability {
   if (preferredFormat === 'article' || resolveDraftFormat(draft) === 'article') {
-    return { mode: 'copy', reason: ARTICLE_REASON }
+    return { mode: 'api' }
   }
   if (draft.target.kind === 'reply') return { mode: 'copy', reason: REPLY_REASON }
   if (draft.target.kind === 'quote') return { mode: 'copy', reason: QUOTE_REASON }
