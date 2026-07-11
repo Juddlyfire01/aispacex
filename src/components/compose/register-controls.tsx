@@ -41,6 +41,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [packText, setPackText] = useState('')
   const [packError, setPackError] = useState<string | null>(null)
+  const [packExpanded, setPackExpanded] = useState(false)
 
   const targets = useXIntelStore((s) => s.targets)
   const reports = useXIntelStore((s) => s.reports)
@@ -308,28 +309,36 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
       )}
 
       {showPackEditor && (
-        <label className="block text-[11px] text-white/40">
-          Register pack
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setPackExpanded((v) => !v)}
+            aria-expanded={packExpanded}
+            className="flex w-full items-center justify-between gap-2 text-[11px] text-white/40 hover:text-white/60 transition-colors"
+          >
+            <span>Register pack</span>
+            <span className="font-mono text-[10px] text-white/25">{packExpanded ? '−' : '+'}</span>
+          </button>
           {modeUnavailable && !displayedPack && (
-            <span className="block mt-1 text-[10px] text-amber-400/80">
+            <span className="block text-[10px] text-amber-400/80">
               Generate a report first to enable this register.
             </span>
           )}
-          {displayedPack && (
+          {packExpanded && displayedPack && (
             <>
               <textarea
                 value={packText}
                 onChange={(e) => onPackTextChange(e.target.value)}
                 rows={8}
                 spellCheck={false}
-                className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[10px] font-mono text-white/60 outline-none resize-y min-h-[120px]"
+                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[10px] font-mono text-white/60 outline-none resize-y min-h-[120px]"
               />
               {packError && (
-                <span className="block mt-1 text-[10px] text-amber-400/80">{packError}</span>
+                <span className="block text-[10px] text-amber-400/80">{packError}</span>
               )}
             </>
           )}
-        </label>
+        </div>
       )}
 
       <div className="flex flex-wrap gap-3">

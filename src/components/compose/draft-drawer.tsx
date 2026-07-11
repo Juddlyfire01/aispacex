@@ -3,6 +3,7 @@ import { useComposeStore } from '../../stores/compose-store'
 import { PostComposer } from './post-composer'
 import { ComposeActions } from './compose-actions'
 
+/** Draft pane — lives in the chat split (not an overlay). Width owned by parent. */
 export function DraftDrawer() {
   const draftDrawerOpen = useComposeStore((s) => s.draftDrawerOpen)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
@@ -28,7 +29,7 @@ export function DraftDrawer() {
   if (!threadId) return null
 
   return (
-    <div className="absolute inset-y-0 right-0 w-[46%] max-w-[560px] z-10 border-l border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col shadow-xl">
+    <div className="h-full min-h-0 min-w-0 flex flex-col bg-[var(--color-bg-base)]">
       <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--color-border-faint)] shrink-0">
         <h2 className="text-[12px] font-semibold text-[var(--color-text-primary)] tracking-wide uppercase">
           Draft

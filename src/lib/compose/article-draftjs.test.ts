@@ -68,12 +68,21 @@ describe('markdownToContentState', () => {
     expect(cs.entities.some((e) => e.value.type === 'image')).toBe(false)
   })
 
-  it('strips unsupported markdown rather than throwing', () => {
-    expect(() =>
-      markdownToContentState('Hello **bold** and `code` and ~~strike~~'),
-    ).not.toThrow()
-    const cs = markdownToContentState('Hello **bold** and `code`')
+  it('maps **bold** / *italic* / ~~strike~~ to inline styles (no markers left)', () => {
+    const cs = markdownToContentState('Hello **bold** and *italic* and ~~strike~~ and `code`')
+    expect(cs.blocks[0].text).toBe('Hello bold and italic and strike and code')
     expect(cs.blocks[0].text).not.toContain('**')
-    expect(cs.blocks[0].text).not.toContain('`')
+    expect(cs.blocks[0].inline_style_ranges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ style: 'bold' }),
+        expect.objectContaining({ style: 'italic' }),
+        expect.objectContaining({ style: 'strikethrough' }),
+      ]),
+    )
+  })
+
+  it('skips horizontal rule lines', () => {
+    const cs = markdownToContentState('Before\n\n---\n\nAfter')
+    expect(cs.blocks.map((b) => b.text)).toEqual(['Before', 'After'])
   })
 })

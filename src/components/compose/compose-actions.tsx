@@ -3,7 +3,7 @@ import { useComposeStore } from '../../stores/compose-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { resolveDraftFormat } from '../../lib/compose/format'
 import { classifyPostability } from '../../lib/compose/postability'
-import { serializeDraftForCopy } from '../../lib/compose/serialize'
+import { copyDraftToClipboard } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
 import { effectiveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
 import { TWEET_LIMIT, LONGFORM_LIMIT } from '../../lib/compose/types'
@@ -52,7 +52,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   const blocked = empty || overLimit
 
   const copy = async () => {
-    await navigator.clipboard.writeText(serializeDraftForCopy(draft))
+    await copyDraftToClipboard(draft)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

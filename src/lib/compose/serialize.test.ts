@@ -58,4 +58,20 @@ describe('serializeDraftForCopy', () => {
     expect(out).toContain('2/2 second')
     expect(out).toContain(`https://x.com/i/status/${ID}`)
   })
+
+  it('copies articles as plain text without markdown markers', () => {
+    const draft = emptyDraft()
+    draft.article = {
+      title: 'Owning Intelligence',
+      bodyMarkdown: '### Section\n\nHello **world**\n\n---\n\nMore',
+      inlineMedia: [],
+    }
+    const out = serializeDraftForCopy(draft)
+    expect(out).toContain('Owning Intelligence')
+    expect(out).toContain('Section')
+    expect(out).toContain('Hello world')
+    expect(out).not.toContain('###')
+    expect(out).not.toContain('**')
+    expect(out).not.toContain('---')
+  })
 })

@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import type { ArticleDraft, MediaItem } from '../../lib/compose/types'
 import { emptyArticleDraft } from '../../lib/compose/types'
+import { ArticleBodyEditor } from './article-body-editor'
 
 interface ArticleComposerProps {
   threadId: string
@@ -70,6 +71,7 @@ function MediaPreview({
 export function ArticleComposer({ threadId }: ArticleComposerProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
+  const streaming = useComposeStore((s) => s.draftWriterStreaming)
   const coverInputRef = useRef<HTMLInputElement>(null)
   const inlineInputRef = useRef<HTMLInputElement>(null)
 
@@ -108,25 +110,25 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
 
   return (
     <div className="space-y-3">
-      <label className="block text-[11px] text-white/40">
-        Title
+      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)]">
         <input
           value={article.title}
           onChange={(e) => patchArticle({ ...article, title: e.target.value })}
           placeholder="Article title"
-          className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2.5 py-2 text-[13px] text-white/80 outline-none focus:border-[var(--color-border-strong)] placeholder:text-white/20"
+          readOnly={streaming}
+          className="w-full bg-transparent text-[17px] font-semibold text-white/90 outline-none placeholder:text-white/25 placeholder:font-normal read-only:cursor-default"
         />
-      </label>
+      </div>
 
-      <label className="block text-[11px] text-white/40">
-        Body
-        <textarea
-          value={article.bodyMarkdown}
-          onChange={(e) => patchArticle({ ...article, bodyMarkdown: e.target.value })}
-          placeholder="Markdown or plain text…"
-          className="w-full mt-1 min-h-[200px] bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2.5 py-2 text-[13px] text-white/80 outline-none focus:border-[var(--color-border-strong)] placeholder:text-white/20 resize-y leading-relaxed"
-        />
-      </label>
+      <ArticleBodyEditor
+        value={article.bodyMarkdown}
+        streaming={streaming}
+        onChange={(bodyMarkdown) => {
+          const current =
+            useComposeStore.getState().threads[threadId]?.draft.article ?? emptyArticleDraft()
+          patchArticle({ ...current, bodyMarkdown })
+        }}
+      />
 
       <div className="space-y-2">
         <div className="text-[11px] text-white/40">Cover image</div>

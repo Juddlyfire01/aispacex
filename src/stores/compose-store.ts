@@ -38,6 +38,8 @@ interface ComposeState {
   activeThreadId: string | null
   newThreadContext: ComposeScope
   draftDrawerOpen: boolean
+  /** Draft pane width as % of the chat+draft split (25–75). Default 50. */
+  draftDrawerWidthPct: number
   model: string
   /** Draft writer: 'same' = main model emits postdraft; else a Venice model id. */
   draftModel: string
@@ -47,6 +49,8 @@ interface ComposeState {
   /** Preferred draft format; auto lets the model choose. */
   preferredFormat: PreferredFormat
   isStreaming: boolean
+  /** Ephemeral — true while the draft writer is streaming into the drawer. */
+  draftWriterStreaming: boolean
   /** Persisted long-form default for verified accounts (user can opt out). */
   longformPreference: boolean
   /** App-wide default register mode for new drafts. */
@@ -71,6 +75,16 @@ interface ComposeState {
   getActiveThread: () => ComposeThread | undefined
   setNewThreadContext: (scope: ComposeScope) => void
   setDraftDrawerOpen: (open: boolean) => void
+  setDraftDrawerWidthPct: (pct: number) => void
+  setDraftWriterStreaming: (streaming: boolean) => void
+  /**
+   * Hot path for draft-writer article tokens — skips thread meta / order bump
+   * (same idea as appendToLastAssistant) so streaming stays smooth.
+   */
+  patchArticleStream: (
+    threadId: string,
+    patch: { title: string; bodyMarkdown: string },
+  ) => void
 
   addMessage: (threadId: string, message: ComposeMessage) => void
   appendToLastAssistant: (threadId: string, token: string) => void
@@ -194,6 +208,9 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (version < 9 && state.preferredFormat == null) {
     state.preferredFormat = 'auto'
   }
+  if (version < 10 && state.draftDrawerWidthPct == null) {
+    state.draftDrawerWidthPct = 50
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -257,12 +274,14 @@ export const useComposeStore = create<ComposeState>()(
       activeThreadId: null,
       newThreadContext: { type: 'all' },
       draftDrawerOpen: false,
+      draftDrawerWidthPct: 50,
       model: '',
       draftModel: '',
       xSearch: 'auto',
       webSearch: 'auto',
       preferredFormat: 'auto',
       isStreaming: false,
+      draftWriterStreaming: false,
       longformPreference: true,
       registerDefault: { ...DEFAULT_REGISTER_DEFAULT },
       libraryMode: 'auto',
@@ -327,6 +346,37 @@ export const useComposeStore = create<ComposeState>()(
 
       setNewThreadContext: (scope) => set({ newThreadContext: scope }),
       setDraftDrawerOpen: (open) => set({ draftDrawerOpen: open }),
+      setDraftDrawerWidthPct: (pct) =>
+        set({ draftDrawerWidthPct: Math.min(75, Math.max(25, Math.round(pct))) }),
+      setDraftWriterStreaming: (streaming) => set({ draftWriterStreaming: streaming }),
+
+      // Hot path: do NOT recomputeThreadMeta / bumpOrder on every writer token.
+      patchArticleStream: (threadId, patch) =>
+        set((s) => {
+          const thread = s.threads[threadId]
+          if (!thread) return {}
+          const prev = thread.draft.article
+          return {
+            threads: {
+              ...s.threads,
+              [threadId]: {
+                ...thread,
+                draft: {
+                  ...thread.draft,
+                  longform: false,
+                  target: { kind: 'original' as const },
+                  article: {
+                    title: patch.title,
+                    bodyMarkdown: patch.bodyMarkdown,
+                    cover: prev?.cover,
+                    inlineMedia: prev?.inlineMedia ?? [],
+                    contentState: prev?.contentState,
+                  },
+                },
+              },
+            },
+          }
+        }),
 
       addMessage: (threadId, message) =>
         set((s) =>
@@ -474,7 +524,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 9,
+      version: 10,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -488,6 +538,7 @@ export const useComposeStore = create<ComposeState>()(
         xSearch: state.xSearch,
         webSearch: state.webSearch,
         preferredFormat: state.preferredFormat,
+        draftDrawerWidthPct: state.draftDrawerWidthPct,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,
         libraryMode: state.libraryMode,

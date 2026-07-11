@@ -371,6 +371,7 @@ export function useCompose() {
           const allowArticleHeuristic = prefFormat === 'auto' || prefFormat === 'article'
           const s0 = useComposeStore.getState()
           s0.setDraftDrawerOpen(true)
+          s0.setDraftWriterStreaming(true)
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
@@ -385,7 +386,10 @@ export function useCompose() {
                 }),
           })
 
-          let accumulated = ''
+          let networkAcc = ''
+          let displayedAcc = ''
+          let pendingDraft = ''
+          let draftDripRaf: number | null = null
           const writerEventId = newAgentEventId()
           useComposeStore.getState().pushAgentEvent({
             id: writerEventId,
@@ -397,19 +401,78 @@ export function useCompose() {
             startedAt: Date.now(),
           })
 
-          const applyArticleText = (text: string) => {
-            const parsed = parseArticleFromWriterText(text)
-            const current = useComposeStore.getState().threads[threadId]?.draft.article
-            useComposeStore.getState().applyDraftPatch(threadId, {
-              article: {
+          const applyDisplayed = (text: string) => {
+            if (wantsArticle) {
+              const parsed = parseArticleFromWriterText(text)
+              useComposeStore.getState().patchArticleStream(threadId, {
                 title: parsed.title,
                 bodyMarkdown: parsed.bodyMarkdown,
-                cover: current?.cover,
-                inlineMedia: current?.inlineMedia ?? [],
-                contentState: current?.contentState,
-              },
-              longform: false,
-              target: { kind: 'original' },
+              })
+              return
+            }
+            const texts = splitWriterSegments(text)
+            const stable = texts.map((segText, i) => ({
+              id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
+              text: segText,
+              media: [] as { id: string; kind: 'image' | 'video' | 'gif' }[],
+            }))
+            useComposeStore.getState().applyDraftPatch(threadId, {
+              segments: stable,
+              article: undefined,
+            })
+          }
+
+          const flushDraftDrip = () => {
+            if (draftDripRaf != null) {
+              cancelAnimationFrame(draftDripRaf)
+              draftDripRaf = null
+            }
+            if (pendingDraft) {
+              displayedAcc += pendingDraft
+              pendingDraft = ''
+              applyDisplayed(displayedAcc)
+            }
+          }
+
+          const scheduleDraftDrip = () => {
+            if (draftDripRaf != null) return
+            const tick = () => {
+              draftDripRaf = null
+              const pending = pendingDraft
+              if (!pending) return
+
+              const backlog = pending.length
+              let n: number
+              if (backlog > 160) n = Math.ceil(backlog * 0.28)
+              else if (backlog > 64) n = 14
+              else if (backlog > 20) n = 7
+              else n = Math.min(3, backlog)
+
+              let take = n
+              if (backlog > n) {
+                const window = pending.slice(0, n + 8)
+                const sp = window.lastIndexOf(' ')
+                const nl = window.lastIndexOf('\n')
+                const breakAt = Math.max(sp, nl)
+                if (breakAt >= Math.floor(n * 0.45)) take = breakAt + 1
+              }
+
+              const chunk = pending.slice(0, take)
+              pendingDraft = pending.slice(take)
+              displayedAcc += chunk
+              applyDisplayed(displayedAcc)
+
+              if (pendingDraft) draftDripRaf = requestAnimationFrame(tick)
+            }
+            draftDripRaf = requestAnimationFrame(tick)
+          }
+
+          const finishWriter = (status: 'done' | 'error' | 'cancelled', detail: string) => {
+            flushDraftDrip()
+            useComposeStore.getState().setDraftWriterStreaming(false)
+            useComposeStore.getState().updateAgentEvent(writerEventId, {
+              status: status === 'cancelled' ? 'done' : status,
+              detail,
             })
           }
 
@@ -420,34 +483,33 @@ export function useCompose() {
             registerInject: registerResolved.inject,
             signal: abortController.signal,
             onDelta: (token) => {
-              accumulated += token
-              if (wantsArticle) {
-                applyArticleText(accumulated)
-                return
-              }
-              const texts = splitWriterSegments(accumulated)
-              const stable = texts.map((text, i) => ({
-                id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
-                text,
-                media: [] as { id: string; kind: 'image' | 'video' | 'gif' }[],
-              }))
-              useComposeStore.getState().applyDraftPatch(threadId, {
-                segments: stable,
-                article: undefined,
-              })
+              networkAcc += token
+              pendingDraft += token
+              scheduleDraftDrip()
             },
           })
             .then((finalText) => {
+              flushDraftDrip()
               const store = useComposeStore.getState()
-              const text = finalText || accumulated
+              const text = finalText || networkAcc
               const looksLikeArticle =
                 allowArticleHeuristic && /^#\s+\S/.test(text.trim())
               if (wantsArticle || looksLikeArticle) {
-                applyArticleText(text)
-                store.updateAgentEvent(writerEventId, {
-                  status: 'done',
-                  detail: 'article ready',
+                const parsed = parseArticleFromWriterText(text)
+                const current = store.threads[threadId]?.draft.article
+                store.applyDraftPatch(threadId, {
+                  article: {
+                    title: parsed.title,
+                    bodyMarkdown: parsed.bodyMarkdown,
+                    cover: current?.cover,
+                    inlineMedia: current?.inlineMedia ?? [],
+                    contentState: current?.contentState,
+                  },
+                  longform: false,
+                  target: { kind: 'original' },
+                  segments: [emptySegment()],
                 })
+                finishWriter('done', 'article ready')
                 return
               }
               const texts = splitWriterSegments(text)
@@ -458,7 +520,7 @@ export function useCompose() {
                       text: segText,
                       media: [],
                     }))
-                  : [{ ...seg, text: accumulated }]
+                  : [{ ...seg, text: networkAcc }]
               const isVerified = getActiveAccountVerified()
               const pref = store.longformPreference
               const patch: Partial<PostDraft> = {
@@ -473,24 +535,18 @@ export function useCompose() {
                 pref,
               )
               store.applyDraftPatch(threadId, gated ? { ...patch, ...gated } : patch)
-              store.updateAgentEvent(writerEventId, {
-                status: 'done',
-                detail: texts.length > 1 ? `${texts.length} segments` : 'ready',
-              })
+              finishWriter(
+                'done',
+                texts.length > 1 ? `${texts.length} segments` : 'ready',
+              )
             })
             .catch((err) => {
               if (err instanceof DOMException && err.name === 'AbortError') {
-                useComposeStore.getState().updateAgentEvent(writerEventId, {
-                  status: 'done',
-                  detail: 'cancelled',
-                })
+                finishWriter('cancelled', 'cancelled')
                 return
               }
               const message = err instanceof Error ? err.message : 'Draft writer failed'
-              useComposeStore.getState().updateAgentEvent(writerEventId, {
-                status: 'error',
-                detail: message,
-              })
+              finishWriter('error', message)
             })
         }
 
@@ -739,6 +795,7 @@ export function useCompose() {
       s.setLastAssistantAgentEvents(threadId, finalEvents)
     }
     s.setStreaming(false)
+    s.setDraftWriterStreaming(false)
     s.setAgentPhase(null)
     s.clearAgentEvents()
   }, [setStreaming, flushPendingDelta])

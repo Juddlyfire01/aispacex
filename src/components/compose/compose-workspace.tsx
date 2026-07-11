@@ -19,6 +19,7 @@ import { HistoryRail } from './history-rail'
 import { ComposeSettings } from './compose-settings'
 import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
+import { DraftSplitHandle } from './draft-split-handle'
 
 /** Post chrome: Composer is wired; other slots reserved (blank labels). */
 const POST_SUB_TABS = [
@@ -57,6 +58,8 @@ export function ComposeWorkspace() {
   const setBudgetPct = useComposeStore((s) => s.setBudgetPct)
   const dayWindowDays = useComposeStore((s) => s.dayWindowDays)
   const setDayWindowDays = useComposeStore((s) => s.setDayWindowDays)
+  const draftDrawerOpen = useComposeStore((s) => s.draftDrawerOpen)
+  const draftDrawerWidthPct = useComposeStore((s) => s.draftDrawerWidthPct)
 
   const reports = useXIntelStore((s) => s.reports)
   const selfAccounts = useXSelfStore((s) => s.accounts)
@@ -164,16 +167,40 @@ export function ComposeWorkspace() {
                 onBudgetPctChange={setBudgetPct}
                 onDayWindowChange={setDayWindowDays}
               />
-              <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
-                {threadId ? (
-                  <ComposeChat
-                    threadId={threadId}
-                    sendBlocked={sendBlocked}
-                    hotText={pack.text}
-                    hotTokens={pack.estimatedTokens}
-                  />
+              <div className="flex-1 min-w-0 flex min-h-0">
+                <div
+                  className="min-w-0 min-h-0 flex flex-col"
+                  style={{
+                    flexGrow: draftDrawerOpen ? 100 - draftDrawerWidthPct : 1,
+                    flexShrink: 1,
+                    flexBasis: 0,
+                    width: draftDrawerOpen ? undefined : '100%',
+                  }}
+                >
+                  {threadId ? (
+                    <ComposeChat
+                      threadId={threadId}
+                      sendBlocked={sendBlocked}
+                      hotText={pack.text}
+                      hotTokens={pack.estimatedTokens}
+                    />
+                  ) : null}
+                </div>
+                {draftDrawerOpen ? (
+                  <>
+                    <DraftSplitHandle />
+                    <div
+                      className="min-w-0 min-h-0 flex flex-col border-l border-[var(--color-border-faint)]"
+                      style={{
+                        flexGrow: draftDrawerWidthPct,
+                        flexShrink: 1,
+                        flexBasis: 0,
+                      }}
+                    >
+                      <DraftDrawer />
+                    </div>
+                  </>
                 ) : null}
-                <DraftDrawer />
               </div>
             </div>
           )}
