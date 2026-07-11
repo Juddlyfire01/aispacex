@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { containsUrl } from '../../lib/compose/tweet-length'
 import {
@@ -29,7 +29,6 @@ export function PostComposer({ threadId }: PostComposerProps) {
   const preferredFormat = useComposeStore((s) => s.preferredFormat)
   const resetDraft = useComposeStore((s) => s.resetDraft)
   const { connected, isVerified } = useComposeVerified()
-  const prevPreferredFormat = useRef(preferredFormat)
 
   useEffect(() => {
     const current = useComposeStore.getState().threads[threadId]
@@ -51,21 +50,22 @@ export function PostComposer({ threadId }: PostComposerProps) {
     })
   }, [preferredFormat, threadId, applyDraftPatch])
 
-  // Clear stale article when leaving article preference (unless draft still resolves as article).
+  // Clear stale article on explicit non-article shapes. Auto keeps article when
+  // the draft still resolves as article.
   useEffect(() => {
-    const prev = prevPreferredFormat.current
-    prevPreferredFormat.current = preferredFormat
-    if (prev === 'article' && preferredFormat !== 'article') {
-      const current = useComposeStore.getState().threads[threadId]
-      if (!current?.draft.article) return
-      // Keep article data if title/body already filled and preference is auto —
-      // only clear when switching to an explicit non-article shape.
-      if (preferredFormat === 'auto') return
-      applyDraftPatch(
-        threadId,
-        clearArticleIfStale({ longform: preferredFormat === 'longform' }, preferredFormat),
-      )
+    if (
+      preferredFormat !== 'post' &&
+      preferredFormat !== 'thread' &&
+      preferredFormat !== 'longform'
+    ) {
+      return
     }
+    const current = useComposeStore.getState().threads[threadId]
+    if (!current?.draft.article) return
+    applyDraftPatch(
+      threadId,
+      clearArticleIfStale({ longform: preferredFormat === 'longform' }, preferredFormat),
+    )
   }, [preferredFormat, threadId, applyDraftPatch])
 
   if (!thread) {

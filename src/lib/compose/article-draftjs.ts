@@ -145,6 +145,7 @@ function pushImageBlock(
 /**
  * Convert article markdown to X Articles DraftJS `content_state`.
  * v1: paragraphs, headers, lists, links, media:LOCAL_ID images. Unsupported syntax is stripped.
+ * Soft-wrapped lines (single newlines) join into one paragraph; blank lines split paragraphs.
  */
 export function markdownToContentState(
   md: string,
@@ -156,19 +157,31 @@ export function markdownToContentState(
   const nextEntityKey = () => entityCounter++
 
   const lines = (md ?? '').replace(/\r\n/g, '\n').split('\n')
+  let pendingParagraph: string[] = []
+
+  const flushParagraph = () => {
+    if (pendingParagraph.length === 0) return
+    pushTextBlock(blocks, entities, nextEntityKey, pendingParagraph.join(' '), 'unstyled')
+    pendingParagraph = []
+  }
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed) continue
+    if (!trimmed) {
+      flushParagraph()
+      continue
+    }
 
     const imageMatch = trimmed.match(IMAGE_ONLY_RE)
     if (imageMatch) {
+      flushParagraph()
       pushImageBlock(blocks, entities, nextEntityKey, imageMatch[1], imageMatch[2].trim(), opts?.images)
       continue
     }
 
     const headerMatch = trimmed.match(HEADER_RE)
     if (headerMatch) {
+      flushParagraph()
       const level = headerMatch[1].length
       const type: DraftJsBlock['type'] =
         level === 1 ? 'header-one' : level === 2 ? 'header-two' : 'header-three'
@@ -178,24 +191,29 @@ export function markdownToContentState(
 
     const ulMatch = trimmed.match(UL_RE)
     if (ulMatch) {
+      flushParagraph()
       pushTextBlock(blocks, entities, nextEntityKey, ulMatch[1], 'unordered-list-item')
       continue
     }
 
     const olMatch = trimmed.match(OL_RE)
     if (olMatch) {
+      flushParagraph()
       pushTextBlock(blocks, entities, nextEntityKey, olMatch[1], 'ordered-list-item')
       continue
     }
 
     const bqMatch = trimmed.match(BLOCKQUOTE_RE)
     if (bqMatch) {
+      flushParagraph()
       pushTextBlock(blocks, entities, nextEntityKey, bqMatch[1], 'blockquote')
       continue
     }
 
-    pushTextBlock(blocks, entities, nextEntityKey, trimmed, 'unstyled')
+    pendingParagraph.push(trimmed)
   }
+
+  flushParagraph()
 
   return { blocks, entities }
 }

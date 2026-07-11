@@ -8,6 +8,11 @@ describe('markdownToContentState', () => {
     expect(cs.blocks.every((b) => b.type === 'unstyled')).toBe(true)
   })
 
+  it('soft-wraps consecutive lines into one paragraph until a blank line', () => {
+    const cs = markdownToContentState('Line one\nLine two\n\nNext para')
+    expect(cs.blocks.map((b) => b.text)).toEqual(['Line one Line two', 'Next para'])
+  })
+
   it('maps # / ## / ### headers', () => {
     const cs = markdownToContentState('# A\n## B\n### C')
     expect(cs.blocks.map((b) => b.type)).toEqual([

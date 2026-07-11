@@ -17,7 +17,7 @@ import {
   type DraftWriteBrief,
 } from '../lib/compose/draft-writer-tool'
 import { runDraftWriter, splitWriterSegments, parseArticleFromWriterText } from '../lib/compose/draft-writer'
-import { emptyArticleDraft, emptySegment } from '../lib/compose/types'
+import { emptyArticleDraft, emptySegment, type PostDraft } from '../lib/compose/types'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
@@ -358,7 +358,9 @@ export function useCompose() {
             ...brief,
             preferredFormat: brief.preferredFormat ?? preferredFormat,
           }
-          const wantsArticle = writerBrief.preferredFormat === 'article'
+          const prefFormat = writerBrief.preferredFormat ?? preferredFormat
+          const wantsArticle = prefFormat === 'article'
+          const allowArticleHeuristic = prefFormat === 'auto' || prefFormat === 'article'
           const s0 = useComposeStore.getState()
           s0.setDraftDrawerOpen(true)
           const seg = emptySegment()
@@ -367,9 +369,12 @@ export function useCompose() {
             ...(writerBrief.target ? { target: writerBrief.target } : {}),
             ...(wantsArticle
               ? { article: emptyArticleDraft(), longform: false }
-              : typeof writerBrief.longform === 'boolean'
-                ? { longform: writerBrief.longform }
-                : {}),
+              : {
+                  article: undefined,
+                  ...(typeof writerBrief.longform === 'boolean'
+                    ? { longform: writerBrief.longform }
+                    : {}),
+                }),
           })
 
           let accumulated = ''
@@ -415,13 +420,17 @@ export function useCompose() {
                 text,
                 media: [] as { id: string; kind: 'image' | 'video' | 'gif' }[],
               }))
-              useComposeStore.getState().applyDraftPatch(threadId, { segments: stable })
+              useComposeStore.getState().applyDraftPatch(threadId, {
+                segments: stable,
+                article: undefined,
+              })
             },
           })
             .then((finalText) => {
               const store = useComposeStore.getState()
               const text = finalText || accumulated
-              const looksLikeArticle = /^#\s+\S/.test(text.trim())
+              const looksLikeArticle =
+                allowArticleHeuristic && /^#\s+\S/.test(text.trim())
               if (wantsArticle || looksLikeArticle) {
                 applyArticleText(text)
                 store.updateAgentEvent(writerEventId, {
@@ -441,8 +450,9 @@ export function useCompose() {
                   : [{ ...seg, text: accumulated }]
               const isVerified = getActiveAccountVerified()
               const pref = store.longformPreference
-              const patch = {
+              const patch: Partial<PostDraft> = {
                 segments,
+                article: undefined,
                 ...(brief.target ? { target: brief.target } : {}),
                 ...(typeof brief.longform === 'boolean' ? { longform: brief.longform } : {}),
               }

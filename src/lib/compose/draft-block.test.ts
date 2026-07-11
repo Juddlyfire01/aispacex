@@ -84,4 +84,38 @@ Let me know if you want changes.`
     expect(result.draft?.segments).toHaveLength(1)
     expect(result.draft?.longform).toBeUndefined()
   })
+
+  it('clears article when format is post|thread|longform even if article payload present', () => {
+    for (const format of ['post', 'thread', 'longform'] as const) {
+      const result = parseDraftBlock(
+        `\`\`\`postdraft\n{ "format": "${format}", "segments": [{ "text": "hi" }], "article": { "title": "Stale", "bodyMarkdown": "Keep?" } }\n\`\`\``,
+      )
+      expect(result.draft).not.toBeNull()
+      expect('article' in result.draft!).toBe(true)
+      expect(result.draft!.article).toBeUndefined()
+      expect(result.draft?.segments?.[0].text).toBe('hi')
+    }
+  })
+
+  it('clears article when segments present without usable article payload', () => {
+    const result = parseDraftBlock(
+      '```postdraft\n{ "segments": [{ "text": "just a post" }], "article": { "title": "", "bodyMarkdown": "" } }\n```',
+    )
+    expect(result.draft).not.toBeNull()
+    expect('article' in result.draft!).toBe(true)
+    expect(result.draft!.article).toBeUndefined()
+    expect(result.draft?.segments?.[0].text).toBe('just a post')
+  })
+
+  it('keeps article when format is article or usable article payload without non-article format', () => {
+    const withFormat = parseDraftBlock(
+      '```postdraft\n{ "format": "article", "article": { "title": "T", "bodyMarkdown": "B" } }\n```',
+    )
+    expect(withFormat.draft?.article?.title).toBe('T')
+
+    const payloadOnly = parseDraftBlock(
+      '```postdraft\n{ "article": { "title": "Only", "bodyMarkdown": "Body" }, "segments": [] }\n```',
+    )
+    expect(payloadOnly.draft?.article?.title).toBe('Only')
+  })
 })

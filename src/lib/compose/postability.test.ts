@@ -48,17 +48,31 @@ describe('classifyPostability', () => {
 
   it('posts articles natively via the Articles API path', () => {
     expect(classifyPostability(withArticle(), caps)).toEqual({ mode: 'api' })
+    expect(classifyPostability(withArticle(), caps, undefined, true)).toEqual({ mode: 'api' })
+  })
+
+  it('routes articles to copy when account is not verified', () => {
+    const result = classifyPostability(withArticle(), caps, undefined, false)
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/verified/i)
+  })
+
+  it('routes preferredFormat article to copy when not verified', () => {
+    const draft = emptyDraft({ kind: 'original' })
+    const result = classifyPostability(draft, caps, 'article', false)
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/verified/i)
   })
 
   it('posts preferredFormat article natively even when draft.article is empty', () => {
     const draft = emptyDraft({ kind: 'original' })
-    expect(classifyPostability(draft, caps, 'article')).toEqual({ mode: 'api' })
+    expect(classifyPostability(draft, caps, 'article', true)).toEqual({ mode: 'api' })
   })
 
   it('prefers article api mode over reply/quote copy for article drafts', () => {
     const draft = emptyDraft({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
     draft.article = { ...emptyArticleDraft(), title: 'Hello', bodyMarkdown: 'World' }
-    expect(classifyPostability(draft, caps)).toEqual({ mode: 'api' })
+    expect(classifyPostability(draft, caps, undefined, true)).toEqual({ mode: 'api' })
   })
 
   it('does not treat auto preference as article without article content', () => {

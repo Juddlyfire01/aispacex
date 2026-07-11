@@ -137,8 +137,14 @@ export function parseDraftBlock(assistantContent: string): ParsedDraftBlock {
 
   const format = coerceString(parsed.format)
   const article = normalizeArticle(parsed.article)
-  if (format === 'article' || article) {
+  const nonArticleFormat = format === 'post' || format === 'thread' || format === 'longform'
+  if (nonArticleFormat) {
+    // Explicit clear so applyDraftPatch cannot leave a stale article merged in.
+    draft.article = undefined
+  } else if (format === 'article' || article) {
     draft.article = article ?? emptyArticleDraft()
+  } else if (segments.length > 0) {
+    draft.article = undefined
   }
 
   if (format === 'post') {

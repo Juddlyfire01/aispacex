@@ -37,14 +37,17 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   if (!thread) return null
 
   const { draft } = thread
-  const postability = classifyPostability(draft, CAPS, preferredFormat)
+  const postability = classifyPostability(draft, CAPS, preferredFormat, isVerified)
   const isArticle =
     preferredFormat === 'article' || resolveDraftFormat(draft) === 'article'
   const longform = effectiveLongform(draft.longform, isVerified)
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
   const overLimit = isArticle ? false : draft.segments.some((s) => tweetLength(s.text) > limit)
   const empty = isArticle
-    ? !(draft.article?.title.trim() || draft.article?.bodyMarkdown.trim())
+    ? !(
+        !!draft.article?.title.trim() &&
+        (!!draft.article.bodyMarkdown.trim() || draft.article.inlineMedia.length > 0)
+      )
     : draft.segments.every((s) => s.text.trim() === '' && s.media.length === 0)
   const blocked = empty || overLimit
 

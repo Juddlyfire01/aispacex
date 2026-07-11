@@ -28,12 +28,19 @@ const MEDIA_REASON =
  * natively; replies and quotes are copy-only per X PAYG rules; segment media
  * routes to copy until native upload is enabled.
  */
+const ARTICLE_UNVERIFIED_REASON =
+  'Articles require a verified X account — Copy to X for now.'
+
 export function classifyPostability(
   draft: PostDraft,
   caps: PostabilityCaps,
   preferredFormat?: PreferredFormat,
+  isVerified?: boolean,
 ): Postability {
   if (preferredFormat === 'article' || resolveDraftFormat(draft) === 'article') {
+    if (isVerified === false) {
+      return { mode: 'copy', reason: ARTICLE_UNVERIFIED_REASON }
+    }
     return { mode: 'api' }
   }
   if (draft.target.kind === 'reply') return { mode: 'copy', reason: REPLY_REASON }
