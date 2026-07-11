@@ -73,8 +73,21 @@ describe('buildComposeSystem', () => {
       draftHandoff: true,
     })
     expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/Do NOT append a postdraft fence/i)
+    expect(system).toMatch(/Do not skip it/i)
+    expect(system).toMatch(/NEVER paste the full draft/i)
     expect(system).not.toMatch(/```postdraft\n/)
+  })
+
+  it('adds article handoff lock when preferredFormat is article', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      draftHandoff: true,
+      preferredFormat: 'article',
+    })
+    expect(system).toMatch(/ARTICLE MODE LOCK/)
+    expect(system).toMatch(/Forbidden in chat/i)
   })
 
   it('includes postdraft block spec when not handoff', () => {

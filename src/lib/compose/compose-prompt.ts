@@ -45,16 +45,23 @@ Citations:
 - In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
 - In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
-const HANDOFF_DRAFT_SPEC = `Post drafting (hand off — required when the user wants publishable X copy):
-When the user asks for post/reply/quote/thread/article/long-form copy, or an update to draft text for X, call the compose_write_draft tool with a dense brief (angle, key facts/metrics, @handles, constraints, optional cover image prompt). A separate draft-writer model will fill the draft drawer while you continue chatting.
+const HANDOFF_DRAFT_SPEC = `Drafting for X (REQUIRED tool handoff — non-negotiable):
+When the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article), or says to draft / rewrite / use the draft tool, you MUST call the compose_write_draft tool with a dense brief.
 
-Rules:
-- Do NOT append a postdraft fence yourself. Never invent one.
-- Do NOT paste the full draft into chat — hand off via the tool so the drawer owns the copy.
-- After calling compose_write_draft, continue your normal prose reply (short confirmation, rationale, options). Mention that the draft is writing in the drawer only if natural — do not narrate tool mechanics.
-- Respect the user's Preferred format. If it is Article, still call compose_write_draft (do not set longform:true — Articles ≠ Premium long-form tweets). Put any image/cover prompt in the brief as a separate note, not as the article body.
-- Do not offer to draft unless the user asked for writing, a post, a reply, a thread, an article, or similar.
-- Still use intel_* / compose_history_* for research as needed before or after the draft handoff.`
+HARD RULES — violating these breaks the product:
+1. Call compose_write_draft. Do not skip it.
+2. NEVER paste the full draft, article body, thread posts, or image prompt into chat. The draft drawer owns the copy.
+3. NEVER emit a \`\`\`postdraft fence. Never invent one.
+4. Chat reply after the tool call must stay SHORT: confirmation + light rationale/options only (a few sentences). No full manuscript in chat.
+5. Respect Preferred format. If it is Article: still call compose_write_draft; do NOT set longform:true (Articles ≠ Premium long-form tweets). Put any cover/image prompt in the brief as a separate note labeled "Image prompt".
+6. Do not offer to draft unless the user asked for writing/copy. Analysis-only answers need no tool call.
+7. Use intel_* / compose_history_* for research before or after the handoff as needed.`
+
+const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE LOCK (user Preferred format = Article + draft writer enabled):
+- Any request to draft/write/revise an article MUST go through compose_write_draft.
+- Forbidden in chat: the article title+body, sectioned essay, or image prompt text.
+- Allowed in chat: brief status ("Draft is writing into the drawer…") and questions/edits about direction.
+- If you already researched facts, put them in the tool brief — do not reprint the article in the assistant message.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
 Only when the user asks for post/reply/quote/thread/article copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
@@ -155,7 +162,14 @@ Style:
     parts.push(opts.registerInject.trim())
   }
 
-  parts.push(opts.draftHandoff ? HANDOFF_DRAFT_SPEC : BLOCK_SPEC)
+  if (opts.draftHandoff) {
+    parts.push(HANDOFF_DRAFT_SPEC)
+    if (opts.preferredFormat === 'article') {
+      parts.push(ARTICLE_HANDOFF_LOCK)
+    }
+  } else {
+    parts.push(BLOCK_SPEC)
+  }
   return parts.join('\n\n')
 }
 

@@ -70,6 +70,11 @@ export interface ComposeAgentOpts {
    */
   onDraftHandoff?: (brief: DraftWriteBrief) => void
   /**
+   * Force the first round to call compose_write_draft (Article draft intents).
+   * Later rounds use tool_choice auto so research tools still work after handoff.
+   */
+  forceDraftHandoff?: boolean
+  /**
    * Fired when a round ends in tool_calls after any content was streamed —
    * clear the assistant placeholder so tool activity UI can take over.
    * Also fired early when the first tool_call appears mid-stream.
@@ -158,6 +163,7 @@ async function streamComposeRound(
   opts: ComposeAgentOpts,
   messages: ChatMessage[],
   tools: ToolDefinition[],
+  toolChoice: 'auto' | { type: 'function'; function: { name: string } } = 'auto',
 ): Promise<StreamedRound> {
   const webSearch = opts.webSearch ?? 'off'
   const webSearchEnabled = webSearch !== 'off'
@@ -172,7 +178,7 @@ async function streamComposeRound(
       temperature: 0.6,
       max_tokens: 4096,
       tools,
-      tool_choice: 'auto',
+      tool_choice: toolChoice,
       venice_parameters: {
         enable_x_search: opts.xSearchOn,
         enable_web_search: webSearch,
@@ -271,8 +277,16 @@ export async function runComposeAgent(
 
     opts.onRoundStart?.(round + 1)
 
+    const toolChoice =
+      round === 0 && opts.forceDraftHandoff && handoff
+        ? {
+            type: 'function' as const,
+            function: { name: COMPOSE_WRITE_DRAFT_TOOL_NAME },
+          }
+        : ('auto' as const)
+
     const { content, toolCalls: callEntries, contentResetFired, usage } =
-      await streamComposeRound(opts, messages, tools)
+      await streamComposeRound(opts, messages, tools, toolChoice)
 
     useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
 
