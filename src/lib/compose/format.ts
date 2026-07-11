@@ -24,7 +24,7 @@ export function clearArticleIfStale<T extends Partial<PostDraft>>(
   patch: T,
   nextResolved: ResolvedFormat,
 ): T {
-  if (nextResolved !== 'article' && patch.article !== undefined) {
+  if (nextResolved !== 'article') {
     return { ...patch, article: undefined }
   }
   return patch

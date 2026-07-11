@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { resolveDraftFormat, PREFERRED_FORMATS } from './format'
-import { emptyDraft, emptySegment } from './types'
+import { resolveDraftFormat, PREFERRED_FORMATS, clearArticleIfStale } from './format'
+import { emptyDraft, emptySegment, emptyArticleDraft } from './types'
 
 describe('resolveDraftFormat', () => {
   it('resolves article when title or body present', () => {
@@ -37,5 +37,24 @@ describe('PREFERRED_FORMATS', () => {
       'longform',
       'article',
     ])
+  })
+})
+
+describe('clearArticleIfStale', () => {
+  it('sets article undefined on non-article resolve even when patch omits article', () => {
+    const patch = { longform: false }
+    expect(clearArticleIfStale(patch, 'post')).toEqual({ longform: false, article: undefined })
+    expect(clearArticleIfStale(patch, 'thread')).toEqual({ longform: false, article: undefined })
+    expect(clearArticleIfStale(patch, 'longform')).toEqual({
+      longform: false,
+      article: undefined,
+    })
+  })
+
+  it('preserves patch.article when nextResolved is article', () => {
+    const article = emptyArticleDraft()
+    article.title = 'Keep me'
+    const patch = { article }
+    expect(clearArticleIfStale(patch, 'article')).toEqual({ article })
   })
 })
