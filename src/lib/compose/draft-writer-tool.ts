@@ -25,7 +25,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Hand off post/reply/quote/thread/article/long-form copy to the draft writer model. Call when the user wants publishable X text. Pass a dense brief (angle, key facts, handles, constraints, optional cover image prompt). Do NOT emit a postdraft fence yourself — the writer fills the draft drawer. When the user prefers Articles, still call this tool; do not paste the full article into chat.',
+      'Write publishable X copy into the Draft drawer via the draft-writer model. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Pass a dense brief (not the full manuscript). Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
     parameters: {
       type: 'object',
       properties: {

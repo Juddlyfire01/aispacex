@@ -5,10 +5,7 @@ import { useXSelfStore } from '../stores/x-self-store'
 import { useXIntelStore } from '../stores/x-intel-store'
 import { buildComposeSystem, buildHotUserPrefix } from '../lib/compose/compose-prompt'
 import { parseDraftBlock } from '../lib/compose/draft-block'
-import {
-  looksLikeDraftIntent,
-  salvageLeakedArticleFromChat,
-} from '../lib/compose/article-handoff'
+import { looksLikeDraftIntent } from '../lib/compose/article-handoff'
 import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
 import {
   isRegisterPackEmpty,
@@ -696,7 +693,6 @@ export function useCompose() {
         flushPendingDelta(threadId)
 
         // Finalize: strip ```postdraft into the draft drawer; keep clean prose in chat.
-        // If handoff is on and the model dumped a full article into chat anyway, salvage it.
         const finishedStore = useComposeStore.getState()
         if (content) {
           const { draft, visibleText } = parseDraftBlock(content)
@@ -708,27 +704,6 @@ export function useCompose() {
             finishedStore.applyDraftPatch(threadId, gated ? { ...withPref, ...gated } : withPref)
             finishedStore.setDraftDrawerOpen(true)
             finishedStore.setLastAssistantContent(threadId, visibleText || 'Draft updated.')
-          } else if (handoff) {
-            const preferArticle = preferredFormat === 'article'
-            const salvaged = salvageLeakedArticleFromChat(content)
-            const shouldSalvage =
-              salvaged &&
-              (preferArticle ||
-                preferredFormat === 'auto' ||
-                // Explicit non-article prefs: only salvage if it clearly looks like an article dump
-                (salvaged.article.bodyMarkdown.length > 1200 && Boolean(salvaged.article.title)))
-            if (shouldSalvage && salvaged) {
-              finishedStore.applyDraftPatch(threadId, {
-                article: salvaged.article,
-                longform: false,
-                target: { kind: 'original' },
-                segments: [emptySegment()],
-              })
-              finishedStore.setDraftDrawerOpen(true)
-              finishedStore.setLastAssistantContent(threadId, salvaged.chatMessage)
-            } else {
-              finishedStore.setLastAssistantContent(threadId, content)
-            }
           } else {
             finishedStore.setLastAssistantContent(threadId, content)
           }

@@ -45,24 +45,23 @@ Citations:
 - In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
 - In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
-const HANDOFF_DRAFT_SPEC = `Drafting for X (REQUIRED tool handoff — non-negotiable):
-When the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article), or says to draft / rewrite / use the draft tool, you MUST call the compose_write_draft tool with a dense brief.
+const HANDOFF_DRAFT_SPEC = `Drafting for X — use the compose_write_draft tool (required when drafting):
+Call compose_write_draft ONLY when the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article) or says to draft / rewrite / revise / use the draft tool.
 
-HARD RULES — violating these breaks the product:
-1. Call compose_write_draft. Do not skip it.
-2. NEVER paste the full draft, article body, thread posts, or image prompt into chat. The draft drawer owns the copy.
-3. NEVER emit a \`\`\`postdraft fence. Never invent one.
-4. Chat reply after the tool call must stay SHORT: confirmation + light rationale/options only (a few sentences). No full manuscript in chat.
-5. Respect Preferred format. If it is Article: still call compose_write_draft; do NOT set longform:true (Articles ≠ Premium long-form tweets). Do NOT put image/cover prompts in the writer brief as manuscript text — after the tool call, surface any image prompt in your short chat reply (or a follow-up turn).
-6. Do not offer to draft unless the user asked for writing/copy. Analysis-only answers need no tool call.
-7. Use intel_* / compose_history_* for research before or after the handoff as needed.`
+Do NOT call compose_write_draft for research, analysis, finding posts, suggesting reply targets, outlining ideas, or answering questions. Answer those in chat with intel_*/compose_history_*/search as needed.
 
-const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE LOCK (user Preferred format = Article + draft writer enabled):
-- Any request to draft/write/revise an article MUST go through compose_write_draft.
-- Forbidden in chat: the full article title+body or a sectioned essay manuscript.
-- Allowed in chat: brief status ("Draft is writing into the drawer…"), direction questions, and — on a separate beat — an image/cover prompt if the user asked for one.
-- Never force an image prompt into the article body or a draft-drawer field; keep prompts in chat.
-- If you already researched facts, put them in the tool brief — do not reprint the article in the assistant message.`
+When you do call it:
+1. Pass a dense brief (facts, angle, handles, constraints). For Articles: section outline; never set longform:true (Articles ≠ Premium long-form tweets).
+2. NEVER paste the full draft/article/thread into chat. The draft drawer owns the copy.
+3. NEVER emit a \`\`\`postdraft fence.
+4. Chat after the tool stays SHORT: status + light options only.
+5. Image/cover prompts belong in chat (after handoff), not in the writer brief or article body.
+6. Do not offer to draft unless the user asked for writing/copy.`
+
+const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
+- Drafting/revising an article → call compose_write_draft (not chat paste).
+- Research / find-a-post / reply-target questions → answer in chat; do NOT call compose_write_draft and do NOT dump a manuscript into chat.
+- Image/cover prompts stay in chat, never in article body.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
 Only when the user asks for post/reply/quote/thread/article copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
@@ -95,17 +94,23 @@ Rules for the block:
 - Put your normal reply BEFORE the block as prose. Never mention the block itself to the user.
 - Do not offer to draft or revise a post unless the user asked for writing, a post, a reply, a thread, or similar. Analysis and research answers should end without a draft pitch.`
 
-const TOOLS_SPEC = `Local intel access:
-- Prefer the HOT WINDOW attached to the latest user message for recent, in-scope posts and summaries. Ground analysis in that first.
-- For deeper, older, or cross-subject lookup, call the intel_* tools (list subjects, glob paths, grep, get profile/posts/report/edges). Use tools surgically — ids, date ranges, and handles from prior hits — never dump the full library.
-- Never invent post ids or handles. Only use ids/handles returned by tools or present in the hot window.
-- If a tool returns empty or no matching data, say so plainly rather than fabricating posts or metrics.
-- Do not try to reconstruct the entire corpus via tools; fetch only what you need for the current turn.
+const TOOLS_SPEC = `Tools — pick the right one; do not invent others:
 
-Compose history access:
-- Prefer the active chat transcript already in this conversation. It is the source of truth for the current thread.
-- For prior compose threads (other chats), use compose_history_* tools (list, glob, grep, get). Paths look like history/{me|all|target/@user}/{threadId}.
-- Never invent thread ids. Only use thread ids returned by compose_history_* tools.`
+Research / intel (library):
+- intel_* — list subjects, glob, grep, get profile/posts/report/edges from the local X intel library. Prefer the HOT WINDOW on the latest user message first; use tools for deeper/older/cross-subject lookup. Surgical queries only — never dump the corpus. Never invent post ids or handles.
+
+Compose history:
+- compose_history_* — list/glob/grep/get prior compose threads (paths like history/{me|all|target/@user}/{threadId}). Never invent thread ids.
+
+Search (when enabled in settings):
+- Live web search and/or X search — fresher public context than the local library.
+
+Rules:
+- If a tool returns empty, say so; do not fabricate.
+- Analysis and "find a post to reply to" stay in chat.`
+
+const HANDOFF_TOOLS_EXTRA = `Drafting tool:
+- compose_write_draft — hands a brief to the draft writer; fills the Draft drawer. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting.`
 
 export function buildComposeSystem(opts: ComposeSystemOpts): string {
   const modelId = opts.modelId.trim() || 'unknown-model'
@@ -157,6 +162,7 @@ Style:
 
   if (opts.toolsEnabled) {
     parts.push(TOOLS_SPEC)
+    if (opts.draftHandoff) parts.push(HANDOFF_TOOLS_EXTRA)
   }
 
   if (opts.registerInject?.trim()) {

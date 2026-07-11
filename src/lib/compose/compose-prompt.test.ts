@@ -37,7 +37,7 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/Never invent post ids/i)
     expect(on).toMatch(/compose_history_\*/)
     expect(on).toMatch(/Never invent thread ids/i)
-    expect(on).toMatch(/active chat transcript/i)
+    expect(on).not.toMatch(/compose_write_draft/)
   })
 
   it('xSearchOn adds live X search capability blurb', () => {
@@ -73,12 +73,12 @@ describe('buildComposeSystem', () => {
       draftHandoff: true,
     })
     expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/Do not skip it/i)
+    expect(system).toMatch(/ONLY when the user asks/i)
     expect(system).toMatch(/NEVER paste the full draft/i)
     expect(system).not.toMatch(/```postdraft\n/)
   })
 
-  it('adds article handoff lock when preferredFormat is article', () => {
+  it('adds article mode rules when preferredFormat is article', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
@@ -86,8 +86,8 @@ describe('buildComposeSystem', () => {
       draftHandoff: true,
       preferredFormat: 'article',
     })
-    expect(system).toMatch(/ARTICLE MODE LOCK/)
-    expect(system).toMatch(/Forbidden in chat/i)
+    expect(system).toMatch(/ARTICLE MODE/)
+    expect(system).toMatch(/find-a-post|reply-target/i)
   })
 
   it('includes postdraft block spec when not handoff', () => {
