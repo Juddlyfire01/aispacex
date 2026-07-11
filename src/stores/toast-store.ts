@@ -108,7 +108,7 @@ export const toast = {
       title,
       description,
       progress: 1,
-      progressLabel: undefined,
+      progressLabel: 'Complete',
       duration: 4500,
     }),
   /** Turn a progress toast into an error toast that auto-dismisses. */
@@ -117,8 +117,8 @@ export const toast = {
       variant: 'error',
       title,
       description,
-      progress: undefined,
-      progressLabel: undefined,
+      progress: 1,
+      progressLabel: 'Failed',
       duration: 6500,
     }),
 }

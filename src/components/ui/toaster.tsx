@@ -48,29 +48,36 @@ export function Toaster() {
       aria-label="Notifications"
     >
       {toasts.map((t) => {
-        const showBar = t.variant === 'progress' || (t.variant === 'success' && t.progress === 1)
+        const isJobToast = typeof t.progress === 'number' || t.variant === 'progress'
+        const labelText =
+          t.progressLabel ??
+          (t.variant === 'success' ? 'Complete' : t.variant === 'error' ? 'Failed' : null)
         return (
           <div
             key={t.id}
             role={t.variant === 'error' ? 'alert' : 'status'}
             className={cn(
-              // Fixed width so progress-label churn does not grow/shrink the toast.
-              'pointer-events-auto w-80 rounded-lg border px-3.5 py-2.5 shadow-xl shadow-black/60 backdrop-blur-md animate-scale-in',
+              'pointer-events-auto box-border w-80 rounded-lg border px-3.5 py-2.5 shadow-xl shadow-black/60 backdrop-blur-md animate-scale-in',
+              // Job toasts keep a stable footprint from progress → ready/fail.
+              isJobToast && 'min-h-[6.75rem]',
               VARIANT_STYLES[t.variant],
             )}
           >
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <div className={cn('text-[13.5px] font-medium', VARIANT_TITLE[t.variant])}>{t.title}</div>
-                {t.description && (
-                  <div className="text-[12.5px] text-[var(--color-text-secondary)] mt-0.5 leading-relaxed break-words">
-                    {t.description}
+                <div className={cn('text-[13.5px] font-medium truncate', VARIANT_TITLE[t.variant])}>{t.title}</div>
+                {(t.description || isJobToast) && (
+                  <div className={cn(
+                    'text-[12.5px] text-[var(--color-text-secondary)] mt-0.5 leading-relaxed break-words',
+                    isJobToast && 'min-h-[1.25rem]',
+                  )}>
+                    {t.description ?? '\u00a0'}
                   </div>
                 )}
-                {showBar && typeof t.progress === 'number' && <ProgressBar value={t.progress} />}
-                {t.variant === 'progress' && t.progressLabel && (
-                  <div className="text-[11.5px] text-[var(--color-text-tertiary)] mt-1.5 tabular-nums truncate">
-                    {t.progressLabel}
+                {isJobToast && typeof t.progress === 'number' && <ProgressBar value={t.progress} />}
+                {isJobToast && (
+                  <div className="text-[11.5px] text-[var(--color-text-tertiary)] mt-1.5 h-[1.125rem] tabular-nums truncate">
+                    {labelText ?? '\u00a0'}
                   </div>
                 )}
                 {t.action && (

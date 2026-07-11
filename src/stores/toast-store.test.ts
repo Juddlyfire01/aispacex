@@ -33,6 +33,7 @@ describe('toast store progress lifecycle', () => {
     expect(done.variant).toBe('success')
     expect(done.title).toBe('Report ready')
     expect(done.progress).toBe(1)
+    expect(done.progressLabel).toBe('Complete')
     expect(done.duration).toBe(4500)
 
     vi.advanceTimersByTime(4500)
@@ -45,7 +46,8 @@ describe('toast store progress lifecycle', () => {
     const failed = useToastStore.getState().toasts[0]
     expect(failed.variant).toBe('error')
     expect(failed.description).toBe('Venice timed out')
-    expect(failed.progress).toBeUndefined()
+    expect(failed.progress).toBe(1)
+    expect(failed.progressLabel).toBe('Failed')
 
     vi.advanceTimersByTime(6500)
     expect(useToastStore.getState().toasts).toHaveLength(0)
