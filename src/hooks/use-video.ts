@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { blobFromUrl } from '../lib/media-blob'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import type { VideoQueueRequest, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
 
@@ -12,7 +13,7 @@ function isPermanentError(err: unknown): boolean {
 
 export function useVideo() {
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [completedBlob, setCompletedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[] | null>(null)
@@ -22,7 +23,6 @@ export function useVideo() {
   const requestIdRef = useRef<string | null>(null)
   const modelRef = useRef<string | null>(null)
   const downloadUrlRef = useRef<string | null>(null)
-  const videoUrlRef = useRef<string | null>(null)
   const startedAtRef = useRef<number | null>(null)
   const attemptsRef = useRef(0)
   const cancelledRef = useRef(false)
@@ -33,6 +33,12 @@ export function useVideo() {
   }, [])
 
   useEffect(() => () => stopPolling(), [stopPolling])
+
+  const finishWithBlob = useCallback((blob: Blob) => {
+    setCompletedBlob(blob)
+    setStatus('completed')
+    stopPolling()
+  }, [stopPolling])
 
   const startPolling = useCallback(() => {
     attemptsRef.current = 0
@@ -57,8 +63,6 @@ export function useVideo() {
         //  - JSON {status:"PROCESSING"} while still processing
         //  - JSON {status:"COMPLETED",...} for VPS-backed models (fetch download_url)
         //  - binary video/mp4 for non-VPS models once complete
-        // So we grab the raw Response and branch on Content-Type rather than
-        // calling res.json() unconditionally (which breaks on the binary case).
         const res = await veniceFetch('/video/retrieve', {
           method: 'POST',
           body: JSON.stringify({ model: modelRef.current, queue_id: requestIdRef.current, delete_media_on_completion: true }),
@@ -66,13 +70,8 @@ export function useVideo() {
         const contentType = res.headers.get('content-type') ?? ''
 
         if (contentType.startsWith('video/')) {
-          // Non-VPS model: the body IS the completed MP4.
           const blob = await res.blob()
-          const url = URL.createObjectURL(blob)
-          videoUrlRef.current = url
-          setVideoUrl(url)
-          setStatus('completed')
-          stopPolling()
+          finishWithBlob(blob)
           return
         }
 
@@ -81,15 +80,19 @@ export function useVideo() {
         setStatus(s ?? 'processing')
 
         if (s === 'completed') {
-          // VPS-backed models return a download_url at queue time; the retrieve
-          // response itself just signals completion.
           const url = result.video_url || downloadUrlRef.current
-          if (url) {
-            videoUrlRef.current = url
-            setVideoUrl(url)
-            stopPolling()
-          } else {
+          if (!url) {
             setError('Generation completed but no video URL was returned.')
+            setStatus('failed')
+            stopPolling()
+            return
+          }
+          try {
+            const blob = await blobFromUrl(url)
+            if (cancelledRef.current) return
+            finishWithBlob(blob.type ? blob : new Blob([blob], { type: 'video/mp4' }))
+          } catch (fetchErr) {
+            setError(fetchErr instanceof Error ? fetchErr.message : 'Failed to download completed video')
             setStatus('failed')
             stopPolling()
           }
@@ -98,22 +101,19 @@ export function useVideo() {
           stopPolling()
         }
       } catch (err) {
-        // Permanent client errors (e.g. 400 "Model is required") must not be
-        // retried for 10 minutes — surface them immediately.
         if (isPermanentError(err)) {
           stopPolling()
           setError(err instanceof Error ? err.message : 'Polling failed')
           setStatus('failed')
           return
         }
-        // Transient failure — keep polling unless we've burned through too many attempts.
         if (attemptsRef.current >= MAX_ATTEMPTS) {
           setError(err instanceof Error ? err.message : 'Polling failed')
           stopPolling()
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [stopPolling])
+  }, [finishWithBlob, stopPolling])
 
   const queueMutation = useMutation({
     mutationFn: (req: VideoQueueRequest) =>
@@ -127,8 +127,7 @@ export function useVideo() {
       requestIdRef.current = data.queue_id || data.id || ''
       downloadUrlRef.current = data.download_url ?? null
       setStatus('queued')
-      setVideoUrl(null)
-      videoUrlRef.current = null
+      setCompletedBlob(null)
       setError(null)
       setSuggestedPrompt(null)
       setIssues(null)
@@ -154,27 +153,28 @@ export function useVideo() {
     setError(null)
     setSuggestedPrompt(null)
     setIssues(null)
+    setCompletedBlob(null)
     requestIdRef.current = null
     modelRef.current = null
     downloadUrlRef.current = null
     startedAtRef.current = null
     setElapsedMs(0)
-    if (videoUrlRef.current && videoUrlRef.current.startsWith('blob:')) {
-      URL.revokeObjectURL(videoUrlRef.current)
-    }
-    videoUrlRef.current = null
   }, [stopPolling])
 
   const reset = useCallback(() => {
     cancel()
-    setVideoUrl(null)
   }, [cancel])
+
+  const consumeCompletedBlob = useCallback(() => {
+    setCompletedBlob(null)
+  }, [])
 
   return {
     queue: queueMutation.mutate,
     isQueueing: queueMutation.isPending,
     status,
-    videoUrl,
+    completedBlob,
+    consumeCompletedBlob,
     error,
     suggestedPrompt,
     issues,

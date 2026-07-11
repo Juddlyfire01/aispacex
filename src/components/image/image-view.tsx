@@ -3,12 +3,15 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useStyles } from '../../hooks/use-styles'
 import { useImageGenerate } from '../../hooks/use-image'
+import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { useAuthStore } from '../../stores/auth-store'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, PillGroup, ErrorText, ExamplePrompts } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
+import { MediaGallery } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
+import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
 import { VeniceAPIError } from '../../lib/venice-client'
 import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
@@ -21,14 +24,6 @@ const IMAGE_EXAMPLES = [
   'Cyberpunk street market at night, neon signs reflecting in puddles',
   'Children\'s book illustration of a fox reading a book under a mushroom',
 ]
-
-function toImageSrc(b64: string): string {
-  if (b64.startsWith('data:')) return b64
-  if (b64.startsWith('/9j/')) return `data:image/jpeg;base64,${b64}`
-  if (b64.startsWith('iVBOR')) return `data:image/png;base64,${b64}`
-  if (b64.startsWith('UklGR')) return `data:image/webp;base64,${b64}`
-  return `data:image/png;base64,${b64}`
-}
 
 const DEFAULT_SIZES = [
   { value: '0', label: '512' },
@@ -47,6 +42,7 @@ export function ImageView() {
   const { data: models, defaultModelId, isLoading: modelsLoading } = useModels('image')
   const { data: styles } = useStyles()
   const model = selectedModel || defaultModelId
+  const gallery = useMediaGallery('image')
 
   // Get constraints for the selected model
   const modelData = models?.find((m) => m.id === model)
@@ -67,8 +63,6 @@ export function ImageView() {
   const [variants, setVariants] = useState(1)
   const [hideWatermark] = useState(true)
   const [safeMode, setSafeMode] = useState(false)
-  const [images, setImages] = useState<string[]>([])
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -98,13 +92,6 @@ export function ImageView() {
     if (!hasResolutions) return []
     return constraints!.resolutions!.map((r) => ({ value: r, label: r }))
   }, [constraints, hasResolutions])
-
-  const downloadImage = (b64: string, index?: number) => {
-    const a = document.createElement('a')
-    a.href = toImageSrc(b64)
-    a.download = `venice-image${index !== undefined ? `-${index + 1}` : ''}.png`
-    a.click()
-  }
 
   const mutation = useImageGenerate()
   const styleOptions = [{ value: '', label: 'None' }, ...(styles?.map((s) => ({ value: s, label: s })) ?? [])]
@@ -141,12 +128,32 @@ export function ImageView() {
       req.resolution = resolution
     }
 
+    const trimmedPrompt = prompt.trim()
+    const trimmedNegative = negativePrompt.trim() || undefined
+    const extras: Record<string, string | number | boolean> = { steps, variants, safeMode }
+    if (style) extras.style = style
+    if (hasAspectRatios && aspectRatio) extras.aspectRatio = aspectRatio
+    if (hasResolutions && resolution) extras.resolution = resolution
+
     mutation.mutate(
       req as unknown as Parameters<typeof mutation.mutate>[0],
       {
         onSuccess: (data) => {
-          const newImages = data.images.map((img) => typeof img === 'string' ? img : img.b64_json)
-          setImages((prev) => [...newImages, ...prev])
+          const payloads = data.images.map((img) => typeof img === 'string' ? img : img.b64_json)
+          void (async () => {
+            for (const b64 of payloads) {
+              const blob = blobFromBase64(b64)
+              await gallery.add({
+                kind: 'image',
+                blob,
+                mimeType: blob.type || mimeFromBase64(b64),
+                prompt: trimmedPrompt,
+                negativePrompt: trimmedNegative,
+                model,
+                extras,
+              })
+            }
+          })()
         },
       },
     )
@@ -250,23 +257,17 @@ export function ImageView() {
   )
 
   const output = (
-    <>
-      {selectedImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedImage(null)}>
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <img src={toImageSrc(selectedImage)} alt="Generated" className="max-w-[90vw] max-h-[90vh] rounded-xl shadow-2xl" />
-            <div className="absolute top-3 right-3 flex gap-1.5">
-              <button onClick={() => downloadImage(selectedImage)} aria-label="Download" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white/70 hover:text-white transition-colors backdrop-blur-sm">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              </button>
-              <button onClick={() => setSelectedImage(null)} aria-label="Close" className="p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white/70 hover:text-white transition-colors backdrop-blur-sm">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {images.length === 0 ? (
+    <MediaGallery
+      kind="image"
+      items={gallery.items}
+      pendingCount={mutation.isPending ? variants : 0}
+      onRemove={gallery.remove}
+      onClearAll={gallery.clearAll}
+      onUsePrompt={(p, neg) => {
+        setPrompt(p)
+        if (neg !== undefined) setNegativePrompt(neg)
+      }}
+      empty={
         <div className="flex items-center justify-center h-full">
           {mutation.isPending ? (
             <LoadingState label="Generating…" size="lg" />
@@ -274,32 +275,8 @@ export function ImageView() {
             <ExamplePrompts items={IMAGE_EXAMPLES} onPick={setPrompt} />
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-          {mutation.isPending && Array.from({ length: variants }).map((_, i) => (
-            <div key={`skel-${i}`} className="aspect-square rounded-xl skeleton" />
-          ))}
-          {images.map((img, i) => (
-            <div key={i} className="relative group">
-              <img
-                src={toImageSrc(img)}
-                alt={`Generated ${i + 1}`}
-                className="w-full rounded-xl cursor-pointer border border-white/[0.05] hover:border-white/[0.18] transition-all duration-200"
-                onClick={() => setSelectedImage(img)}
-              />
-              <button
-                onClick={(e) => { e.stopPropagation(); downloadImage(img, i) }}
-                aria-label="Download"
-                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/85 rounded-lg text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
-                title="Download"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
+      }
+    />
   )
 
   return <GenerationView controls={controls} output={output} />

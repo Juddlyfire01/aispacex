@@ -1,13 +1,16 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useAuthStore } from '../../stores/auth-store'
 import { useVideoModels, type VideoModelGroup } from '../../hooks/use-models'
 import { useVideo } from '../../hooks/use-video'
+import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, PillGroup, ErrorText } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { Spinner } from '../ui/spinner'
 import { SegmentedControl } from '../ui/sub-tabs'
+import { MediaGallery } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
+import { attachVideoReferenceImage } from '../../lib/video-request'
 import { toast } from '../../stores/toast-store'
 import type { VideoQueueRequest, VideoConstraints } from '../../types/venice'
 
@@ -28,8 +31,18 @@ export function VideoView() {
   const [imageName, setImageName] = useState('')
   const [audioEnabled, setAudioEnabled] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
+  const lastJobRef = useRef<{
+    prompt: string
+    negativePrompt?: string
+    model: string
+    extras?: Record<string, string | number | boolean>
+  } | null>(null)
 
-  const { queue, isQueueing, status, videoUrl, error, suggestedPrompt, issues, reset, cancel, elapsedMs } = useVideo()
+  const gallery = useMediaGallery('video')
+  const {
+    queue, isQueueing, status, completedBlob, consumeCompletedBlob,
+    error, suggestedPrompt, issues, reset, cancel, elapsedMs,
+  } = useVideo()
   const isProcessing = status === 'queued' || status === 'processing'
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
@@ -49,6 +62,29 @@ export function VideoView() {
   // Can this group do image-to-video?
   const hasImageMode = !!group?.imageModel
   const hasTextMode = !!group?.textModel
+
+  // R2V-only groups have no text model — keep mode aligned so activeModel resolves
+  useEffect(() => {
+    if (hasImageMode && !hasTextMode && mode !== 'image') setMode('image')
+    else if (hasTextMode && !hasImageMode && mode !== 'text') setMode('text')
+  }, [hasImageMode, hasTextMode, mode])
+
+  // Persist completed videos into the gallery
+  useEffect(() => {
+    if (!completedBlob || !lastJobRef.current) return
+    const job = lastJobRef.current
+    const blob = completedBlob
+    consumeCompletedBlob()
+    void gallery.add({
+      kind: 'video',
+      blob,
+      mimeType: blob.type || 'video/mp4',
+      prompt: job.prompt,
+      negativePrompt: job.negativePrompt,
+      model: job.model,
+      extras: job.extras,
+    })
+  }, [completedBlob, consumeCompletedBlob, gallery.add])
 
   // Build option lists from constraints
   const durationOpts = useMemo(() =>
@@ -92,19 +128,31 @@ export function VideoView() {
       toast.error('Prompt too short', `Must be at least ${MIN_PROMPT_LENGTH} characters.`)
       return
     }
+    const trimmedPrompt = prompt.trim()
+    const trimmedNegative = negativePrompt.trim() || undefined
     const req: VideoQueueRequest = {
       model: activeModel.id,
-      prompt: prompt.trim(),
-      negative_prompt: negativePrompt.trim() || undefined,
+      prompt: trimmedPrompt,
+      negative_prompt: trimmedNegative,
       duration: effectiveDuration || undefined,
       resolution: effectiveResolution || undefined,
       aspect_ratio: effectiveAspect || undefined,
     }
     if (mode === 'image' && imageUrl) {
-      req.image_url = imageUrl
+      attachVideoReferenceImage(req, activeModel.id, imageUrl)
     }
     if (constraints?.audio && constraints.audio_configurable) {
       req.audio = audioEnabled
+    }
+    const extras: Record<string, string | number | boolean> = {}
+    if (effectiveDuration) extras.duration = effectiveDuration
+    if (effectiveResolution) extras.resolution = effectiveResolution
+    if (effectiveAspect) extras.aspectRatio = effectiveAspect
+    lastJobRef.current = {
+      prompt: trimmedPrompt,
+      negativePrompt: trimmedNegative,
+      model: activeModel.id,
+      extras: Object.keys(extras).length ? extras : undefined,
     }
     queue(req)
   }
@@ -254,6 +302,16 @@ export function VideoView() {
         >
           {isProcessing ? (status === 'queued' ? 'Queued...' : 'Processing...') : 'Generate Video'}
         </PrimaryButton>
+        {(isProcessing || isQueueing) && (
+          <button
+            type="button"
+            onClick={cancel}
+            className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors self-start"
+          >
+            Cancel generation
+            {elapsedMs > 0 ? ` · ${formatElapsed(elapsedMs)}` : ''}
+          </button>
+        )}
       {error && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
@@ -283,48 +341,45 @@ export function VideoView() {
   )
 
   const output = (
-    <div className="flex flex-col h-full">
-        {videoUrl ? (
-          <div className="animate-fade-in flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Label>Output</Label>
-              <a href={videoUrl} download="venice-video.mp4" target="_blank" rel="noopener noreferrer" className="text-[14px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-1.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-                Download
-              </a>
+    <MediaGallery
+      kind="video"
+      items={gallery.items}
+      pendingCount={isProcessing || isQueueing ? 1 : 0}
+      onRemove={gallery.remove}
+      onClearAll={gallery.clearAll}
+      onUsePrompt={(p, neg) => {
+        setPrompt(p)
+        if (neg !== undefined) setNegativePrompt(neg)
+      }}
+      empty={
+        <div className="flex items-center justify-center flex-1 h-full text-white/30 text-[15px]">
+          {isProcessing || isQueueing ? (
+            <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
+              <Spinner size="lg" />
+              <span className="text-white/55 text-center">
+                {status === 'queued' ? 'Queued — waiting for a slot' : 'Generating your video'}
+                {elapsedMs > 0 && (
+                  <span className="block text-[12px] text-white/30 font-mono mt-1">
+                    {formatElapsed(elapsedMs)} · typically 30s–2min
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={cancel}
+                className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
-            <video controls src={videoUrl} className="w-full rounded-lg bg-black border border-white/[0.04]" />
-            <button onClick={reset} className="self-start text-[14px] text-white/15 hover:text-white/35 transition-colors">Generate another</button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center flex-1 text-white/30 text-[15px]">
-            {isProcessing ? (
-              <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
-                <Spinner size="lg" />
-                <span className="text-white/55 text-center">
-                  {status === 'queued' ? 'Queued — waiting for a slot' : 'Generating your video'}
-                  {elapsedMs > 0 && (
-                    <span className="block text-[12px] text-white/30 font-mono mt-1">
-                      {formatElapsed(elapsedMs)} · typically 30s–2min
-                    </span>
-                  )}
-                </span>
-                <button
-                  onClick={cancel}
-                  className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <span>Generated videos appear here</span>
-                <span className="text-[12px] text-white/35">Average generation time: 30s–2min</span>
-              </div>
-            )}
-          </div>
-        )}
-    </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <span>Generated videos appear here</span>
+              <span className="text-[12px] text-white/35">Average generation time: 30s–2min</span>
+            </div>
+          )}
+        </div>
+      }
+    />
   )
 
   return <GenerationView controls={controls} output={output} />
