@@ -1,3 +1,5 @@
+import { b64decode } from '../base64'
+
 /** Parse a `data:<mime>;base64,<payload>` URL into mime type and raw bytes. */
 export function parseDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {
   const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl)
@@ -17,6 +19,5 @@ export function parseDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array
     throw new Error('Invalid data URL: missing or empty base64 payload')
   }
 
-  const buf = Buffer.from(b64, 'base64')
-  return { mime, bytes: new Uint8Array(buf) }
+  return { mime, bytes: b64decode(b64) }
 }

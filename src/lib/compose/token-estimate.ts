@@ -124,7 +124,7 @@ export function estimateComposeContextBreakdown(opts: {
     (pending ? estimateTokens(pending) + 4 : 0)
   const reserveTokens = COMPLETION_RESERVE
 
-  const segments: ContextUsageSegment[] = [
+  const allSegments: ContextUsageSegment[] = [
     { id: 'system', label: 'System prompt', tokens: systemTokens, color: SEGMENT_COLORS.system },
     { id: 'tools', label: 'Tool definitions', tokens: toolsTokens, color: SEGMENT_COLORS.tools },
     { id: 'hot', label: 'Hot window', tokens: hotTokens, color: SEGMENT_COLORS.hot },
@@ -140,7 +140,8 @@ export function estimateComposeContextBreakdown(opts: {
       tokens: reserveTokens,
       color: SEGMENT_COLORS.reserve,
     },
-  ].filter((s) => s.tokens > 0)
+  ]
+  const segments = allSegments.filter((s) => s.tokens > 0)
 
   const usedTokens = segments.reduce((n, s) => n + s.tokens, 0)
   const contextLimit = opts.contextLimit > 0 ? opts.contextLimit : DEFAULT_CONTEXT_FALLBACK

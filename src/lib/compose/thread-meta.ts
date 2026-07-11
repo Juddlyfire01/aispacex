@@ -23,7 +23,7 @@ export function scopeToPathSegment(scope: ComposeScope): string {
   return `target/@${scope.username.replace(/^@/, '')}`
 }
 
-export function messageContentString(m: ChatMessage): string {
+export function messageContentString(m: { content?: unknown }): string {
   if (typeof m.content === 'string') return m.content
   if (m.content == null) return ''
   if (Array.isArray(m.content)) {

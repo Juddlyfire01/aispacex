@@ -21,7 +21,10 @@ const MODES: { value: RegisterMode; label: string }[] = [
 const REGISTER_HINT =
   'Linguistic register — tone, cadence, and devices used when drafting. Default is your own; pick another target or a custom pack to override. Applies on the next chat turn.'
 
-function activeSnapshot(reportHistory: { id: string }[], activeReportId: string | null) {
+function activeSnapshot<T extends { id: string }>(
+  reportHistory: T[],
+  activeReportId: string | null,
+): T | null {
   return reportHistory.find((r) => r.id === activeReportId) ?? reportHistory[0] ?? null
 }
 
@@ -57,9 +60,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
 
   const youLive = useMemo(() => {
     if (!selfAccount) return null
-    const snap = activeSnapshot(selfAccount.reportHistory, selfAccount.activeReportId) as
-      | { narrative: { register: Parameters<typeof packFromReportRegister>[0] } }
-      | null
+    const snap = activeSnapshot(selfAccount.reportHistory, selfAccount.activeReportId)
     if (!snap?.narrative?.register) return null
     const pack = packFromReportRegister(snap.narrative.register)
     return isRegisterPackEmpty(pack) ? null : pack
@@ -73,9 +74,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
     const key = findReportKey(reports, otherUsername)
     if (!key) return null
     const report = reports[key]
-    const snap = activeSnapshot(report.reportHistory, report.activeReportId) as
-      | { narrative: { register: Parameters<typeof packFromReportRegister>[0] } }
-      | null
+    const snap = activeSnapshot(report.reportHistory, report.activeReportId)
     if (!snap?.narrative?.register) return null
     const pack = packFromReportRegister(snap.narrative.register)
     return isRegisterPackEmpty(pack) ? null : pack
@@ -86,10 +85,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
       const key = findReportKey(reports, u)
       if (!key) return false
       const report = reports[key]
-      const snap = activeSnapshot(report.reportHistory, report.activeReportId) as
-        | { narrative: { register: Parameters<typeof packFromReportRegister>[0] } }
-        | null
-        | undefined
+      const snap = activeSnapshot(report.reportHistory, report.activeReportId)
       if (!snap?.narrative?.register) return false
       return !isRegisterPackEmpty(packFromReportRegister(snap.narrative.register))
     })

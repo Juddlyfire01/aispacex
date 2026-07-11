@@ -10,7 +10,7 @@ import {
   pickDefaultDraftModel,
   COMPOSE_FALLBACK_MODEL,
 } from './model'
-import type { VeniceModel } from '../../types/venice'
+import type { ModelTrait, VeniceModel } from '../../types/venice'
 
 function model(
   id: string,
@@ -18,7 +18,7 @@ function model(
     xSearch?: boolean
     tools?: boolean
     created?: number
-    traits?: string[]
+    traits?: ModelTrait[]
     name?: string
   },
 ): VeniceModel {

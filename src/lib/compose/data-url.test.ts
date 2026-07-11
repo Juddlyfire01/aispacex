@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { b64decode } from '../base64'
 import { parseDataUrl } from './data-url'
 
 describe('parseDataUrl', () => {
@@ -10,7 +11,7 @@ describe('parseDataUrl', () => {
     expect(mime).toBe('image/png')
     expect(bytes).toBeInstanceOf(Uint8Array)
     expect(bytes.length).toBeGreaterThan(0)
-    expect(Buffer.from(bytes).toString('base64')).toBe(b64)
+    expect(Array.from(bytes)).toEqual(Array.from(b64decode(b64)))
   })
 
   it('parses jpeg mime', () => {

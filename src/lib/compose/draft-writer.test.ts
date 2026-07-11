@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { parseDraftWriteBrief, isDraftHandoffEnabled, DRAFT_MODEL_SAME } from './draft-writer-tool'
 import { splitWriterSegments, buildWriterUser, parseArticleFromWriterText } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
-import type { VeniceModel } from '../../types/venice'
+import type { ModelTrait, VeniceModel } from '../../types/venice'
 
-function model(id: string, opts?: { name?: string; traits?: string[] }): VeniceModel {
+function model(id: string, opts?: { name?: string; traits?: ModelTrait[] }): VeniceModel {
   return {
     id,
     object: 'model',
