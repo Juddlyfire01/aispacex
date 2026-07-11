@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '../../../lib/utils'
 import type { VeniceChartPeriod, VeniceDataPoint } from '../../../lib/venicestats/types'
+import { Tooltip } from '../../ui/tooltip'
 
 // Interactive chart (hover crosshair + tooltip) shared with the Signal tab.
 export { InteractiveChart as LineChart } from '../../ui/interactive-chart'
@@ -9,18 +10,24 @@ export function StatsSection({
   title,
   titleExtra,
   href,
+  tip,
   children,
 }: {
   title: string
   titleExtra?: ReactNode
   href?: string
+  tip?: string
   children: ReactNode
 }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <h2 className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{title}</h2>
+          <h2 className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">
+            <Tooltip tip={tip} underline={Boolean(tip)}>
+              {title}
+            </Tooltip>
+          </h2>
           {titleExtra}
         </div>
         {href && (
@@ -39,10 +46,10 @@ export function StatsSection({
   )
 }
 
-function CardLabel({ children }: { children: ReactNode }) {
+function CardLabel({ children, tip }: { children: ReactNode; tip?: string }) {
   return (
     <div className="min-w-0 text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-secondary)] truncate">
-      {children}
+      <Tooltip tip={tip}>{children}</Tooltip>
     </div>
   )
 }
@@ -67,14 +74,13 @@ export function KpiCard({
 }) {
   return (
     <div
-      title={tip}
       className={cn(
         'rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] px-3.5 py-2.5 min-h-[5rem] flex flex-col justify-between',
         cardHoverCls,
         className,
       )}
     >
-      <CardLabel>{label}</CardLabel>
+      <CardLabel tip={tip}>{label}</CardLabel>
       <div>
         <div className="text-[18px] font-semibold font-mono leading-tight text-[var(--color-text-primary)]">
           {value}
@@ -103,7 +109,6 @@ export function ChartCard({
 }) {
   return (
     <div
-      title={tip}
       className={cn(
         'rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] p-3',
         cardHoverCls,
@@ -111,7 +116,7 @@ export function ChartCard({
       )}
     >
       <div className="mb-2">
-        <CardLabel>{title}</CardLabel>
+        <CardLabel tip={tip}>{title}</CardLabel>
       </div>
       {children}
     </div>

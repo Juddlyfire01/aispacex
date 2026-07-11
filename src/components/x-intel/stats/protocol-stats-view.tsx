@@ -26,6 +26,7 @@ function VvvSection({
   return (
     <StatsSection
       title="VVV Token"
+      tip="Core VVV price, supply, and market metrics from VeniceStats on-chain data."
       titleExtra={
         updated ? (
           <span className="text-[11px] text-[var(--color-text-secondary)] shrink-0">
@@ -67,7 +68,7 @@ function DiemSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPerio
   const charts = useVeniceCharts(period)
   const discountPct = m.marketDiscount * 100
   return (
-    <StatsSection title="DIEM" href={`${VENICESTATS_HOME}/diem`}>
+    <StatsSection title="DIEM" tip="DIEM pricing, supply, and stake-backed mint economics." href={`${VENICESTATS_HOME}/diem`}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <KpiCard
           label="DIEM Price"
@@ -102,7 +103,7 @@ function DiemSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPerio
 function StakingSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPeriod }) {
   const charts = useVeniceCharts(period)
   return (
-    <StatsSection title="Staking & Locking" href={`${VENICESTATS_HOME}/staking`}>
+    <StatsSection title="Staking & Locking" tip="How much VVV is staked, locked, and earning yield." href={`${VENICESTATS_HOME}/staking`}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
           label="Total Staked"
@@ -161,7 +162,7 @@ function BurnsSection({ m, period }: { m: VeniceMetrics; period: VeniceChartPeri
   const prog = m.programmaticBurns
   const latestMonthly = m.monthlyBurns[0]
   return (
-    <StatsSection title="Burns" href={`${VENICESTATS_HOME}/burns`}>
+    <StatsSection title="Burns" tip="VVV permanently removed from supply via organic burns and buybacks." href={`${VENICESTATS_HOME}/burns`}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
           label="Organic burns"
