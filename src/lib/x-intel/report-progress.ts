@@ -12,9 +12,11 @@ const PRESTREAM_COMPUTING_MS = 1000
 const PRESTREAM_SENDING_MS = 2000
 const PRESTREAM_TICK_MS = 100
 /** Soft creep while waiting for first SSE (bar keeps moving, never resets). */
-const PRESTREAM_WAITING_CREEP_MS = 12_000
+const PRESTREAM_THINKING_CREEP_MS = 12_000
+/** Soft creep while waiting for first change-summary SSE. */
+const BRIDGE_THINKING_CREEP_MS = 8_000
 
-/** Continuous pre-stream band: Computing → Sending → Waiting → REPORT_PRESTREAM_END. */
+/** Continuous pre-stream band: Computing → Sending → Thinking → REPORT_PRESTREAM_END. */
 const AFTER_COMPUTE = 0.06
 const AFTER_SEND = 0.12
 
@@ -24,7 +26,7 @@ function numbered(step: number, total: number, text: string): string {
 
 export interface ReportProgressHandle {
   toastId: number
-  /** Start pre-stream hold schedule (Computing → Sending → Waiting). */
+  /** Start pre-stream hold schedule (Computing → Sending → Thinking). */
   markPrepare: () => void
   /** Arm the active streamed LLM phase (label applies after first token). */
   markPhase: (phase: ReportCallKind) => void
@@ -40,17 +42,18 @@ function phaseExplainer(phase: ReportCallKind): string {
 
 /**
  * Owns the generate-report toast: numbered stage labels + one continuous bar
- * across Computing → Sending → Waiting → Writing → (optional) Summarizing.
+ * across Computing → Sending → Thinking → Writing → (Thinking → Summarizing).
  */
 export function beginReportProgress(opts: {
   subject: string
   hasChangeStep: boolean
 }): ReportProgressHandle {
   const { subject, hasChangeStep } = opts
-  /** Pre-stream (3) + writing (+ summarizing when present). */
-  const totalStages = hasChangeStep ? 5 : 4
+  /** Pre-stream (3) + writing (+ thinking bridge + summarizing when present). */
+  const totalStages = hasChangeStep ? 6 : 4
   const writingStep = 4
-  const changeStep = 5
+  const bridgeThinkingStep = 5
+  const changeStep = 6
 
   const toastId = toast.progress('Generating report', {
     description: subject,
@@ -60,6 +63,8 @@ export function beginReportProgress(opts: {
 
   let lastProgress = 0.02
   let streamingStarted = false
+  /** True after markPhase('change') until first change tokens arrive. */
+  let awaitingChangeTokens = false
   let tickTimer: ReturnType<typeof setInterval> | null = null
   let startedAt = 0
 
@@ -94,12 +99,12 @@ export function beginReportProgress(opts: {
         text: 'Sending request…',
       }
     }
-    const waitElapsed = elapsedMs - PRESTREAM_COMPUTING_MS - PRESTREAM_SENDING_MS
-    const t = Math.min(1, waitElapsed / PRESTREAM_WAITING_CREEP_MS)
+    const thinkElapsed = elapsedMs - PRESTREAM_COMPUTING_MS - PRESTREAM_SENDING_MS
+    const t = Math.min(1, thinkElapsed / PRESTREAM_THINKING_CREEP_MS)
     return {
       progress: AFTER_SEND + (REPORT_PRESTREAM_END - AFTER_SEND) * t,
       step: 3,
-      text: 'Waiting for first tokens…',
+      text: 'Thinking…',
     }
   }
 
@@ -118,6 +123,28 @@ export function beginReportProgress(opts: {
     if (streamingStarted) return
     streamingStarted = true
     clearTick()
+  }
+
+  const startBridgeThinking = () => {
+    awaitingChangeTokens = true
+    clearTick()
+    const floor = Math.max(lastProgress, mapReportStreamProgress('change', 0, true))
+    const ceiling = Math.min(0.78, floor + 0.06)
+    setProgress(floor, numbered(bridgeThinkingStep, totalStages, 'Thinking…'))
+    const bridgeStarted = Date.now()
+    const bridgeStartProgress = lastProgress
+    tickTimer = setInterval(() => {
+      if (!awaitingChangeTokens) {
+        clearTick()
+        return
+      }
+      const t = Math.min(1, (Date.now() - bridgeStarted) / BRIDGE_THINKING_CREEP_MS)
+      setProgress(
+        bridgeStartProgress + (ceiling - bridgeStartProgress) * t,
+        numbered(bridgeThinkingStep, totalStages, 'Thinking…'),
+      )
+      if (t >= 1) clearTick()
+    }, PRESTREAM_TICK_MS)
   }
 
   return {
@@ -139,16 +166,24 @@ export function beginReportProgress(opts: {
       tickTimer = setInterval(paint, PRESTREAM_TICK_MS)
     },
     markPhase: (phase) => {
+      if (phase === 'change' && hasChangeStep) {
+        // Bridge between writing and summarizing while waiting for first SSE.
+        startBridgeThinking()
+        return
+      }
       if (streamingStarted) {
         const base = mapReportStreamProgress(phase, 0, hasChangeStep)
-        // Monotonic: label % uses the bar value after setProgress clamps.
         setProgress(base, writingLabel(phase, Math.max(lastProgress, base)))
       }
     },
     onStreamTokens: (phase, receivedTokens, expectedTokens) => {
-      // synthesize emits a 0-token probe before the HTTP call — ignore it so
-      // pre-stream holds can run until the first real SSE delta.
-      if (!streamingStarted && receivedTokens <= 0) return
+      // synthesize emits a 0-token probe before each HTTP call — ignore so
+      // Thinking holds can run until the first real SSE delta.
+      if (receivedTokens <= 0) return
+      if (phase === 'change') {
+        awaitingChangeTokens = false
+        clearTick()
+      }
       enterStreaming()
       const frac = streamCallFraction(receivedTokens, expectedTokens)
       const overall = mapReportStreamProgress(phase, frac, hasChangeStep)
@@ -158,11 +193,13 @@ export function beginReportProgress(opts: {
     complete: (title, description) => {
       clearTick()
       streamingStarted = true
+      awaitingChangeTokens = false
       toast.complete(toastId, title, description)
     },
     fail: (title, description) => {
       clearTick()
       streamingStarted = true
+      awaitingChangeTokens = false
       toast.fail(toastId, title, description)
     },
   }
