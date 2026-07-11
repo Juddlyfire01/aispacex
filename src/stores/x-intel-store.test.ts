@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useXIntelStore, mergePosts, newReportId } from './x-intel-store'
 import type { Post, IntelReportSnapshot } from '../lib/x-intel/types'
+import { DEFAULT_SYNTHESIS_SETTINGS, MAX_CONTEXT_CAP } from '../lib/x-intel/types'
 
 const makeSnapshot = (id: string): IntelReportSnapshot => ({
   id,
@@ -43,6 +44,7 @@ describe('useXIntelStore', () => {
       generatingReports: {},
       reportGenerateErrors: {},
       gatheringTargets: {},
+      defaultSynthesisSettings: { ...DEFAULT_SYNTHESIS_SETTINGS },
     })
   })
 
@@ -53,6 +55,7 @@ describe('useXIntelStore', () => {
     expect(s.activeTarget).toBe('ErikVoorhees')
     expect(s.reports['ErikVoorhees']).toBeDefined()
     expect(s.reports['ErikVoorhees'].posts).toEqual([])
+    expect(s.reports['ErikVoorhees'].synthesisSettings.contextCap).toBe(MAX_CONTEXT_CAP)
   })
 
   it('addTarget is idempotent per username (case-insensitive)', () => {
@@ -163,6 +166,29 @@ describe('useXIntelStore', () => {
     const r = useXIntelStore.getState().reports['ErikVoorhees']
     expect(r.reportHistory.map((s) => s.id)).toEqual(['b', 'a'])
     expect(r.activeReportId).toBe('b')
+  })
+
+  it('appendReport grows includedReportIds when report context was at MAX', () => {
+    const store = useXIntelStore.getState()
+    store.addTarget('ErikVoorhees')
+    store.appendReport('ErikVoorhees', makeSnapshot('a'))
+    expect(useXIntelStore.getState().reports['ErikVoorhees'].synthesisSettings.includedReportIds).toEqual(['a'])
+    store.appendReport('ErikVoorhees', makeSnapshot('b'))
+    expect(useXIntelStore.getState().reports['ErikVoorhees'].synthesisSettings.includedReportIds).toEqual(['b', 'a'])
+  })
+
+  it('appendReport does not grow includedReportIds when user set None', () => {
+    const store = useXIntelStore.getState()
+    store.addTarget('ErikVoorhees')
+    store.appendReport('ErikVoorhees', makeSnapshot('a'))
+    store.updateReport('ErikVoorhees', {
+      synthesisSettings: {
+        ...useXIntelStore.getState().reports['ErikVoorhees'].synthesisSettings,
+        includedReportIds: [],
+      },
+    })
+    store.appendReport('ErikVoorhees', makeSnapshot('b'))
+    expect(useXIntelStore.getState().reports['ErikVoorhees'].synthesisSettings.includedReportIds).toEqual([])
   })
 
   it('setActiveReport switches only to an existing snapshot', () => {

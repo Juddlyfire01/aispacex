@@ -13,7 +13,8 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { moveItemInArray } from '../lib/array-order'
 import type { Profile, Post, Edge, IntelReportSnapshot, SynthesisSettings } from '../lib/x-intel/types'
-import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
+import { DEFAULT_SYNTHESIS_SETTINGS, upgradeLegacyContextCap } from '../lib/x-intel/types'
+import { growIncludedReportIdsIfMax } from '../lib/x-intel/report-context'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
 
 export interface SelfSectionsRefreshed {
@@ -304,6 +305,11 @@ export const useXSelfStore = create<XSelfState>()(
         set((s) => {
           const a = s.accounts[id]
           if (!a) return s
+          const includedReportIds = growIncludedReportIdsIfMax(
+            a.synthesisSettings.includedReportIds ?? [],
+            a.reportHistory,
+            snapshot.id,
+          )
           return {
             accounts: {
               ...s.accounts,
@@ -311,6 +317,10 @@ export const useXSelfStore = create<XSelfState>()(
                 ...a,
                 reportHistory: [snapshot, ...a.reportHistory],
                 activeReportId: snapshot.id,
+                synthesisSettings: {
+                  ...a.synthesisSettings,
+                  includedReportIds,
+                },
               },
             },
           }
@@ -385,7 +395,7 @@ export const useXSelfStore = create<XSelfState>()(
     }),
     {
       name: 'x-self-profile',
-      version: 3,
+      version: 4,
       // Sensitive corpus (posts, bookmarks, likes, reports) is encrypted at rest
       // with a device-bound key. Legacy plaintext entries are read transparently
       // and re-written encrypted on the next persist. See encrypted-storage.ts.
@@ -448,6 +458,22 @@ export const useXSelfStore = create<XSelfState>()(
           }
           if (state.defaultSynthesisSettings && !Array.isArray(state.defaultSynthesisSettings.includedReportIds)) {
             state.defaultSynthesisSettings.includedReportIds = []
+          }
+        }
+        // v3 → v4: old default contextCap (80) → MAX sentinel so untouched
+        // accounts use every gathered post; user-set values stay as stored.
+        if (version < 4) {
+          for (const account of Object.values(state.accounts ?? {})) {
+            if (account.synthesisSettings) {
+              account.synthesisSettings.contextCap = upgradeLegacyContextCap(
+                account.synthesisSettings.contextCap,
+              )
+            }
+          }
+          if (state.defaultSynthesisSettings) {
+            state.defaultSynthesisSettings.contextCap = upgradeLegacyContextCap(
+              state.defaultSynthesisSettings.contextCap,
+            )
           }
         }
         return state as XSelfState

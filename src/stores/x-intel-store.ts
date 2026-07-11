@@ -3,7 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import { moveItemInArray } from '../lib/array-order'
 import type { Profile, Post, Edge, CharacterProfile, SynthesisSettings, IntelReportSnapshot } from '../lib/x-intel/types'
-import { DEFAULT_SYNTHESIS_SETTINGS } from '../lib/x-intel/types'
+import { DEFAULT_SYNTHESIS_SETTINGS, upgradeLegacyContextCap } from '../lib/x-intel/types'
+import { growIncludedReportIdsIfMax } from '../lib/x-intel/report-context'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
 import { computeAnalytics, postDateRange } from '../lib/x-intel/analytics'
 
@@ -381,6 +382,11 @@ export const useXIntelStore = create<XIntelState>()(
           const key = findReportKey(s.reports, username)
           if (!key) return s
           const report = s.reports[key]
+          const includedReportIds = growIncludedReportIdsIfMax(
+            report.synthesisSettings.includedReportIds ?? [],
+            report.reportHistory,
+            snapshot.id,
+          )
           return {
             reports: {
               ...s.reports,
@@ -388,6 +394,10 @@ export const useXIntelStore = create<XIntelState>()(
                 ...report,
                 reportHistory: [snapshot, ...report.reportHistory],
                 activeReportId: snapshot.id,
+                synthesisSettings: {
+                  ...report.synthesisSettings,
+                  includedReportIds,
+                },
               },
             },
           }
@@ -483,7 +493,7 @@ export const useXIntelStore = create<XIntelState>()(
     }),
     {
       name: 'x-intel-reports',
-      version: 5,
+      version: 6,
       // Target profiles/posts/reports are encrypted at rest with the device-bound
       // key. Legacy plaintext entries are read transparently and re-encrypted on
       // the next persist. See encrypted-storage.ts.
@@ -537,6 +547,24 @@ export const useXIntelStore = create<XIntelState>()(
           }
           if (state.defaultSynthesisSettings && !Array.isArray(state.defaultSynthesisSettings.includedReportIds)) {
             state.defaultSynthesisSettings.includedReportIds = []
+          }
+        }
+        // v5 -> v6: old default contextCap (80) → MAX sentinel so untouched
+        // profiles use every gathered post; user-set values stay as stored.
+        if (version < 6) {
+          if (state.reports) {
+            for (const report of Object.values(state.reports)) {
+              if (report.synthesisSettings) {
+                report.synthesisSettings.contextCap = upgradeLegacyContextCap(
+                  report.synthesisSettings.contextCap,
+                )
+              }
+            }
+          }
+          if (state.defaultSynthesisSettings) {
+            state.defaultSynthesisSettings.contextCap = upgradeLegacyContextCap(
+              state.defaultSynthesisSettings.contextCap,
+            )
           }
         }
         return state as XIntelState

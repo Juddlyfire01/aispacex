@@ -57,15 +57,31 @@ export interface CharacterProfile {
   model: string          // which Venice model produced this
 }
 
+/**
+ * Sentinel context-cap: process every gathered post. Stored instead of a fixed
+ * count so the cap stays at MAX as more posts arrive on later gathers.
+ */
+export const MAX_CONTEXT_CAP = 100_000
+
+/** Pre-MAX default; one-shot store migrate rewrites this to MAX_CONTEXT_CAP. */
+export const LEGACY_DEFAULT_CONTEXT_CAP = 80
+
+/** Rewrite the old default (80) to MAX; leave any other user-set value alone. */
+export function upgradeLegacyContextCap(cap: number): number {
+  return cap === LEGACY_DEFAULT_CONTEXT_CAP ? MAX_CONTEXT_CAP : cap
+}
+
 export interface SynthesisSettings {
-  contextCap: number    // default 80, user-adjustable 10–200
+  contextCap: number    // default MAX_CONTEXT_CAP; fixed 10…postCount when user alters
   temperature: number   // default 0.3, user-adjustable 0.0–1.0
   model: string         // resolved from live catalog; legacy default venice-uncensored-1-2
   /**
    * Ids of prior report snapshots to feed into the next synthesis as prior-
    * analysis context (narrative only). Empty = none. The Profile UI defaults
    * to all prior reports (seeded once when history first appears) and exposes
-   * a most-recent-N slider plus optional custom multi-select.
+   * a most-recent-N slider plus optional custom multi-select. When the
+   * selection is MAX (every prior), appendReport grows this list as new
+   * reports are generated so the cap stays at MAX.
    */
   includedReportIds: string[]
 }
@@ -226,7 +242,7 @@ export interface IntelReportSnapshot {
 }
 
 export const DEFAULT_SYNTHESIS_SETTINGS: SynthesisSettings = {
-  contextCap: 80,
+  contextCap: MAX_CONTEXT_CAP,
   temperature: 0.3,
   model: 'venice-uncensored-1-2',
   includedReportIds: [],

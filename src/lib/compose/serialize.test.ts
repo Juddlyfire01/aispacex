@@ -19,14 +19,13 @@ describe('serializeDraftForCopy', () => {
     expect(out).toBe('1/2 first\n\n2/2 second')
   })
 
-  it('prefixes reply context', () => {
+  it('copies reply body without target prefix', () => {
     const out = serializeDraftForCopy(draftWith(['nice post'], { kind: 'reply', toPostId: '9', toUsername: 'bob' }))
-    expect(out).toContain('(Reply to @bob post 9)')
-    expect(out).toContain('nice post')
+    expect(out).toBe('nice post')
   })
 
-  it('prefixes quote context', () => {
+  it('copies quote body without target prefix', () => {
     const out = serializeDraftForCopy(draftWith(['adding this'], { kind: 'quote', postId: '7', username: 'ann' }))
-    expect(out).toContain('(Quote @ann post 7)')
+    expect(out).toBe('adding this')
   })
 })

@@ -1,6 +1,4 @@
-import { useComposeStore, ME_CONTEXT, ALL_CONTEXT, type XSearchMode } from '../../stores/compose-store'
-import { useXIntelStore } from '../../stores/x-intel-store'
-import { useXSelfStore } from '../../stores/x-self-store'
+import { useComposeStore, type XSearchMode } from '../../stores/compose-store'
 import { useModels } from '../../hooks/use-models'
 import {
   filterComposeToolModels,
@@ -8,8 +6,6 @@ import {
   sortDraftWriterModels,
 } from '../../lib/compose/model'
 import { DRAFT_MODEL_SAME } from '../../lib/compose/draft-writer-tool'
-import { contextKeyFromScope } from '../../lib/intel-library/scope'
-import type { ComposeScope } from '../../lib/intel-library/types'
 import type { LibraryMode, PackResult } from '../../lib/compose/hot-window'
 import type { LibraryCounts } from '../../lib/intel-library/types'
 import { Label, PillGroup } from '../ui/shared'
@@ -20,12 +16,6 @@ const X_SEARCH_MODES: { value: XSearchMode; label: string }[] = [
   { value: 'auto', label: 'auto' },
   { value: 'on', label: 'on' },
 ]
-
-function scopeFromSelectValue(value: string): ComposeScope {
-  if (value === ME_CONTEXT) return { type: 'me' }
-  if (value === ALL_CONTEXT) return { type: 'all' }
-  return { type: 'target', username: value }
-}
 
 export interface ComposeSettingsProps {
   pack: PackResult
@@ -57,49 +47,17 @@ export function ComposeSettings({
   const { data: models, mostUncensoredModelId } = useModels('text')
   const toolModels = filterComposeToolModels(models ?? [])
   const writerModels = sortDraftWriterModels(models ?? [], mostUncensoredModelId)
-  const newThreadContext = useComposeStore((s) => s.newThreadContext)
-  const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
   const model = useComposeStore((s) => s.model)
   const setModel = useComposeStore((s) => s.setModel)
   const draftModel = useComposeStore((s) => s.draftModel)
   const setDraftModel = useComposeStore((s) => s.setDraftModel)
   const xSearch = useComposeStore((s) => s.xSearch)
   const setXSearch = useComposeStore((s) => s.setXSearch)
-  const targets = useXIntelStore((s) => s.targets)
-  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
-  const accountOrder = useXSelfStore((s) => s.accountOrder)
-  const accounts = useXSelfStore((s) => s.accounts)
-  const selfAccountId = activeAccountId ?? accountOrder[0] ?? null
-  const selfUsername = selfAccountId ? accounts[selfAccountId]?.username : null
-  const selfLabel = selfUsername ? `@${selfUsername.replace(/^@/, '')}` : '@me'
-
-  const contextSelectValue = contextKeyFromScope(newThreadContext)
   const xSearchSupported = modelSupportsXSearch(toolModels, model)
 
   return (
     <aside className="w-[340px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
       <div className="p-4 flex flex-col gap-4 overflow-y-auto min-h-0 flex-1">
-        <div>
-          <Label htmlFor="compose-new-context">New chat context</Label>
-          <select
-            id="compose-new-context"
-            value={contextSelectValue}
-            onChange={(e) => setNewThreadContext(scopeFromSelectValue(e.target.value))}
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
-          >
-            <option value={ALL_CONTEXT}>All</option>
-            <option value={ME_CONTEXT}>{selfLabel}</option>
-            {targets.map((t) => (
-              <option key={t} value={t}>
-                @{t}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[10px] text-[var(--color-text-tertiary)]">
-            Applies to the next + New chat — does not change the active thread.
-          </p>
-        </div>
-
         <div>
           <Label htmlFor="compose-model">Model</Label>
           <select

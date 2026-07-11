@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useXSelfStore } from './x-self-store'
+import { DEFAULT_SYNTHESIS_SETTINGS, MAX_CONTEXT_CAP } from '../lib/x-intel/types'
 
 describe('useXSelfStore reorderAccounts', () => {
   beforeEach(() => {
@@ -12,7 +13,42 @@ describe('useXSelfStore reorderAccounts', () => {
       generatingReports: {},
       reportGenerateErrors: {},
       gatheringAccounts: {},
+      defaultSynthesisSettings: { ...DEFAULT_SYNTHESIS_SETTINGS },
     })
+  })
+
+  it('upsertAccount seeds synthesis contextCap at MAX', () => {
+    useXSelfStore.getState().upsertAccount({ id: '1', username: 'alice' })
+    expect(useXSelfStore.getState().accounts['1'].synthesisSettings.contextCap).toBe(MAX_CONTEXT_CAP)
+  })
+
+  it('appendReport grows includedReportIds when report context was at MAX', () => {
+    const store = useXSelfStore.getState()
+    store.upsertAccount({ id: '1', username: 'alice' })
+    store.appendReport('1', {
+      id: 'a',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      model: 'test',
+      synthesisSettings: { ...DEFAULT_SYNTHESIS_SETTINGS },
+      meta: { postCount: 1, dateRange: null, postIdsAnalyzed: [], tokenCost: 0 },
+      analytics: {} as never,
+      narrative: {} as never,
+      changeSummary: null,
+      previousReportId: null,
+    })
+    expect(useXSelfStore.getState().accounts['1'].synthesisSettings.includedReportIds).toEqual(['a'])
+    store.appendReport('1', {
+      id: 'b',
+      createdAt: '2026-07-02T00:00:00.000Z',
+      model: 'test',
+      synthesisSettings: { ...DEFAULT_SYNTHESIS_SETTINGS },
+      meta: { postCount: 1, dateRange: null, postIdsAnalyzed: [], tokenCost: 0 },
+      analytics: {} as never,
+      narrative: {} as never,
+      changeSummary: null,
+      previousReportId: 'a',
+    })
+    expect(useXSelfStore.getState().accounts['1'].synthesisSettings.includedReportIds).toEqual(['b', 'a'])
   })
 
   it('reorders connected accounts without changing the active account', () => {

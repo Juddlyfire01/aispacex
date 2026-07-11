@@ -11,7 +11,14 @@ import { partitionPosts } from '../../lib/x-intel/activity'
 import { buildReportMessages } from '../../lib/x-intel/synthesize'
 import { estimateMessagesTokens } from '../../lib/x-intel/token-estimate'
 import { resolveDefaultSynthesisModel, syncSynthesisModelGlobally } from '../../lib/x-intel/sync-synthesis-model'
-import type { Profile, Post, Edge, SynthesisSettings, IntelReportSnapshot } from '../../lib/x-intel/types'
+import {
+  MAX_CONTEXT_CAP,
+  type Profile,
+  type Post,
+  type Edge,
+  type SynthesisSettings,
+  type IntelReportSnapshot,
+} from '../../lib/x-intel/types'
 import type { ActivitySummary } from '../../lib/x-intel/activity'
 
 export interface ProfileOverviewProps {
@@ -85,14 +92,6 @@ const BotIcon = () => (
     <path d="M17 8h1a4 4 0 010 8h-1v1a2 2 0 01-2 2H8a2 2 0 01-2-2v-1H5a4 4 0 110-8h1V6a4 4 0 014-4h6a4 4 0 014 4v2zM9 6v2h6V6a2 2 0 00-2-2h-2a2 2 0 00-2 2zm-1 8a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
   </svg>
 )
-
-/**
- * Sentinel context-cap value meaning "process every gathered post". Stored
- * instead of a fixed number so the cap stays at MAX as more posts arrive on
- * later gathers — synthesize slices posts.slice(0, contextCap), so an
- * effectively-unbounded value simply takes them all.
- */
-const MAX_CONTEXT = 100_000
 
 /** Fixed 4-char mono slot so counts stay right-aligned in the header. */
 function CapValue({ children }: { children: ReactNode }) {
@@ -172,7 +171,7 @@ function ContextCapControl({ value, postCount, onChange }: {
         value={sliderValue}
         onChange={(e) => {
           const v = Number(e.target.value)
-          onChange(v >= sliderMax ? MAX_CONTEXT : v)
+          onChange(v >= sliderMax ? MAX_CONTEXT_CAP : v)
         }}
         className="w-full mt-1"
       />
@@ -211,7 +210,8 @@ function matchingRecentCount(reportHistory: IntelReportSnapshot[], includedIds: 
  * Prior-report context: slider for “most recent N” (0 = none, max = all),
  * plus optional Custom checklist for arbitrary subsets. Selection persists in
  * synthesisSettings.includedReportIds. Empty selection is seeded once to All
- * (default max) when history exists.
+ * (default max) when history exists. When at MAX, appendReport grows the list
+ * as new reports are generated so the cap stays at MAX.
  */
 function ReportContextSelector({ reportHistory, includedIds, onChange }: {
   reportHistory: IntelReportSnapshot[]

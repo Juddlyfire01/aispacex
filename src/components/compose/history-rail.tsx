@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
-import { useComposeStore } from '../../stores/compose-store'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useComposeStore, ME_CONTEXT, ALL_CONTEXT } from '../../stores/compose-store'
+import { useXIntelStore } from '../../stores/x-intel-store'
+import { useXSelfStore } from '../../stores/x-self-store'
 import {
   contextBadgeLabel,
   formatRelativeTime,
@@ -7,6 +9,7 @@ import {
   messageContentString,
 } from '../../lib/compose/thread-meta'
 import type { ComposeThread } from '../../lib/compose/thread-types'
+import type { ComposeScope } from '../../lib/intel-library/types'
 import { CostMeter } from '../x-intel/cost-meter'
 import { ThreadExportButton } from './thread-export-button'
 import { cn } from '../../lib/utils'
@@ -27,11 +30,119 @@ function threadPillTip(): string {
   return 'Encrypted on this device. Size is messages + draft. Agent can search older chats.'
 }
 
+/** Pick context and create — no silent default from a separate settings control. */
+function NewChatMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const createThread = useComposeStore((s) => s.createThread)
+  const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
+  const targets = useXIntelStore((s) => s.targets)
+  const activeTarget = useXIntelStore((s) => s.activeTarget)
+  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
+  const accountOrder = useXSelfStore((s) => s.accountOrder)
+  const accounts = useXSelfStore((s) => s.accounts)
+  const selfAccountId = activeAccountId ?? accountOrder[0] ?? null
+  const selfUsername = selfAccountId ? accounts[selfAccountId]?.username : null
+  const selfLabel = selfUsername ? `@${selfUsername.replace(/^@/, '')}` : '@me'
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const options: { key: string; label: string; scope: ComposeScope }[] = [
+    { key: ALL_CONTEXT, label: 'All', scope: { type: 'all' } },
+    { key: ME_CONTEXT, label: selfLabel, scope: { type: 'me' } },
+    ...targets.map((t) => ({
+      key: t,
+      label: `@${t}`,
+      scope: { type: 'target' as const, username: t },
+    })),
+  ]
+
+  const pick = (scope: ComposeScope) => {
+    setNewThreadContext(scope)
+    createThread(scope)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="New chat — choose context"
+        className={cn(
+          'w-full min-h-9 flex items-center justify-center gap-1.5 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] font-normal leading-none text-center text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-border-strong)]',
+          open && 'border-[var(--color-border-strong)]',
+        )}
+      >
+        + New chat
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          className={cn(
+            'shrink-0 text-[var(--color-text-tertiary)] transition-transform duration-150',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        >
+          <path d="M2.5 3.75L5 6.25L7.5 3.75" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Chat context"
+          className="absolute z-50 left-0 right-0 mt-0.5 bg-[var(--color-bg-raised)] border border-[var(--color-border-soft)] rounded-md shadow-2xl shadow-black/50 overflow-hidden"
+        >
+          <div className="max-h-60 overflow-y-auto p-0.5">
+            {options.map((o) => {
+              const isActiveTarget =
+                o.scope.type === 'target' && o.scope.username === activeTarget
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  role="option"
+                  onClick={() => pick(o.scope)}
+                  className={cn(
+                    'w-full text-left px-2.5 py-1.5 text-[11px] rounded transition-colors',
+                    isActiveTarget
+                      ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-overlay)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)]',
+                  )}
+                >
+                  {o.label}
+                  {isActiveTarget ? (
+                    <span className="ml-1 text-[9px] text-[var(--color-text-tertiary)]">active</span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function HistoryRail() {
   const threadOrder = useComposeStore((s) => s.threadOrder)
   const threads = useComposeStore((s) => s.threads)
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
-  const createThread = useComposeStore((s) => s.createThread)
   const selectThread = useComposeStore((s) => s.selectThread)
   const deleteThread = useComposeStore((s) => s.deleteThread)
   const [filter, setFilter] = useState('')
@@ -53,13 +164,7 @@ export function HistoryRail() {
   return (
     <div className="w-52 shrink-0 border-r border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col">
       <div className="p-2">
-        <button
-          type="button"
-          onClick={() => createThread()}
-          className="w-full min-h-9 flex items-center justify-center bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] font-normal leading-none text-center text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-border-strong)]"
-        >
-          + New chat
-        </button>
+        <NewChatMenu />
       </div>
 
       <div className="px-2 pb-2">
@@ -78,7 +183,7 @@ export function HistoryRail() {
           <div className="px-2 py-5 text-[11px] text-[var(--color-text-tertiary)] text-center">
             {filter.trim()
               ? 'No chats match your search'
-              : 'No chats yet — start with + New chat'}
+              : 'No chats yet — choose a context above'}
           </div>
         ) : (
           rows.map((thread) => {
