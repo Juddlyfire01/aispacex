@@ -54,7 +54,8 @@ export function Toaster() {
             key={t.id}
             role={t.variant === 'error' ? 'alert' : 'status'}
             className={cn(
-              'pointer-events-auto rounded-lg border px-3.5 py-2.5 shadow-xl shadow-black/60 backdrop-blur-md animate-scale-in',
+              // Fixed width so progress-label churn does not grow/shrink the toast.
+              'pointer-events-auto w-80 rounded-lg border px-3.5 py-2.5 shadow-xl shadow-black/60 backdrop-blur-md animate-scale-in',
               VARIANT_STYLES[t.variant],
             )}
           >
@@ -68,7 +69,7 @@ export function Toaster() {
                 )}
                 {showBar && typeof t.progress === 'number' && <ProgressBar value={t.progress} />}
                 {t.variant === 'progress' && t.progressLabel && (
-                  <div className="text-[11.5px] text-[var(--color-text-tertiary)] mt-1.5 tabular-nums">
+                  <div className="text-[11.5px] text-[var(--color-text-tertiary)] mt-1.5 tabular-nums truncate">
                     {t.progressLabel}
                   </div>
                 )}

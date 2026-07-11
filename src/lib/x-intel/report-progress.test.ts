@@ -62,14 +62,26 @@ describe('beginReportProgress pre-stream holds', () => {
   it('numbers summarizing as stage 5 when change step exists', () => {
     const p = beginReportProgress({ subject: '@alice', hasChangeStep: true })
     p.markPrepare()
-    p.onStreamTokens('narrative', 100, 1000)
+    p.onStreamTokens('narrative', 900, 1000)
     expect(labelOf(p.toastId)).toMatch(/^4\/5 · Writing narrative/)
     const afterNarr = progressOf(p.toastId)!
+    const narrPct = Math.round(afterNarr * 100)
+    expect(narrPct).toBeGreaterThan(50)
 
     p.markPhase('change')
+    const changeLabel = labelOf(p.toastId)!
+    // Summarizing % must continue from overall progress, not reset to ~0%.
+    expect(changeLabel).toMatch(/^5\/5 · Summarizing changes/)
+    expect(changeLabel).not.toMatch(/~0%/)
+    const changePct = Number(changeLabel.match(/~(\d+)%/)?.[1])
+    expect(changePct).toBeGreaterThanOrEqual(narrPct)
+
     p.onStreamTokens('change', 50, 500)
     expect(labelOf(p.toastId)).toMatch(/^5\/5 · Summarizing changes/)
     expect(progressOf(p.toastId)!).toBeGreaterThanOrEqual(afterNarr)
+    const sumPct = Math.round(progressOf(p.toastId)! * 100)
+    expect(sumPct).toBeGreaterThanOrEqual(narrPct)
+    expect(labelOf(p.toastId)).toContain(`~${sumPct}%`)
   })
 
   it('zero-token probe leaves Waiting hold intact until real tokens', () => {

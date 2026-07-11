@@ -103,10 +103,14 @@ export function beginReportProgress(opts: {
     }
   }
 
-  const writingLabel = (phase: ReportCallKind, frac?: number): string => {
+  const writingLabel = (phase: ReportCallKind, overallProgress?: number): string => {
     const step = phase === 'narrative' ? writingStep : changeStep
     const base = phaseExplainer(phase)
-    const pct = frac === undefined ? undefined : `… ~${Math.round(frac * 100)}%`
+    // Overall job % (not per-phase) so summarizing continues from writing, not ~0%.
+    const pct =
+      overallProgress === undefined
+        ? undefined
+        : `… ~${Math.round(overallProgress * 100)}%`
     return numbered(step, totalStages, `${base}${pct ?? '…'}`)
   }
 
@@ -137,7 +141,8 @@ export function beginReportProgress(opts: {
     markPhase: (phase) => {
       if (streamingStarted) {
         const base = mapReportStreamProgress(phase, 0, hasChangeStep)
-        setProgress(base, writingLabel(phase))
+        // Monotonic: label % uses the bar value after setProgress clamps.
+        setProgress(base, writingLabel(phase, Math.max(lastProgress, base)))
       }
     },
     onStreamTokens: (phase, receivedTokens, expectedTokens) => {
@@ -147,7 +152,8 @@ export function beginReportProgress(opts: {
       enterStreaming()
       const frac = streamCallFraction(receivedTokens, expectedTokens)
       const overall = mapReportStreamProgress(phase, frac, hasChangeStep)
-      setProgress(overall, writingLabel(phase, frac))
+      const next = Math.max(lastProgress, Math.min(0.97, overall))
+      setProgress(overall, writingLabel(phase, next))
     },
     complete: (title, description) => {
       clearTick()
