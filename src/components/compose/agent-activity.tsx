@@ -3,8 +3,10 @@ import type { AgentEvent } from '../../lib/compose/agent-events'
 
 // Cursor-style agent activity timeline for compose chat:
 // - Status indicator on top (shimmer while active)
-// - Full step history listed under it (verb-first labels + result details)
+// - Step trail under it (capped while live; full history when expanded)
 // - Collapsible after the run so it stays in the transcript without dominating
+
+const LIVE_STEP_CAP = 5
 
 function StepIcon({ status }: { status: AgentEvent['status'] }) {
   if (status === 'running') {
@@ -57,39 +59,54 @@ interface AgentActivityProps {
 }
 
 /**
- * Live agent status + full step timeline for one assistant turn.
+ * Live agent status + step timeline for one assistant turn.
  * Renders nothing when there is no activity to show.
  */
 export function AgentActivity({ events, active, phase = null }: AgentActivityProps) {
-  // Historical turns start collapsed; live runs start open so the full list is visible.
+  // Historical turns start collapsed; live runs start open so the trail is visible.
   const [expanded, setExpanded] = useState(active)
+  const [showAllLive, setShowAllLive] = useState(false)
 
   if (!active && events.length === 0) return null
 
   const running = events.filter((e) => e.status === 'running')
   const current = running[running.length - 1]
-  // Prefer explicit phase (Thinking / Compressing thread / Writing) when set;
-  // otherwise live header follows the active tool step.
-  const headerText =
-    active && phase
-      ? phase
-      : current
-        ? current.progressLabel || current.label
-        : active
-          ? 'Working'
-          : events.length === 1
-            ? events[0]!.label
-            : `${events.length} steps`
 
-  // Live: always show full list under the indicator.
-  // Done: collapsed to a one-line summary; expand reveals the same full history.
+  // Live: prefer running step, else phase (Thinking / Writing), else Working.
+  // Append step count so Writing doesn't erase that prior work happened.
+  const headerPrimary = active
+    ? current
+      ? current.progressLabel || current.label
+      : phase || 'Working'
+    : events.length === 1
+      ? events[0]!.label
+      : `${events.length} steps`
+
+  const headerSuffix =
+    active && events.length > 0
+      ? ` · ${events.length} step${events.length === 1 ? '' : 's'}`
+      : ''
+
+  // Live: always show list under the indicator.
+  // Done: collapsed to a one-line summary; expand reveals full history.
   const showList = active || expanded
+
+  const truncatedLive = active && !showAllLive && events.length > LIVE_STEP_CAP
+  const hiddenCount = truncatedLive ? events.length - LIVE_STEP_CAP : 0
+  const visibleEvents = truncatedLive ? events.slice(-LIVE_STEP_CAP) : events
 
   return (
     <div className="select-none max-w-[92%]">
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          if (active) {
+            // Live header click toggles full vs capped trail when capped applies.
+            if (events.length > LIVE_STEP_CAP) setShowAllLive((v) => !v)
+            return
+          }
+          setExpanded((v) => !v)
+        }}
         className="flex items-center gap-1.5 text-left hover:opacity-90 transition-opacity"
         aria-expanded={showList}
       >
@@ -109,17 +126,34 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
           </svg>
         )}
         {active ? (
-          <span className="text-[12px] font-medium shimmer-text">{headerText}…</span>
+          <span className="text-[12px] font-medium shimmer-text">
+            {headerPrimary}
+            {headerSuffix ? (
+              <span className="text-white/35 font-normal">{headerSuffix}</span>
+            ) : null}
+            …
+          </span>
         ) : (
           <span className="text-[11px] text-white/30">
-            {events.length === 0 ? headerText : `Worked through ${events.length} step${events.length === 1 ? '' : 's'}`}
+            {events.length === 0
+              ? headerPrimary
+              : `Worked through ${events.length} step${events.length === 1 ? '' : 's'}`}
           </span>
         )}
       </button>
 
       {showList && events.length > 0 && (
         <div className="mt-1.5 ml-0.5 pl-2.5 border-l border-white/[0.07]">
-          {events.map((e) => (
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllLive(true)}
+              className="block py-[3px] text-[10.5px] text-white/25 hover:text-white/45 transition-colors"
+            >
+              {hiddenCount} earlier
+            </button>
+          )}
+          {visibleEvents.map((e) => (
             <StepRow key={e.id} event={e} />
           ))}
         </div>

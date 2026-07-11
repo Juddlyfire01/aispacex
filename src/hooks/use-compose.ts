@@ -528,40 +528,18 @@ export function useCompose() {
             webSearch,
             signal: abortController.signal,
             onDraftHandoff: handoff ? startDraftWriter : undefined,
-            onWebSearch: ({ phase, resultCount }) => {
+            onWebSearch: ({ resultCount }) => {
               const s = useComposeStore.getState()
-              if (phase === 'start') {
-                const id = newAgentEventId()
-                pendingEventIds.set('__web_search__', id)
-                s.pushAgentEvent({
-                  id,
-                  label: 'Searched web',
-                  progressLabel: 'Searching web',
-                  status: 'running',
-                  startedAt: Date.now(),
-                })
-                s.setAgentPhase(null)
-                clearedToolActivity = false
-                return
-              }
-              const id = pendingEventIds.get('__web_search__')
-              pendingEventIds.delete('__web_search__')
-              const detail =
-                resultCount && resultCount > 0
-                  ? `${resultCount} result${resultCount === 1 ? '' : 's'}`
-                  : undefined
-              if (id) {
-                s.updateAgentEvent(id, { status: 'done', detail })
-              } else {
-                s.pushAgentEvent({
-                  id: newAgentEventId(),
-                  label: 'Searched web',
-                  progressLabel: 'Searching web',
-                  detail,
-                  status: 'done',
-                  startedAt: Date.now(),
-                })
-              }
+              s.pushAgentEvent({
+                id: newAgentEventId(),
+                label: 'Searched web',
+                progressLabel: 'Searching web',
+                detail: `${resultCount} result${resultCount === 1 ? '' : 's'}`,
+                status: 'done',
+                startedAt: Date.now(),
+              })
+              s.setAgentPhase(null)
+              clearedToolActivity = false
               const stillRunning = useComposeStore
                 .getState()
                 .agentEvents.some((e) => e.status === 'running')

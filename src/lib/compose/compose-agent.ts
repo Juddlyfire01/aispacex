@@ -58,13 +58,10 @@ export interface ComposeAgentOpts {
   /** Fired when a new model round starts (1-based). */
   onRoundStart?: (round: number) => void
   /**
-   * Native Venice web search lifecycle for the activity timeline.
-   * `start` when search may run; `done` when results (or citations) arrive.
+   * Fired once when Venice returns web search hits (resultCount > 0).
+   * No optimistic "searching" — the API only confirms search after the fact.
    */
-  onWebSearch?: (info: {
-    phase: 'start' | 'done'
-    resultCount?: number
-  }) => void
+  onWebSearch?: (info: { resultCount: number }) => void
   /** Fired for each content token as the final (or intermediate) answer streams. */
   onDelta?: (token: string) => void
   /**
@@ -198,25 +195,15 @@ async function streamComposeRound(
   let toolsStarted = false
   let contentResetFired = false
   let usage: StreamedRound['usage']
-  let webSearchStarted = false
-  let webSearchDone = false
-
-  if (webSearchEnabled) {
-    webSearchStarted = true
-    opts.onWebSearch?.({ phase: 'start' })
-  }
+  let webSearchAnnounced = false
 
   for await (const chunk of parseSSEStream(stream, { signal: opts.signal })) {
     if (chunk.usage) usage = chunk.usage
 
     const resultCount = countSearchResults(chunk)
-    if (resultCount != null && !webSearchDone) {
-      if (!webSearchStarted) {
-        webSearchStarted = true
-        opts.onWebSearch?.({ phase: 'start' })
-      }
-      webSearchDone = true
-      opts.onWebSearch?.({ phase: 'done', resultCount })
+    if (!webSearchAnnounced && resultCount != null && resultCount > 0) {
+      webSearchAnnounced = true
+      opts.onWebSearch?.({ resultCount })
     }
 
     const delta = chunk.choices[0]?.delta
@@ -249,11 +236,6 @@ async function streamComposeRound(
         opts.onToolStart?.({ index, id: call.id, name })
       }
     }
-  }
-
-  // Auto mode may skip search — settle the "Searching…" step so it doesn't hang.
-  if (webSearchStarted && !webSearchDone) {
-    opts.onWebSearch?.({ phase: 'done', resultCount: 0 })
   }
 
   const toolCalls = [...toolAcc.entries()]

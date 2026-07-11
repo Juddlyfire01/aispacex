@@ -27,9 +27,12 @@ function chunk(
   partial: Partial<ChatCompletionChunk['choices'][0]['delta']> & {
     finish_reason?: string | null
     usage?: ChatCompletionChunk['usage']
+    venice_search_results?: ChatCompletionChunk['venice_search_results']
+    venice_parameters?: ChatCompletionChunk['venice_parameters']
   },
 ): ChatCompletionChunk {
-  const { finish_reason = null, usage, ...delta } = partial
+  const { finish_reason = null, usage, venice_search_results, venice_parameters, ...delta } =
+    partial
   return {
     id: 'c',
     object: 'chat.completion.chunk',
@@ -37,6 +40,8 @@ function chunk(
     model: 'test',
     choices: [{ index: 0, delta, finish_reason }],
     usage,
+    venice_search_results,
+    venice_parameters,
   }
 }
 
@@ -267,5 +272,66 @@ describe('runComposeAgent', () => {
     expect(order.indexOf('start:intel_get_posts')).toBeLessThan(
       order.indexOf('exec:intel_get_posts'),
     )
+  })
+
+  it('announces web search only when resultCount > 0', async () => {
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([
+        chunk({
+          venice_search_results: [{ url: 'https://example.com', title: 'BTC' }],
+        }),
+        chunk({ content: 'ok', finish_reason: 'stop' }),
+      ]),
+    )
+
+    const onWebSearch = vi.fn()
+    await runComposeAgent({
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'bitcoin price' }],
+      snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] },
+      scope: { type: 'all' },
+      xSearchOn: false,
+      webSearch: 'auto',
+      onWebSearch,
+    })
+
+    expect(onWebSearch).toHaveBeenCalledTimes(1)
+    expect(onWebSearch).toHaveBeenCalledWith({ resultCount: 1 })
+  })
+
+  it('does not announce web search when skipped or empty', async () => {
+    veniceMock
+      .mockResolvedValueOnce(
+        sseStreamFromChunks([chunk({ content: 'ok', finish_reason: 'stop' })]),
+      )
+      .mockResolvedValueOnce(
+        sseStreamFromChunks([
+          chunk({ venice_search_results: [] }),
+          chunk({ content: 'ok', finish_reason: 'stop' }),
+        ]),
+      )
+
+    const onWebSearch = vi.fn()
+    const base = {
+      model: 'test-model',
+      snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] as never[] },
+      scope: { type: 'all' as const },
+      xSearchOn: false,
+      webSearch: 'auto' as const,
+      onWebSearch,
+    }
+
+    await runComposeAgent({
+      ...base,
+      messages: [{ role: 'user', content: 'just reply ok' }],
+    })
+    await runComposeAgent({
+      ...base,
+      messages: [{ role: 'user', content: 'obscure query' }],
+    })
+
+    expect(onWebSearch).not.toHaveBeenCalled()
   })
 })
