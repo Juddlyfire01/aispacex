@@ -67,7 +67,7 @@ export async function publishArticleDraft(draft: PostDraft): Promise<PostResult>
   let cover_media: { media_category: string; media_id: string } | undefined
   if (article.cover) {
     const uploaded = await resolveUploadedMedia(article.cover)
-    cover_media = { media_category: 'tweet_image', media_id: uploaded.mediaId }
+    cover_media = { media_category: 'TWEET_IMAGE', media_id: uploaded.mediaId }
   }
 
   const images: Record<string, { mediaId: string; mediaKey?: string }> = {}

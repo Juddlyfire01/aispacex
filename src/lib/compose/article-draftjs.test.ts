@@ -41,7 +41,20 @@ describe('markdownToContentState', () => {
     expect(cs.blocks.some((b) => b.type === 'atomic')).toBe(true)
     expect(cs.entities.some((e) => e.value.type === 'image')).toBe(true)
     const image = cs.entities.find((e) => e.value.type === 'image')
-    expect(image?.value.data).toMatchObject({ mediaId: '123', mediaKey: '456' })
+    expect(image?.value.data).toEqual({
+      media_items: [{ media_id: '123', media_key: '456' }],
+      caption: 'shot',
+    })
+  })
+
+  it('omits media_key and caption when unavailable', () => {
+    const cs = markdownToContentState('![](media:img1)', {
+      images: { img1: { mediaId: '123' } },
+    })
+    const image = cs.entities.find((e) => e.value.type === 'image')
+    expect(image?.value.data).toEqual({
+      media_items: [{ media_id: '123' }],
+    })
   })
 
   it('falls back when image id is missing from map', () => {

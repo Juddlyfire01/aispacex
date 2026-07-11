@@ -119,9 +119,12 @@ function pushImageBlock(
   }
 
   const key = nextEntityKey()
-  const data: Record<string, unknown> = { mediaId: mapped.mediaId }
-  if (mapped.mediaKey != null) data.mediaKey = mapped.mediaKey
-  if (alt) data.alt = alt
+  const mediaId = mapped.mediaId
+  const mediaKey = mapped.mediaKey
+  const data: Record<string, unknown> = {
+    media_items: [{ media_id: mediaId, ...(mediaKey ? { media_key: mediaKey } : {}) }],
+    ...(alt ? { caption: alt } : {}),
+  }
 
   entities.push({
     key: String(key),
