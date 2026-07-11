@@ -84,16 +84,24 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
   const onCover = (files: FileList | null) => {
     void readFilesAsMedia(files, 1).then(([item]) => {
       if (!item) return
-      patchArticle({ ...article, cover: item })
+      const current =
+        useComposeStore.getState().threads[threadId]?.draft.article ?? emptyArticleDraft()
+      patchArticle({ ...current, cover: item })
       if (coverInputRef.current) coverInputRef.current.value = ''
     })
   }
 
   const onInline = (files: FileList | null) => {
-    const room = INLINE_MEDIA_CAP - article.inlineMedia.length
-    void readFilesAsMedia(files, room).then((items) => {
+    void readFilesAsMedia(files, INLINE_MEDIA_CAP).then((items) => {
       if (items.length === 0) return
-      patchArticle({ ...article, inlineMedia: [...article.inlineMedia, ...items] })
+      const current =
+        useComposeStore.getState().threads[threadId]?.draft.article ?? emptyArticleDraft()
+      const room = INLINE_MEDIA_CAP - current.inlineMedia.length
+      if (room <= 0) return
+      patchArticle({
+        ...current,
+        inlineMedia: [...current.inlineMedia, ...items.slice(0, room)],
+      })
       if (inlineInputRef.current) inlineInputRef.current.value = ''
     })
   }

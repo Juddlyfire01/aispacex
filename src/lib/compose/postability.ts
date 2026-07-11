@@ -1,4 +1,4 @@
-import { resolveDraftFormat } from './format'
+import { resolveDraftFormat, type PreferredFormat } from './format'
 import type { PostDraft } from './types'
 
 // X pay-per-use blocks several actions on self-serve tiers, so not every draft
@@ -30,8 +30,12 @@ const ARTICLE_REASON =
  * routes to copy until native upload is enabled. Articles are copy-only until
  * the Articles API path is wired.
  */
-export function classifyPostability(draft: PostDraft, caps: PostabilityCaps): Postability {
-  if (resolveDraftFormat(draft) === 'article') {
+export function classifyPostability(
+  draft: PostDraft,
+  caps: PostabilityCaps,
+  preferredFormat?: PreferredFormat,
+): Postability {
+  if (preferredFormat === 'article' || resolveDraftFormat(draft) === 'article') {
     return { mode: 'copy', reason: ARTICLE_REASON }
   }
   if (draft.target.kind === 'reply') return { mode: 'copy', reason: REPLY_REASON }

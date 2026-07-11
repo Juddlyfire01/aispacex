@@ -8,7 +8,7 @@ import {
 } from '../../lib/compose/verified-features'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
 import { clearArticleIfStale, resolveDraftFormat } from '../../lib/compose/format'
-import { emptyArticleDraft, type ReplySettings } from '../../lib/compose/types'
+import { emptyArticleDraft, emptySegment, type ReplySettings } from '../../lib/compose/types'
 import { CheckboxField } from '../ui/checkbox'
 import { SegmentEditor } from './segment-editor'
 import { TargetPicker } from './target-picker'
@@ -44,7 +44,11 @@ export function PostComposer({ threadId }: PostComposerProps) {
     if (preferredFormat !== 'article') return
     const current = useComposeStore.getState().threads[threadId]
     if (!current || current.draft.article) return
-    applyDraftPatch(threadId, { article: emptyArticleDraft(), longform: false })
+    applyDraftPatch(threadId, {
+      article: emptyArticleDraft(),
+      longform: false,
+      segments: [emptySegment()],
+    })
   }, [preferredFormat, threadId, applyDraftPatch])
 
   // Clear stale article when leaving article preference (unless draft still resolves as article).

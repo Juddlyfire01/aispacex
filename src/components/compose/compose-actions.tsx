@@ -23,6 +23,7 @@ interface ComposeActionsProps {
 export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const resetDraft = useComposeStore((s) => s.resetDraft)
+  const preferredFormat = useComposeStore((s) => s.preferredFormat)
   const connected = useXSelfStore((s) => s.connected)
   const { isVerified } = useComposeVerified()
   const longformPreference = useComposeStore((s) => s.longformPreference)
@@ -34,8 +35,9 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   if (!thread) return null
 
   const { draft } = thread
-  const postability = classifyPostability(draft, CAPS)
-  const isArticle = resolveDraftFormat(draft) === 'article'
+  const postability = classifyPostability(draft, CAPS, preferredFormat)
+  const isArticle =
+    preferredFormat === 'article' || resolveDraftFormat(draft) === 'article'
   const longform = effectiveLongform(draft.longform, isVerified)
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
   const overLimit = isArticle ? false : draft.segments.some((s) => tweetLength(s.text) > limit)

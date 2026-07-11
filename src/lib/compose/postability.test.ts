@@ -51,4 +51,17 @@ describe('classifyPostability', () => {
     expect(result.mode).toBe('copy')
     expect(result.reason).toMatch(/article/i)
   })
+
+  it('routes preferredFormat article to copy even when draft.article is empty', () => {
+    const draft = emptyDraft({ kind: 'original' })
+    const result = classifyPostability(draft, caps, 'article')
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/article/i)
+  })
+
+  it('does not treat auto preference as article without article content', () => {
+    expect(classifyPostability(emptyDraft({ kind: 'original' }), caps, 'auto')).toEqual({
+      mode: 'api',
+    })
+  })
 })
