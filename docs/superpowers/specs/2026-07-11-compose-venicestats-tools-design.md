@@ -122,13 +122,27 @@ compose-agent tool loop
 
 ### 4.4 REST path mapping
 
-During implementation, map each action to a concrete `venicestats.com` path (and query params). Prefer paths already used by the app where they exist:
+Verified against `venicestats.com` (2026-07-11). Documented in the implementation plan and `paths.ts`:
 
-- `/api/metrics`, `/api/charts`, `/api/buzz`, `/api/buzz/metrics`, `/api/social`
+| Action group | Paths |
+|--------------|-------|
+| overview / price / staking / free_float | `GET /api/metrics` (+ field projection) |
+| burns | `GET /api/burns` |
+| burns_timeline | `GET /api/burns-timeline` |
+| burn_stats_by_tier | `GET /api/burn-stats-by-tier` |
+| discretionary_burn | `GET /api/discretionary-burn` |
+| diem | `GET /api/diem-analytics` |
+| vesting / airdrop / treasury | `GET /api/vesting`, `/api/airdrop`, `/api/treasury` |
+| simulate_revenue | `GET /api/simulate-revenue` |
+| models | Venice public `/models` (not VeniceStats REST) |
+| volume / large_trades | `GET /api/markets`, `/api/markets/volume`, `/api/markets/large-swaps` |
+| trends / charts | `GET /api/charts` (downsample; trends = one series) |
+| insider_flow | `GET /api/insider-flow` |
+| buzz / buzz_metrics / social / live | existing + `GET /api/live` |
+| wallet / wallet_trades / leaderboard | `GET /api/venetians?address=`, `/api/wallet-swaps`, `/api/holders` |
+| benchmarks | **No public REST found** — return `{ unsupported: true }` until a path exists |
 
-For MCP-only capabilities, discover paths from VeniceStats public API / MCP behavior and document them in `client.ts` (or a small `paths.ts` table). Proxy already allows arbitrary paths under `/api/venicestats/proxy`.
-
-If upstream returns 404/502, executor returns `{ error, action, status? }` — tool round continues.
+Proxy already allows arbitrary paths under `/api/venicestats/proxy`. If upstream returns 404/502, executor returns `{ error, action, status? }` — tool round continues.
 
 ---
 
