@@ -10,6 +10,11 @@ import {
   percentileAsc,
   likesFloor,
   PERF_TOP_LIST_CAP,
+  formatWhy,
+  amplifiersForPost,
+  buildGlance,
+  buildPatterns,
+  MODE_LABEL,
   type PerformanceWindow,
 } from './performance'
 import type { Post } from './types'
@@ -124,5 +129,85 @@ describe('scorePost + eligibility + buildTopPosts', () => {
     const s1 = scorePost(posts[0], 'composite', { rateMed: 0.05, ampMed: 5, likesMed: 20 })
     const s2 = scorePost(posts[1], 'composite', { rateMed: 0.05, ampMed: 5, likesMed: 20 })
     expect(s1).toBeGreaterThan(s2)
+  })
+})
+
+describe('formatWhy', () => {
+  it('mentions multiple and floor for eligible likes mode', () => {
+    const text = formatWhy({
+      mode: 'likes',
+      multipleOfMedian: 3.2,
+      belowThreshold: false,
+    })
+    expect(text.toLowerCase()).toContain('3.2')
+    expect(text.toLowerCase()).toMatch(/median|likes/)
+  })
+
+  it('marks below-threshold fills', () => {
+    expect(formatWhy({ mode: 'likes', multipleOfMedian: 0.8, belowThreshold: true }).toLowerCase()).toMatch(
+      /below|threshold|near/,
+    )
+  })
+})
+
+describe('amplifiersForPost', () => {
+  it('returns up to 3 inbound quote/RT author handles for this post id', () => {
+    const inbound = [
+      makePost({
+        id: 'in1',
+        authorId: 'u2',
+        authorUsername: 'bob',
+        referenced: [{ id: 'star', type: 'quoted', authorId: 'user-1' }],
+      }),
+      makePost({
+        id: 'in2',
+        authorId: 'u3',
+        authorUsername: 'cara',
+        referenced: [{ id: 'star', type: 'retweeted', authorId: 'user-1' }],
+      }),
+      makePost({
+        id: 'in3',
+        authorId: 'u4',
+        authorUsername: 'dan',
+        referenced: [{ id: 'other', type: 'quoted', authorId: 'user-1' }],
+      }),
+    ]
+    expect(amplifiersForPost('star', inbound)).toEqual(['bob', 'cara'])
+  })
+})
+
+describe('glance + patterns', () => {
+  it('builds glance KPIs and leading kind', () => {
+    const profile = makeProfile('alice')
+    profile.id = 'user-1'
+    profile.metrics.followers = 10_000
+    const posts = [
+      makePost({
+        id: '1',
+        authorId: 'user-1',
+        kind: 'original',
+        metrics: { impressions: 5000, likes: 200, reposts: 40, replies: 10, quotes: 10 },
+      }),
+      makePost({
+        id: '2',
+        authorId: 'user-1',
+        kind: 'reply',
+        metrics: { impressions: 800, likes: 5, reposts: 0, replies: 1, quotes: 0 },
+      }),
+    ]
+    const top = buildTopPosts({ posts, profile, window: 'all', mode: 'composite', nowMs: NOW })
+    const glance = buildGlance(top)
+    expect(glance.topPostCount).toBe(top.eligibleCount)
+    expect(glance.engagementRate).toBeGreaterThan(0)
+    expect(['original', 'reply', 'quote', 'retweet']).toContain(glance.leadingKind)
+
+    const patterns = buildPatterns(top.candidates, top.mode, {
+      rateMed: 0.05,
+      ampMed: 5,
+      likesMed: 20,
+    })
+    expect(patterns.byKind.length).toBe(4)
+    expect(patterns.examples.length).toBeGreaterThanOrEqual(1)
+    expect(patterns.caption.length).toBeGreaterThan(0)
   })
 })

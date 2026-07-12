@@ -1,4 +1,4 @@
-import type { Post, Profile } from './types'
+import type { Post, PostKind, Profile } from './types'
 
 export type PerformanceWindow = '7d' | '30d' | 'all'
 export type PerformanceRankMode = 'engagement_rate' | 'amplification' | 'likes' | 'composite'
@@ -129,6 +129,46 @@ export function relativeOk(metric: number, values: number[]): boolean {
   return metric >= bar
 }
 
+export const MODE_LABEL: Record<PerformanceRankMode, string> = {
+  engagement_rate: 'engagement rate',
+  amplification: 'amplification',
+  likes: 'likes',
+  composite: 'composite score',
+}
+
+export function formatWhy(opts: {
+  mode: PerformanceRankMode
+  multipleOfMedian: number | null
+  belowThreshold: boolean
+}): string {
+  const label = MODE_LABEL[opts.mode]
+  if (opts.belowThreshold) {
+    return `Near the top of this window on ${label}, but below the top-post threshold.`
+  }
+  if (opts.multipleOfMedian != null && opts.multipleOfMedian > 0) {
+    return `${opts.multipleOfMedian}× this account's median ${label}; clears the absolute floor.`
+  }
+  return `Clears the top-post bar on ${label} for this window.`
+}
+
+const AMP_REF_TYPES = new Set(['quoted', 'retweeted', 'reposted'])
+
+export function amplifiersForPost(postId: string, inbound: Post[], limit = 3): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const p of inbound) {
+    const hits = p.referenced.some((r) => r.id === postId && AMP_REF_TYPES.has(r.type))
+    const handle = (p.authorUsername || '').replace(/^@/, '')
+    if (!hits || !handle) continue
+    const key = handle.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(handle)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export interface ScoredPost {
   post: Post
   score: number
@@ -159,6 +199,7 @@ export function buildTopPosts(opts: {
   const nowMs = opts.nowMs ?? Date.now()
   const candidates = filterPostsByWindow(opts.posts, opts.window, nowMs)
   const mode = opts.mode
+  const inbound = opts.inbound ?? []
 
   const scorable =
     mode === 'engagement_rate' ? candidates.filter(isRateScorable) : candidates
@@ -194,14 +235,15 @@ export function buildTopPosts(opts: {
       const eligible =
         relativeOk(metricForMode, metricValues) &&
         absoluteFloorOk(post, mode, opts.profile.metrics.followers, rateMedian)
+      const belowThreshold = !eligible
       return {
         post,
         score,
         metricForMode,
         multipleOfMedian,
-        belowThreshold: !eligible,
-        why: '',
-        amplifiers: [] as string[],
+        belowThreshold,
+        why: formatWhy({ mode, multipleOfMedian, belowThreshold }),
+        amplifiers: amplifiersForPost(post.id, inbound),
       }
     })
     .sort((a, b) => b.score - a.score || b.post.metrics.likes - a.post.metrics.likes)
@@ -212,7 +254,11 @@ export function buildTopPosts(opts: {
     for (const s of scored) {
       if (items.length >= PERF_FILL_MIN) break
       if (!items.some((i) => i.post.id === s.post.id)) {
-        items.push({ ...s, belowThreshold: true })
+        items.push({
+          ...s,
+          belowThreshold: true,
+          why: formatWhy({ mode, multipleOfMedian: s.multipleOfMedian, belowThreshold: true }),
+        })
       }
     }
   }
@@ -226,4 +272,111 @@ export function buildTopPosts(opts: {
     medianMetric,
     mode,
   }
+}
+
+export interface PerformanceGlance {
+  engagementRate: number
+  topPostCount: number
+  leadingKind: PostKind
+  vsMedian: number | null
+}
+
+export function buildGlance(top: TopPostsResult): PerformanceGlance {
+  let likes = 0
+  let reposts = 0
+  let replies = 0
+  let quotes = 0
+  let impressions = 0
+  for (const p of top.candidates) {
+    likes += p.metrics.likes
+    reposts += p.metrics.reposts
+    replies += p.metrics.replies
+    quotes += p.metrics.quotes
+    impressions += p.metrics.impressions
+  }
+  const engagementRate =
+    impressions > 0 ? (likes + reposts + replies + quotes) / impressions : 0
+
+  const kindScores = new Map<PostKind, { sum: number; n: number }>()
+  for (const k of ['original', 'reply', 'quote', 'retweet'] as PostKind[]) {
+    kindScores.set(k, { sum: 0, n: 0 })
+  }
+  for (const s of top.scored) {
+    const slot = kindScores.get(s.post.kind)!
+    slot.sum += s.score
+    slot.n += 1
+  }
+  let leadingKind: PostKind = 'original'
+  let best = -1
+  for (const [k, v] of kindScores) {
+    if (v.n === 0) continue
+    const avg = v.sum / v.n
+    if (avg > best) {
+      best = avg
+      leadingKind = k
+    }
+  }
+
+  const eligibleItems = top.items.filter((i) => !i.belowThreshold)
+  let vsMedian: number | null = null
+  if (eligibleItems.length > 0 && top.medianMetric > 0) {
+    const mults = eligibleItems
+      .map((i) => i.multipleOfMedian)
+      .filter((m): m is number => m != null)
+    vsMedian = mults.length ? medianOf(mults) : null
+  }
+
+  return {
+    engagementRate,
+    topPostCount: top.eligibleCount,
+    leadingKind,
+    vsMedian,
+  }
+}
+
+export interface PatternKindRow {
+  kind: PostKind
+  avgScore: number
+  count: number
+}
+
+export interface PerformancePatterns {
+  byKind: PatternKindRow[]
+  leadingKind: PostKind
+  examples: Post[]
+  caption: string
+}
+
+export function buildPatterns(
+  candidates: Post[],
+  mode: PerformanceRankMode,
+  medians: CompositeMedians,
+): PerformancePatterns {
+  const kinds: PostKind[] = ['original', 'reply', 'quote', 'retweet']
+  const byKind: PatternKindRow[] = kinds.map((kind) => {
+    const inKind = candidates.filter((p) => p.kind === kind)
+    const avgScore =
+      inKind.length === 0
+        ? 0
+        : inKind.reduce((a, p) => a + scorePost(p, mode, medians), 0) / inKind.length
+    return { kind, avgScore, count: inKind.length }
+  })
+  const leading = [...byKind].sort((a, b) => b.avgScore - a.avgScore || b.count - a.count)[0]
+  const leadingKind = leading?.kind ?? 'original'
+  const examples = candidates
+    .filter((p) => p.kind === leadingKind)
+    .map((p) => ({ p, s: scorePost(p, mode, medians) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 3)
+    .map((x) => x.p)
+  const kindLabel =
+    leadingKind === 'original'
+      ? 'Originals'
+      : leadingKind === 'reply'
+        ? 'Replies'
+        : leadingKind === 'quote'
+          ? 'Quotes'
+          : 'Reposts'
+  const caption = `${kindLabel} lead on ${MODE_LABEL[mode]} in this window.`
+  return { byKind, leadingKind, examples, caption }
 }
