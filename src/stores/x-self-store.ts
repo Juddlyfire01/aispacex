@@ -16,6 +16,11 @@ import type { Profile, Post, Edge, IntelReportSnapshot, SynthesisSettings } from
 import { DEFAULT_SYNTHESIS_SETTINGS, upgradeLegacyContextCap } from '../lib/x-intel/types'
 import { growIncludedReportIdsIfMax } from '../lib/x-intel/report-context'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
+import {
+  appendSnapshot,
+  makeSnapshot,
+  type MetricSnapshot,
+} from '../lib/x-intel/performance'
 
 export interface SelfSectionsRefreshed {
   profile?: string
@@ -37,6 +42,8 @@ export interface SelfAccount {
   activeReportId: string | null
   refreshedAt: SelfSectionsRefreshed
   synthesisSettings: SynthesisSettings
+  /** Gather-time samples for Performance deltas (followers + engagement totals). */
+  metricHistory?: MetricSnapshot[]
 }
 
 function emptyAccount(id: string, username: string, synthesisSettings: SynthesisSettings): SelfAccount {
@@ -52,6 +59,21 @@ function emptyAccount(id: string, username: string, synthesisSettings: Synthesis
     activeReportId: null,
     refreshedAt: {},
     synthesisSettings,
+    metricHistory: [],
+  }
+}
+
+function withMetricSample(account: SelfAccount): SelfAccount {
+  if (!account.profile) return account
+  return {
+    ...account,
+    metricHistory: appendSnapshot(
+      account.metricHistory,
+      makeSnapshot({
+        followers: account.profile.metrics.followers,
+        posts: account.posts,
+      }),
+    ),
   }
 }
 
@@ -246,14 +268,24 @@ export const useXSelfStore = create<XSelfState>()(
         set((s) => {
           const a = s.accounts[id]
           if (!a) return s
-          return { accounts: { ...s.accounts, [id]: { ...a, profile } } }
+          return {
+            accounts: {
+              ...s.accounts,
+              [id]: withMetricSample({ ...a, profile }),
+            },
+          }
         }),
 
       setPosts: (id, posts) =>
         set((s) => {
           const a = s.accounts[id]
           if (!a) return s
-          return { accounts: { ...s.accounts, [id]: { ...a, posts } } }
+          return {
+            accounts: {
+              ...s.accounts,
+              [id]: withMetricSample({ ...a, posts }),
+            },
+          }
         }),
 
       setBookmarks: (id, bookmarks) =>

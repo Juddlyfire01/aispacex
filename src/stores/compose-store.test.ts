@@ -15,6 +15,7 @@ function reset() {
     libraryMode: 'auto',
     budgetPct: 0.5,
     dayWindowDays: 7,
+    activePostSubTab: 'profile',
     toolActivity: null,
   })
 }
@@ -187,6 +188,28 @@ describe('compose-store', () => {
       11,
     )
     expect(migrated.draftModel).toBe('same')
+  })
+
+  it('migrateComposeState defaults activePostSubTab to profile', () => {
+    const migrated = migrateComposeState(
+      {
+        threads: {},
+        threadOrder: [],
+        activeThreadId: null,
+        model: 'grok',
+        draftModel: 'same',
+        preferredFormat: 'auto',
+      },
+      12,
+    )
+    expect(migrated.activePostSubTab).toBe('profile')
+  })
+
+  it('setActivePostSubTab updates Post sub-tab', () => {
+    useComposeStore.getState().setActivePostSubTab('feed')
+    expect(useComposeStore.getState().activePostSubTab).toBe('feed')
+    useComposeStore.getState().setActivePostSubTab('profile')
+    expect(useComposeStore.getState().activePostSubTab).toBe('profile')
   })
 
   it('migrateComposeState v3 sessions → v4 threads', () => {

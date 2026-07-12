@@ -221,6 +221,28 @@ body {
   animation: shimmer 2s infinite linear;
 }
 
+/* Soft sweep across the unfilled portion of toast progress bars. */
+@keyframes progress-track-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.progress-track-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-track-shimmer 2.4s ease-in-out infinite;
+}
+[data-reduce-motion="true"] .progress-track-shimmer {
+  animation: none;
+  background-image: none;
+}
+
 /* Cursor-style shimmering status text ("Thinking…", tool steps). */
 @keyframes shimmer-text {
   0% { background-position: 120% 0; }

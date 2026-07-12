@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useComposeStore } from '../../stores/compose-store'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useComposeStore, type PostSubTab } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
@@ -14,8 +14,11 @@ import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-e
 import { packHotWindowCached } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
 import { libraryCounts } from '../../lib/intel-library/library'
+import type { PerformanceSelection } from '../../lib/compose/performance-context'
+import { selectSelfAccount } from '../../lib/x-intel/self-orchestrate'
 import { SubTabs } from '../ui/sub-tabs'
 import { HistoryRail } from './history-rail'
+import { PerformanceProfileRail } from './performance-profile-rail'
 import { ComposeSettings } from './compose-settings'
 import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
@@ -23,13 +26,11 @@ import { DraftSplitHandle } from './draft-split-handle'
 import { PerformanceView } from './performance-view'
 
 /** Post chrome: Composer + Performance wired; network slot reserved (blank label). */
-const POST_SUB_TABS = [
-  { id: 'profile' as const, label: 'Composer' },
-  { id: 'feed' as const, label: 'Performance' },
-  { id: 'network' as const, label: '' },
+const POST_SUB_TABS: { id: PostSubTab; label: string }[] = [
+  { id: 'profile', label: 'Composer' },
+  { id: 'feed', label: 'Performance' },
+  { id: 'network', label: '' },
 ]
-
-type PostSubTab = (typeof POST_SUB_TABS)[number]['id']
 
 function PostSubTabPlaceholder({ label }: { label: string }) {
   return (
@@ -67,7 +68,22 @@ export function ComposeWorkspace() {
   const reports = useXIntelStore((s) => s.reports)
   const selfAccounts = useXSelfStore((s) => s.accounts)
 
-  const [activeSubTab, setActiveSubTab] = useState<PostSubTab>('profile')
+  const activeSubTab = useComposeStore((s) => s.activePostSubTab)
+  const setActiveSubTab = useComposeStore((s) => s.setActivePostSubTab)
+  /** Performance-only profile pick; independent of compose thread history. */
+  const [perfSelection, setPerfSelection] = useState<PerformanceSelection | null>(null)
+  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
+
+  const handlePerfSelect = useCallback(
+    (next: PerformanceSelection) => {
+      setPerfSelection(next)
+      // Keep OAuth/active self in sync when reviewing a connected account.
+      if (next.kind === 'me' && next.accountId !== activeAccountId) {
+        void selectSelfAccount(next.accountId)
+      }
+    },
+    [activeAccountId],
+  )
 
   // Research model: latest standard Grok (tool + X search). Follows catalog upgrades
   // when the user was still on the previous default.
@@ -146,7 +162,11 @@ export function ComposeWorkspace() {
 
   return (
     <div className="flex h-full min-h-0">
-      <HistoryRail />
+      {activeSubTab === 'feed' ? (
+        <PerformanceProfileRail selection={perfSelection} onSelect={handlePerfSelect} />
+      ) : (
+        <HistoryRail />
+      )}
 
       <div className="flex flex-col flex-1 min-w-0">
         <SubTabs
@@ -210,7 +230,12 @@ export function ComposeWorkspace() {
               </div>
             </div>
           )}
-          {activeSubTab === 'feed' && <PerformanceView />}
+          {activeSubTab === 'feed' && (
+            <PerformanceView
+              selection={perfSelection}
+              onSelectionChange={setPerfSelection}
+            />
+          )}
           {activeSubTab === 'network' && <PostSubTabPlaceholder label="Network" />}
         </div>
       </div>

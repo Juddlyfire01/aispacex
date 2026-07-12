@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { refreshPosts } from '../../lib/x-intel/orchestrate'
+import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
 import { matchesFeedFilters, postFeedFilterKeys, type FeedFilterKey } from '../../lib/x-intel/activity'
@@ -346,7 +347,11 @@ export function ActivityFeed() {
     setRefreshing(true)
     setRefreshError(null)
     try {
-      await refreshPosts(activeTarget)
+      await withRefreshToast(
+        `@${activeTarget}`,
+        () => useXIntelStore.getState().reports[activeTarget]?.posts.length ?? 0,
+        () => refreshPosts(activeTarget),
+      )
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {

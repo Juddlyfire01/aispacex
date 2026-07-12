@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfPosts } from '../../lib/x-intel/self-orchestrate'
+import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { ActivityFeedInner } from './activity-feed'
 
 /** Feed sub-tab for the self Profile tab. Wires the shared ActivityFeedInner
@@ -22,7 +23,11 @@ export function SelfFeed() {
     setRefreshing(true)
     setRefreshError(null)
     try {
-      await refreshSelfPosts({ maxResults: 50 })
+      await withRefreshToast(
+        `@${account.username}`,
+        () => useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0,
+        () => refreshSelfPosts({ maxResults: 50 }),
+      )
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {

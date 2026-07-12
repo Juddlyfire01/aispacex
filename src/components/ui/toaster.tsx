@@ -16,14 +16,19 @@ function ProgressBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(1, value)) * 100
   return (
     <div
-      className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-border-soft)]/60"
+      className="relative h-1 w-full overflow-hidden rounded-full bg-[var(--color-border-soft)]/60"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
     >
+      {/* Soft shimmer on the unfilled track only */}
       <div
-        className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-300 ease-out"
+        className="progress-track-shimmer pointer-events-none absolute inset-0 rounded-full"
+        aria-hidden
+      />
+      <div
+        className="relative h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-300 ease-out"
         style={{ width: `${pct}%` }}
       />
     </div>

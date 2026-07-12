@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { xLogoHrefForTheme } from '../../lib/appearance'
-import { gatherSelf, refreshSelfProfile, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
+import { gatherSelf, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
+import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
@@ -108,11 +109,20 @@ export function SelfProfileView() {
   const bookmarks = account?.bookmarks ?? []
   const likes = account?.likes ?? []
 
+  // Refresh must pull the full corpus (profile + posts + bookmarks + likes) so
+  // newly authored posts land in the store — reports diff against gathered
+  // posts, so a profile-only refresh silently freezes the dataset. A progress
+  // toast reports the outcome, including how many new posts were pulled in.
   const runRefresh = async () => {
     setError(null)
+    const subject = profile?.username ? `@${profile.username}` : 'your profile'
     try {
-      if (profile) await refreshSelfProfile()
-      else await gatherSelf()
+      await withRefreshToast(
+        subject,
+        () => (activeAccountId ? useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0 : 0),
+        () => gatherSelf(),
+        'Profile up to date',
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gather failed')
     }

@@ -3,6 +3,7 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { confirmDialog } from '../../stores/confirm-store'
 import { refreshProfile, runGather } from '../../lib/x-intel/orchestrate'
+import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
 import { MentionLink } from './mention-link'
@@ -65,24 +66,25 @@ export function ProfileCard() {
   const [profileRefreshing, setProfileRefreshing] = useState(false)
   const linkRefreshAttempted = useRef<Set<string>>(new Set())
 
+  // Refresh always does a full gather (profile + posts + mentions) so newly
+  // authored posts land in the store — a profile-only refresh leaves the post
+  // corpus frozen and makes reports read "no new activity". A progress toast
+  // reports the outcome, including how many new posts were pulled in.
   const runRefresh = async () => {
     if (!activeTarget) return
     setRefreshError(null)
+    setProfileRefreshing(true)
     try {
-      // Populated profile → cheap profile-only refresh (toasts inside).
-      // Empty state → full gather for profile + posts + network.
-      if (report?.profile) {
-        setProfileRefreshing(true)
-        try {
-          await refreshProfile(activeTarget)
-        } finally {
-          setProfileRefreshing(false)
-        }
-      } else {
-        await runGather(activeTarget)
-      }
+      await withRefreshToast(
+        `@${activeTarget}`,
+        () => useXIntelStore.getState().reports[activeTarget]?.posts.length ?? 0,
+        () => runGather(activeTarget),
+        'Profile up to date',
+      )
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
+    } finally {
+      setProfileRefreshing(false)
     }
   }
 

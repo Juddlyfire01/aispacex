@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
+import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { NetworkGraphInner, collectSiblings } from './network-graph'
 
@@ -23,7 +24,11 @@ export function SelfNetwork() {
     setRefreshing(true)
     setRefreshError(null)
     try {
-      await refreshSelfNetwork()
+      await withRefreshToast(
+        `@${account?.username ?? 'you'}`,
+        () => (activeAccountId ? useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0 : 0),
+        () => refreshSelfNetwork(),
+      )
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {

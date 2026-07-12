@@ -2,17 +2,27 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { resolvePerformanceSubject } from '../../lib/compose/performance-context'
 import {
+  resolvePerformanceSubject,
+  selectionFromSubject,
+  type PerformanceSelection,
+  type SelfAccountSlice,
+} from '../../lib/compose/performance-context'
+import {
+  buildCatalysts,
+  buildDailySeries,
   buildGlance,
-  buildPatterns,
   buildTopPosts,
+  followersDeltaFromHistory,
+  periodDaysForWindow,
+  type MetricSnapshot,
   type PerformanceRankMode,
   type PerformanceWindow,
 } from '../../lib/x-intel/performance'
 import { PerformanceControls } from './performance-controls'
 import { PerformanceGlance } from './performance-glance'
-import { PerformancePatterns } from './performance-patterns'
+import { PerformanceChart } from './performance-chart'
+import { PerformanceCatalysts } from './performance-catalysts'
 import { TopPostsList } from './top-posts-list'
 
 function EmptyBody({ children }: { children: ReactNode }) {
@@ -23,45 +33,115 @@ function EmptyBody({ children }: { children: ReactNode }) {
   )
 }
 
-export function PerformanceView() {
+function toSelfSlice(acc: {
+  profile: SelfAccountSlice['profile']
+  posts: SelfAccountSlice['posts']
+  edges?: SelfAccountSlice['edges']
+} | undefined): SelfAccountSlice | null {
+  if (!acc) return null
+  return {
+    profile: acc.profile,
+    posts: acc.posts,
+    edges: acc.edges ?? [],
+  }
+}
+
+export function PerformanceView({
+  selection,
+  onSelectionChange,
+}: {
+  selection: PerformanceSelection | null
+  onSelectionChange: (next: PerformanceSelection | null) => void
+}) {
   const activeThread = useComposeStore((s) =>
     s.activeThreadId ? s.threads[s.activeThreadId] : undefined,
   )
   const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
-  const selfAccount = useXSelfStore((s) =>
-    s.activeAccountId ? s.accounts[s.activeAccountId] : undefined,
-  )
+  const accounts = useXSelfStore((s) => s.accounts)
+  const accountOrder = useXSelfStore((s) => s.accountOrder)
   const reports = useXIntelStore((s) => s.reports)
 
   const [timeWindow, setTimeWindow] = useState<PerformanceWindow>('30d')
   const [mode, setMode] = useState<PerformanceRankMode>('composite')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  const selfAccount = useMemo(
+    () => toSelfSlice(activeAccountId ? accounts[activeAccountId] : undefined),
+    [activeAccountId, accounts],
+  )
+
+  const getSelfAccount = useMemo(
+    () => (accountId: string) => toSelfSlice(accounts[accountId]),
+    [accounts],
+  )
+
+  const findReport = useMemo(
+    () => (username: string) => {
+      const key = findReportKey(reports, username)
+      if (!key) return null
+      const r = reports[key]
+      if (!r?.profile) return null
+      return { profile: r.profile, posts: r.posts ?? [], edges: r.edges }
+    },
+    [reports],
+  )
+
   const subject = useMemo(
     () =>
       resolvePerformanceSubject({
+        selection,
         threadScope: activeThread?.context,
         newThreadContext,
         selfAccount: selfAccount
-          ? {
-              profile: selfAccount.profile,
-              posts: selfAccount.posts,
-              edges: selfAccount.edges ?? [],
-            }
+          ? selfAccount
           : activeAccountId
             ? { profile: null, posts: [], edges: [] }
             : null,
-        findReport: (username) => {
-          const key = findReportKey(reports, username)
-          if (!key) return null
-          const r = reports[key]
-          if (!r?.profile) return null
-          return { profile: r.profile, posts: r.posts ?? [], edges: r.edges }
-        },
+        getSelfAccount,
+        findReport,
       }),
-    [activeThread?.context, newThreadContext, selfAccount, activeAccountId, reports],
+    [
+      selection,
+      activeThread?.context,
+      newThreadContext,
+      selfAccount,
+      activeAccountId,
+      getSelfAccount,
+      findReport,
+    ],
   )
+
+  const metricHistory: MetricSnapshot[] | undefined = useMemo(() => {
+    if (selection?.kind === 'me') {
+      return accounts[selection.accountId]?.metricHistory
+    }
+    if (subject.status === 'ok') {
+      if (selection?.kind === 'target') {
+        const key = findReportKey(reports, selection.username)
+        return key ? reports[key]?.metricHistory : undefined
+      }
+      // Default self
+      if (activeAccountId && accounts[activeAccountId]?.profile?.username.toLowerCase() === subject.username.toLowerCase()) {
+        return accounts[activeAccountId]?.metricHistory
+      }
+      const key = findReportKey(reports, subject.username)
+      return key ? reports[key]?.metricHistory : undefined
+    }
+    return undefined
+  }, [selection, subject, accounts, activeAccountId, reports])
+
+  useEffect(() => {
+    if (selection) return
+    const selfList = accountOrder
+      .map((id) => {
+        const a = accounts[id]
+        return a?.username ? { id, username: a.username } : null
+      })
+      .filter(Boolean) as { id: string; username: string }[]
+    const implied = selectionFromSubject(subject, selfList)
+    if (implied) onSelectionChange(implied)
+  }, [selection, subject, accountOrder, accounts, onSelectionChange])
 
   const top = useMemo(() => {
     if (subject.status !== 'ok') return null
@@ -74,11 +154,37 @@ export function PerformanceView() {
     })
   }, [subject, timeWindow, mode])
 
-  const glance = useMemo(() => (top ? buildGlance(top) : null), [top])
-  const patterns = useMemo(
-    () => (top ? buildPatterns(top.candidates, top.mode, top.medians) : null),
-    [top],
-  )
+  const followersDelta = useMemo(() => {
+    if (subject.status !== 'ok') return null
+    return followersDeltaFromHistory(
+      metricHistory,
+      periodDaysForWindow(timeWindow),
+    )
+  }, [subject, metricHistory, timeWindow])
+
+  const glance = useMemo(() => {
+    if (subject.status !== 'ok') return null
+    return buildGlance({
+      posts: subject.ownPosts,
+      window: timeWindow,
+      followers: subject.profile.metrics.followers,
+      followersDelta,
+    })
+  }, [subject, timeWindow, followersDelta])
+
+  const series = useMemo(() => {
+    if (subject.status !== 'ok') return []
+    return buildDailySeries(subject.ownPosts, timeWindow, mode)
+  }, [subject, timeWindow, mode])
+
+  const catalyst = useMemo(() => {
+    if (subject.status !== 'ok') return null
+    return buildCatalysts({
+      posts: subject.ownPosts,
+      window: timeWindow,
+      followersDelta,
+    })
+  }, [subject, timeWindow, followersDelta])
 
   const subjectKey = subject.status === 'ok' ? subject.username : null
   const firstId = top?.items[0]?.post.id ?? null
@@ -90,7 +196,7 @@ export function PerformanceView() {
   let body: ReactNode
   if (subject.status === 'need_profile') {
     body = (
-      <EmptyBody>Pick You or a target in Composer settings to see Performance.</EmptyBody>
+      <EmptyBody>Pick a profile in the rail (You or a target) to see Performance.</EmptyBody>
     )
   } else if (subject.status === 'no_posts') {
     body = (
@@ -102,28 +208,31 @@ export function PerformanceView() {
     body = <EmptyBody>{`No report loaded for @${subject.username}.`}</EmptyBody>
   } else if (!top || top.candidates.length === 0) {
     body = <EmptyBody>No posts in this window — try 30d or All.</EmptyBody>
-  } else if (mode === 'engagement_rate' && top.scored.length === 0 && top.candidates.length > 0) {
-    body = (
-      <EmptyBody>
-        No posts with impressions in this window — try another rank mode.
-      </EmptyBody>
-    )
   } else {
     body = (
       <>
         {glance && <PerformanceGlance glance={glance} />}
-        <section className="px-4 pt-3 pb-2">
+        <PerformanceChart series={series} mode={mode} />
+        <section className="px-4 pt-1 pb-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
             Top posts
+            {subjectKey ? (
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-[var(--color-text-tertiary)]">
+                @{subjectKey}
+              </span>
+            ) : null}
           </h3>
+          <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
+            Sorted high → low by {mode === 'composite' ? 'X-style score' : mode}
+          </p>
         </section>
         <TopPostsList
           items={top.items}
           mode={mode}
           expandedId={expandedId}
-          onExpand={setExpandedId}
+          onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
         />
-        {patterns && <PerformancePatterns patterns={patterns} />}
+        {catalyst && <PerformanceCatalysts catalyst={catalyst} />}
       </>
     )
   }

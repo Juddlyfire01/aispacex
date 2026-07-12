@@ -7,6 +7,11 @@ import { DEFAULT_SYNTHESIS_SETTINGS, upgradeLegacyContextCap } from '../lib/x-in
 import { growIncludedReportIdsIfMax } from '../lib/x-intel/report-context'
 import { shouldUpgradeSynthesisModel } from '../lib/x-intel/synthesis-model'
 import { computeAnalytics, postDateRange } from '../lib/x-intel/analytics'
+import {
+  appendSnapshot,
+  makeSnapshot,
+  type MetricSnapshot,
+} from '../lib/x-intel/performance'
 
 /** Small id generator; crypto.randomUUID where available, else a random fallback. */
 export function newReportId(): string {
@@ -80,6 +85,8 @@ export interface IntelReport {
   totalCost: number
   createdAt: string
   refreshedAt: RefreshedAt
+  /** Gather-time samples for Performance deltas (followers + engagement totals). */
+  metricHistory?: MetricSnapshot[]
 }
 
 export type IntelSubTab = 'profile' | 'network' | 'feed'
@@ -321,7 +328,22 @@ export const useXIntelStore = create<XIntelState>()(
           const key = findReportKey(s.reports, username)
           if (!key) return s
           const report = s.reports[key]
-          return { reports: { ...s.reports, [key]: { ...report, ...patch } } }
+          const next: IntelReport = { ...report, ...patch }
+          // Sample followers + engagement totals when profile or posts refresh.
+          if (patch.profile !== undefined || patch.posts !== undefined) {
+            const profile = next.profile
+            const posts = next.posts ?? []
+            if (profile) {
+              next.metricHistory = appendSnapshot(
+                report.metricHistory,
+                makeSnapshot({
+                  followers: profile.metrics.followers,
+                  posts,
+                }),
+              )
+            }
+          }
+          return { reports: { ...s.reports, [key]: next } }
         })
       },
 
@@ -574,6 +596,7 @@ export const useXIntelStore = create<XIntelState>()(
         reports: s.reports,
         activeTarget: s.activeTarget,
         activeTopTab: s.activeTopTab,
+        activeSubTab: s.activeSubTab,
         lifetimeTotal: s.lifetimeTotal,
         defaultSynthesisSettings: s.defaultSynthesisSettings,
         activeSelfSubTab: s.activeSelfSubTab,

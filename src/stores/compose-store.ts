@@ -27,6 +27,15 @@ export type XSearchMode = 'off' | 'auto' | 'on'
 /** Same off/auto/on shape as X search — Venice `enable_web_search`. */
 export type WebSearchMode = 'off' | 'auto' | 'on'
 
+/** Post top-tab sub-chrome: Composer | Performance | Network. */
+export type PostSubTab = 'profile' | 'feed' | 'network'
+
+const POST_SUB_TABS: readonly PostSubTab[] = ['profile', 'feed', 'network']
+
+function isPostSubTab(v: unknown): v is PostSubTab {
+  return typeof v === 'string' && (POST_SUB_TABS as readonly string[]).includes(v)
+}
+
 /** Legacy session shape (persist versions < 4). */
 interface LegacyComposeSession {
   messages: ComposeMessage[]
@@ -64,6 +73,8 @@ interface ComposeState {
   budgetPct: number
   /** null = all time */
   dayWindowDays: number | null
+  /** Post → Composer / Performance / Network. Persisted across refresh. */
+  activePostSubTab: PostSubTab
   /** Ephemeral tool activity label — not persisted. */
   toolActivity: string | null
   /** Ephemeral Cursor-style step timeline for the current run — not persisted. */
@@ -128,6 +139,7 @@ interface ComposeState {
   setLibraryMode: (mode: LibraryMode) => void
   setBudgetPct: (pct: number) => void
   setDayWindowDays: (days: number | null) => void
+  setActivePostSubTab: (tab: PostSubTab) => void
   setToolActivity: (label: string | null) => void
   setContextLimit: (limit: number) => void
 
@@ -280,6 +292,7 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (state.activeThreadId === undefined) state.activeThreadId = null
   if (state.newThreadContext == null) state.newThreadContext = { type: 'all' }
   if (state.draftDrawerOpen == null) state.draftDrawerOpen = false
+  if (!isPostSubTab(state.activePostSubTab)) state.activePostSubTab = 'profile'
 
   return state as unknown as ComposeState
 }
@@ -307,6 +320,7 @@ export const useComposeStore = create<ComposeState>()(
       libraryMode: 'auto',
       budgetPct: 0.5,
       dayWindowDays: 7,
+      activePostSubTab: 'profile',
       toolActivity: null,
       agentEvents: [],
       agentPhase: null,
@@ -543,6 +557,7 @@ export const useComposeStore = create<ComposeState>()(
       setLibraryMode: (mode) => set({ libraryMode: mode }),
       setBudgetPct: (pct) => set({ budgetPct: clampBudgetPct(pct) }),
       setDayWindowDays: (days) => set({ dayWindowDays: days }),
+      setActivePostSubTab: (tab) => set({ activePostSubTab: tab }),
       setToolActivity: (label) => set({ toolActivity: label }),
       setContextLimit: (limit) => set({ contextLimit: limit }),
 
@@ -556,7 +571,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 12,
+      version: 13,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -578,6 +593,7 @@ export const useComposeStore = create<ComposeState>()(
         libraryMode: state.libraryMode,
         budgetPct: state.budgetPct,
         dayWindowDays: state.dayWindowDays,
+        activePostSubTab: state.activePostSubTab,
       }),
     },
   ),

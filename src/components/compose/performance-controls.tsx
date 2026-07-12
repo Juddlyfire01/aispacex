@@ -8,10 +8,13 @@ const WINDOWS: { value: PerformanceWindow; label: string }[] = [
 ]
 
 const MODES: { value: PerformanceRankMode; label: string }[] = [
-  { value: 'composite', label: 'Composite' },
-  { value: 'engagement_rate', label: 'Eng. rate' },
-  { value: 'amplification', label: 'Amplification' },
+  { value: 'composite', label: 'X-score' },
+  { value: 'impressions', label: 'Views' },
   { value: 'likes', label: 'Likes' },
+  { value: 'reposts', label: 'Reposts' },
+  { value: 'replies', label: 'Replies' },
+  { value: 'quotes', label: 'Quotes' },
+  { value: 'bookmarks', label: 'Bookmarks' },
 ]
 
 export function PerformanceControls({
