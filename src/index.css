@@ -5,7 +5,8 @@
      Overridden at runtime by applyAppearanceToHtml via --font-sans / --font-mono. */
   --font-sans: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", "Consolas", "Liberation Mono", monospace;
-  --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Apple Color Emoji", emoji;
+  /* Color emoji only — do not include Segoe UI Symbol (it steals ASCII digits). */
+  --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", emoji;
 }
 
 /*
@@ -165,8 +166,14 @@ body {
   font-feature-settings: "ss01", "cv11";
 }
 
+/* Pure emoji faces (picker cells). Not for body/input text. */
 .font-emoji {
   font-family: var(--font-emoji);
+}
+
+/* UI sans first; emoji fonts only for emoji code points. */
+.font-with-emoji {
+  font-family: var(--font-sans), var(--font-emoji);
 }
 
 ::selection { background: var(--color-accent-soft); color: var(--color-text-primary); }

@@ -13,6 +13,8 @@ import { VideoView } from './components/video/video-view'
 import { EmbeddingsView } from './components/embeddings/embeddings-view'
 import { ErrorBoundary } from './components/ui/error-boundary'
 import { Toaster } from './components/ui/toaster'
+import { ConfirmDialogHost } from './components/ui/confirm-dialog'
+import { PromptDialogHost } from './components/ui/prompt-dialog'
 import { SettingsView } from './components/settings/settings-view'
 import { useApplyAppearance } from './hooks/use-apply-appearance'
 import { useXOAuthBootstrap } from './hooks/use-x-oauth-bootstrap'
@@ -170,6 +172,8 @@ export function App() {
       </div>
       <ApiKeyDialog open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
       <Toaster />
+      <ConfirmDialogHost />
+      <PromptDialogHost />
     </>
   )
 }

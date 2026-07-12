@@ -14,6 +14,7 @@ import type { ComposeScope } from '../../lib/intel-library/types'
 import { CostMeter } from '../x-intel/cost-meter'
 import { ThreadExportButton } from './thread-export-button'
 import { Checkbox } from '../ui/checkbox'
+import { confirmDialog } from '../../stores/confirm-store'
 import { cn } from '../../lib/utils'
 
 function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
@@ -175,28 +176,35 @@ export function HistoryRail() {
     })
   }
 
-  const handleDelete = (thread: ComposeThread) => {
+  const handleDelete = async (thread: ComposeThread) => {
     if (thread.messages.length > 0) {
-      if (!confirm('Delete this chat? Messages and draft will be removed.')) return
+      const ok = await confirmDialog({
+        title: 'Delete chat',
+        description: 'Messages and draft will be removed.',
+        confirmLabel: 'Delete',
+        danger: true,
+      })
+      if (!ok) return
     }
     deleteThread(thread.id)
   }
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const ids = [...selectedIds]
     if (ids.length === 0) return
     const anyWithMessages = ids.some((id) => (threads[id]?.messages.length ?? 0) > 0)
     if (anyWithMessages) {
       const n = ids.length
-      if (
-        !confirm(
+      const ok = await confirmDialog({
+        title: n === 1 ? 'Delete chat' : `Delete ${n} chats`,
+        description:
           n === 1
-            ? 'Delete this chat? Messages and draft will be removed.'
-            : `Delete ${n} chats? Messages and drafts will be removed.`,
-        )
-      ) {
-        return
-      }
+            ? 'Messages and draft will be removed.'
+            : 'Messages and drafts will be removed.',
+        confirmLabel: 'Delete',
+        danger: true,
+      })
+      if (!ok) return
     }
     deleteThreads(ids)
     exitSelectMode()

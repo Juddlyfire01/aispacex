@@ -7,7 +7,8 @@ import { EvidencePosts } from './evidence-posts'
 import { linkify } from '../../lib/x-intel/linkify'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { generateReport, runGather } from '../../lib/x-intel/orchestrate'
+import { generateReport } from '../../lib/x-intel/orchestrate'
+import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { computeAnalytics } from '../../lib/x-intel/analytics'
 import { partitionPosts } from '../../lib/x-intel/activity'
 import { splitEvidence, profileUrl } from '../../lib/x-intel/evidence'
@@ -585,7 +586,6 @@ export function ProfileReport() {
   const setActiveReport = useXIntelStore((s) => s.setActiveReport)
   const deleteReport = useXIntelStore((s) => s.deleteReport)
   const jumpToFeedPost = useXIntelStore((s) => s.jumpToFeedPost)
-  const addTarget = useXIntelStore((s) => s.addTarget)
   const connected = useXSelfStore((s) => s.connected)
   // Busy/error live in the store so leaving Profile mid-generation does not
   // abort UI state or allow a second concurrent job for the same target.
@@ -602,14 +602,7 @@ export function ProfileReport() {
 
   // Add an engaged account (from mentions/replies) as a new intel target.
   const addAsTarget = (username: string) => {
-    if (!connected) {
-      alert('Connect your X account (header → Connect X) to add profiles from the network.')
-      return
-    }
-    if (confirm(`Add @${username} as a new profile to analyze?`)) {
-      addTarget(username)
-      runGather(username).catch(() => { /* surfaced in target rail */ })
-    }
+    addTargetWithToast(username)
   }
 
   if (!activeTarget || !report) {

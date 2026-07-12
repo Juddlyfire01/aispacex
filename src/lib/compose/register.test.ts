@@ -58,12 +58,13 @@ describe('formatRegisterInject', () => {
       },
       { customPrompt: 'keep under 280' },
     )
-    expect(text).toMatch(/REGISTER/)
+    expect(text).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
     expect(text).toMatch(/Clinical/)
     expect(text).toMatch(/rankings/)
     expect(text).toMatch(/--- ranking \[post:99\] ---/)
     expect(text).toMatch(/top 5:/)
     expect(text).toMatch(/keep under 280/)
+    expect(text).toMatch(/Adherence checklist/)
   })
 })
 

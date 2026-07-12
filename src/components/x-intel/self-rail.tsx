@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { confirmDialog } from '../../stores/confirm-store'
 import { beginSelfLogin, selfLogout } from '../../lib/x-intel/self-client'
 import { selectSelfAccount, refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
 import { openComposeForTarget } from '../../lib/compose/open-compose'
@@ -62,7 +63,13 @@ export function SelfRail() {
   }
 
   const handleDisconnect = async (id: string, username: string) => {
-    if (!confirm(`Disconnect @${username}? Your gathered data stays encrypted on this device and is revived if you reconnect. Clear it anytime from Settings → Data & privacy.`)) return
+    const ok = await confirmDialog({
+      title: 'Disconnect account',
+      description: `@${username} · Gathered data stays encrypted on this device and is revived if you reconnect.`,
+      confirmLabel: 'Disconnect',
+      danger: true,
+    })
+    if (!ok) return
     await selfLogout(id)
     disconnectAccount(id)
     // If we just removed the active account, the server fell back to another

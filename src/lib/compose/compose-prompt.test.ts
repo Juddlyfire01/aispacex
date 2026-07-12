@@ -84,10 +84,25 @@ describe('buildComposeSystem', () => {
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: false,
-      registerInject: 'REGISTER (draft in this exact linguistic register when writing post copy):\nDescription: terse',
+      registerInject:
+        'REGISTER — HARD STYLE CONSTRAINT (non-negotiable for all publishable copy):\nDescription: terse',
     })
-    expect(system).toMatch(/REGISTER \(draft in this exact/)
+    expect(system).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
     expect(system).toMatch(/Description: terse/)
+    expect(system).toMatch(/REGISTER ADHERENCE/)
+  })
+
+  it('keeps register inject under draftHandoff (chat + writer both see it)', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      draftHandoff: true,
+      registerInject: 'REGISTER — HARD STYLE CONSTRAINT\nDescription: metric stack',
+    })
+    expect(system).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
+    expect(system).toMatch(/compose_write_draft/)
+    expect(system).toMatch(/register-critical style cues/i)
   })
 
   it('includes handoff draft tool instructions when draftHandoff', () => {
@@ -100,6 +115,7 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/compose_write_draft/)
     expect(system).toMatch(/ONLY when the user asks/i)
     expect(system).toMatch(/NEVER paste the full draft/i)
+    expect(system).toMatch(/Do not announce a "handoff"/i)
     expect(system).not.toMatch(/```postdraft\n/)
   })
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { confirmDialog } from '../../stores/confirm-store'
 import { refreshProfile, runGather } from '../../lib/x-intel/orchestrate'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
@@ -85,9 +86,15 @@ export function ProfileCard() {
     }
   }
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!activeTarget) return
-    if (!confirm(`Remove @${activeTarget} from the Others rail? Gathered data stays encrypted on this device and is revived if you add them again. Clear it anytime from Settings → Data & privacy.`)) return
+    const ok = await confirmDialog({
+      title: 'Remove from rail',
+      description: `@${activeTarget} · Gathered data stays encrypted on this device and is revived if you add them again.`,
+      confirmLabel: 'Remove',
+      danger: true,
+    })
+    if (!ok) return
     removeTarget(activeTarget)
   }
 

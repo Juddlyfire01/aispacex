@@ -13,6 +13,7 @@ import type { ComposeScope } from '../lib/intel-library/types'
 import { scopeFromContext } from '../lib/intel-library/scope'
 import { createEncryptedStorage } from '../lib/encrypted-storage'
 import type { AgentEvent, AgentEventStatus } from '../lib/compose/agent-events'
+import { DRAFT_MODEL_SAME } from '../lib/compose/draft-writer-tool'
 
 // Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
@@ -41,7 +42,7 @@ interface ComposeState {
   /** Draft pane width as % of the chat+draft split (25–75). Default 50. */
   draftDrawerWidthPct: number
   model: string
-  /** Draft writer: 'same' = main model emits postdraft; else a Venice model id. */
+  /** Draft writer: 'same' = use research model; else a Venice model id. */
   draftModel: string
   xSearch: XSearchMode
   /** Venice native web search (`enable_web_search`). */
@@ -202,8 +203,7 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
     state.registerDefault = { ...DEFAULT_REGISTER_DEFAULT }
   }
   if (version < 6 && state.draftModel == null) {
-    // Empty until models load — workspace seeds Venice default trait.
-    state.draftModel = ''
+    state.draftModel = DRAFT_MODEL_SAME
   }
   if (version < 7 && state.threads) {
     for (const thread of Object.values(state.threads as Record<string, ComposeThread>)) {
@@ -222,6 +222,12 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (version < 11) {
     if (state.xNewsOn == null) state.xNewsOn = true
     if (state.xNewsMaxAgeHours == null) state.xNewsMaxAgeHours = 24
+  }
+  if (version < 12) {
+    // Default draft writer to Same as main (empty / unset → same).
+    if (state.draftModel == null || state.draftModel === '') {
+      state.draftModel = DRAFT_MODEL_SAME
+    }
   }
 
   if (version < 4) {
@@ -288,7 +294,7 @@ export const useComposeStore = create<ComposeState>()(
       draftDrawerOpen: false,
       draftDrawerWidthPct: 50,
       model: '',
-      draftModel: '',
+      draftModel: DRAFT_MODEL_SAME,
       xSearch: 'auto',
       webSearch: 'auto',
       xNewsOn: true,
@@ -550,7 +556,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 11,
+      version: 12,
       // Threads + drafts encrypted at rest (device-bound AES-GCM).
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => migrateComposeState(persisted, version),

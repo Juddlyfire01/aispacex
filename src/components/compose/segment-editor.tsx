@@ -74,7 +74,7 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
         }}
         rows={Math.max(3, Math.ceil((segment.text.length || 1) / 60))}
         placeholder={index === 0 ? 'What do you want to post?' : 'Continue the thread…'}
-        className="w-full bg-transparent text-[13px] text-white/85 font-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] placeholder:font-sans"
+        className="w-full bg-transparent text-[13px] text-white/85 font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)]"
       />
 
       <MediaAttachments threadId={threadId} segment={segment} />

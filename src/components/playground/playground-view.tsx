@@ -9,6 +9,7 @@ import { WorkflowPreview } from './workflow-preview'
 import { AgentModelPicker } from './agent-model-picker'
 import { cn } from '../../lib/utils'
 import { toast } from '../../stores/toast-store'
+import { confirmDialog } from '../../stores/confirm-store'
 import { DEFAULT_AGENT_MODEL } from '../../lib/playground-agent'
 import { Spinner } from '../ui/spinner'
 
@@ -105,8 +106,14 @@ export function PlaygroundView() {
     unlinkWorkflow()
   }
 
-  const handleReset = () => {
-    if (!confirm('Clear the current conversation and canvas?')) return
+  const handleReset = async () => {
+    const ok = await confirmDialog({
+      title: 'Clear conversation',
+      description: 'Clear the current conversation and canvas?',
+      confirmLabel: 'Clear',
+      danger: true,
+    })
+    if (!ok) return
     clearConversation()
   }
 

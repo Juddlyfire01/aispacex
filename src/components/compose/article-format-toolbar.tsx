@@ -1,3 +1,5 @@
+import { promptDialog } from '../../stores/prompt-store'
+
 interface ArticleFormatToolbarProps {
   editorRef: React.RefObject<HTMLDivElement | null>
   onEdited: () => void
@@ -20,12 +22,14 @@ export function ArticleFormatToolbar({ editorRef, onEdited }: ArticleFormatToolb
 
   const block = (tag: string) => focusAnd(() => run('formatBlock', `<${tag}>`))
 
-  const link = () => {
-    focusAnd(() => {
-      const url = window.prompt('Link URL')
-      if (!url?.trim()) return
-      run('createLink', url.trim())
+  const link = async () => {
+    const url = await promptDialog({
+      title: 'Link URL',
+      placeholder: 'https://',
+      confirmLabel: 'OK',
     })
+    if (!url?.trim()) return
+    focusAnd(() => run('createLink', url.trim()))
   }
 
   return (

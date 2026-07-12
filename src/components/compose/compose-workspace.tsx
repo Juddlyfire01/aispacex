@@ -75,10 +75,14 @@ export function ComposeWorkspace() {
     }
   }, [model, models, setModel])
 
-  // Draft writer: Venice most_uncensored (latest Uncensored SKU). Follows trait moves
-  // (1.2 → 1.3 / 2.0) when still on the previous default.
+  // Draft writer: default Same as main. Only auto-upgrade when user picked a
+  // specific Venice Uncensored SKU that Venice retagged.
   useEffect(() => {
     if (!models || models.length === 0) return
+    if (!draftModel) {
+      setDraftModel(DRAFT_MODEL_SAME)
+      return
+    }
     if (draftModel === DRAFT_MODEL_SAME) return
     if (shouldUpgradeDraftModel(draftModel, models, mostUncensoredModelId, defaultModelId)) {
       setDraftModel(pickDefaultDraftModel(models, mostUncensoredModelId))

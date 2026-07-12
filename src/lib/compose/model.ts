@@ -1,6 +1,7 @@
 import type { VeniceModel } from '../../types/venice'
 import { compareGrokDesc, isGrokModel } from '../venice-grok-utils'
 import { resolveMostUncensoredModelId } from '../venice-model-utils'
+import { DRAFT_MODEL_SAME } from './draft-writer-tool'
 
 // Compose always sends tools + tool_choice. Only models with
 // supportsFunctionCalling belong in the Post main-model picker.
@@ -159,8 +160,9 @@ export function shouldUpgradeDraftModel(
   catalogDefaultModelId?: string,
 ): boolean {
   if (!models.length) return false
+  // Empty / "same" is intentional default — do not seed a separate writer model.
+  if (!draftModel || draftModel === DRAFT_MODEL_SAME) return false
   const preferred = pickDefaultDraftModel(models, mostUncensoredModelId)
-  if (!draftModel) return true
   if (!models.some((m) => m.id === draftModel)) return true
   if (draftModel === preferred) return false
 

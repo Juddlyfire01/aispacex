@@ -15,20 +15,6 @@ export function rewritePostIdsToUrls(text: string): string {
   })
 }
 
-function targetSuffix(draft: PostDraft): string {
-  if (draft.target.kind === 'reply') {
-    const u = draft.target.toUsername.replace(/^@/, '')
-    const id = normalizePostId(draft.target.toPostId) ?? draft.target.toPostId
-    return `\n\nReplying to @${u}: ${postUrl(id)}`
-  }
-  if (draft.target.kind === 'quote') {
-    const u = draft.target.username.replace(/^@/, '')
-    const id = normalizePostId(draft.target.postId) ?? draft.target.postId
-    return `\n\nQuoting @${u}: ${postUrl(id)}`
-  }
-  return ''
-}
-
 function serializeArticlePlain(draft: PostDraft): string | null {
   const a = draft.article
   if (!a) return null
@@ -37,7 +23,7 @@ function serializeArticlePlain(draft: PostDraft): string | null {
   const body = markdownToArticlePlain(rewritePostIdsToUrls(cleanBody))
   if (!title && !body.trim()) return null
   const head = title ? `${title}\n\n` : ''
-  return `${head}${body}`.trim() + targetSuffix(draft)
+  return `${head}${body}`.trim()
 }
 
 /** Rich HTML for article clipboard paste into X Articles (title + body). */
@@ -65,7 +51,9 @@ export function serializeDraftForCopy(draft: PostDraft): string {
         )
       : [rewritePostIdsToUrls(draft.segments[0]?.text ?? '')]
 
-  return parts.join('\n\n').trimEnd() + targetSuffix(draft)
+  // Reply/quote targets stay in draft metadata only — not pasted into the body.
+  // On X, reply/quote are UI actions; appending "Replying to @user: url" pollutes the post.
+  return parts.join('\n\n').trimEnd()
 }
 
 /** Prefer rich HTML for articles; plain text for posts/threads. */

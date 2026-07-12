@@ -172,6 +172,23 @@ describe('compose-store', () => {
     expect(migrated.preferredFormat).toBe('auto')
   })
 
+  it('migrateComposeState version < 12 defaults empty draftModel to same', () => {
+    const migrated = migrateComposeState(
+      {
+        threads: {},
+        threadOrder: [],
+        activeThreadId: null,
+        model: 'grok',
+        draftModel: '',
+        preferredFormat: 'auto',
+        xNewsOn: true,
+        xNewsMaxAgeHours: 24,
+      },
+      11,
+    )
+    expect(migrated.draftModel).toBe('same')
+  })
+
   it('migrateComposeState v3 sessions → v4 threads', () => {
     const olderDraft = emptyDraft({ kind: 'original' })
     olderDraft.updatedAt = '2024-01-01T00:00:00.000Z'

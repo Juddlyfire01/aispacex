@@ -1,11 +1,11 @@
-// Draft-writer handoff: main model calls compose_write_draft; a second model
-// streams post copy into the drawer while chat continues.
+// Draft writer: main model calls compose_write_draft; a writer model (same as
+// main, or a separate Venice id) streams copy into the Draft drawer.
 
 import type { ToolDefinition } from '../../types/venice'
 import type { PreferredFormat } from './format'
 import type { PostTarget } from './types'
 
-/** Persisted sentinel — main model writes postdraft itself. */
+/** Persisted sentinel — draft writer uses the research/main model id. */
 export const DRAFT_MODEL_SAME = 'same' as const
 export type DraftModelSetting = typeof DRAFT_MODEL_SAME | (string & {})
 
@@ -25,14 +25,14 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Write publishable X copy into the Draft drawer via the draft-writer model. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Pass a dense brief (not the full manuscript). Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
+      'Write publishable X copy into the Draft drawer. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Pass a dense brief (not the full manuscript). Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
     parameters: {
       type: 'object',
       properties: {
         brief: {
           type: 'string',
           description:
-            'Dense writing brief: intent, key facts/metrics, @handles, tone notes, must-include / must-avoid. For articles include section outline. Do not include image/cover prompts here — those stay in chat.',
+            'Dense writing brief: intent, key facts/metrics, @handles, must-include / must-avoid. Include short voice cues when a register is active (cadence, devices, metric density) — the writer also receives the full REGISTER block. For articles include section outline. Do not include image/cover prompts here — those stay in chat.',
         },
         target: {
           type: 'object',
@@ -52,7 +52,8 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         },
         notes: {
           type: 'string',
-          description: 'Hard constraints e.g. keep under 280, include NFA, ranking format.',
+          description:
+            'Hard constraints e.g. keep under 280, include NFA, ranking format, register reminders (terse, metric-stack, no hype).',
         },
       },
       required: ['brief'],
@@ -80,6 +81,45 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
   return { brief, target, longform, notes }
 }
 
-export function isDraftHandoffEnabled(draftModel: string | undefined | null): boolean {
+/**
+ * Draft tool path is always on — the main agent must call compose_write_draft
+ * rather than emitting a ```postdraft fence in chat.
+ */
+export function isDraftHandoffEnabled(_draftModel?: string | null): boolean {
+  return true
+}
+
+/** True when Draft model is a distinct Venice id (not Same as main). */
+export function isSeparateDraftModel(draftModel: string | undefined | null): boolean {
   return Boolean(draftModel && draftModel !== DRAFT_MODEL_SAME)
+}
+
+/** Resolve the Venice model id the draft writer should call. */
+export function resolveDraftWriterModelId(
+  draftModel: string | undefined | null,
+  mainModel: string,
+): string {
+  if (!draftModel || draftModel === DRAFT_MODEL_SAME) return mainModel
+  return draftModel
+}
+
+/** Timeline labels for compose_write_draft / writer streaming. */
+export function describeDraftWriteLabels(opts: {
+  sameModel: boolean
+  article: boolean
+}): { progressLabel: string; label: string } {
+  if (opts.sameModel) {
+    return opts.article
+      ? { progressLabel: 'Writing article…', label: 'Wrote article' }
+      : { progressLabel: 'Writing draft…', label: 'Wrote draft' }
+  }
+  return opts.article
+    ? {
+        progressLabel: 'Handing off to article writer',
+        label: 'Handed off to article writer',
+      }
+    : {
+        progressLabel: 'Handing off to draft writer',
+        label: 'Handed off to draft writer',
+      }
 }

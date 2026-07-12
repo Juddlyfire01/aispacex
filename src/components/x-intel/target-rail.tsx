@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { runGather } from '../../lib/x-intel/orchestrate'
+import { confirmDialog } from '../../stores/confirm-store'
 import { useListDragReorder } from '../../hooks/use-list-drag-reorder'
 import { RailDropIndicator } from './rail-drop-indicator'
 import { CostMeter } from './cost-meter'
@@ -31,8 +32,14 @@ export function TargetRail() {
   )
   const { getItemProps, draggingIndex, showDropSlot } = useListDragReorder(targets.length, handleReorder)
 
-  const handleRemove = (username: string) => {
-    if (!confirm(`Remove @${username} from the Others rail? Gathered data stays encrypted on this device and is revived if you add them again. Clear it anytime from Settings → Data & privacy.`)) return
+  const handleRemove = async (username: string) => {
+    const ok = await confirmDialog({
+      title: 'Remove from rail',
+      description: `@${username} · Gathered data stays encrypted on this device and is revived if you add them again.`,
+      confirmLabel: 'Remove',
+      danger: true,
+    })
+    if (!ok) return
     removeTarget(username)
   }
 

@@ -1,5 +1,6 @@
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
+import { confirmDialog } from '../../stores/confirm-store'
 
 /** A single clearable data row: label + a short data summary + a Clear button. */
 function DataRow({
@@ -56,8 +57,14 @@ export function DataPrivacySection() {
     return parts.join(' · ')
   }
 
-  const confirmPurge = (label: string, fn: () => void) => {
-    if (confirm(`Permanently delete all cached data for ${label}? This cannot be undone.`)) fn()
+  const confirmPurge = async (label: string, fn: () => void) => {
+    const ok = await confirmDialog({
+      title: 'Delete cached data',
+      description: `Permanently delete all cached data for ${label}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (ok) fn()
   }
 
   return (

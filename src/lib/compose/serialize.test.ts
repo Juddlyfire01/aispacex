@@ -34,22 +34,20 @@ describe('serializeDraftForCopy', () => {
     expect(serializeDraftForCopy(draftWith([`link ${url}`])).trim()).toBe(`link ${url}`)
   })
 
-  it('appends reply target permalink', () => {
-    const out = serializeDraftForCopy(
+  it('does not append reply or quote target metadata to the body', () => {
+    const reply = serializeDraftForCopy(
       draftWith(['nice'], { kind: 'reply', toPostId: ID, toUsername: 'bob' }),
     )
-    expect(out).toContain('nice')
-    expect(out).toContain(`https://x.com/i/status/${ID}`)
-    expect(out).toMatch(/@bob/)
-  })
+    expect(reply).toBe('nice')
+    expect(reply).not.toMatch(/Replying to/)
+    expect(reply).not.toContain(ID)
 
-  it('appends quote target permalink', () => {
-    const out = serializeDraftForCopy(
+    const quote = serializeDraftForCopy(
       draftWith(['adding'], { kind: 'quote', postId: ID, username: 'ann' }),
     )
-    expect(out).toContain('adding')
-    expect(out).toContain(`https://x.com/i/status/${ID}`)
-    expect(out).toMatch(/@ann/)
+    expect(quote).toBe('adding')
+    expect(quote).not.toMatch(/Quoting/)
+    expect(quote).not.toContain(ID)
   })
 
   it('numbers thread segments after rewrite', () => {

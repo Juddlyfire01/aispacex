@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { parseDraftWriteBrief, isDraftHandoffEnabled, DRAFT_MODEL_SAME } from './draft-writer-tool'
-import { splitWriterSegments, buildWriterUser, parseArticleFromWriterText } from './draft-writer'
+import {
+  parseDraftWriteBrief,
+  isDraftHandoffEnabled,
+  isSeparateDraftModel,
+  resolveDraftWriterModelId,
+  describeDraftWriteLabels,
+  DRAFT_MODEL_SAME,
+} from './draft-writer-tool'
+import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
 
@@ -38,13 +45,45 @@ describe('parseDraftWriteBrief', () => {
 })
 
 describe('isDraftHandoffEnabled', () => {
-  it('false for same / empty', () => {
-    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(false)
-    expect(isDraftHandoffEnabled('')).toBe(false)
-    expect(isDraftHandoffEnabled(null)).toBe(false)
-  })
-  it('true for a model id', () => {
+  it('always enables the draft tool path', () => {
+    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(true)
+    expect(isDraftHandoffEnabled('')).toBe(true)
+    expect(isDraftHandoffEnabled(null)).toBe(true)
     expect(isDraftHandoffEnabled('venice-uncensored-1-2')).toBe(true)
+  })
+})
+
+describe('isSeparateDraftModel / resolveDraftWriterModelId', () => {
+  it('treats same / empty as main model', () => {
+    expect(isSeparateDraftModel(DRAFT_MODEL_SAME)).toBe(false)
+    expect(isSeparateDraftModel('')).toBe(false)
+    expect(isSeparateDraftModel(null)).toBe(false)
+    expect(resolveDraftWriterModelId(DRAFT_MODEL_SAME, 'grok-main')).toBe('grok-main')
+    expect(resolveDraftWriterModelId('', 'grok-main')).toBe('grok-main')
+  })
+  it('uses a distinct draft model id when set', () => {
+    expect(isSeparateDraftModel('venice-uncensored-1-2')).toBe(true)
+    expect(resolveDraftWriterModelId('venice-uncensored-1-2', 'grok-main')).toBe(
+      'venice-uncensored-1-2',
+    )
+  })
+})
+
+describe('describeDraftWriteLabels', () => {
+  it('uses Writing draft labels for same model', () => {
+    expect(describeDraftWriteLabels({ sameModel: true, article: false })).toEqual({
+      progressLabel: 'Writing draft…',
+      label: 'Wrote draft',
+    })
+    expect(describeDraftWriteLabels({ sameModel: true, article: true })).toEqual({
+      progressLabel: 'Writing article…',
+      label: 'Wrote article',
+    })
+  })
+  it('uses handoff labels for a separate writer model', () => {
+    expect(describeDraftWriteLabels({ sameModel: false, article: false }).progressLabel).toMatch(
+      /Handing off/,
+    )
   })
 })
 
@@ -107,6 +146,21 @@ describe('buildWriterUser', () => {
     expect(u).toMatch(/no image prompts/i)
     expect(u).not.toMatch(/IMAGE_PROMPT/)
     expect(u).not.toMatch(/Long-form allowed/)
+  })
+
+  it('reminds writer to apply REGISTER when hasRegister', () => {
+    const u = buildWriterUser({ brief: 'Cover VVV burns' }, true)
+    expect(u).toMatch(/Apply the REGISTER voice/)
+    expect(buildWriterUser({ brief: 'x' }, false)).not.toMatch(/REGISTER voice/)
+  })
+})
+
+describe('buildWriterSystem', () => {
+  it('adds register override when inject present', () => {
+    const sys = buildWriterSystem('REGISTER — HARD STYLE CONSTRAINT\nDescription: terse')
+    expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
+    expect(sys).toMatch(/REGISTER OVERRIDE/)
+    expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
   })
 })
 

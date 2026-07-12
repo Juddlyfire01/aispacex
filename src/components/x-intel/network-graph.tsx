@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { runGather, refreshNetwork } from '../../lib/x-intel/orchestrate'
+import { refreshNetwork } from '../../lib/x-intel/orchestrate'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
 import { type EdgeKind, type SiblingSubject } from '../../lib/x-intel/network-build'
 import { buildNetworkFromPosts, type NetworkDirection } from '../../lib/x-intel/network-direction'
+import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { NetworkBubbleMap, kindTint } from './network-bubble-map'
 import { NetworkRankedList } from './network-ranked-list'
 import type { Edge, Post, Profile } from '../../lib/x-intel/types'
@@ -104,15 +105,11 @@ export function NetworkGraphInner({
   }
 
   const onNodeClick = (username: string) => {
-    if (!canAddTargets || !onAddTarget) return
+    if (!canAddTargets) return
     if (username.toLowerCase() === profile.username.toLowerCase()) return
-    if (!connected) {
-      alert('Connect your X account (header → Connect X) to add profiles from the network graph.')
-      return
-    }
-    if (confirm(`Add @${username} as a new profile to analyze?`)) {
-      onAddTarget(username)
-    }
+    // Prefer shared helper (toast + Undo). Fall back to parent callback if provided alone.
+    if (onAddTarget) onAddTarget(username)
+    else addTargetWithToast(username)
   }
 
   const summaryParts: string[] = []
@@ -262,7 +259,6 @@ export function collectSiblings(excludeProfileId: string | null): SiblingSubject
 export function NetworkGraph() {
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const report = useXIntelStore((s) => (s.activeTarget ? s.reports[s.activeTarget] : undefined))
-  const addTarget = useXIntelStore((s) => s.addTarget)
   const jumpToFeedPost = useXIntelStore((s) => s.jumpToFeedPost)
   const connected = useXSelfStore((s) => s.connected)
   const [refreshing, setRefreshing] = useState(false)
@@ -293,8 +289,7 @@ export function NetworkGraph() {
   const lastGathered = report.refreshedAt?.network ?? report.posts[0]?.gatheredAt
 
   const onAddTarget = (username: string) => {
-    addTarget(username)
-    runGather(username).catch(() => { /* surfaced in target rail */ })
+    addTargetWithToast(username)
   }
 
   return (

@@ -84,4 +84,51 @@ describe('executeNewsTool', () => {
     )
     expect(result).toEqual({ error: expect.stringMatching(/disabled/i) })
   })
+
+  it('x_news_search requests valid news.fields (updated_at, not last_updated_at_ms)', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      expect(url).toMatch(/news\/search/)
+      expect(url).toMatch(/news\.fields=/)
+      expect(url).toMatch(/updated_at/)
+      expect(url).not.toMatch(/last_updated_at_ms/)
+      expect(url).toMatch(/max_age_hours=48/)
+      return new Response(JSON.stringify({ data: [], meta: { result_count: 0 } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await executeNewsTool(
+      'x_news_search',
+      { query: 'VVV', max_results: 5 },
+      { bookmarks: [], xNewsOn: true, xNewsMaxAgeHours: 48 },
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(result).toEqual({ data: [], meta: { result_count: 0 } })
+  })
+
+  it('surfaces X API invalid-field errors from search', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            detail: 'One or more parameters to your request was invalid.',
+            title: 'Invalid Request',
+            error: 'Invalid Request',
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    const result = await executeNewsTool(
+      'x_news_search',
+      { query: 'VVV' },
+      { bookmarks: [], xNewsOn: true, xNewsMaxAgeHours: 24 },
+    )
+    expect(result).toMatchObject({ status: 400 })
+    expect((result as { error: string }).error).toBeTruthy()
+  })
 })

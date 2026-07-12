@@ -18,7 +18,8 @@ export interface RunDraftWriterOpts {
   onDelta?: (token: string) => void
 }
 
-function buildWriterSystem(registerInject?: string | null): string {
+/** Exported for tests. */
+export function buildWriterSystem(registerInject?: string | null): string {
   const parts = [
     `You are the AiSpaceX draft writer. Your only job is to write X post / article copy.
 
@@ -37,12 +38,19 @@ Rules:
   ]
   if (registerInject?.trim()) {
     parts.push(registerInject.trim())
+    parts.push(
+      `REGISTER OVERRIDE — highest priority after factual accuracy in the brief:
+- Voice and texture come from REGISTER, not from a generic social-media template.
+- If REGISTER and a softer "helpful" tone conflict, REGISTER wins.
+- Mirror anchor sentence length, punctuation, and metric stacking even when the brief is factual/dense.
+- Do not pad with enthusiasm, disclaimers, or essay transitions the anchors would not use.`,
+    )
   }
   return parts.join('\n\n')
 }
 
 /** Exported for tests. */
-export function buildWriterUser(brief: DraftWriteBrief): string {
+export function buildWriterUser(brief: DraftWriteBrief, hasRegister = false): string {
   const lines = [`Brief:\n${brief.brief}`]
   if (brief.notes?.trim()) lines.push(`Constraints:\n${brief.notes.trim()}`)
   if (brief.target) lines.push(`Target: ${JSON.stringify(brief.target)}`)
@@ -60,6 +68,11 @@ export function buildWriterUser(brief: DraftWriteBrief): string {
         ' X Article format (not a Premium long-form tweet). Output `# Title`, blank line, markdown body only. Do not include any image/cover prompt in the output.'
     }
     lines.push(rules)
+  }
+  if (hasRegister) {
+    lines.push(
+      'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from the brief; style from REGISTER.',
+    )
   }
   if (brief.preferredFormat === 'article') {
     lines.push('Write the X Article now (title + body only — no image prompts).')
@@ -88,13 +101,14 @@ export function splitWriterSegments(text: string): string[] {
  */
 export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> {
   const isArticle = opts.brief.preferredFormat === 'article'
+  const hasRegister = Boolean(opts.registerInject?.trim())
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
       model: opts.modelId,
       messages: [
         { role: 'system', content: buildWriterSystem(opts.registerInject) },
-        { role: 'user', content: buildWriterUser(opts.brief) },
+        { role: 'user', content: buildWriterUser(opts.brief, hasRegister) },
       ],
       stream: true,
       stream_options: { include_usage: true },

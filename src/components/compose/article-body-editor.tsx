@@ -158,7 +158,7 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
         onInput={emitFromDom}
         onBlur={emitFromDom}
         onScroll={onScroll}
-        className="article-body-editor min-h-[200px] max-h-[min(60vh,520px)] overflow-y-auto outline-none text-[14px] text-white/85 leading-relaxed font-emoji empty:before:content-[attr(data-placeholder)] empty:before:text-white/20"
+        className="article-body-editor min-h-[200px] max-h-[min(60vh,520px)] overflow-y-auto outline-none text-[14px] text-white/85 leading-relaxed font-with-emoji empty:before:content-[attr(data-placeholder)] empty:before:text-white/20"
       />
       <style>{`
         .article-body-editor h1 {

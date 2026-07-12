@@ -54,7 +54,7 @@ export function describeToolProgress(name: string, args: Record<string, unknown>
     case 'compose_history_get':
       return 'Reading a past post chat'
     case 'compose_write_draft':
-      return 'Handing off to draft writer'
+      return 'Writing draft…'
     case 'news_read':
       return 'Reading bookmarked article'
     case 'x_news_search':
@@ -98,7 +98,7 @@ export function describeToolCall(name: string, args: Record<string, unknown>): s
     case 'compose_history_get':
       return 'Read a past post chat'
     case 'compose_write_draft':
-      return 'Handed off to draft writer'
+      return 'Wrote draft'
     case 'news_read':
       return 'Read bookmarked article'
     case 'x_news_search':

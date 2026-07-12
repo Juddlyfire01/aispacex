@@ -343,7 +343,7 @@ export async function runComposeAgent(
             opts.onDraftHandoff?.(brief)
             result = {
               status: 'started',
-              message: 'Draft writer is streaming into the draft drawer.',
+              message: 'Writing into the draft drawer.',
             }
           } catch (err) {
             result = {

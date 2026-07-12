@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
-import { runGather } from '../../lib/x-intel/orchestrate'
+import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { NetworkGraphInner, collectSiblings } from './network-graph'
 
 /** Network sub-tab for the self Profile tab. Wires the shared NetworkGraphInner
@@ -12,7 +12,6 @@ export function SelfNetwork() {
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
   const connected = useXSelfStore((s) => s.connected)
-  const addTarget = useXIntelStore((s) => s.addTarget)
   const jumpToSelfFeedPost = useXIntelStore((s) => s.jumpToSelfFeedPost)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
@@ -39,8 +38,7 @@ export function SelfNetwork() {
   const lastGathered = account.refreshedAt.posts ?? account.posts[0]?.gatheredAt
 
   const onAddTarget = (username: string) => {
-    addTarget(username)
-    runGather(username).catch(() => { /* surfaced in target rail */ })
+    addTargetWithToast(username)
   }
 
   return (

@@ -4,6 +4,8 @@ import { extractNewsArticle, NewsExtractError } from '../news/extract-client'
 import { X_PROXY_BASE, XAPIError } from '../x-intel/x-client'
 
 const X_NEWS_TRUNCATE = 32_000
+const X_NEWS_FIELDS =
+  'name,summary,hook,category,contexts,cluster_posts_results,keywords,updated_at,disclaimer'
 
 export const NEWS_READ_TOOL_NAME = 'news_read'
 export const X_NEWS_SEARCH_TOOL_NAME = 'x_news_search'
@@ -163,8 +165,14 @@ async function xNewsGet(path: string, params: Record<string, string>, signal?: A
   }
   if (!res.ok) {
     const msg =
-      json && typeof json === 'object' && json !== null && 'error' in json
-        ? String((json as { error: unknown }).error)
+      json && typeof json === 'object' && json !== null
+        ? (() => {
+            const o = json as Record<string, unknown>
+            if (typeof o.error === 'string' && o.error) return o.error
+            if (typeof o.detail === 'string' && o.detail) return o.detail
+            if (typeof o.title === 'string' && o.title) return o.title
+            return `HTTP ${res.status}`
+          })()
         : `HTTP ${res.status}`
     throw new XAPIError(msg, res.status)
   }
@@ -221,8 +229,7 @@ export async function executeNewsTool(
           query,
           max_results: String(maxResults),
           max_age_hours: String(ctx.xNewsMaxAgeHours),
-          'news.fields':
-            'name,summary,hook,category,contexts,cluster_posts_results,keywords,last_updated_at_ms,disclaimer',
+          'news.fields': X_NEWS_FIELDS,
         },
         ctx.signal,
       )
@@ -235,8 +242,7 @@ export async function executeNewsTool(
       const data = await xNewsGet(
         `news/${encodeURIComponent(id)}`,
         {
-          'news.fields':
-            'name,summary,hook,category,contexts,cluster_posts_results,keywords,last_updated_at_ms,disclaimer',
+          'news.fields': X_NEWS_FIELDS,
         },
         ctx.signal,
       )

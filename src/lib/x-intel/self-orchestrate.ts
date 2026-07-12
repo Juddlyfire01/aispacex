@@ -28,6 +28,7 @@ import { findReportKey, mergePosts, newReportId, useXIntelStore } from '../../st
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { toast } from '../../stores/toast-store'
+import { confirmDialog } from '../../stores/confirm-store'
 import { runGather } from './orchestrate'
 import { DEFAULT_TARGET } from './fields'
 import type { IntelReportSnapshot, ChangeSummary, Post } from './types'
@@ -102,7 +103,13 @@ export async function disconnectActiveAccount(): Promise<void> {
   const activeAccountId = store.activeAccountId
   if (!activeAccountId) return
   const username = store.accounts[activeAccountId]?.username ?? 'account'
-  if (!confirm(`Disconnect @${username}? Your gathered data stays encrypted on this device and is revived if you reconnect. Clear it anytime from Settings → Data & privacy.`)) return
+  const ok = await confirmDialog({
+    title: 'Disconnect account',
+    description: `@${username} · Gathered data stays encrypted on this device and is revived if you reconnect.`,
+    confirmLabel: 'Disconnect',
+    danger: true,
+  })
+  if (!ok) return
   await selfLogout(activeAccountId)
   store.disconnectAccount(activeAccountId)
   await refreshSelfSession()

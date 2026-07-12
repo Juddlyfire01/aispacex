@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { extensionForMime } from '../../lib/media-blob'
 import type { MediaKind } from '../../lib/media-gallery'
 import type { GalleryItemView } from '../../hooks/use-media-gallery'
+import { confirmDialog } from '../../stores/confirm-store'
 
 function formatRelative(ms: number): string {
   const sec = Math.round((Date.now() - ms) / 1000)
@@ -44,10 +45,16 @@ export function MediaGallery({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = items.find((i) => i.id === selectedId) ?? null
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (items.length === 0) return
     const label = kindLabelSingular(kind)
-    if (!window.confirm(`Clear all ${items.length} ${label}${items.length === 1 ? '' : 's'} from this gallery?`)) return
+    const ok = await confirmDialog({
+      title: 'Clear gallery',
+      description: `Clear all ${items.length} ${label}${items.length === 1 ? '' : 's'} from this gallery?`,
+      confirmLabel: 'Clear',
+      danger: true,
+    })
+    if (!ok) return
     setSelectedId(null)
     onClearAll()
   }

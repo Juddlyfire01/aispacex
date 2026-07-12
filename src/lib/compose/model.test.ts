@@ -182,6 +182,12 @@ describe('shouldUpgradeDraftModel', () => {
     ).toBe(true)
   })
 
+  it('does not upgrade empty or same-as-main', () => {
+    const models = [model('venice-uncensored-1-2', { traits: ['most_uncensored'] })]
+    expect(shouldUpgradeDraftModel('', models, 'venice-uncensored-1-2')).toBe(false)
+    expect(shouldUpgradeDraftModel('same', models, 'venice-uncensored-1-2')).toBe(false)
+  })
+
   it('does not upgrade a non-uncensored intentional pick', () => {
     const models = [
       model('writer-a'),

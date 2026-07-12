@@ -7,12 +7,11 @@ import { AgentActivity } from './agent-activity'
 import { ContextRing } from './context-ring'
 import { ContextUsagePopup } from './context-usage-popup'
 import { buildComposeSystem } from '../../lib/compose/compose-prompt'
-import { isDraftHandoffEnabled } from '../../lib/compose/draft-writer-tool'
+import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
 import { COMPOSE_INTEL_TOOLS } from '../../lib/compose/intel-tools'
 import { COMPOSE_HISTORY_TOOLS } from '../../lib/compose/history-tools'
 import { COMPOSE_STATS_TOOLS } from '../../lib/compose/stats-tools'
 import { getComposeNewsTools } from '../../lib/compose/news-tools'
-import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
 import { filterComposeToolModels, modelSupportsXSearch } from '../../lib/compose/model'
 import { estimateComposeContextBreakdown } from '../../lib/compose/token-estimate'
 import { messageContentString } from '../../lib/compose/thread-meta'
@@ -47,7 +46,6 @@ export function ComposeChat({
   const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
   const model = useComposeStore((s) => s.model)
-  const draftModel = useComposeStore((s) => s.draftModel)
   const xSearch = useComposeStore((s) => s.xSearch)
   const webSearch = useComposeStore((s) => s.webSearch)
   const xNewsOn = useComposeStore((s) => s.xNewsOn)
@@ -72,21 +70,20 @@ export function ComposeChat({
   )
 
   const contextBreakdown = useMemo(() => {
-    const handoff = isDraftHandoffEnabled(draftModel)
     const system = buildComposeSystem({
       modelId: model,
       xSearchOn: xSearch !== 'off' && modelSupportsXSearch(toolModels, model),
       webSearchOn: webSearch !== 'off',
       xNewsOn,
       toolsEnabled: true,
-      draftHandoff: handoff,
+      draftHandoff: true,
     })
     const tools = [
       ...COMPOSE_INTEL_TOOLS,
       ...COMPOSE_HISTORY_TOOLS,
       ...COMPOSE_STATS_TOOLS,
       ...getComposeNewsTools({ xNewsOn }),
-      ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
+      COMPOSE_WRITE_DRAFT_TOOL,
     ]
     return estimateComposeContextBreakdown({
       system,
@@ -101,7 +98,6 @@ export function ComposeChat({
     })
   }, [
     model,
-    draftModel,
     xSearch,
     webSearch,
     xNewsOn,

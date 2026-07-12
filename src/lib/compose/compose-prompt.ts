@@ -35,7 +35,7 @@ const FORMAT_SPEC = `Output formats (when drafting for X):
 - Thread: 2+ segments (each ≤280 unless longform). Multi-beat narrative, numbered beats, or a sequence of related posts.
 - Long-form: single segment, longform true, up to ~25k characters (Premium tweet). Deep essay as ONE tweet — NOT an X Article.
 - Article: X Articles format — populate article: { title, bodyMarkdown }. Titled structured piece with sections (and optional uploaded media). Do NOT put the article body in tweet segments; segments may be []. Do NOT confuse Article with Premium long-form tweets.
-- Image / cover prompts: never put them in the article body or draft fields. If the user wants an image prompt, give it in chat on its own turn (after handing the article to the draft tool).
+- Image / cover prompts: never put them in the article body or draft fields. If the user wants an image prompt, give it in chat on its own turn after the draft is ready.
 
 Auto decision (when format preference is Auto):
 - Punchy single take → post
@@ -54,11 +54,18 @@ Do NOT call compose_write_draft for research, analysis, finding posts, suggestin
 
 When you do call it:
 1. Pass a dense brief (facts, angle, handles, constraints). For Articles: section outline; never set longform:true (Articles ≠ Premium long-form tweets).
-2. NEVER paste the full draft/article/thread into chat. The draft drawer owns the copy.
-3. NEVER emit a \`\`\`postdraft fence.
-4. Chat after the tool stays SHORT: status + light options only.
-5. Image/cover prompts belong in chat (after handoff), not in the writer brief or article body.
-6. Do not offer to draft unless the user asked for writing/copy.`
+2. If a REGISTER block is in this system prompt, the draft writer also receives it — still put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
+3. NEVER paste the full draft/article/thread into chat. The draft drawer owns the copy.
+4. NEVER emit a \`\`\`postdraft fence.
+5. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff" — the Draft drawer is the deliverable.
+6. Image/cover prompts belong in chat (after compose_write_draft), not in the writer brief or article body.
+7. Do not offer to draft unless the user asked for writing/copy.`
+
+const REGISTER_CHAT_ADHERENCE = `REGISTER ADHERENCE (this turn has an active register):
+- Chat analysis may stay in your normal analyst voice.
+- Any publishable X copy you produce (postdraft segments, article body, or the brief you hand to compose_write_draft) MUST follow the REGISTER block — treat it as a hard constraint over generic helpful tone.
+- Prefer sounding like the anchors over sounding polished. Softening, padding, or "improving" the register is wrong.
+- When handing off: brief = content/facts; register = voice. Encode voice reminders in notes if the request risks drifting (e.g. "terse metric stack, no hype").`
 
 const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
 - Drafting/revising an article → call compose_write_draft (not chat paste).
@@ -185,6 +192,7 @@ Style:
 
   if (opts.registerInject?.trim()) {
     parts.push(opts.registerInject.trim())
+    parts.push(REGISTER_CHAT_ADHERENCE)
   }
 
   if (opts.draftHandoff) {

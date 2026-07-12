@@ -14,7 +14,9 @@ import {
 } from '../lib/compose/register'
 import { findReportKey } from '../stores/x-intel-store'
 import {
-  isDraftHandoffEnabled,
+  describeDraftWriteLabels,
+  isSeparateDraftModel,
+  resolveDraftWriterModelId,
   type DraftWriteBrief,
 } from '../lib/compose/draft-writer-tool'
 import { runDraftWriter, splitWriterSegments, parseArticleFromWriterText } from '../lib/compose/draft-writer'
@@ -46,9 +48,9 @@ import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
-// data, may call intel_* / compose_history_* tools (tool rounds stream
-// activity, final answer streams tokens), then extracts ```postdraft into the
-// thread draft and leaves clean prose in the transcript.
+// data, may call intel_* / compose_history_* / compose_write_draft tools (tool
+// rounds stream activity; draft writer streams into the Draft drawer; final
+// chat answer streams tokens). Any leaked ```postdraft is stripped as a fallback.
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
@@ -224,15 +226,16 @@ export function useCompose() {
           otherPack,
         })
 
-        const handoff = isDraftHandoffEnabled(draftModel)
+        const sameDraftModel = !isSeparateDraftModel(draftModel)
+        const writerModelId = resolveDraftWriterModelId(draftModel, model)
         const system = buildComposeSystem({
           modelId: model,
           xSearchOn,
           webSearchOn: webSearch !== 'off',
           xNewsOn,
           toolsEnabled: true,
-          registerInject: handoff ? null : registerResolved.inject,
-          draftHandoff: handoff,
+          registerInject: registerResolved.inject,
+          draftHandoff: true,
           preferredFormat,
           premiumCapable,
         })
@@ -257,9 +260,7 @@ export function useCompose() {
         const modelsCache = queryClient.getQueryData<ModelsQueryResult>(['models', 'text'])
         const modelSpec = modelsCache?.models.find((m) => m.id === model) ?? null
         const draftModelSpec =
-          handoff && draftModel
-            ? (modelsCache?.models.find((m) => m.id === draftModel) ?? null)
-            : null
+          modelsCache?.models.find((m) => m.id === writerModelId) ?? null
 
         const pushCompressEvent = (
           label: string,
@@ -394,13 +395,19 @@ export function useCompose() {
           let displayedAcc = ''
           let pendingDraft = ''
           let draftDripRaf: number | null = null
+          const writerLabels = describeDraftWriteLabels({
+            sameModel: sameDraftModel,
+            article: wantsArticle,
+          })
           const writerEventId = newAgentEventId()
           useComposeStore.getState().pushAgentEvent({
             id: writerEventId,
-            label: 'Draft writer finished',
-            progressLabel: wantsArticle
-              ? `Article writer streaming (${draftModel})`
-              : `Draft writer streaming (${draftModel})`,
+            label: writerLabels.label,
+            progressLabel: sameDraftModel
+              ? writerLabels.progressLabel
+              : wantsArticle
+                ? `Article writer streaming (${writerModelId})`
+                : `Draft writer streaming (${writerModelId})`,
             status: 'running',
             startedAt: Date.now(),
           })
@@ -481,7 +488,7 @@ export function useCompose() {
           }
 
           void runDraftWriter({
-            modelId: draftModel,
+            modelId: writerModelId,
             modelSpec: draftModelSpec,
             brief: writerBrief,
             registerInject: registerResolved.inject,
@@ -560,8 +567,15 @@ export function useCompose() {
           args: Record<string, unknown>,
         ): string => {
           const existing = eventByIndex.get(index)
-          const label = describeToolCall(name, args)
-          const progressLabel = describeToolProgress(name, args)
+          const draftLabels =
+            name === 'compose_write_draft'
+              ? describeDraftWriteLabels({
+                  sameModel: sameDraftModel,
+                  article: preferredFormat === 'article',
+                })
+              : null
+          const label = draftLabels?.label ?? describeToolCall(name, args)
+          const progressLabel = draftLabels?.progressLabel ?? describeToolProgress(name, args)
           if (existing) {
             useComposeStore.getState().updateAgentEvent(existing, {
               label,
@@ -601,11 +615,9 @@ export function useCompose() {
             xNewsMaxAgeHours,
             newsBookmarks,
             signal: abortController.signal,
-            onDraftHandoff: handoff ? startDraftWriter : undefined,
+            onDraftHandoff: startDraftWriter,
             forceDraftHandoff:
-              handoff &&
-              preferredFormat === 'article' &&
-              looksLikeDraftIntent(userMessage),
+              preferredFormat === 'article' && looksLikeDraftIntent(userMessage),
             onWebSearch: ({ resultCount }) => {
               const s = useComposeStore.getState()
               s.pushAgentEvent({

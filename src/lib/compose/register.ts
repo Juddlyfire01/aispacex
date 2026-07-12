@@ -97,7 +97,9 @@ export function isRegisterPackEmpty(pack: RegisterPack | null | undefined): bool
 
 export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?: string }): string {
   const lines: string[] = [
-    'REGISTER (draft in this exact linguistic register when writing post copy):',
+    'REGISTER — HARD STYLE CONSTRAINT (non-negotiable for all publishable copy):',
+    'Write as this voice. Mimic cadence, diction, metric density, punctuation habits, and rhetorical moves from the description, devices, and few-shot anchors below.',
+    'Do NOT default to a generic marketing / AI-assistant voice. If the anchors are terse, stay terse. If they stack metrics, stack metrics. If they use a signature pivot ("but here is the tension", rankings, NFA distance), reuse that move.',
   ]
   if (pack.description.trim()) {
     lines.push(`Description: ${pack.description.trim()}`)
@@ -106,7 +108,9 @@ export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?:
     lines.push(`Devices: ${pack.devices.join('; ')}`)
   }
   if (pack.fewShotExamples.length > 0) {
-    lines.push('Few-shot style anchors (match cadence, number density, pivot language — do not copy verbatim unless asked):')
+    lines.push(
+      'Few-shot style anchors (match rhythm and texture — do not copy verbatim unless asked):',
+    )
     for (const ex of pack.fewShotExamples.slice(0, 12)) {
       const id = ex.postId ? ` [post:${ex.postId}]` : ''
       lines.push(`--- ${ex.label}${id} ---`)
@@ -119,7 +123,13 @@ export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?:
     lines.push(custom)
   }
   lines.push(
-    'When drafting, match sentence length, metric density, pivot phrasing, and NFA distance from the anchors. No fluff.',
+    [
+      'Adherence checklist before finalizing copy:',
+      '- Sentence length / line breaks match the anchors (not essay-smooth unless anchors are).',
+      '- Number density and unit style match ($, %, K/M, ~approx) when the topic is quantitative.',
+      '- Signature devices and pivots appear when they fit; inventing a softer tone is a failure.',
+      '- No fluff openers, no "As an AI", no hashtag spam, no corporate enthusiasm unless the register itself does that.',
+    ].join('\n'),
   )
   return lines.join('\n')
 }
