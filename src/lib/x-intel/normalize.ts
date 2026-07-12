@@ -123,6 +123,8 @@ const KIND_MAP: Record<string, Post['kind']> = {
   reposted: 'retweet',
 }
 
+export { isPureRetweet } from './post-kind'
+
 function mapMentions(mentions: XPostEntities['mentions'] | undefined): Post['mentions'] {
   return mentions?.map((mn) => ({
     username: mn.username,

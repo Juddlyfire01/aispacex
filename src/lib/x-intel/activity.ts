@@ -7,6 +7,7 @@
 // X exposes no like/bookmark action time, only the underlying tweet's authored
 // time, which is too ambiguous to be a useful activity signal.
 import type { Profile, Post } from './types'
+import { isPureRetweet } from './post-kind'
 
 const X_EPOCH = 1288834974657n // 2010-11-04T01:42:54.657Z — Twitter/X snowflake epoch
 const DAY_MS = 86_400_000
@@ -147,15 +148,11 @@ function mentionsMatchingLeadingUsernames(
  * - retweets (RT @author: attribution + echoed tweet mentions)
  * - reply / quote thread prefixes (contiguous leading @handles)
  *
- * Also treats posts whose `referenced` list contains a retweeted/reposted entry
- * as retweets even when `post.kind` was mis-normalized to `original` (X began
- * returning `reposted` while our map only knew `retweeted`).
+ * Uses {@link isPureRetweet} so mis-normalized repost shells match Performance.
  */
 export function explicitOutboundMentions(post: Post): Post['mentions'] {
   if (!post.mentions.length) return []
-  const isRepost = post.kind === 'retweet'
-    || post.referenced.some((r) => r.type === 'retweeted' || r.type === 'reposted')
-  if (isRepost) return []
+  if (isPureRetweet(post)) return []
   if (post.kind === 'reply' || post.kind === 'quote') {
     const prefixKeys = new Set(threadPrefixMentions(post).map(mentionKey))
     return post.mentions.filter((m) => !prefixKeys.has(mentionKey(m)))

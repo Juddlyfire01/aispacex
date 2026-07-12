@@ -49,7 +49,8 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
     <button
       onClick={onClick}
       disabled={busy || disabled}
-      title={disabled ? 'Connect X first' : busy ? 'Updating…' : `Last refreshed ${relativeTime(lastGatheredIso)}`}
+      // Native title only when disabled — busy/last-refreshed are already shown inline.
+      title={disabled && !busy ? 'Connect X first' : undefined}
       className={refreshBtnCls}
     >
       <RefreshIcon spinning={busy} />

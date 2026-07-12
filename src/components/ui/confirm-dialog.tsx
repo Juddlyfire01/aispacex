@@ -13,7 +13,7 @@ export const dialogConfirmBtnClass =
   'text-[12.5px] font-medium text-[var(--color-accent)] hover:opacity-80 transition-opacity'
 
 export const dialogDangerBtnClass =
-  'text-[12.5px] font-medium text-red-300/90 hover:text-red-200 transition-colors'
+  'text-[12.5px] font-medium text-red-400/90 hover:text-red-400 transition-colors'
 
 /**
  * Global confirm host — toaster-shaped card, centered with dim backdrop.
@@ -58,7 +58,7 @@ export function ConfirmDialogHost() {
           id={titleId}
           className={cn(
             'truncate text-[13.5px] font-medium',
-            request.danger ? 'text-red-200/85' : 'text-[var(--color-accent)]',
+            request.danger ? 'text-red-400/90' : 'text-[var(--color-accent)]',
           )}
         >
           {request.title}

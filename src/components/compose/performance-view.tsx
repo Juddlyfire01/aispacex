@@ -224,6 +224,7 @@ export function PerformanceView({
           </h3>
           <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
             Sorted high → low by {mode === 'composite' ? 'X-style score' : mode}
+            {' · '}pure retweets excluded
           </p>
         </section>
         <TopPostsList

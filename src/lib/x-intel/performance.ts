@@ -1,4 +1,5 @@
 import type { Post, PostKind, Profile } from './types'
+import { isPureRetweet } from './post-kind'
 
 export type PerformanceWindow = '7d' | '30d' | 'all'
 
@@ -38,13 +39,15 @@ export const X_ENGAGEMENT_WEIGHTS = {
 const DAY_MS = 86_400_000
 
 /**
- * Pure retweets are excluded from Performance engagement.
+ * Pure retweets are excluded from Performance engagement (totals, top posts,
+ * series, catalysts, snapshots). Uses {@link isPureRetweet} so mis-normalized
+ * shells (`kind: original` + `referenced: reposted`) cannot rank either.
  * X copies the original's public_metrics (especially retweet_count) onto the RT shell,
  * so summing them credits viral others as this account's earned reposts.
  * Originals, replies, and quotes still count.
  */
 export function isEarnedEngagementPost(p: Post): boolean {
-  return p.kind !== 'retweet'
+  return !isPureRetweet(p)
 }
 
 export function earnedEngagementPosts(posts: Post[]): Post[] {

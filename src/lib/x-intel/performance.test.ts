@@ -123,6 +123,46 @@ describe('buildTopPosts', () => {
     expect(result.items[0].post.id).toBe('mine')
   })
 
+  it('excludes mis-normalized repost shells (kind=original, type=reposted)', () => {
+    const posts = [
+      own({
+        id: 'mine',
+        metrics: { impressions: 100, likes: 5, reposts: 1, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'rt-legacy',
+        authorId,
+        kind: 'original',
+        text: 'RT @viral: huge news',
+        createdAt: '2026-07-01T12:00:00.000Z',
+        referenced: [{ id: '999', type: 'reposted' }],
+        metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const result = buildTopPosts({ posts, profile, window: 'all', mode: 'reposts', nowMs: NOW })
+    expect(result.candidates.map((p) => p.id)).toEqual(['mine'])
+  })
+
+  it('excludes RT @handle: body prefix even without kind/refs', () => {
+    const posts = [
+      own({
+        id: 'mine',
+        metrics: { impressions: 100, likes: 5, reposts: 1, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'rt-text',
+        authorId,
+        kind: 'original',
+        text: 'RT @someone: inherited metrics bomb',
+        createdAt: '2026-07-01T12:00:00.000Z',
+        referenced: [],
+        metrics: { impressions: 11, likes: 0, reposts: 9000, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const result = buildTopPosts({ posts, profile, window: 'all', mode: 'reposts', nowMs: NOW })
+    expect(result.candidates.map((p) => p.id)).toEqual(['mine'])
+  })
+
   it('metricForMode matches modes', () => {
     const p = own({
       metrics: { impressions: 10, likes: 2, reposts: 3, replies: 4, quotes: 5, bookmarks: 6 },
@@ -220,6 +260,35 @@ describe('period compare + series + catalysts', () => {
     const cat = buildCatalysts({ posts, window: '7d', nowMs: NOW, followersDelta: 50 })
     expect(cat).not.toBeNull()
     expect(cat!.posts.some((p) => p.id === 'star')).toBe(true)
+  })
+
+  it('catalysts never surface pure or mis-normalized retweets', () => {
+    const posts = [
+      own({
+        id: 'star',
+        createdAt: '2026-07-11T12:00:00.000Z',
+        metrics: { impressions: 500, likes: 20, reposts: 2, replies: 3, quotes: 1, bookmarks: 1 },
+      }),
+      makePost({
+        id: 'rt-shell',
+        authorId,
+        kind: 'original',
+        text: 'RT @viral: boom',
+        createdAt: '2026-07-11T14:00:00.000Z',
+        referenced: [{ id: '888', type: 'reposted' }],
+        metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'rt-kind',
+        authorId,
+        kind: 'retweet',
+        createdAt: '2026-07-11T15:00:00.000Z',
+        metrics: { impressions: 11, likes: 0, reposts: 9000, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const cat = buildCatalysts({ posts, window: '7d', nowMs: NOW })
+    expect(cat).not.toBeNull()
+    expect(cat!.posts.map((p) => p.id)).toEqual(['star'])
   })
 })
 

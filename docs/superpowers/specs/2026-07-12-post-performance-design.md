@@ -31,7 +31,11 @@ Profile: **followers** (snapshot history for week-over-week growth).
 
 ### Pure retweets excluded
 
-Performance totals, ranking, series, catalysts, and snapshots **exclude `kind === 'retweet'`**.
+Performance totals, ranking, series, catalysts, and snapshots **exclude pure retweets** via `isPureRetweet`:
+
+- `kind === 'retweet'`, or
+- any `referenced` entry with type `retweeted` / `reposted` (covers mis-normalized library rows still labeled `original`), or
+- body matching classic `RT @handle:` when refs/kind were incomplete.
 
 X copies the original post’s `public_metrics` (especially `retweet_count`) onto the retweet shell. Summing those credits viral *others* as this account’s earned engagement. Originals, replies, and quotes still count.
 

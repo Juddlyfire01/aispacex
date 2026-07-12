@@ -9,7 +9,9 @@ const TITLE_COLOR: Record<Toast['variant'], string> = {
   info: 'text-[var(--color-accent)]',
   progress: 'text-[var(--color-accent)]',
   success: 'text-green-400/90',
-  error: 'text-red-200/85',
+  // True error red (not pastel red-200, which reads pink on dark).
+  // Aligns with app-wide error text (red-400) and is close to X #F4212E / Cursor #f14c4c.
+  error: 'text-red-400/90',
 }
 
 function ProgressBar({ value }: { value: number }) {
