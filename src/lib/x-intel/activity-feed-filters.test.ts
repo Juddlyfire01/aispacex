@@ -26,6 +26,8 @@ const profile: Profile = {
   accountCreated: '',
   pinnedPostId: null,
   mostRecentPostId: null,
+  connectionStatus: null,
+  followsYou: null,
   gatheredAt: '',
 }
 

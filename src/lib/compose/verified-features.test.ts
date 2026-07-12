@@ -26,6 +26,8 @@ function profile(verifiedType: Profile['verified']['type']): Profile {
     automatedBy: null,
     pinnedPostId: null,
     mostRecentPostId: null,
+    connectionStatus: null,
+    followsYou: null,
     accountCreated: '2020-01-01T00:00:00Z',
     gatheredAt: '2020-01-01T00:00:00Z',
     metrics: { followers: 0, following: 0, posts: 0, likes: 0, listed: 0, media: 0 },

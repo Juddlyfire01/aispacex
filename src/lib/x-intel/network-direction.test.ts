@@ -22,6 +22,8 @@ const profile = {
   accountCreated: '2020-01-01T00:00:00.000Z',
   pinnedPostId: null,
   mostRecentPostId: null,
+  connectionStatus: null,
+  followsYou: null,
   gatheredAt: '2026-07-11T00:00:00.000Z',
 } satisfies Profile
 

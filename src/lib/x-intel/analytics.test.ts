@@ -22,6 +22,9 @@ function makeProfile(over: Partial<Profile> = {}): Profile {
     mostRecentPostId: null,
     gatheredAt: new Date().toISOString(),
     ...over,
+    // Re-assert required nullable fields so Partial<> cannot leave them undefined.
+    connectionStatus: over.connectionStatus ?? null,
+    followsYou: over.followsYou ?? null,
   }
 }
 
