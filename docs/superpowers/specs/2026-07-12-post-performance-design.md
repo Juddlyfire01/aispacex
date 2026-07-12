@@ -1,7 +1,7 @@
 # Post → Performance — Top Posts & Patterns
 
 **Date:** 2026-07-12  
-**Status:** Draft for user review  
+**Status:** Approved for implementation  
 **Depends on:** Compose Post layout (`ComposeWorkspace` sub-tabs), intel `Post` metrics, self/target post stores, existing `computeAnalytics` primitives  
 **Non-goals (v1):** Full Network graph, Profile Report embed, post-publish tracking from Compose, LLM narrative
 
