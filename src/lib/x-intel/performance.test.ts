@@ -201,10 +201,11 @@ describe('glance + patterns', () => {
     expect(glance.engagementRate).toBeGreaterThan(0)
     expect(['original', 'reply', 'quote', 'retweet']).toContain(glance.leadingKind)
 
-    const patterns = buildPatterns(top.candidates, top.mode, {
-      rateMed: 0.05,
-      ampMed: 5,
-      likesMed: 20,
+    const patterns = buildPatterns(top.candidates, top.mode, top.medians)
+    expect(top.medians).toEqual({
+      rateMed: expect.any(Number),
+      ampMed: expect.any(Number),
+      likesMed: expect.any(Number),
     })
     expect(patterns.byKind.length).toBe(4)
     expect(patterns.examples.length).toBeGreaterThanOrEqual(1)

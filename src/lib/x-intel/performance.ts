@@ -186,6 +186,7 @@ export interface TopPostsResult {
   eligibleCount: number
   medianMetric: number
   mode: PerformanceRankMode
+  medians: CompositeMedians
 }
 
 export function buildTopPosts(opts: {
@@ -271,6 +272,7 @@ export function buildTopPosts(opts: {
     eligibleCount: eligible.length,
     medianMetric,
     mode,
+    medians,
   }
 }
 
