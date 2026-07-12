@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useComposeStore } from '../../stores/compose-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { resolveDraftFormat } from '../../lib/compose/format'
 import { classifyPostability } from '../../lib/compose/postability'
+import { getActiveSelfIdentity, resolveReplySummoned } from '../../lib/compose/reply-eligibility'
 import { copyDraftToClipboard } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
 import { effectiveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
@@ -18,6 +19,10 @@ import { yieldForPaint } from '../../lib/yield-for-paint'
 // Native media posting is not wired yet, so drafts with media route to copy.
 const CAPS = { mediaNativeSupported: false }
 
+const REPLY_TIP_CHECKING = 'Checking if this post summons you…'
+const REPLY_TIP_BLOCKED = 'Needs @mention or quote of you'
+const REPLY_TIP_OK = 'Allowed — they mentioned or quoted you'
+
 interface ComposeActionsProps {
   threadId: string
   copied: boolean
@@ -29,17 +34,49 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   const resetDraft = useComposeStore((s) => s.resetDraft)
   const preferredFormat = useComposeStore((s) => s.preferredFormat)
   const connected = useXSelfStore((s) => s.connected)
+  const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const { isVerified } = useComposeVerified()
   const longformPreference = useComposeStore((s) => s.longformPreference)
   const [posting, setPosting] = useState(false)
   const [postedUrl, setPostedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [needsReconnect, setNeedsReconnect] = useState(false)
+  /** null = checking; true = API-allowed; false = not summoned. */
+  const [replySummoned, setReplySummoned] = useState<boolean | null>(null)
 
-  if (!thread) return null
+  const draft = thread?.draft
+  const replyPostId = draft?.target.kind === 'reply' ? draft.target.toPostId : ''
+  const replyUsername = draft?.target.kind === 'reply' ? draft.target.toUsername : ''
 
-  const { draft } = thread
-  const postability = classifyPostability(draft, CAPS, preferredFormat, isVerified)
+  useEffect(() => {
+    if (!draft || draft.target.kind !== 'reply') {
+      setReplySummoned(null)
+      return
+    }
+
+    let cancelled = false
+    setReplySummoned(null)
+
+    const me = getActiveSelfIdentity()
+    const postId = draft.target.toPostId
+
+    void (async () => {
+      const { summoned } = await resolveReplySummoned(postId, me)
+      if (cancelled) return
+      setReplySummoned(summoned === true)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [draft?.target.kind, replyPostId, replyUsername, connected, activeAccountId])
+
+  if (!thread || !draft) return null
+
+  const isReply = draft.target.kind === 'reply'
+  const postability = classifyPostability(draft, CAPS, preferredFormat, isVerified, {
+    replySummoned: isReply ? replySummoned : undefined,
+  })
   const isArticle =
     preferredFormat === 'article' || resolveDraftFormat(draft) === 'article'
   const longform = effectiveLongform(draft.longform, isVerified)
@@ -52,6 +89,24 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
       )
     : draft.segments.every((s) => s.text.trim() === '' && s.media.length === 0)
   const blocked = empty || overLimit
+  const replyAllowed = isReply && replySummoned === true
+  // Replies always show the primary button; other kinds only when API-postable.
+  const showPrimary = isReply || postability.mode === 'api'
+  const primaryDisabled =
+    !connected ||
+    blocked ||
+    posting ||
+    (isReply && !replyAllowed)
+
+  const primaryTitle = !connected
+    ? 'Connect your X account (header → Connect X)'
+    : isReply
+      ? replySummoned == null
+        ? REPLY_TIP_CHECKING
+        : replyAllowed
+          ? REPLY_TIP_OK
+          : REPLY_TIP_BLOCKED
+      : undefined
 
   const copy = async () => {
     await copyDraftToClipboard(draft)
@@ -60,6 +115,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   }
 
   const post = async () => {
+    if (isReply && !replyAllowed) return
     flushSync(() => {
       setPosting(true)
       setError(null)
@@ -85,9 +141,25 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
     }
   }
 
+  const primaryLabel = isArticle
+    ? posting
+      ? 'Publishing…'
+      : 'Publish article'
+    : posting
+      ? isReply
+        ? 'Replying…'
+        : 'Posting…'
+      : isReply
+        ? draft.segments.length > 1
+          ? 'Reply thread'
+          : 'Reply'
+        : draft.segments.length > 1
+          ? 'Post thread'
+          : 'Post to X'
+
   return (
     <div className="px-5 py-3 border-t border-white/[0.05] space-y-2">
-      {postability.mode === 'copy' && postability.reason && (
+      {postability.mode === 'copy' && !isReply && postability.reason && (
         <p className="text-[10px] text-white/40 leading-snug">{postability.reason}</p>
       )}
       {overLimit && <p className="text-[10px] text-red-400/70">A segment is over the {limit}-character limit.</p>}
@@ -111,23 +183,15 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
       )}
 
       <div className="flex items-center gap-2">
-        {postability.mode === 'api' ? (
+        {showPrimary ? (
           <button
             onClick={post}
-            disabled={!connected || blocked || posting}
+            disabled={primaryDisabled}
             aria-busy={posting}
-            title={!connected ? 'Connect your X account (header → Connect X)' : undefined}
+            title={primaryTitle}
             className="px-3 py-1.5 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isArticle
-              ? posting
-                ? 'Publishing…'
-                : 'Publish article'
-              : posting
-                ? 'Posting…'
-                : draft.segments.length > 1
-                  ? 'Post thread'
-                  : 'Post to X'}
+            {primaryLabel}
           </button>
         ) : null}
         <button

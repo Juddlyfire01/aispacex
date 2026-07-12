@@ -3,6 +3,9 @@ export const USER_FIELDS = [
   'description', 'location', 'url', 'profile_image_url', 'profile_banner_url',
   'affiliation', 'pinned_tweet_id', 'most_recent_tweet_id',
   'public_metrics', 'entities', 'created_at',
+  // OAuth user-context only: followed_by / following vs the connected account.
+  // Harmless (absent) on demo/app-only lookups; avoids a second user fetch later.
+  'connection_status',
 ] as const
 
 export const POST_FIELDS = [
@@ -10,6 +13,8 @@ export const POST_FIELDS = [
   // author_id must be a tweet field (not only an expansion) or it stays empty
   // and maxOwnPostId / inbound-vs-own splits cannot tell who wrote the post.
   'author_id',
+  // Distinguishes replies *to* the subject from bare @mentions in inbound gather.
+  'in_reply_to_user_id',
   'public_metrics', 'context_annotations', 'entities', 'note_tweet',
   'referenced_tweets', 'reply_settings', 'source',
   'possibly_sensitive', 'attachments',

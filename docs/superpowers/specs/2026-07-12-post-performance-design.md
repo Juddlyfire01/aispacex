@@ -29,6 +29,12 @@ From X `public_metrics` on each post:
 
 Profile: **followers** (snapshot history for week-over-week growth).
 
+### Pure retweets excluded
+
+Performance totals, ranking, series, catalysts, and snapshots **exclude `kind === 'retweet'`**.
+
+X copies the original post’s `public_metrics` (especially `retweet_count`) onto the retweet shell. Summing those credits viral *others* as this account’s earned engagement. Originals, replies, and quotes still count.
+
 ## Rank modes
 
 Top posts sorted **high → low** by:

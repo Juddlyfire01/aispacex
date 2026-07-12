@@ -132,6 +132,17 @@ describe('normalizePost', () => {
     expect(normalizePost({ ...rawPost, referenced_tweets: undefined }).kind).toBe('original')
   })
 
+  it('stores in_reply_to_user_id for inbound reply detection', () => {
+    const p = normalizePost({
+      ...rawPost,
+      author_id: '99',
+      in_reply_to_user_id: '42',
+      referenced_tweets: [{ type: 'replied_to', id: '1' }],
+    })
+    expect(p.inReplyToUserId).toBe('42')
+    expect(p.kind).toBe('reply')
+  })
+
   it('resolves referenced authors from includes', () => {
     const p = normalizePost(rawPost, {
       tweets: [{ id: '888', text: 'hi', author_id: '77' }],

@@ -37,17 +37,32 @@ export const X_ENGAGEMENT_WEIGHTS = {
 
 const DAY_MS = 86_400_000
 
+/**
+ * Pure retweets are excluded from Performance engagement.
+ * X copies the original's public_metrics (especially retweet_count) onto the RT shell,
+ * so summing them credits viral others as this account's earned reposts.
+ * Originals, replies, and quotes still count.
+ */
+export function isEarnedEngagementPost(p: Post): boolean {
+  return p.kind !== 'retweet'
+}
+
+export function earnedEngagementPosts(posts: Post[]): Post[] {
+  return posts.filter(isEarnedEngagementPost)
+}
+
 export function filterPostsByWindow(
   posts: Post[],
   window: PerformanceWindow,
   nowMs: number = Date.now(),
 ): Post[] {
+  const earned = earnedEngagementPosts(posts)
   if (window === 'all') {
-    return posts.filter((p) => Number.isFinite(Date.parse(p.createdAt)))
+    return earned.filter((p) => Number.isFinite(Date.parse(p.createdAt)))
   }
   const days = window === '7d' ? 7 : 30
   const cutoff = nowMs - days * DAY_MS
-  return posts.filter((p) => {
+  return earned.filter((p) => {
     const t = Date.parse(p.createdAt)
     return Number.isFinite(t) && t >= cutoff
   })
@@ -256,7 +271,7 @@ export function emptyTotals(): MetricTotals {
 
 export function sumPostMetrics(posts: Post[]): MetricTotals {
   const t = emptyTotals()
-  for (const p of posts) {
+  for (const p of earnedEngagementPosts(posts)) {
     t.impressions += p.metrics.impressions
     t.likes += p.metrics.likes
     t.reposts += p.metrics.reposts
@@ -269,9 +284,9 @@ export function sumPostMetrics(posts: Post[]): MetricTotals {
   return t
 }
 
-/** Posts with createdAt in [startMs, endMs). */
+/** Posts with createdAt in [startMs, endMs). Excludes pure retweets. */
 export function postsInRange(posts: Post[], startMs: number, endMs: number): Post[] {
-  return posts.filter((p) => {
+  return earnedEngagementPosts(posts).filter((p) => {
     const t = Date.parse(p.createdAt)
     return Number.isFinite(t) && t >= startMs && t < endMs
   })
@@ -361,11 +376,13 @@ export interface PerformanceGlance {
 
 export function leadingKindByScore(posts: Post[]): PostKind {
   const kindScores = new Map<PostKind, { sum: number; n: number }>()
-  for (const k of ['original', 'reply', 'quote', 'retweet'] as PostKind[]) {
+  // Retweets excluded from Performance — only kinds that earn engagement for this account.
+  for (const k of ['original', 'reply', 'quote'] as PostKind[]) {
     kindScores.set(k, { sum: 0, n: 0 })
   }
-  for (const p of posts) {
-    const slot = kindScores.get(p.kind)!
+  for (const p of earnedEngagementPosts(posts)) {
+    const slot = kindScores.get(p.kind)
+    if (!slot) continue
     slot.sum += xWeightedScore(p)
     slot.n += 1
   }
@@ -557,9 +574,10 @@ export function buildPatterns(
   candidates: Post[],
   mode: PerformanceRankMode,
 ): PerformancePatterns {
-  const kinds: PostKind[] = ['original', 'reply', 'quote', 'retweet']
+  const earned = earnedEngagementPosts(candidates)
+  const kinds: PostKind[] = ['original', 'reply', 'quote']
   const byKind: PatternKindRow[] = kinds.map((kind) => {
-    const inKind = candidates.filter((p) => p.kind === kind)
+    const inKind = earned.filter((p) => p.kind === kind)
     const avgScore =
       inKind.length === 0
         ? 0
@@ -568,7 +586,7 @@ export function buildPatterns(
   })
   const leading = [...byKind].sort((a, b) => b.avgScore - a.avgScore || b.count - a.count)[0]
   const leadingKind = leading?.kind ?? 'original'
-  const examples = candidates
+  const examples = earned
     .filter((p) => p.kind === leadingKind)
     .map((p) => ({ p, s: metricForMode(p, mode) }))
     .sort((a, b) => b.s - a.s)
@@ -579,9 +597,7 @@ export function buildPatterns(
       ? 'Originals'
       : leadingKind === 'reply'
         ? 'Replies'
-        : leadingKind === 'quote'
-          ? 'Quotes'
-          : 'Reposts'
+        : 'Quotes'
   const caption = `${kindLabel} lead on ${MODE_LABEL[mode]} in this window.`
   return { byKind, leadingKind, examples, caption }
 }

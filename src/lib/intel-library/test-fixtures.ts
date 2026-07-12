@@ -52,6 +52,8 @@ export function makeProfile(username: string, bio?: string): Profile {
     accountCreated: '2020-01-01T00:00:00.000Z',
     pinnedPostId: null,
     mostRecentPostId: null,
+    connectionStatus: null,
+    followsYou: null,
     gatheredAt: GATHERED,
   }
 }

@@ -19,6 +19,21 @@ export interface Profile {
   accountCreated: string  // ISO
   pinnedPostId: string | null
   mostRecentPostId: string | null
+  /**
+   * Relationship of this profile to the OAuth-connected user (user-context only).
+   * Set on profile gather when `connection_status` is requested; null when unknown
+   * (demo/app-only, self profile, or field absent).
+   */
+  connectionStatus: (
+    | 'follow_request_received'
+    | 'follow_request_sent'
+    | 'blocking'
+    | 'followed_by'
+    | 'following'
+    | 'muting'
+  )[] | null
+  /** Convenience: `connectionStatus` includes `followed_by`. */
+  followsYou: boolean | null
   gatheredAt: string      // ISO — when we last fetched this
 }
 
@@ -32,6 +47,8 @@ export interface Post {
   createdAt: string
   metrics: { impressions: number; likes: number; reposts: number; replies: number; quotes: number; bookmarks: number }
   kind: 'original' | 'reply' | 'quote' | 'retweet'
+  /** X `in_reply_to_user_id` — who this reply is directed at (when kind is reply). */
+  inReplyToUserId?: string | null
   /**
    * Referenced tweets (reply parent / quoted / reposted). `authorId` /
    * `authorUsername` are filled when the gather expansion
@@ -269,6 +286,18 @@ export interface XUserRaw {
   url?: string
   profile_image_url?: string
   profile_banner_url?: string
+  /**
+   * Relationship to the authenticated user (user-context only).
+   * Includes `followed_by` when they follow you, `following` when you follow them.
+   */
+  connection_status?: (
+    | 'follow_request_received'
+    | 'follow_request_sent'
+    | 'blocking'
+    | 'followed_by'
+    | 'following'
+    | 'muting'
+  )[]
   affiliation?: {
     badge_url?: string
     description?: string
@@ -307,6 +336,8 @@ export interface XPostRaw {
   author_id?: string
   lang?: string
   created_at?: string
+  /** User id this post is replying to (when it is a reply). */
+  in_reply_to_user_id?: string
   public_metrics?: {
     impression_count?: number
     like_count: number

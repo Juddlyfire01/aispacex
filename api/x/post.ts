@@ -4,9 +4,10 @@
 // returns the URL of the first post. The browser sends NO token; we attach the
 // user-context access token (refreshing if needed) server-side.
 //
-// Only originals/threads (+ polls, reply_settings, made_with_ai) are created
-// here. Replies-to-others and quotes are copy-only on pay-per-use and are
-// handled client-side, so they never reach this function.
+// Originals/threads (+ polls, reply_settings, made_with_ai) and summoned
+// replies (target.kind === 'reply' with toPostId) are created here. X pay-per-use
+// rejects replies that are not a summon (@mention / quote of you). Quotes remain
+// copy-only and are never sent through this path.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { X_API_BASE } from '../_lib/x-oauth.js'
 import { resolveSession, clearSessionCookies } from '../_lib/x-session.js'

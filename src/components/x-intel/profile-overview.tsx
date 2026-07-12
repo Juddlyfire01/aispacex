@@ -459,7 +459,17 @@ export function ProfileOverview({
             <h2 className="text-[15px] font-semibold text-white/90 truncate">{profile.displayName}</h2>
             {profile.verified.type && <VerifiedBadge type={profile.verified.type} />}
           </div>
-          <div className="text-[11px] text-white/40 mt-0.5">@{profile.username}</div>
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <span className="text-[11px] text-white/40">@{profile.username}</span>
+            {profile.followsYou === true && (
+              <span
+                className="text-[10px] font-medium text-white/55 bg-white/[0.08] px-1.5 py-0.5 rounded"
+                title="This account follows you"
+              >
+                Follows you
+              </span>
+            )}
+          </div>
           {profile.automatedBy && (
             <div className="flex items-center gap-1.5 text-[11px] text-white/40 mt-1.5">
               <BotIcon />

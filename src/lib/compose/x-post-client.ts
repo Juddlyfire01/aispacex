@@ -23,7 +23,7 @@ export interface PostResult {
   url: string
 }
 
-/** Normalize a draft into the write-proxy body (originals/threads only). */
+/** Normalize a draft into the write-proxy body (originals/threads + summoned replies). */
 function toBody(draft: PostDraft) {
   return {
     segments: draft.segments.map((s) => ({

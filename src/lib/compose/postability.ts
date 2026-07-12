@@ -15,8 +15,18 @@ export interface Postability {
   reason?: string
 }
 
-const REPLY_REASON =
-  'X only allows programmatic replies when the author summoned you (@mentioned or quoted you). Copy this to X to post it manually.'
+/** Extra signals that cannot be derived from the draft alone. */
+export interface PostabilityContext {
+  /**
+   * Whether the reply target post summons the connected user (X PAYG rule:
+   * author @mentioned you or quoted your post). `true` → API reply allowed.
+   * `false` / `null` / omitted → copy-only for replies.
+   */
+  replySummoned?: boolean | null
+}
+
+const REPLY_REASON = 'Needs @mention or quote of you'
+const REPLY_CHECKING_REASON = 'Checking if this post summons you…'
 const QUOTE_REASON =
   'Quote-posts are not available via the X API on pay-per-use. Copy this to X to post it manually.'
 const MEDIA_REASON =
@@ -25,8 +35,9 @@ const MEDIA_REASON =
 /**
  * Decide how a draft can be published. Articles post natively via the Articles
  * API (media uploaded inside that path). Originals (single or thread) post
- * natively; replies and quotes are copy-only per X PAYG rules; segment media
- * routes to copy until native upload is enabled.
+ * natively; replies post natively only when the target post summons you
+ * (mention/quote of you — not merely a follower); quotes are copy-only per X
+ * PAYG rules; segment media routes to copy until native upload is enabled.
  */
 const ARTICLE_UNVERIFIED_REASON =
   'Articles require a verified X account — Copy to X for now.'
@@ -36,6 +47,7 @@ export function classifyPostability(
   caps: PostabilityCaps,
   preferredFormat?: PreferredFormat,
   isVerified?: boolean,
+  ctx?: PostabilityContext,
 ): Postability {
   if (preferredFormat === 'article' || resolveDraftFormat(draft) === 'article') {
     if (isVerified === false) {
@@ -43,7 +55,11 @@ export function classifyPostability(
     }
     return { mode: 'api' }
   }
-  if (draft.target.kind === 'reply') return { mode: 'copy', reason: REPLY_REASON }
+  if (draft.target.kind === 'reply') {
+    if (ctx?.replySummoned === true) return { mode: 'api' }
+    if (ctx?.replySummoned == null) return { mode: 'copy', reason: REPLY_CHECKING_REASON }
+    return { mode: 'copy', reason: REPLY_REASON }
+  }
   if (draft.target.kind === 'quote') return { mode: 'copy', reason: QUOTE_REASON }
 
   const hasMedia = draft.segments.some((s) => s.media.length > 0)

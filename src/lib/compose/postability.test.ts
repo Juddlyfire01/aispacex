@@ -22,11 +22,25 @@ describe('classifyPostability', () => {
     expect(classifyPostability(emptyDraft({ kind: 'original' }), caps)).toEqual({ mode: 'api' })
   })
 
-  it('routes replies to copy', () => {
+  it('routes unsummoned replies to copy', () => {
     const draft = emptyDraft({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
-    const result = classifyPostability(draft, caps)
+    const result = classifyPostability(draft, caps, undefined, undefined, { replySummoned: false })
     expect(result.mode).toBe('copy')
-    expect(result.reason).toMatch(/summoned/i)
+    expect(result.reason).toMatch(/@mention|quote/i)
+  })
+
+  it('posts summoned replies natively via the API', () => {
+    const draft = emptyDraft({ kind: 'reply', toPostId: '1', toUsername: 'erikvoorhees' })
+    expect(classifyPostability(draft, caps, undefined, undefined, { replySummoned: true })).toEqual({
+      mode: 'api',
+    })
+  })
+
+  it('shows checking state while summon status is unknown', () => {
+    const draft = emptyDraft({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
+    const result = classifyPostability(draft, caps, undefined, undefined, { replySummoned: null })
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/checking/i)
   })
 
   it('routes quotes to copy', () => {

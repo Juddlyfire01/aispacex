@@ -32,6 +32,16 @@ describe('filterPostsByWindow', () => {
     ])
     expect(filterPostsByWindow([recent, mid, old], 'all', NOW)).toHaveLength(3)
   })
+
+  it('drops pure retweets even when in window', () => {
+    const rt = makePost({
+      id: 'rt',
+      kind: 'retweet',
+      createdAt: '2026-07-10T12:00:00.000Z',
+      metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+    })
+    expect(filterPostsByWindow([recent, rt], '7d', NOW).map((p) => p.id)).toEqual(['r'])
+  })
 })
 
 describe('xWeightedScore', () => {
@@ -94,6 +104,25 @@ describe('buildTopPosts', () => {
     expect(result.items.length).toBeLessThanOrEqual(PERF_TOP_LIST_CAP)
   })
 
+  it('excludes pure retweets from ranking (inherited original metrics)', () => {
+    const posts = [
+      own({
+        id: 'mine',
+        metrics: { impressions: 100, likes: 5, reposts: 1, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'rt-elon',
+        authorId,
+        kind: 'retweet',
+        createdAt: '2026-07-01T12:00:00.000Z',
+        metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const result = buildTopPosts({ posts, profile, window: 'all', mode: 'reposts', nowMs: NOW })
+    expect(result.candidates.map((p) => p.id)).toEqual(['mine'])
+    expect(result.items[0].post.id).toBe('mine')
+  })
+
   it('metricForMode matches modes', () => {
     const p = own({
       metrics: { impressions: 10, likes: 2, reposts: 3, replies: 4, quotes: 5, bookmarks: 6 },
@@ -128,6 +157,29 @@ describe('period compare + series + catalysts', () => {
     expect(cmp.current.likes).toBe(100)
     expect(cmp.previous.likes).toBe(10)
     expect(cmp.delta.likes).toBe(90)
+  })
+
+  it('does not credit viral RT shells as earned reposts', () => {
+    const posts = [
+      own({
+        id: 'cur-orig',
+        createdAt: '2026-07-10T12:00:00.000Z',
+        metrics: { impressions: 200, likes: 10, reposts: 2, replies: 1, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'cur-rt',
+        authorId,
+        kind: 'retweet',
+        createdAt: '2026-07-10T13:00:00.000Z',
+        metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const cmp = comparePeriods(posts, 7, NOW)
+    expect(cmp.current.reposts).toBe(2)
+    expect(cmp.current.likes).toBe(10)
+    expect(cmp.current.postCount).toBe(1)
+    // X-score must not include 6575 inherited retweets
+    expect(cmp.current.xScore).toBeLessThan(100)
   })
 
   it('buildDailySeries buckets by day', () => {
@@ -193,5 +245,24 @@ describe('metric snapshots', () => {
     ]
     const d = followersDeltaFromHistory(history, 11, NOW)
     expect(d).toBe(1000)
+  })
+
+  it('makeSnapshot ignores pure retweet engagement', () => {
+    const posts = [
+      makePost({
+        id: 'orig',
+        kind: 'original',
+        metrics: { impressions: 100, likes: 5, reposts: 1, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      makePost({
+        id: 'rt',
+        kind: 'retweet',
+        metrics: { impressions: 11, likes: 0, reposts: 6575, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const snap = makeSnapshot({ at: '2026-07-12T00:00:00.000Z', followers: 369, posts })
+    expect(snap.reposts).toBe(1)
+    expect(snap.postCount).toBe(1)
+    expect(snap.likes).toBe(5)
   })
 })

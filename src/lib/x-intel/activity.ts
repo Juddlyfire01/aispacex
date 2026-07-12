@@ -167,12 +167,31 @@ export function hasExplicitMentionOut(post: Post): boolean {
   return explicitOutboundMentions(post).some((m) => m.username)
 }
 
-/** Feed filter keys — authored kinds plus mention direction. */
-export type FeedFilterKey = Post['kind'] | 'mention-in' | 'mention-out'
+/**
+ * Feed filter keys — authored kinds plus inbound direction.
+ * - `reply` = this account wrote a reply
+ * - `reply-in` = someone else replied to this account (Performance "Replies" total)
+ * - `mention-in` / `mention-out` = @mention direction
+ */
+export type FeedFilterKey = Post['kind'] | 'mention-in' | 'mention-out' | 'reply-in'
+
+/**
+ * True when an inbound post is a reply directed at the subject.
+ * Prefer `in_reply_to_user_id`; fall back to kind/referenced for older gathers.
+ */
+export function isInboundReplyToSubject(profile: Profile, post: Post): boolean {
+  if (!isInboundPost(profile, post)) return false
+  if (post.inReplyToUserId) return post.inReplyToUserId === profile.id
+  if (post.kind === 'reply') return true
+  return post.referenced.some((r) => r.type === 'replied_to')
+}
 
 /** All filter tags that apply to a post (a post can match several). */
 export function postFeedFilterKeys(profile: Profile | null, post: Post): FeedFilterKey[] {
-  if (profile && isInboundPost(profile, post)) return ['mention-in']
+  if (profile && isInboundPost(profile, post)) {
+    if (isInboundReplyToSubject(profile, post)) return ['reply-in']
+    return ['mention-in']
+  }
   const keys: FeedFilterKey[] = [post.kind]
   if (hasExplicitMentionOut(post)) keys.push('mention-out')
   return keys

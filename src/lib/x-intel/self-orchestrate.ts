@@ -7,7 +7,13 @@
 // the store (add new accounts, drop disconnected, set active). gatherSelf /
 // generateSelfReport operate on the active account id; the server-side
 // x_active_account cookie already routes /api/x/proxy calls to that account.
-import { gatherSelfProfile, gatherSelfPosts, gatherSelfBookmarks, gatherSelfLikes } from './self-gather'
+import {
+  gatherSelfProfile,
+  gatherSelfPosts,
+  gatherSelfMentions,
+  gatherSelfBookmarks,
+  gatherSelfLikes,
+} from './self-gather'
 import {
   getSelfSession,
   isXOAuthCallbackUrl,
@@ -296,7 +302,8 @@ export async function selectSelfAccount(accountId: string): Promise<boolean> {
 }
 
 /** Refresh only the active account's posts (lighter than a full gatherSelf).
- *  Mirrors refreshPosts() on the target side. */
+ *  Mirrors refreshPosts() on the target side. Timeline + inbound mentions so
+ *  Feed "Replies" / "Mentions in" stay populated. */
 export async function refreshSelfPosts(opts: { maxResults?: number } = {}): Promise<void> {
   const store = useXSelfStore.getState()
   const accountId = store.activeAccountId
@@ -304,16 +311,18 @@ export async function refreshSelfPosts(opts: { maxResults?: number } = {}): Prom
   const account = store.accounts[accountId]
   if (!account?.profile) throw new Error('Load your profile first')
 
-  const posts = await gatherSelfPosts(account.profile.id, opts).catch(() => [] as Post[])
-  const merged = mergePosts(account.posts, posts)
+  const profileId = account.profile.id
+  const [posts, mentions] = await Promise.all([
+    gatherSelfPosts(profileId, opts).catch(() => [] as Post[]),
+    gatherSelfMentions(profileId, opts).catch(() => [] as Post[]),
+  ])
+  const merged = mergePosts(mergePosts(account.posts, posts), mentions)
   useXSelfStore.getState().setPosts(accountId, merged)
   useXSelfStore.getState().markRefreshed(accountId, 'posts')
-  useXSelfStore.getState().setEdges(accountId, deriveEdges(account.profile.id, merged))
+  useXSelfStore.getState().setEdges(accountId, deriveEdges(profileId, merged))
 }
 
-/** Refresh the active account's network (timeline). Mirrors `refreshNetwork()` on
- *  the target side once a self-side mentions endpoint is wired; for now it
- *  re-pulls posts and re-derives edges. */
+/** Refresh the active account's network: timeline + inbound mentions, re-derive edges. */
 export async function refreshSelfNetwork(): Promise<void> {
   await refreshSelfPosts()
 }
@@ -364,14 +373,15 @@ export async function gatherSelf(opts: { maxResults?: number } = {}): Promise<vo
     store.setProfile(accountId, profile)
     store.markRefreshed(accountId, 'profile')
 
-    const [posts, bookmarks, likes] = await Promise.all([
+    const [posts, mentions, bookmarks, likes] = await Promise.all([
       gatherSelfPosts(profile.id, opts).catch(() => [] as never[]),
+      gatherSelfMentions(profile.id, opts).catch(() => [] as never[]),
       gatherSelfBookmarks(profile.id, opts).catch(() => [] as never[]),
       gatherSelfLikes(profile.id, opts).catch(() => [] as never[]),
     ])
 
     const account = useXSelfStore.getState().accounts[accountId]
-    const mergedPosts = mergePosts(account?.posts ?? [], posts)
+    const mergedPosts = mergePosts(mergePosts(account?.posts ?? [], posts), mentions)
     store.setPosts(accountId, mergedPosts)
     store.markRefreshed(accountId, 'posts')
 

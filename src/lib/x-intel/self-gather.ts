@@ -35,6 +35,14 @@ export function gatherSelfPosts(userId: string, opts: { maxResults?: number } = 
   return gatherSelfPostLike('users/:id/tweets', userId, opts)
 }
 
+/**
+ * Posts that mention or reply to the connected user (inbound).
+ * Powers Feed "Replies" / "Mentions in" — same endpoint targets use via gatherMentions.
+ */
+export function gatherSelfMentions(userId: string, opts: { maxResults?: number } = {}): Promise<Post[]> {
+  return gatherSelfPostLike('users/:id/mentions', userId, opts)
+}
+
 /** The connected user's bookmarks — OAuth-only, no target equivalent. */
 export function gatherSelfBookmarks(userId: string, opts: { maxResults?: number } = {}): Promise<Post[]> {
   return gatherSelfPostLike('users/:id/bookmarks', userId, opts)

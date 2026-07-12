@@ -95,10 +95,15 @@ function ExpandablePostText({ text }: { text: string }) {
 
 const FILTER_OPTIONS: { key: FeedFilterKey; label: string; title?: string }[] = [
   { key: 'original', label: 'Original' },
-  { key: 'reply', label: 'Reply' },
+  { key: 'reply', label: 'Reply', title: 'Replies this profile wrote' },
+  {
+    key: 'reply-in',
+    label: 'Replies',
+    title: 'Others replying to this profile (matches Performance Replies total)',
+  },
   { key: 'quote', label: 'Quote' },
   { key: 'retweet', label: 'RT' },
-  { key: 'mention-in', label: 'Mentions in', title: 'Others @mentioning this profile' },
+  { key: 'mention-in', label: 'Mentions in', title: 'Others @mentioning this profile (not as a reply)' },
   { key: 'mention-out', label: 'Mentions out', title: 'This profile @mentioning someone' },
 ]
 
@@ -123,19 +128,30 @@ function PostTypeBadges({
   variant: 'muted' | 'colored'
 }) {
   const keys = postFeedFilterKeys(profile, post)
-  const inbound = keys.includes('mention-in')
+  const replyIn = keys.includes('reply-in')
+  const mentionIn = keys.includes('mention-in')
   const mentionOut = keys.includes('mention-out')
   const muted = variant === 'muted'
+  const authorHandle = post.authorUsername?.replace(/^@/, '')
 
-  if (inbound) {
+  if (replyIn || mentionIn) {
     return (
-      <span className={cn(
-        muted
-          ? 'text-[10px] text-white/35'
-          : 'px-1.5 py-px rounded-full font-medium bg-amber-400/10 text-amber-300/65',
-      )}>
-        mention in
-      </span>
+      <>
+        <span className={cn(
+          muted
+            ? 'text-[10px] text-white/35'
+            : replyIn
+              ? 'px-1.5 py-px rounded-full font-medium bg-sky-400/10 text-sky-300/70'
+              : 'px-1.5 py-px rounded-full font-medium bg-amber-400/10 text-amber-300/65',
+        )}>
+          {replyIn ? 'reply in' : 'mention in'}
+        </span>
+        {authorHandle && (
+          <span className="text-[10px] text-white/40 font-mono" title="Author">
+            @{authorHandle}
+          </span>
+        )}
+      </>
     )
   }
   return (
@@ -261,7 +277,7 @@ export function ActivityFeedInner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 border-b border-[var(--color-border-faint)]">
         {FILTER_OPTIONS.map(({ key, label, title }, i) => (
           <span key={key} className="flex items-center gap-3">
-            {i === 4 && <span className="hidden sm:block w-px h-3 bg-white/[0.08]" aria-hidden />}
+            {i === 5 && <span className="hidden sm:block w-px h-3 bg-white/[0.08]" aria-hidden />}
             <CheckboxField
               title={title}
               label={label}

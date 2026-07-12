@@ -55,7 +55,7 @@ export function SelfFeed() {
       onFocusHandled={clearFeedFocus}
       emptyTitle="No posts gathered yet"
       emptyHint={connected
-        ? `Fetch @${account.username}'s recent posts (up to 50 per pull).`
+        ? `Fetch @${account.username}'s recent posts + replies/mentions (up to 50 each per pull).`
         : 'Connect your X account first (header → Connect X).'}
       emptyActionLabel="Gather posts"
     />

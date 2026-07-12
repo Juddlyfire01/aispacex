@@ -145,8 +145,19 @@ describe('threadPrefixMentions', () => {
 })
 
 describe('postFeedFilterKeys', () => {
-  it('tags inbound posts as mention-in only', () => {
+  it('tags bare inbound mentions as mention-in only', () => {
     expect(postFeedFilterKeys(profile, post({ id: 'a', authorId: '99' }))).toEqual(['mention-in'])
+  })
+
+  it('tags inbound replies to the subject as reply-in', () => {
+    expect(postFeedFilterKeys(profile, post({
+      id: 'rin',
+      authorId: '99',
+      authorUsername: 'bob',
+      kind: 'reply',
+      inReplyToUserId: '1',
+      referenced: [{ id: 'parent', type: 'replied_to' }],
+    }))).toEqual(['reply-in'])
   })
 
   it('tags authored posts with their kind', () => {

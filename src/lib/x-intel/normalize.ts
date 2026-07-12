@@ -40,8 +40,20 @@ function mapAutomatedBy(raw: XUserRaw, includedUsers?: XUserRaw[]): Profile['aut
   return { username: parent.username }
 }
 
+function mapConnection(raw: XUserRaw): Pick<Profile, 'connectionStatus' | 'followsYou'> {
+  const status = raw.connection_status
+  if (!status || !Array.isArray(status)) {
+    return { connectionStatus: null, followsYou: null }
+  }
+  return {
+    connectionStatus: status,
+    followsYou: status.includes('followed_by'),
+  }
+}
+
 export function normalizeProfile(raw: XUserRaw, includes?: { users?: XUserRaw[] }): Profile {
   const m = raw.public_metrics
+  const connection = mapConnection(raw)
   return {
     id: raw.id,
     username: raw.username,
@@ -69,18 +81,29 @@ export function normalizeProfile(raw: XUserRaw, includes?: { users?: XUserRaw[] 
     accountCreated: raw.created_at ?? '',
     pinnedPostId: raw.pinned_tweet_id ?? null,
     mostRecentPostId: raw.most_recent_tweet_id ?? null,
+    connectionStatus: connection.connectionStatus,
+    followsYou: connection.followsYou,
     gatheredAt: new Date().toISOString(),
   }
 }
 
 /** Backfill link metadata fields on profiles persisted before bioUrls existed. */
 export function ensureProfileShape(profile: Profile): Profile {
+  const connectionStatus = profile.connectionStatus ?? null
+  const followsYou =
+    profile.followsYou != null
+      ? profile.followsYou
+      : connectionStatus != null
+        ? connectionStatus.includes('followed_by')
+        : null
   return {
     ...profile,
     bioUrls: profile.bioUrls ?? [],
     website: profile.website ?? null,
     bannerUrl: profile.bannerUrl ?? null,
     automatedBy: profile.automatedBy ?? null,
+    connectionStatus,
+    followsYou,
   }
 }
 
@@ -144,6 +167,7 @@ export function normalizePost(
       bookmarks: m?.bookmark_count ?? 0,
     },
     kind: ref ? (KIND_MAP[ref.type] ?? 'original') : 'original',
+    inReplyToUserId: raw.in_reply_to_user_id ?? null,
     referenced: (raw.referenced_tweets ?? []).map((r) => {
       const included = tweetById.get(r.id)
       const authorId = included?.author_id

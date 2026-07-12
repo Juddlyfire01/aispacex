@@ -107,8 +107,9 @@ export function PerformanceGlance({ glance }: { glance: PerformanceGlanceData })
         />
       </div>
       <p className="text-[10px] text-[var(--color-text-quaternary)]">
-        Leading kind by X-score: {capitalize(glance.leadingKind)} · X-score uses 2023 public weights
-        (likes cheap, replies/conversation heavy)
+        Leading kind by X-score: {capitalize(glance.leadingKind)} · pure retweets excluded (X copies
+        originals&apos; repost counts onto RT shells) · X-score uses 2023 public weights (likes cheap,
+        replies/conversation heavy)
       </p>
     </div>
   )

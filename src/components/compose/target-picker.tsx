@@ -3,8 +3,8 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import type { PostTarget } from '../../lib/compose/types'
 
 // Sets what the draft is: a standalone post, a reply, or a quote. Reply/quote
-// need a target handle + post id; those route to copy-out on pay-per-use, which
-// the composer surfaces separately.
+// need a target handle + post id. Quotes are always copy-out on pay-per-use;
+// replies post via API only when the target post summons you (ComposeActions).
 
 interface TargetPickerProps {
   threadId: string
