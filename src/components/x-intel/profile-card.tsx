@@ -77,7 +77,6 @@ export function ProfileCard() {
     try {
       await withRefreshToast(
         `@${activeTarget}`,
-        () => useXIntelStore.getState().reports[activeTarget]?.posts.length ?? 0,
         () => runGather(activeTarget),
         'Profile up to date',
       )

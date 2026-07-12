@@ -275,7 +275,6 @@ export function NetworkGraph() {
     try {
       await withRefreshToast(
         `@${activeTarget}`,
-        () => useXIntelStore.getState().reports[activeTarget]?.posts.length ?? 0,
         () => refreshNetwork(activeTarget),
       )
     } catch (e) {

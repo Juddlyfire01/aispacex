@@ -26,7 +26,6 @@ export function SelfNetwork() {
     try {
       await withRefreshToast(
         `@${account?.username ?? 'you'}`,
-        () => (activeAccountId ? useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0 : 0),
         () => refreshSelfNetwork(),
       )
     } catch (e) {

@@ -119,7 +119,6 @@ export function SelfProfileView() {
     try {
       await withRefreshToast(
         subject,
-        () => (activeAccountId ? useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0 : 0),
         () => gatherSelf(),
         'Profile up to date',
       )

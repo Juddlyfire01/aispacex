@@ -25,7 +25,6 @@ export function SelfFeed() {
     try {
       await withRefreshToast(
         `@${account.username}`,
-        () => useXSelfStore.getState().accounts[activeAccountId]?.posts.length ?? 0,
         () => refreshSelfPosts({ maxResults: 50 }),
       )
     } catch (e) {

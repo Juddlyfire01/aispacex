@@ -349,7 +349,6 @@ export function ActivityFeed() {
     try {
       await withRefreshToast(
         `@${activeTarget}`,
-        () => useXIntelStore.getState().reports[activeTarget]?.posts.length ?? 0,
         () => refreshPosts(activeTarget),
       )
     } catch (e) {
