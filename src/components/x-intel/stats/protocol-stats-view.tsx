@@ -256,7 +256,7 @@ export function ProtocolStatsView() {
         <footer className="pt-2 pb-4 border-t border-[var(--color-border-faint)]">
           <p className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
             Data compiled by{' '}
-            <a href={VENICESTATS_HOME} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">
+            <a href={VENICESTATS_HOME} target="_blank" rel="noopener noreferrer" className="entity-link text-[10px]">
               VeniceStats
             </a>{' '}
             (venicestats.com) through on-chain analysis. May contain inaccuracies — verify critical data independently.

@@ -1,12 +1,13 @@
 import { useId, type ComponentType } from 'react'
 import { cn } from '../../lib/utils'
+import { X_LINK_BLUE } from '../../lib/theme-palettes'
 import type { Profile } from '../../lib/x-intel/types'
 
 export type VerifiedType = NonNullable<Profile['verified']['type']>
 
 /** Primary fills from X's official verification badge SVGs (Wikimedia Commons). */
 export const VERIFIED_BADGE_COLORS: Record<VerifiedType, string> = {
-  blue: '#1d9bf0',
+  blue: X_LINK_BLUE,
   business: '#e2b719',
   government: '#829aab',
 }

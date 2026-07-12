@@ -4,8 +4,8 @@ import { postUrl } from '../../lib/x-intel/evidence'
 import { InlinePopover, type PopoverItem } from './inline-popover'
 
 /**
- * Reusable inline post-id link. Renders as an accent-coloured, underline-free
- * clickable that opens a small anchored popover — same UX as <MentionLink> /
+ * Reusable inline post-id link. Renders as an entity-link (X blue) clickable
+ * that opens a small anchored popover — same UX as <MentionLink> /
  * <EthAddressLink> — offering:
  *   • Open in X      (new tab status permalink)
  *   • Add to draft   (Post tab, reply draft pre-filled with this post id)
@@ -38,11 +38,11 @@ export function PostLink({
       label={display}
       title={`Click for post ${postId} options`}
       items={items}
-      // Mono + underline so snowflake ids read as interactive (not plain digits).
+      // Mono + soft underline so snowflake ids read as interactive (not plain digits).
       className={
         className
-          ? `font-mono underline decoration-[var(--color-accent)]/35 underline-offset-2 ${className}`
-          : 'font-mono underline decoration-[var(--color-accent)]/35 underline-offset-2'
+          ? `font-mono underline decoration-[var(--color-link-soft)] underline-offset-2 ${className}`
+          : 'font-mono underline decoration-[var(--color-link-soft)] underline-offset-2'
       }
     />
   )

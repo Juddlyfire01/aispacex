@@ -192,7 +192,13 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
           margin: 0.55em 0;
           color: rgba(255,255,255,0.65);
         }
-        .article-body-editor a { color: #1d9bf0; text-decoration: underline; }
+        .article-body-editor a {
+          color: var(--color-link);
+          text-decoration: underline;
+          text-decoration-color: var(--color-link-soft);
+          text-underline-offset: 2px;
+        }
+        .article-body-editor a:hover { text-decoration-color: var(--color-link); }
         .article-body-editor strong { font-weight: 700; }
         .article-body-editor em { font-style: italic; }
         .article-body-editor s { text-decoration: line-through; opacity: 0.85; }

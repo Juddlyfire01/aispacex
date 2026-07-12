@@ -91,7 +91,7 @@ export function InlinePopover({
         onClick={() => setOpen((v) => !v)}
         title={title}
         className={cn(
-          'text-[var(--color-accent)] no-underline hover:opacity-80 transition-opacity cursor-pointer break-all',
+          'entity-link cursor-pointer break-all',
           className,
         )}
       >

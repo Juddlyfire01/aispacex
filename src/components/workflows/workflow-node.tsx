@@ -133,7 +133,7 @@ function WorkflowNodeComponent({ id, data }: NodeProps<WorkflowNode>) {
               {result.output.startsWith('[audio:') ? (
                 <audio src={result.output.slice(7, -1)} controls className="w-full h-8" />
               ) : result.output.startsWith('[video:') ? (
-                <a href={result.output.slice(7, -1)} target="_blank" rel="noreferrer" className="text-[14px] text-blue-400 underline">Open video</a>
+                <a href={result.output.slice(7, -1)} target="_blank" rel="noreferrer" className="entity-link text-[14px] underline">Open video</a>
               ) : result.output.startsWith('[image:') ? (
                 <img src={result.output.slice(7, -1)} alt="Generated" className="w-full rounded-lg border border-white/[0.06]" />
               ) : (
@@ -405,7 +405,7 @@ function WorkflowNodeComponent({ id, data }: NodeProps<WorkflowNode>) {
             {result.output.startsWith('[audio:') ? (
               <audio src={result.output.slice(7, -1)} controls className="w-full h-7" onClick={(e) => e.stopPropagation()} />
             ) : result.output.startsWith('[video:') ? (
-              <a href={result.output.slice(7, -1)} target="_blank" rel="noreferrer" className="text-[13px] text-blue-400 underline" onClick={(e) => e.stopPropagation()}>
+              <a href={result.output.slice(7, -1)} target="_blank" rel="noreferrer" className="entity-link text-[13px] underline" onClick={(e) => e.stopPropagation()}>
                 Open video
               </a>
             ) : result.output.startsWith('[image:') ? (

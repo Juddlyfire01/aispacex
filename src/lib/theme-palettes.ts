@@ -1,3 +1,6 @@
+/** X timeline entity / external link blue — universal across themes. */
+export const X_LINK_BLUE = '#1d9bf0' as const
+
 export interface Palette {
   name: string
   bgBase: string
@@ -13,6 +16,8 @@ export interface Palette {
   accent: string
   accentSoft: string
   accentContrast: string
+  /** Content entities + external hyperlinks (always X blue). */
+  link: string
   colorScheme: 'dark' | 'light'
 }
 
@@ -33,6 +38,7 @@ export const PALETTES: Record<string, Palette> = {
     accent: '#ffffff',
     accentSoft: 'rgba(255, 255, 255, 0.14)',
     accentContrast: '#000000',
+    link: X_LINK_BLUE,
     colorScheme: 'dark',
   },
   venice: {
@@ -50,6 +56,7 @@ export const PALETTES: Record<string, Palette> = {
     accent: '#3C8FDD',
     accentSoft: 'rgba(60,143,221,0.18)',
     accentContrast: '#ffffff',
+    link: X_LINK_BLUE,
     colorScheme: 'dark',
   },
   grey: {
@@ -67,6 +74,7 @@ export const PALETTES: Record<string, Palette> = {
     accent: '#4aa3ff',
     accentSoft: 'rgba(74,163,255,0.16)',
     accentContrast: '#03121f',
+    link: X_LINK_BLUE,
     colorScheme: 'dark',
   },
   light: {
@@ -84,6 +92,7 @@ export const PALETTES: Record<string, Palette> = {
     accent: '#0f9a84',
     accentSoft: 'rgba(15,154,132,0.14)',
     accentContrast: '#ffffff',
+    link: X_LINK_BLUE,
     colorScheme: 'light',
   },
 }

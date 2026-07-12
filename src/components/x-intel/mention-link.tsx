@@ -2,7 +2,7 @@ import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { InlinePopover, type PopoverItem } from './inline-popover'
 
 /**
- * Reusable inline @mention link. Renders as an accent-coloured, underline-free
+ * Reusable inline @mention link. Renders as an entity-link (X blue)
  * clickable that opens a small anchored popover — same UX as <EthAddressLink> —
  * offering:
  *   • Add as intel target   (in-app; gathers the account)

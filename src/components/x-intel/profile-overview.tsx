@@ -469,7 +469,7 @@ export function ProfileOverview({
                   href={`https://x.com/${profile.automatedBy.username}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--color-accent)] hover:underline"
+                  className="entity-link"
                 >
                   @{profile.automatedBy.username}
                 </a>
@@ -488,7 +488,7 @@ export function ProfileOverview({
                 href={profile.website.href}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="text-[var(--color-accent)] hover:underline"
+                className="entity-link"
               >
                 {profile.website.display}
               </a>

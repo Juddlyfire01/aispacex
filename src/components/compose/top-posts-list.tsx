@@ -103,7 +103,7 @@ export function TopPostsList({
                     href={postUrl(post.id)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block text-[11px] text-[var(--color-accent)] hover:underline"
+                    className="entity-link inline-block text-[11px]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Open on X

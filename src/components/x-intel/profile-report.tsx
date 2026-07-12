@@ -35,7 +35,7 @@ function Prose({ children, canAddTarget = true }: { children: string; canAddTarg
  * `canAddTarget` is off in the self report.
  */
 function InlineText({ text, canAddTarget = true }: { text: string; canAddTarget?: boolean }) {
-  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  const linkCls = 'entity-link'
   return (
     <>
       {linkify(text).map((tok, i) => {

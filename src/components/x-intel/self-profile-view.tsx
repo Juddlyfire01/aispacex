@@ -18,7 +18,7 @@ import type { Profile } from '../../lib/x-intel/types'
 /** Bio with clickable URLs / mentions / hashtags (mentions open on X here —
  *  the self view has no target concept to add into). */
 function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; expanded: string; display: string }[] }) {
-  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  const linkCls = 'entity-link'
   return (
     <p className="text-[12px] text-white/50 mt-1.5 break-words">
       {linkify(text, bioUrls).map((tok, i) => {

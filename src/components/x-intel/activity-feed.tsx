@@ -15,7 +15,7 @@ import { cn, formatTokens } from '../../lib/utils'
 
 /** Post body with @mentions, #hashtags, URLs and ETH/ENS identities linked. */
 function PostText({ text }: { text: string }) {
-  const linkCls = 'text-[var(--color-accent)] hover:underline'
+  const linkCls = 'entity-link'
   return (
     <p className="text-[12px] text-white/70 whitespace-pre-wrap break-words">
       {linkify(text).map((tok, i) => {
