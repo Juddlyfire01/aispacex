@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useComposeStore } from '../stores/compose-store'
 import { useXSelfStore } from '../stores/x-self-store'
@@ -46,6 +47,7 @@ import {
 import { modelSupportsXSearch, filterComposeToolModels } from '../lib/compose/model'
 import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
+import { yieldForPaint } from '../lib/yield-for-paint'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
 // data, may call intel_* / compose_history_* / compose_write_draft tools (tool
@@ -126,11 +128,17 @@ export function useCompose() {
       const thread = useComposeStore.getState().threads[threadId]
       if (!thread) return
 
-      store.addMessage(threadId, { role: 'user', content: userMessage })
-      store.addMessage(threadId, { role: 'assistant', content: '' })
-      store.setStreaming(true)
-      store.clearAgentEvents()
-      store.setAgentPhase('Thinking')
+      // Paint busy UI (Send → Stop / Thinking) before hot-window packing stalls the thread.
+      flushSync(() => {
+        const s = useComposeStore.getState()
+        s.setStreaming(true)
+        s.clearAgentEvents()
+        s.setAgentPhase('Thinking')
+      })
+      await yieldForPaint()
+
+      useComposeStore.getState().addMessage(threadId, { role: 'user', content: userMessage })
+      useComposeStore.getState().addMessage(threadId, { role: 'assistant', content: '' })
       pendingDeltaRef.current = ''
       if (dripRafRef.current != null) {
         cancelAnimationFrame(dripRafRef.current)
@@ -147,6 +155,7 @@ export function useCompose() {
       const MIN_TOOL_DISPLAY_MS = 1000
 
       try {
+        const store = useComposeStore.getState()
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
         const reports = Object.values(useXIntelStore.getState().reports)
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })

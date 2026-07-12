@@ -318,9 +318,10 @@ export function ComposeChat({
             <button
               type="button"
               onClick={stop}
+              aria-busy="true"
               className="px-3 py-1 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors"
             >
-              Stop
+              {agentPhase === 'Thinking' && liveEvents.length === 0 ? 'Sending…' : 'Stop'}
             </button>
           ) : (
             <button

@@ -238,6 +238,36 @@ body {
   animation: none;
 }
 
+/*
+ * Immediate press feedback — applies on pointer-down, before click handlers run,
+ * so the user still sees a response when the main thread then stalls.
+ */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  transition:
+    filter 80ms ease-out,
+    transform 80ms ease-out,
+    opacity 120ms ease-out,
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out;
+}
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  filter: brightness(0.86);
+  transform: scale(0.97);
+}
+button[aria-busy="true"],
+[role="button"][aria-busy="true"] {
+  opacity: 0.72;
+  cursor: progress;
+}
+[data-reduce-motion="true"] button:not(:disabled):active,
+[data-reduce-motion="true"] [role="button"]:not([aria-disabled="true"]):active {
+  transform: none;
+  filter: brightness(0.9);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

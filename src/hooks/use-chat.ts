@@ -1,8 +1,10 @@
 import { useCallback, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { venice } from '../lib/venice-client'
 import { parseSSEStream } from '../lib/stream'
 import { useChatStore } from '../stores/chat-store'
 import type { ChatCompletionRequest, ChatMessage, ContentPart } from '../types/venice'
+import { yieldForPaint } from '../lib/yield-for-paint'
 
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null)
@@ -83,9 +85,13 @@ export function useChat() {
         userMsg = { role: 'user', content: userMessage }
       }
 
+      flushSync(() => {
+        setStreaming(true)
+      })
+      await yieldForPaint()
+
       addMessage(convId, userMsg)
       addMessage(convId, { role: 'assistant', content: '' })
-      setStreaming(true)
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -116,8 +122,12 @@ export function useChat() {
         deleteMessage(convId, lastAssistantIdx)
       }
 
+      flushSync(() => {
+        setStreaming(true)
+      })
+      await yieldForPaint()
+
       addMessage(convId, { role: 'assistant', content: '' })
-      setStreaming(true)
 
       const abortController = new AbortController()
       abortRef.current = abortController

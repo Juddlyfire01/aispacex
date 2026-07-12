@@ -111,6 +111,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
               <button
                 onClick={onStop}
                 aria-label="Stop generating"
+                aria-busy="true"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[var(--color-text-primary)] bg-[var(--color-border-faint)] hover:bg-[var(--color-border-soft)] border border-[var(--color-border-soft)] rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
               >
                 <svg width="9" height="9" viewBox="0 0 8 8" fill="currentColor"><rect width="8" height="8" rx="1" /></svg>

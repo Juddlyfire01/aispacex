@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useComposeStore } from '../../stores/compose-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { resolveDraftFormat } from '../../lib/compose/format'
@@ -12,6 +13,7 @@ import { XMediaError } from '../../lib/compose/x-media-client'
 import { postDraft, XPostError } from '../../lib/compose/x-post-client'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
+import { yieldForPaint } from '../../lib/yield-for-paint'
 
 // Native media posting is not wired yet, so drafts with media route to copy.
 const CAPS = { mediaNativeSupported: false }
@@ -58,10 +60,13 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   }
 
   const post = async () => {
-    setPosting(true)
-    setError(null)
-    setPostedUrl(null)
-    setNeedsReconnect(false)
+    flushSync(() => {
+      setPosting(true)
+      setError(null)
+      setPostedUrl(null)
+      setNeedsReconnect(false)
+    })
+    await yieldForPaint()
     try {
       const result = isArticle
         ? await publishArticleDraft(draft)
@@ -110,6 +115,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
           <button
             onClick={post}
             disabled={!connected || blocked || posting}
+            aria-busy={posting}
             title={!connected ? 'Connect your X account (header → Connect X)' : undefined}
             className="px-3 py-1.5 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
           >
