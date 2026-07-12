@@ -4,13 +4,9 @@ import {
   type SimulationNodeDatum, type SimulationLinkDatum,
 } from 'd3-force'
 import type { EdgeKind, NetworkGraphModel, GraphNode, CrossLink } from '../../lib/x-intel/network-build'
+import { kindTint } from './network-kind-colors'
 
-export const KIND_COLORS: Record<EdgeKind, string> = {
-  mention: '#60a5fa',
-  reply: '#34d399',
-  quote: '#c084fc',
-  retweet: '#fbbf24',
-}
+export { KIND_COLORS, kindTint, KIND_TINT_ALPHA } from './network-kind-colors'
 
 const CENTER_R = 34
 const MIN_R = 14
@@ -281,9 +277,9 @@ function SpokeLayer({ model, nodeById, litIds }: LayerProps) {
             key={s.nodeId}
             d={curvePath(center.x, center.y, CENTER_R, n.x, n.y, n.r, bow)}
             fill="none"
-            stroke={KIND_COLORS[s.dominantKind]}
+            stroke={kindTint(s.dominantKind)}
             strokeWidth={0.8 + t * 3.2}
-            opacity={lit ? 0.24 + t * 0.4 : 0.05}
+            opacity={lit ? 0.55 + t * 0.4 : 0.1}
             style={{ transition: 'opacity 150ms' }}
           />
         )
@@ -335,7 +331,7 @@ interface AccountBubbleProps {
 function AccountBubble({ laid, node, lit, hovered, onHover, onClick }: AccountBubbleProps) {
   const clipId = `clip-${node.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`
   const hue = hueFor(node.username)
-  const kindColor = KIND_COLORS[node.dominantKind]
+  const kindColor = kindTint(node.dominantKind)
   const showLabel = laid.r >= LABEL_MIN_R || hovered
   const clickable = !!node.username && !!onClick
   return (
@@ -383,7 +379,7 @@ function Tooltip({ node }: { node: GraphNode }) {
   return (
     <div className="absolute top-3 left-3 z-10 pointer-events-none rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)]/95 px-3 py-2 shadow-lg max-w-[260px]">
       <div className="text-[12px] font-semibold text-[var(--color-text-primary)]">@{node.username}</div>
-      <div className="text-[11px] mt-0.5" style={{ color: KIND_COLORS[node.dominantKind] }}>
+      <div className="text-[11px] mt-0.5" style={{ color: kindTint(node.dominantKind) }}>
         {formatBreakdown(node)}
       </div>
       <div className="text-[10px] mt-0.5 text-[var(--color-text-tertiary)]">

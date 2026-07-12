@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { EdgeKind, NetworkGraphModel, GraphNode } from '../../lib/x-intel/network-build'
-import { KIND_COLORS } from './network-bubble-map'
+import type { Post } from '../../lib/x-intel/types'
+import { kindTint } from './network-kind-colors'
+import { EvidencePosts } from './evidence-posts'
 import { cn } from '../../lib/utils'
 
 const KIND_ORDER: EdgeKind[] = ['mention', 'reply', 'quote', 'retweet']
@@ -36,6 +38,8 @@ function hash01(s: string): number {
 export interface NetworkRankedListProps {
   model: NetworkGraphModel
   direction?: 'outbound' | 'inbound'
+  posts?: Post[]
+  onJumpToPost?: (postId: string) => void
   onNodeClick?: (username: string) => void
 }
 
@@ -45,8 +49,15 @@ export interface NetworkRankedListProps {
  * One row per account, ordered by total engagement. Each row shows the
  * avatar, handle, a recency dot, a stacked bar of the mention/reply/quote/retweet
  * split (bar length ∝ weight, normalized to the heaviest account), and the total.
+ * Expandable source posts reuse the report EvidencePosts pattern.
  */
-export function NetworkRankedList({ model, direction = 'outbound', onNodeClick }: NetworkRankedListProps) {
+export function NetworkRankedList({
+  model,
+  direction = 'outbound',
+  posts = [],
+  onJumpToPost,
+  onNodeClick,
+}: NetworkRankedListProps) {
   const maxWeight = useMemo(
     () => Math.max(1, ...model.nodes.map((n) => n.totalWeight)),
     [model.nodes],
@@ -65,7 +76,7 @@ export function NetworkRankedList({ model, direction = 'outbound', onNodeClick }
         <div className="flex items-center gap-2.5">
           {KIND_ORDER.map((k) => (
             <span key={k} className="flex items-center gap-1 text-[9px] text-white/40 uppercase tracking-wide">
-              <span className="w-2 h-2 rounded-[2px]" style={{ background: KIND_COLORS[k] }} />
+              <span className="w-2 h-2 rounded-[2px]" style={{ background: kindTint(k) }} />
               {k}
             </span>
           ))}
@@ -78,6 +89,8 @@ export function NetworkRankedList({ model, direction = 'outbound', onNodeClick }
             key={n.id}
             node={n}
             maxWeight={maxWeight}
+            posts={posts}
+            onJumpToPost={onJumpToPost}
             onClick={onNodeClick}
           />
         ))}
@@ -99,23 +112,26 @@ export function NetworkRankedList({ model, direction = 'outbound', onNodeClick }
 interface AccountRowProps {
   node: GraphNode
   maxWeight: number
+  posts: Post[]
+  onJumpToPost?: (postId: string) => void
   onClick?: (username: string) => void
 }
 
-function AccountRow({ node, maxWeight, onClick }: AccountRowProps) {
+function AccountRow({ node, maxWeight, posts, onJumpToPost, onClick }: AccountRowProps) {
   const clickable = !!node.username && !!onClick
   const barPct = (Math.sqrt(node.totalWeight) / Math.sqrt(maxWeight)) * 100
   const hue = Math.floor(hash01(node.username || '?') * 360)
+  const sources = node.sourcePostIds ?? []
 
   return (
-    <li>
+    <li className="rounded-md px-1.5 py-1 hover:bg-white/[0.02]">
       <button
         type="button"
         disabled={!clickable}
         onClick={() => clickable && onClick!(node.username)}
         className={cn(
-          'group w-full flex items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors',
-          clickable ? 'hover:bg-white/[0.04] cursor-pointer' : 'cursor-default',
+          'group w-full flex items-center gap-2.5 text-left transition-colors',
+          clickable ? 'cursor-pointer' : 'cursor-default',
         )}
         title={clickable ? `Add @${node.username} as a profile to analyze` : `@${node.username}`}
       >
@@ -162,6 +178,12 @@ function AccountRow({ node, maxWeight, onClick }: AccountRowProps) {
           </span>
         </span>
       </button>
+
+      {sources.length > 0 && onJumpToPost && (
+        <div className="pl-9 pr-1">
+          <EvidencePosts ids={sources} posts={posts} onJumpToPost={onJumpToPost} label="source post" />
+        </div>
+      )}
     </li>
   )
 }
@@ -180,7 +202,7 @@ function StackedBar({ node, widthPct }: { node: GraphNode; widthPct: number }) {
         return (
           <span
             key={k}
-            style={{ width: `${pct}%`, background: KIND_COLORS[k] }}
+            style={{ width: `${pct}%`, background: kindTint(k) }}
             title={`${k} ×${v}`}
           />
         )

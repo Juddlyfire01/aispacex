@@ -13,6 +13,7 @@ export function SelfNetwork() {
   const account = useXSelfStore((s) => (s.activeAccountId ? s.accounts[s.activeAccountId] : undefined))
   const connected = useXSelfStore((s) => s.connected)
   const addTarget = useXIntelStore((s) => s.addTarget)
+  const jumpToSelfFeedPost = useXIntelStore((s) => s.jumpToSelfFeedPost)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
@@ -55,6 +56,7 @@ export function SelfNetwork() {
       refreshError={refreshError}
       onRefresh={runRefresh}
       onAddTarget={onAddTarget}
+      onJumpToPost={jumpToSelfFeedPost}
       canAddTargets
       lastGatheredIso={lastGathered}
     />

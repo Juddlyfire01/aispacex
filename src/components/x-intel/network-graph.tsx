@@ -6,7 +6,7 @@ import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
 import { type EdgeKind, type SiblingSubject } from '../../lib/x-intel/network-build'
 import { buildNetworkFromPosts, type NetworkDirection } from '../../lib/x-intel/network-direction'
-import { NetworkBubbleMap, KIND_COLORS } from './network-bubble-map'
+import { NetworkBubbleMap, kindTint } from './network-bubble-map'
 import { NetworkRankedList } from './network-ranked-list'
 import type { Edge, Post, Profile } from '../../lib/x-intel/types'
 import { cn } from '../../lib/utils'
@@ -55,6 +55,8 @@ export interface NetworkGraphInnerProps {
   onRefresh: () => void
   /** Called when a node is clicked; the inner graph handles the confirm/UX. */
   onAddTarget?: (username: string) => void
+  /** Jump to a contributing post in Feed (list source expand). */
+  onJumpToPost?: (postId: string) => void
   /** Whether to offer "Add as target" affordances. */
   canAddTargets: boolean
   lastGatheredIso?: string
@@ -64,7 +66,7 @@ export interface NetworkGraphInnerProps {
  *  either a target or the connected self account. */
 export function NetworkGraphInner({
   profile, edges, posts, siblings, subjectLabel, connected, canGather, refreshing,
-  refreshError, onRefresh, onAddTarget, canAddTargets, lastGatheredIso,
+  refreshError, onRefresh, onAddTarget, onJumpToPost, canAddTargets, lastGatheredIso,
 }: NetworkGraphInnerProps) {
   const [kindFilter, setKindFilter] = useState<Set<EdgeKind>>(new Set(KINDS))
   const [topN, setTopN] = useState(TOP_N_DEFAULT)
@@ -159,7 +161,7 @@ export function NetworkGraphInner({
               'px-2 py-[2px] rounded-full font-medium transition-all border',
               kindFilter.has(k) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] opacity-60',
             )}
-            style={{ borderColor: `${KIND_COLORS[k]}55` }}
+            style={{ borderColor: kindTint(k) }}
           >
             {k}
           </button>
@@ -221,7 +223,13 @@ export function NetworkGraphInner({
           )
           : model && (view === 'map'
             ? <NetworkBubbleMap model={model} onNodeClick={canAddTargets ? onNodeClick : undefined} />
-            : <NetworkRankedList model={model} direction={direction} onNodeClick={canAddTargets ? onNodeClick : undefined} />)}
+            : <NetworkRankedList
+                model={model}
+                direction={direction}
+                posts={posts}
+                onJumpToPost={onJumpToPost}
+                onNodeClick={canAddTargets ? onNodeClick : undefined}
+              />)}
       </div>
     </div>
   )
@@ -255,6 +263,7 @@ export function NetworkGraph() {
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const report = useXIntelStore((s) => (s.activeTarget ? s.reports[s.activeTarget] : undefined))
   const addTarget = useXIntelStore((s) => s.addTarget)
+  const jumpToFeedPost = useXIntelStore((s) => s.jumpToFeedPost)
   const connected = useXSelfStore((s) => s.connected)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
@@ -301,6 +310,7 @@ export function NetworkGraph() {
       refreshError={refreshError}
       onRefresh={runRefresh}
       onAddTarget={onAddTarget}
+      onJumpToPost={jumpToFeedPost}
       canAddTargets
       lastGatheredIso={lastGathered}
     />

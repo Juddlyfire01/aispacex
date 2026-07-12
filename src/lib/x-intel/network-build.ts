@@ -31,6 +31,8 @@ export interface GraphNode {
   lastSeen: string          // ISO — most recent across the merged kind-edges
   avatarUrl: string | null  // known only for tracked targets / self accounts
   rank: number              // 0 = heaviest
+  /** Contributing post ids (newest first), for expandable source links in the list. */
+  sourcePostIds: string[]
 }
 
 export interface GraphSpoke {
@@ -246,6 +248,7 @@ export function buildNetworkGraph(
     lastSeen: acc.lastSeen,
     avatarUrl: avatarById.get(acc.id) ?? (acc.username ? avatarByUsername.get(acc.username.toLowerCase()) ?? null : null),
     rank: i,
+    sourcePostIds: [],
   }))
 
   const spokes: GraphSpoke[] = nodes.map((n) => ({

@@ -78,6 +78,8 @@ interface Hit {
   kind: EdgeKind
   lastSeen: string
   weight: number
+  /** Subject or inbound post that produced this hit. */
+  postId: string
 }
 
 /**
@@ -93,7 +95,7 @@ function outboundHits(subjectId: string, posts: Post[]): { hits: Hit[]; unresolv
     const ref = referencedEngagement(post)
     if (ref) {
       if (!ref.username && ref.id.startsWith('post:')) unresolved++
-      else hits.push({ id: ref.id, username: ref.username, kind: ref.kind, lastSeen: post.createdAt, weight: 1 })
+      else hits.push({ id: ref.id, username: ref.username, kind: ref.kind, lastSeen: post.createdAt, weight: 1, postId: post.id })
     }
 
     for (const mn of explicitOutboundMentions(post)) {
@@ -108,6 +110,7 @@ function outboundHits(subjectId: string, posts: Post[]): { hits: Hit[]; unresolv
         kind: 'mention',
         lastSeen: post.createdAt,
         weight: 1,
+        postId: post.id,
       })
     }
   }
@@ -158,6 +161,7 @@ function inboundHits(
       kind,
       lastSeen: post.createdAt,
       weight: 1,
+      postId: post.id,
     })
   }
   return { hits, unresolved }
@@ -192,6 +196,47 @@ function hitsToEdges(subjectId: string, hits: Hit[]): Edge[] {
   return [...map.values()]
 }
 
+const SOURCE_POST_CAP = 20
+
+/**
+ * Attach newest-first contributing post ids onto each visible graph node so the
+ * ranked list can expand source links without re-scanning the corpus.
+ */
+function attachSourcePostIds(
+  model: NetworkGraphModel,
+  hits: Hit[],
+  kinds: Set<EdgeKind>,
+): NetworkGraphModel {
+  const byKey = new Map<string, { postId: string; lastSeen: string }[]>()
+  for (const h of hits) {
+    if (!kinds.has(h.kind)) continue
+    if (!h.username && h.id.startsWith('post:')) continue
+    const key = h.username ? h.username.toLowerCase() : h.id
+    let list = byKey.get(key)
+    if (!list) {
+      list = []
+      byKey.set(key, list)
+    }
+    if (!list.some((x) => x.postId === h.postId)) {
+      list.push({ postId: h.postId, lastSeen: h.lastSeen })
+    }
+  }
+  for (const list of byKey.values()) {
+    list.sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : a.lastSeen > b.lastSeen ? -1 : 0))
+  }
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => {
+      const key = n.username ? n.username.toLowerCase() : n.id
+      const list = byKey.get(key) ?? byKey.get(n.id) ?? []
+      return {
+        ...n,
+        sourcePostIds: list.slice(0, SOURCE_POST_CAP).map((x) => x.postId),
+      }
+    }),
+  }
+}
+
 /**
  * Build the network graph for one direction straight from the post corpus.
  * This is the Network tab's source of truth — do not feed it `report.edges`.
@@ -214,8 +259,9 @@ export function buildNetworkFromPosts(
     siblings: opts.siblings,
   }
   const model = buildNetworkGraph(profile, edges, buildOpts)
+  const withSources = attachSourcePostIds(model, hits, opts.kinds)
   // Surface unresolved referenced posts (outbound) / authors without handles (inbound).
-  return { ...model, unresolvedCount: model.unresolvedCount + unresolved }
+  return { ...withSources, unresolvedCount: withSources.unresolvedCount + unresolved }
 }
 
 /** @deprecated Prefer buildNetworkFromPosts. Kept for tests that exercise Edge polarity. */

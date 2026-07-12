@@ -63,6 +63,7 @@ describe('buildNetworkFromPosts outbound', () => {
       topN: 25,
     })
     expect(model.nodes.map((n) => n.username)).toEqual(['alice'])
+    expect(model.nodes[0]?.sourcePostIds).toEqual(['1'])
   })
 
   it('does not attribute RT-echoed mentions as deliberate outbound mentions', () => {

@@ -3,6 +3,7 @@ import { MarkdownMessage } from '../chat/markdown-message'
 import { MentionLink } from './mention-link'
 import { EthAddressLink } from './eth-address-link'
 import { PostLink } from './post-link'
+import { EvidencePosts } from './evidence-posts'
 import { linkify } from '../../lib/x-intel/linkify'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -68,70 +69,13 @@ function relDate(iso: string): string {
   return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-/** Classic chain-link "external link" glyph. */
+/** Classic chain-link glyph — used by analytics rows (EvidencePosts has its own). */
 function LinkIcon({ className }: { className?: string }) {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </svg>
-  )
-}
-
-const EVIDENCE_VISIBLE = 10  // rows shown before the list becomes a scroll area
-
-/**
- * Collapsible bar showing the count of cited posts; expands to a linked list
- * with a short excerpt pulled from the store when the post is held locally.
- * The first EVIDENCE_VISIBLE rows show at full height; beyond that the list
- * scrolls so long reports stay compact.
- */
-function EvidencePosts({ ids, posts, onJumpToPost }: { ids: string[]; posts: Post[]; onJumpToPost: (postId: string) => void }) {
-  const [open, setOpen] = useState(false)
-  if (ids.length === 0) return null
-  return (
-    <div className="mt-1">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 text-[10px] font-mono text-white/30 hover:text-white/55 transition-colors"
-      >
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className={cn('transition-transform', open && 'rotate-90')}>
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        {ids.length} cited post{ids.length === 1 ? '' : 's'}
-      </button>
-      {open && (
-        <div
-          className={cn(
-            'mt-1 space-y-1 pl-3 border-l border-white/[0.06]',
-            ids.length > EVIDENCE_VISIBLE && 'max-h-[15rem] overflow-y-auto pr-1',
-          )}
-        >
-          {ids.map((id) => {
-            const post = posts.find((p) => p.id === id)
-            return (
-              <div key={id} className="flex items-start gap-1.5 text-[11px]">
-                {post ? (
-                  <button onClick={() => onJumpToPost(id)} className="text-left flex-1 min-w-0 text-white/50 hover:text-white/75 transition-colors" title="View in Feed">
-                    {post.text.slice(0, 120)}{post.text.length > 120 ? '…' : ''}
-                    <span className="font-mono text-[9px] text-white/20"> · {formatTokens(post.metrics.likes)}L</span>
-                  </button>
-                ) : (
-                  <span className="flex-1 min-w-0 font-mono text-[10px]">
-                    <PostLink postId={id} />
-                  </span>
-                )}
-                {post && (
-                  <span className="shrink-0 mt-0.5">
-                    <PostLink postId={id} label={<LinkIcon />} />
-                  </span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
   )
 }
 
