@@ -12,6 +12,8 @@ import {
 } from '../../lib/x-intel/performance'
 import { PerformanceControls } from './performance-controls'
 import { PerformanceGlance } from './performance-glance'
+import { PerformancePatterns } from './performance-patterns'
+import { TopPostsList } from './top-posts-list'
 
 function EmptyBody({ children }: { children: ReactNode }) {
   return (
@@ -32,7 +34,7 @@ export function PerformanceView() {
   )
   const reports = useXIntelStore((s) => s.reports)
 
-  const [window, setWindow] = useState<PerformanceWindow>('30d')
+  const [timeWindow, setTimeWindow] = useState<PerformanceWindow>('30d')
   const [mode, setMode] = useState<PerformanceRankMode>('composite')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -66,11 +68,11 @@ export function PerformanceView() {
     return buildTopPosts({
       posts: subject.ownPosts,
       profile: subject.profile,
-      window,
+      window: timeWindow,
       mode,
       inbound: subject.inbound,
     })
-  }, [subject, window, mode])
+  }, [subject, timeWindow, mode])
 
   const glance = useMemo(() => (top ? buildGlance(top) : null), [top])
   const patterns = useMemo(
@@ -79,17 +81,11 @@ export function PerformanceView() {
   )
 
   const subjectKey = subject.status === 'ok' ? subject.username : null
+  const firstId = top?.items[0]?.post.id ?? null
 
   useEffect(() => {
-    setExpandedId(null)
-  }, [subjectKey, window, mode])
-
-  useEffect(() => {
-    if (top?.items[0]) setExpandedId(top.items[0].post.id)
-  }, [top])
-
-  // expandedId kept for Task 6 (TopPostsList expand/collapse)
-  void expandedId
+    setExpandedId(firstId)
+  }, [subjectKey, timeWindow, mode, firstId])
 
   let body: ReactNode
   if (subject.status === 'need_profile') {
@@ -116,12 +112,18 @@ export function PerformanceView() {
     body = (
       <>
         {glance && <PerformanceGlance glance={glance} />}
-        <div className="px-4 py-2 text-[11px] text-[var(--color-text-secondary)]">
-          Top posts ({top.items.length}) — list in next task
-        </div>
-        <div className="px-4 py-2 text-[11px] text-[var(--color-text-secondary)]">
-          {patterns?.caption ?? 'Patterns'}
-        </div>
+        <section className="px-4 pt-3 pb-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+            Top posts
+          </h3>
+        </section>
+        <TopPostsList
+          items={top.items}
+          mode={mode}
+          expandedId={expandedId}
+          onExpand={setExpandedId}
+        />
+        {patterns && <PerformancePatterns patterns={patterns} />}
       </>
     )
   }
@@ -129,9 +131,9 @@ export function PerformanceView() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <PerformanceControls
-        window={window}
+        window={timeWindow}
         mode={mode}
-        onWindow={setWindow}
+        onWindow={setTimeWindow}
         onMode={setMode}
       />
       <div className="flex-1 min-h-0 overflow-y-auto">{body}</div>
