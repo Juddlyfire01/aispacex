@@ -20,11 +20,12 @@ import { ComposeSettings } from './compose-settings'
 import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
 import { DraftSplitHandle } from './draft-split-handle'
+import { PerformanceView } from './performance-view'
 
-/** Post chrome: Composer is wired; other slots reserved (blank labels). */
+/** Post chrome: Composer + Performance wired; network slot reserved (blank label). */
 const POST_SUB_TABS = [
   { id: 'profile' as const, label: 'Composer' },
-  { id: 'feed' as const, label: '' },
+  { id: 'feed' as const, label: 'Performance' },
   { id: 'network' as const, label: '' },
 ]
 
@@ -209,7 +210,7 @@ export function ComposeWorkspace() {
               </div>
             </div>
           )}
-          {activeSubTab === 'feed' && <PostSubTabPlaceholder label="Feed" />}
+          {activeSubTab === 'feed' && <PerformanceView />}
           {activeSubTab === 'network' && <PostSubTabPlaceholder label="Network" />}
         </div>
       </div>
