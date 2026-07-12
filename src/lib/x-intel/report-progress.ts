@@ -8,8 +8,8 @@ import {
   type ReportCallKind,
 } from './token-estimate'
 
-const PRESTREAM_COMPUTING_MS = 1000
-const PRESTREAM_SENDING_MS = 2000
+const PRESTREAM_COMPUTING_MS = 3000
+const PRESTREAM_SENDING_MS = 3000
 const PRESTREAM_TICK_MS = 100
 /** Soft creep while waiting for first SSE (bar keeps moving, never resets). */
 const PRESTREAM_THINKING_CREEP_MS = 12_000
@@ -24,10 +24,24 @@ function numbered(step: number, total: number, text: string): string {
   return `${step}/${total} · ${text}`
 }
 
+/**
+ * Yield past the current call stack so React can commit the toast before the
+ * stage clock starts. Without this, sync analytics can burn stage 1 before the
+ * first paint and the toast appears already on stage 2.
+ */
+function yieldForToastMount(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
+}
+
 export interface ReportProgressHandle {
   toastId: number
-  /** Start pre-stream hold schedule (Computing → Sending → Thinking). */
-  markPrepare: () => void
+  /**
+   * Arm the pre-stream hold clock after the toast has mounted. Resolves once
+   * stage 1's 3s timer is running — callers must await this before heavy sync work.
+   */
+  markPrepare: () => Promise<void>
   /** Arm the active streamed LLM phase (label applies after first token). */
   markPhase: (phase: ReportCallKind) => void
   /** Token progress within the current streamed call. */
@@ -67,6 +81,7 @@ export function beginReportProgress(opts: {
   let awaitingChangeTokens = false
   let tickTimer: ReturnType<typeof setInterval> | null = null
   let startedAt = 0
+  let preparePromise: Promise<void> | null = null
 
   const setProgress = (progress: number, progressLabel: string) => {
     // Monotonic bar — never jump backwards across stages.
@@ -125,6 +140,13 @@ export function beginReportProgress(opts: {
     clearTick()
   }
 
+  const paintPrestream = () => {
+    if (streamingStarted || startedAt === 0) return
+    const elapsed = Date.now() - startedAt
+    const { progress, step, text } = prestreamProgressAt(elapsed)
+    setProgress(progress, numbered(step, totalStages, text))
+  }
+
   const startBridgeThinking = () => {
     awaitingChangeTokens = true
     clearTick()
@@ -150,20 +172,22 @@ export function beginReportProgress(opts: {
   return {
     toastId,
     markPrepare: () => {
-      if (streamingStarted) return
-      clearTick()
-      startedAt = Date.now()
-      const paint = () => {
-        if (streamingStarted) {
-          clearTick()
-          return
-        }
-        const elapsed = Date.now() - startedAt
-        const { progress, step, text } = prestreamProgressAt(elapsed)
-        setProgress(progress, numbered(step, totalStages, text))
-      }
-      paint()
-      tickTimer = setInterval(paint, PRESTREAM_TICK_MS)
+      if (streamingStarted) return Promise.resolve()
+      if (preparePromise) return preparePromise
+      preparePromise = yieldForToastMount().then(() => {
+        if (streamingStarted || startedAt !== 0) return
+        // Clock starts at mount — not when generateReport() entered.
+        startedAt = Date.now()
+        paintPrestream()
+        tickTimer = setInterval(() => {
+          if (streamingStarted) {
+            clearTick()
+            return
+          }
+          paintPrestream()
+        }, PRESTREAM_TICK_MS)
+      })
+      return preparePromise
     },
     markPhase: (phase) => {
       if (phase === 'change' && hasChangeStep) {

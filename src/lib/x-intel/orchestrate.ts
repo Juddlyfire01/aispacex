@@ -6,6 +6,7 @@ import { maxOwnPostId, partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
 import { beginReportProgress } from './report-progress'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
+import { toast } from '../../stores/toast-store'
 import type { IntelReportSnapshot, Post } from './types'
 
 function requireReport(username: string): { key: string; report: IntelReport } {
@@ -85,15 +86,35 @@ export async function runGather(username: string, opts: { backfill?: number } = 
  * Refresh only the target's profile (metrics, bio, avatar). Cheapest single
  * refresh — one user lookup — used by the Profile section's Refresh action.
  */
-export async function refreshProfile(username: string): Promise<void> {
+export async function refreshProfile(
+  username: string,
+  opts?: { silent?: boolean },
+): Promise<void> {
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
   const auth = resolveGatherAuth(apiUsername)
+  const subject = `@${apiUsername}`
+  const silent = opts?.silent === true
 
-  const result = await gatherProfile(apiUsername, auth)
-  addCost(key, result.cost)
-  updateReport(key, { profile: result.data, refreshedAt: markRefreshed(key, 'profile') })
+  const toastId = silent
+    ? null
+    : toast.progress('Refreshing profile', {
+        description: subject,
+        progress: 0.15,
+        progressLabel: 'Looking up user…',
+      })
+
+  try {
+    const result = await gatherProfile(apiUsername, auth)
+    addCost(key, result.cost)
+    updateReport(key, { profile: result.data, refreshedAt: markRefreshed(key, 'profile') })
+    if (toastId !== null) toast.complete(toastId, 'Profile updated', subject)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Could not refresh profile'
+    if (toastId !== null) toast.fail(toastId, 'Refresh failed', message)
+    throw e
+  }
 }
 
 /**
@@ -203,7 +224,7 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   const hasChangeStep = Boolean(prevSnapshot)
   const subject = `@${profile.username}`
   const progress = beginReportProgress({ subject, hasChangeStep })
-  progress.markPrepare()
+  await progress.markPrepare()
 
   try {
     const analytics = computeAnalytics(profile, posts, edges)

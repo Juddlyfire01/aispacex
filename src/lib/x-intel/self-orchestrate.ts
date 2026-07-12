@@ -311,6 +311,39 @@ export async function refreshSelfNetwork(): Promise<void> {
   await refreshSelfPosts()
 }
 
+/**
+ * Refresh only the active account's profile (metrics, bio, avatar).
+ * Used by the self Profile section's Refresh action when a profile is already loaded.
+ */
+export async function refreshSelfProfile(): Promise<void> {
+  const store = useXSelfStore.getState()
+  const accountId = store.activeAccountId
+  if (!accountId) throw new Error('No active account')
+  const account = store.accounts[accountId]
+  const subject = `@${account?.username ?? account?.profile?.username ?? 'you'}`
+
+  const toastId = toast.progress('Refreshing profile', {
+    description: subject,
+    progress: 0.15,
+    progressLabel: 'Looking up user…',
+  })
+
+  store.setGathering(accountId, true)
+  try {
+    const profile = await gatherSelfProfile()
+    store.upsertAccount({ id: accountId, username: profile.username })
+    store.setProfile(accountId, profile)
+    store.markRefreshed(accountId, 'profile')
+    toast.complete(toastId, 'Profile updated', `@${profile.username}`)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Could not refresh profile'
+    toast.fail(toastId, 'Refresh failed', message)
+    throw e
+  } finally {
+    useXSelfStore.getState().setGathering(accountId, false)
+  }
+}
+
 /** Full gather of the connected (active) user: profile → posts → bookmarks → likes → edges. */
 export async function gatherSelf(opts: { maxResults?: number } = {}): Promise<void> {
   const store = useXSelfStore.getState()
@@ -373,7 +406,7 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
   const hasChangeStep = Boolean(prevSnapshot)
   const subject = profile.username ? `@${profile.username}` : 'Your profile'
   const progress = beginReportProgress({ subject, hasChangeStep })
-  progress.markPrepare()
+  await progress.markPrepare()
 
   try {
     const analytics = computeAnalytics(profile, posts, edges)

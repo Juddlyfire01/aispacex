@@ -61,13 +61,25 @@ export function ProfileCard() {
   const removeTarget = useXIntelStore((s) => s.removeTarget)
   const connected = useXSelfStore((s) => s.connected)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [profileRefreshing, setProfileRefreshing] = useState(false)
   const linkRefreshAttempted = useRef<Set<string>>(new Set())
 
   const runRefresh = async () => {
     if (!activeTarget) return
     setRefreshError(null)
     try {
-      await runGather(activeTarget)
+      // Populated profile → cheap profile-only refresh (toasts inside).
+      // Empty state → full gather for profile + posts + network.
+      if (report?.profile) {
+        setProfileRefreshing(true)
+        try {
+          await refreshProfile(activeTarget)
+        } finally {
+          setProfileRefreshing(false)
+        }
+      } else {
+        await runGather(activeTarget)
+      }
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     }
@@ -86,7 +98,7 @@ export function ProfileCard() {
     if (!connected || !activeTarget || !profile || !profileNeedsLinkRefresh(profile)) return
     if (linkRefreshAttempted.current.has(profile.id)) return
     linkRefreshAttempted.current.add(profile.id)
-    refreshProfile(activeTarget).catch(() => {
+    refreshProfile(activeTarget, { silent: true }).catch(() => {
       linkRefreshAttempted.current.delete(profile.id)
     })
   }, [connected, activeTarget, profile])
@@ -105,7 +117,7 @@ export function ProfileCard() {
       profile={profile}
       connected={connected}
       canRefresh={canGather}
-      refreshing={gathering}
+      refreshing={gathering || profileRefreshing}
       refreshError={refreshError}
       lastGatheredIso={report.refreshedAt?.profile ?? profile?.gatheredAt}
       onRefresh={runRefresh}

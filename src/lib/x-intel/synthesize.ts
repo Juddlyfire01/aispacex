@@ -137,7 +137,8 @@ const REPORT_SYSTEM = `You are a senior intelligence analyst producing a structu
 
 CRITICAL RULES:
 - The COMPUTED ANALYTICS are ground truth. They cover only the target's authored posts — inbound mentions others wrote at/about the target are excluded from posting cadence, composition, and engagement metrics.
-- Cite the analytics. NEVER recompute, contradict, or invent numbers — if you state a figure, it must come from the analytics object.
+- Cite the analytics in plain language. NEVER recompute, contradict, or invent numbers — if you state a figure, it must come from the analytics object.
+- Never paste raw analytics field names, camelCase keys, snake_case keys, or key=value / (field=n) citations into prose. Translate figures into reader-facing wording (e.g. "engagement rate 4.2%", "averages 3.1 posts per day"). JSON keys are for you to read — not to quote.
 - Be specific and evidence-grounded. Reference real posts by their id.
 - For themes and narrativeArcs, cite EVERY post that supports the point — list all relevant post ids, not just one. Include as many as genuinely apply (some themes will have one, others several); never artificially limit the count.
 - No speculation beyond what the data supports. Distinguish observation from inference.
@@ -169,10 +170,15 @@ Respond with ONLY a fenced json block matching exactly this shape:
 const CHANGE_SYSTEM = `You are a senior intelligence analyst writing the "what changed since the last report" section. You are given the previous report's narrative, and a COMPUTED DELTA object of exact changes.
 
 CRITICAL RULES:
-- The COMPUTED DELTA is ground truth. Cite its figures. Never invent numbers.
-- volumeAddedOwn = new posts the TARGET authored. volumeAddedInbound = new mentions OF the target gathered from others. Only volumeAddedOwn counts as the target "posting more" — never attribute inbound mention volume to the target's posting behavior.
-- When volumeAddedInbound dominates volumeAddedOwn, say the target received more inbound attention/mentions, not that they posted more.
-- Posting velocity / avgPerDay shifts reflect authored posts only.
+- The COMPUTED DELTA is ground truth. Cite its figures in plain language. Never invent numbers.
+- Write for a human reader. Use everyday metric names only: "posts per day", "engagement rate", "amplification rate", "average likes", "average impressions", "own posts", "inbound mentions".
+- FORBIDDEN in the narrative: camelCase or snake_case identifiers, key=value dumps, or parenthetical schema citations. Never write avgPerDay, engagementRate, amplificationRate, avgLikes, avgImpressions, volumeAddedOwn, volumeAddedInbound, bookmarkRate, dateRangeAdded, or similar.
+- BAD: "avgPerDay 3.48 → 3.33" / "engagementRate unchanged at 0.0244" / "(volumeAddedOwn=2)"
+- GOOD: "posts per day eased from 3.48 to 3.33" / "engagement rate held at 0.0244" / "2 own posts"
+- Own authored additions = new posts the TARGET wrote. Inbound additions = new mentions OF the target gathered from others. Only own authored volume counts as the target "posting more" — never attribute inbound mention volume to the target's posting behavior.
+- When inbound additions dominate own authored additions, say the target received more inbound attention/mentions, not that they posted more.
+- Posting velocity / average posts-per-day shifts reflect authored posts only.
+- Distinguish clocks clearly: date ranges on newly added posts are the span of those posts' timestamps, not necessarily the wall-clock gap between report runs. Do not imply the whole inter-report interval equals a short post-cluster span.
 - Interpret what the shifts mean for the target's strategy/posture. Be concise and concrete.
 - The narrative may use light Markdown but must NOT begin with a label like "markdown:" — write the actual content directly.
 
@@ -249,12 +255,89 @@ const STRING_ARRAY = (v: unknown): string[] =>
 
 /**
  * Strip a leaked leading "markdown:" (or "md:") label that models sometimes echo
- * from a schema placeholder into the actual value. Defensive: applied to all
- * prose fields so stray labels never render, regardless of the prompt.
+ * from a schema placeholder into the actual value, then replace any leaked
+ * analytics/delta schema identifiers with plain-language labels.
  */
 export function stripMarkdownLabel(s: string): string {
   if (typeof s !== 'string') return s
-  return s.replace(/^\s*(?:markdown|md)\s*:\s*/i, '')
+  return sanitizeSchemaFieldNames(s.replace(/^\s*(?:markdown|md)\s*:\s*/i, ''))
+}
+
+/** camelCase / schema keys the model must never show in reader-facing prose. */
+export const SCHEMA_FIELD_LABELS: Record<string, string> = {
+  volumeAddedOwn: 'own posts',
+  volumeAddedInbound: 'inbound mentions',
+  volumeAdded: 'added volume',
+  dateRangeAddedOwn: 'own-post window',
+  dateRangeAddedInbound: 'inbound window',
+  dateRangeAdded: 'added-post window',
+  avgPerDay: 'posts per day',
+  engagementRate: 'engagement rate',
+  bookmarkRate: 'bookmark rate',
+  amplificationRate: 'amplification rate',
+  avgLikes: 'average likes',
+  avgImpressions: 'average impressions',
+  followers: 'followers',
+  metricShifts: 'metric shifts',
+  compositionDrift: 'composition drift',
+  cadenceDrift: 'cadence drift',
+  emergingTopics: 'emerging topics',
+  fadingTopics: 'fading topics',
+  sustainedTopics: 'sustained topics',
+  networkChanges: 'network changes',
+  deltaPct: 'percent change',
+  postIdsAnalyzed: 'posts analyzed',
+}
+
+/** Reader-facing label for a metric/delta schema key. */
+export function labelForSchemaField(key: string): string {
+  return SCHEMA_FIELD_LABELS[key] ?? key
+}
+
+const SCHEMA_FIELD_KEYS = Object.keys(SCHEMA_FIELD_LABELS).sort((a, b) => b.length - a.length)
+
+/**
+ * Replace leaked schema identifiers with plain-language labels. Targeted to
+ * known analytics/delta keys — not a broad camelCase scrub — so real prose stays intact.
+ */
+export function sanitizeSchemaFieldNames(s: string): string {
+  if (typeof s !== 'string' || !s) return s
+  let out = s
+  // (volumeAddedOwn=2) / (avgPerDay=3.3) style dumps
+  out = out.replace(
+    /\(\s*(?:volumeAdded(?:Own|Inbound)?|dateRangeAdded(?:Own|Inbound)?|avgPerDay|engagementRate|bookmarkRate|amplificationRate|avgLikes|avgImpressions|deltaPct)\s*=\s*[^)]*\)/g,
+    '',
+  )
+  for (const key of SCHEMA_FIELD_KEYS) {
+    out = out.replace(new RegExp(`\\b${key}\\b`, 'g'), SCHEMA_FIELD_LABELS[key]!)
+  }
+  return out.replace(/[ \t]{2,}/g, ' ').replace(/ \)/g, ')').trim()
+}
+
+/** Plain-language COMPUTED DELTA for the change-summary call — no camelCase keys to echo. */
+export function humanizeComputedDelta(
+  delta: Omit<ChangeSummary, 'narrative'>,
+): Record<string, unknown> {
+  return {
+    'own posts added': delta.volumeAddedOwn,
+    'inbound mentions added': delta.volumeAddedInbound,
+    'total rows added': delta.volumeAdded,
+    'date range of added posts': delta.dateRangeAdded,
+    'date range of own posts added': delta.dateRangeAddedOwn,
+    'date range of inbound mentions added': delta.dateRangeAddedInbound,
+    'metric shifts': delta.metricShifts.map((s) => ({
+      metric: SCHEMA_FIELD_LABELS[s.metric] ?? s.metric,
+      from: s.from,
+      to: s.to,
+      'percent change': s.deltaPct,
+    })),
+    'composition drift': delta.compositionDrift,
+    'cadence drift': delta.cadenceDrift,
+    'emerging topics': delta.emergingTopics,
+    'fading topics': delta.fadingTopics,
+    'sustained topics': delta.sustainedTopics,
+    'network changes': delta.networkChanges,
+  }
 }
 
 function parseRegister(raw: unknown): ReportNarrative['register'] {
@@ -460,7 +543,7 @@ export async function synthesizeReport(
       { role: 'system', content: CHANGE_SYSTEM },
       {
         role: 'user',
-        content: `Previous report narrative:\n${JSON.stringify(prevSnapshot.narrative)}\n\nCOMPUTED DELTA (ground truth):\n${JSON.stringify(computedDelta)}`,
+        content: `Previous report narrative:\n${JSON.stringify(prevSnapshot.narrative)}\n\nCOMPUTED DELTA (ground truth):\n${JSON.stringify(humanizeComputedDelta(computedDelta))}`,
       },
     ]
     const changePromptEst = estimateMessagesTokens(changeMessages)

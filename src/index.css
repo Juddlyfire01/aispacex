@@ -72,9 +72,10 @@
   --color-text-tertiary: #536471;
   --color-text-quaternary: #536471;
   --color-text-placeholder: #71767b;
-  --color-accent: #1d9bf0;
-  --color-accent-soft: rgba(29, 155, 240, 0.16);
-  --color-accent-contrast: #ffffff;
+  /* Lights Out primary chrome — white, not X-blue (blue was link-only confusion). */
+  --color-accent: #ffffff;
+  --color-accent-soft: rgba(255, 255, 255, 0.14);
+  --color-accent-contrast: #000000;
   --color-btn-primary-bg: #ffffff;
   --color-btn-primary-fg: #000000;
   --color-border-input: #2f3336;

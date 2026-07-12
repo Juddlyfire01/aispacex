@@ -70,6 +70,22 @@ describe('stripMarkdownLabel', () => {
   it('does not strip a colon mid-sentence', () => {
     expect(stripMarkdownLabel('Summary: this is fine')).toBe('Summary: this is fine')
   })
+
+  it('replaces leaked schema field names with plain language', () => {
+    expect(
+      stripMarkdownLabel(
+        'Posting velocity eased (avgPerDay 3.48 → 3.33, -4.3%), engagementRate unchanged; avgLikes dipped.',
+      ),
+    ).toBe(
+      'Posting velocity eased (posts per day 3.48 → 3.33, -4.3%), engagement rate unchanged; average likes dipped.',
+    )
+  })
+
+  it('strips key=value parenthetical dumps', () => {
+    expect(stripMarkdownLabel('Authored 2 posts (volumeAddedOwn=2) and drew mentions.')).toBe(
+      'Authored 2 posts and drew mentions.',
+    )
+  })
 })
 
 describe('parseReport', () => {

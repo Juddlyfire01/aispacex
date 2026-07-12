@@ -63,4 +63,13 @@ describe('toast store progress lifecycle', () => {
     toast.fail(id, 'Report failed')
     expect(useToastStore.getState().toasts).toHaveLength(0)
   })
+
+  it('caps the stack at 3 toasts, dropping the oldest', () => {
+    toast.info('One')
+    toast.info('Two')
+    toast.info('Three')
+    toast.info('Four')
+    const titles = useToastStore.getState().toasts.map((t) => t.title)
+    expect(titles).toEqual(['Two', 'Three', 'Four'])
+  })
 })

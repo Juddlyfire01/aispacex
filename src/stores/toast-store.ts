@@ -28,6 +28,8 @@ interface ToastState {
 
 let counter = 0
 const dismissTimers = new Map<number, ReturnType<typeof setTimeout>>()
+/** Keep the bottom-right stack from climbing the viewport. */
+const MAX_TOASTS = 3
 
 function clearDismissTimer(id: number) {
   const t = dismissTimers.get(id)
@@ -51,7 +53,14 @@ export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
   push: ({ duration = 4500, ...t }) => {
     const id = ++counter
-    set((s) => ({ toasts: [...s.toasts, { ...t, id, duration }] }))
+    set((s) => {
+      const next = [...s.toasts, { ...t, id, duration }]
+      while (next.length > MAX_TOASTS) {
+        const dropped = next.shift()
+        if (dropped) clearDismissTimer(dropped.id)
+      }
+      return { toasts: next }
+    })
     scheduleDismiss(id, duration)
     return id
   },

@@ -14,11 +14,12 @@ import type { IntelReportSnapshot, ReportAnalytics, ChangeSummary, Post, Profile
 import { formatTokens, cn } from '../../lib/utils'
 import { Tooltip } from '../ui/tooltip'
 import { ReportExportButton } from './report-export-button'
+import { labelForSchemaField, stripMarkdownLabel } from '../../lib/x-intel/synthesize'
 
-/** Compact markdown renderer reusing the shared prose styling. Strips any
- * leaked "markdown:" label so older persisted reports render cleanly too. */
+/** Compact markdown renderer reusing the shared prose styling. Strips leaked
+ * markdown labels and schema field names so older persisted reports render cleanly too. */
 function Prose({ children, canAddTarget = true }: { children: string; canAddTarget?: boolean }) {
-  const clean = children?.replace(/^\s*(?:markdown|md)\s*:\s*/i, '') ?? ''
+  const clean = stripMarkdownLabel(children ?? '')
   if (!clean) return null
   return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-white/70" canAddTarget={canAddTarget} />
 }
@@ -409,7 +410,7 @@ export function ChangeSummaryPanel({ change, canAddTarget = true }: { change: Ch
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono">
           {shifts.map((m) => (
             <span key={m.metric} className={cn(m.deltaPct > 0 ? 'text-green-400/60' : 'text-red-400/60')}>
-              {m.metric} {m.deltaPct > 0 ? '+' : ''}{m.deltaPct}%
+              {labelForSchemaField(m.metric)} {m.deltaPct > 0 ? '+' : ''}{m.deltaPct}%
             </span>
           ))}
         </div>

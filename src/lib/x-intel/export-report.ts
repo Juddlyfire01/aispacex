@@ -1,5 +1,5 @@
 import { postUrl, profileUrl } from './evidence'
-import { stripMarkdownLabel } from './synthesize'
+import { labelForSchemaField, stripMarkdownLabel } from './synthesize'
 import type { IntelReportSnapshot, Post, Profile } from './types'
 
 export type ReportExportContext = {
@@ -81,7 +81,7 @@ export function reportToMarkdown(snapshot: IntelReportSnapshot, ctx: ReportExpor
     }
     const shifts = change.metricShifts.filter((m) => Math.abs(m.deltaPct) >= 1)
     if (shifts.length > 0) {
-      lines.push('', ...shifts.map((m) => `- ${m.metric}: ${m.deltaPct > 0 ? '+' : ''}${m.deltaPct}%`))
+      lines.push('', ...shifts.map((m) => `- ${labelForSchemaField(m.metric)}: ${m.deltaPct > 0 ? '+' : ''}${m.deltaPct}%`))
     }
     if (change.emergingTopics.length > 0) {
       lines.push('', `Emerging: ${change.emergingTopics.slice(0, 6).join(', ')}`)

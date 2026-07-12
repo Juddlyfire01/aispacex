@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { xLogoHrefForTheme } from '../../lib/appearance'
-import { gatherSelf, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
+import { gatherSelf, refreshSelfProfile, disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
@@ -110,8 +110,12 @@ export function SelfProfileView() {
 
   const runRefresh = async () => {
     setError(null)
-    try { await gatherSelf() }
-    catch (e) { setError(e instanceof Error ? e.message : 'Gather failed') }
+    try {
+      if (profile) await refreshSelfProfile()
+      else await gatherSelf()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gather failed')
+    }
   }
 
   // After the shared session probe, gather the active account's data — but only

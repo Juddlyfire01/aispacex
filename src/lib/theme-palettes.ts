@@ -30,9 +30,9 @@ export const PALETTES: Record<string, Palette> = {
     textPrimary: '#E7E9EA',
     textSecondary: '#71767B',
     textTertiary: '#536471',
-    accent: '#1D9BF0',
-    accentSoft: 'rgba(29, 155, 240, 0.16)',
-    accentContrast: '#ffffff',
+    accent: '#ffffff',
+    accentSoft: 'rgba(255, 255, 255, 0.14)',
+    accentContrast: '#000000',
     colorScheme: 'dark',
   },
   venice: {
