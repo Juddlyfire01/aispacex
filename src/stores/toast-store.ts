@@ -84,8 +84,14 @@ export const useToastStore = create<ToastState>((set, get) => ({
 export const toast = {
   info: (title: string, description?: string) =>
     useToastStore.getState().push({ variant: 'info', title, description }),
-  success: (title: string, description?: string) =>
-    useToastStore.getState().push({ variant: 'success', title, description }),
+  success: (title: string, description?: string, action?: Toast['action']) =>
+    useToastStore.getState().push({
+      variant: 'success',
+      title,
+      description,
+      action,
+      duration: action ? 6500 : 4500,
+    }),
   error: (title: string, description?: string, action?: Toast['action']) =>
     useToastStore.getState().push({ variant: 'error', title, description, action, duration: 6500 }),
   fromError: (err: unknown, title = 'Something went wrong') => {

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { downloadThread, type ThreadExportFormat } from '../../lib/compose/thread-meta'
-import type { ComposeThread } from '../../lib/compose/thread-types'
+import { useComposeStore } from '../../stores/compose-store'
 
 type ThreadExportButtonProps = {
-  thread: ComposeThread
+  threadId: string
 }
 
 /** Compact download control for history pills — Markdown or full-fidelity JSON. */
-export function ThreadExportButton({ thread }: ThreadExportButtonProps) {
+export function ThreadExportButton({ threadId }: ThreadExportButtonProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -21,6 +21,8 @@ export function ThreadExportButton({ thread }: ThreadExportButtonProps) {
   }, [open])
 
   const exportAs = (format: ThreadExportFormat) => {
+    const thread = useComposeStore.getState().threads[threadId]
+    if (!thread) return
     downloadThread(thread, format)
     setOpen(false)
   }
@@ -36,7 +38,7 @@ export function ThreadExportButton({ thread }: ThreadExportButtonProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         title="Export chat"
-        aria-label={`Export ${thread.title || 'chat'}`}
+        aria-label="Export chat"
         className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
       >
         <svg

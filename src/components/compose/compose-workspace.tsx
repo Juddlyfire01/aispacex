@@ -43,7 +43,9 @@ function PostSubTabPlaceholder({ label }: { label: string }) {
 export function ComposeWorkspace() {
   const { data: models, defaultModelId, mostUncensoredModelId } = useModels('text')
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
-  const threads = useComposeStore((s) => s.threads)
+  const activeThread = useComposeStore((s) =>
+    s.activeThreadId ? s.threads[s.activeThreadId] : undefined,
+  )
   const ensureActiveThread = useComposeStore((s) => s.ensureActiveThread)
   const newThreadContext = useComposeStore((s) => s.newThreadContext)
   const model = useComposeStore((s) => s.model)
@@ -99,8 +101,7 @@ export function ComposeWorkspace() {
     ensureActiveThread()
   }, [ensureActiveThread])
 
-  const threadId = activeThreadId && threads[activeThreadId] ? activeThreadId : null
-  const activeThread = threadId ? threads[threadId] : undefined
+  const threadId = activeThreadId && activeThread ? activeThreadId : null
 
   const modelObj = useMemo(() => models?.find((m) => m.id === model), [models, model])
   const limitAssumed = !(

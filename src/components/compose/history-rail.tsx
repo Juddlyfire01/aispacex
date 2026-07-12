@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useComposeStore, ME_CONTEXT, ALL_CONTEXT } from '../../stores/compose-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -17,11 +18,35 @@ import { Checkbox } from '../ui/checkbox'
 import { confirmDialog } from '../../stores/confirm-store'
 import { cn } from '../../lib/utils'
 
-function threadMatchesQuery(thread: ComposeThread, query: string): boolean {
+/** Lightweight row data — never hold full message/draft payloads in the rail list. */
+export type ThreadRailItem = {
+  id: string
+  context: ComposeScope
+  preview: string
+  updatedAt: string
+  tokenEstimate: number
+  messageCount: number
+}
+
+function toRailItem(thread: ComposeThread): ThreadRailItem {
+  return {
+    id: thread.id,
+    context: thread.context,
+    preview: thread.preview,
+    updatedAt: thread.updatedAt,
+    tokenEstimate: thread.tokenEstimate,
+    messageCount: thread.messages.length,
+  }
+}
+
+function railItemMatchesQuery(item: ThreadRailItem, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
+  if (item.preview.toLowerCase().includes(q)) return true
+  // Deep search only when needed — read from store, don't keep bodies in list state.
+  const thread = useComposeStore.getState().threads[item.id]
+  if (!thread) return false
   if (thread.title.toLowerCase().includes(q)) return true
-  if (thread.preview.toLowerCase().includes(q)) return true
   return thread.messages.some((m) => messageContentString(m).toLowerCase().includes(q))
 }
 
@@ -142,9 +167,130 @@ function NewChatMenu() {
   )
 }
 
+type HistoryThreadRowProps = {
+  item: ThreadRailItem
+  selectMode: boolean
+  selected: boolean
+  active: boolean
+  onToggle: (id: string) => void
+  onSelect: (id: string) => void
+  onDelete: (id: string, messageCount: number) => void
+}
+
+const HistoryThreadRow = memo(function HistoryThreadRow({
+  item,
+  selectMode,
+  selected,
+  active,
+  onToggle,
+  onSelect,
+  onDelete,
+}: HistoryThreadRowProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      title={threadPillTip()}
+      aria-label={`${contextBadgeLabel(item.context)}: ${item.preview}`}
+      aria-pressed={selectMode ? selected : undefined}
+      onClick={() => {
+        if (selectMode) onToggle(item.id)
+        else onSelect(item.id)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          if (selectMode) onToggle(item.id)
+          else onSelect(item.id)
+        }
+      }}
+      className={cn(
+        'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-pointer transition-colors',
+        selected
+          ? 'text-[var(--color-text-primary)] bg-[var(--color-border-faint)]'
+          : active
+            ? 'text-[var(--color-text-primary)]'
+            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
+      )}
+    >
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-full bg-[var(--color-accent)]" />
+      )}
+      {selectMode ? (
+        <span
+          className="shrink-0"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            checked={selected}
+            onChange={() => onToggle(item.id)}
+            size="sm"
+            aria-label={`Select ${item.preview || 'chat'}`}
+          />
+        </span>
+      ) : null}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="shrink-0 text-[9px] text-[var(--color-text-tertiary)]">
+            {contextBadgeLabel(item.context)}
+          </span>
+          <span className="truncate">{item.preview}</span>
+        </div>
+        <div className="text-[9px] text-[var(--color-text-tertiary)]">
+          {formatRelativeTime(item.updatedAt)} · {formatTokenCount(item.tokenEstimate)}
+        </div>
+      </div>
+      {!selectMode ? (
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
+          <ThreadExportButton threadId={item.id} />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(item.id, item.messageCount)
+            }}
+            title="Delete chat"
+            aria-label="Delete chat"
+            className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
 export function HistoryRail() {
-  const threadOrder = useComposeStore((s) => s.threadOrder)
-  const threads = useComposeStore((s) => s.threads)
+  // Subscribe to lightweight fingerprints only — not full message/draft bodies.
+  // useShallow on string[] avoids re-renders when unrelated store fields change.
+  const railFingerprints = useComposeStore(
+    useShallow((s) =>
+      s.threadOrder.map((id) => {
+        const t = s.threads[id]
+        if (!t) return ''
+        const ctx =
+          t.context.type === 'target' ? `t:${t.context.username}` : t.context.type
+        return `${t.id}\0${t.preview}\0${t.updatedAt}\0${t.tokenEstimate}\0${t.messages.length}\0${ctx}`
+      }),
+    ),
+  )
+
+  const railItems = useMemo((): ThreadRailItem[] => {
+    const threads = useComposeStore.getState().threads
+    return railFingerprints
+      .map((fp) => {
+        if (!fp) return null
+        const id = fp.slice(0, fp.indexOf('\0'))
+        const t = threads[id]
+        return t ? toRailItem(t) : null
+      })
+      .filter((t): t is ThreadRailItem => Boolean(t))
+  }, [railFingerprints])
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
   const selectThread = useComposeStore((s) => s.selectThread)
   const deleteThread = useComposeStore((s) => s.deleteThread)
@@ -154,45 +300,46 @@ export function HistoryRail() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   const rows = useMemo(() => {
-    return threadOrder
-      .map((id) => threads[id])
-      .filter((t): t is ComposeThread => Boolean(t))
-      .filter((t) => threadMatchesQuery(t, filter))
-  }, [threadOrder, threads, filter])
+    return railItems.filter((t) => railItemMatchesQuery(t, filter))
+  }, [railItems, filter])
 
   const dayGroups = useMemo(() => groupThreadsByDay(rows), [rows])
 
-  const exitSelectMode = () => {
+  const exitSelectMode = useCallback(() => {
     setSelectMode(false)
     setSelectedIds(new Set())
-  }
+  }, [])
 
-  const toggleSelected = (id: string) => {
+  const toggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-  }
+  }, [])
 
-  const handleDelete = async (thread: ComposeThread) => {
-    if (thread.messages.length > 0) {
-      const ok = await confirmDialog({
-        title: 'Delete chat',
-        description: 'Messages and draft will be removed.',
-        confirmLabel: 'Delete',
-        danger: true,
-      })
-      if (!ok) return
-    }
-    deleteThread(thread.id)
-  }
+  const handleDelete = useCallback(
+    async (id: string, messageCount: number) => {
+      if (messageCount > 0) {
+        const ok = await confirmDialog({
+          title: 'Delete chat',
+          description: 'Messages and draft will be removed.',
+          confirmLabel: 'Delete',
+          danger: true,
+        })
+        if (!ok) return
+      }
+      deleteThread(id)
+    },
+    [deleteThread],
+  )
 
   const handleBulkDelete = async () => {
     const ids = [...selectedIds]
     if (ids.length === 0) return
-    const anyWithMessages = ids.some((id) => (threads[id]?.messages.length ?? 0) > 0)
+    const byId = new Map(railItems.map((t) => [t.id, t]))
+    const anyWithMessages = ids.some((id) => (byId.get(id)?.messageCount ?? 0) > 0)
     if (anyWithMessages) {
       const n = ids.length
       const ok = await confirmDialog({
@@ -256,88 +403,18 @@ export function HistoryRail() {
               <div className="px-2 pt-2 pb-1 text-[9px] font-medium tracking-wide uppercase text-[var(--color-text-tertiary)]">
                 {group.label}
               </div>
-              {group.threads.map((thread) => {
-                const active = !selectMode && thread.id === activeThreadId
-                const selected = selectedIds.has(thread.id)
-                return (
-                  <div
-                    key={thread.id}
-                    role="button"
-                    tabIndex={0}
-                    title={threadPillTip()}
-                    aria-label={`${contextBadgeLabel(thread.context)}: ${thread.preview}`}
-                    aria-pressed={selectMode ? selected : undefined}
-                    onClick={() => {
-                      if (selectMode) toggleSelected(thread.id)
-                      else selectThread(thread.id)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        if (selectMode) toggleSelected(thread.id)
-                        else selectThread(thread.id)
-                      }
-                    }}
-                    className={cn(
-                      'group relative flex items-center gap-1.5 px-2 py-[5px] rounded-md text-[11px] cursor-pointer transition-colors',
-                      selected
-                        ? 'text-[var(--color-text-primary)] bg-[var(--color-border-faint)]'
-                        : active
-                          ? 'text-[var(--color-text-primary)]'
-                          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
-                    )}
-                  >
-                    {active && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-full bg-[var(--color-accent)]" />
-                    )}
-                    {selectMode ? (
-                      <span
-                        className="shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Checkbox
-                          checked={selected}
-                          onChange={() => toggleSelected(thread.id)}
-                          size="sm"
-                          aria-label={`Select ${thread.preview || 'chat'}`}
-                        />
-                      </span>
-                    ) : null}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="shrink-0 text-[9px] text-[var(--color-text-tertiary)]">
-                          {contextBadgeLabel(thread.context)}
-                        </span>
-                        <span className="truncate">{thread.preview}</span>
-                      </div>
-                      <div className="text-[9px] text-[var(--color-text-tertiary)]">
-                        {formatRelativeTime(thread.updatedAt)} · {formatTokenCount(thread.tokenEstimate)}
-                      </div>
-                    </div>
-                    {!selectMode ? (
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-                        <ThreadExportButton thread={thread} />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(thread)
-                          }}
-                          title="Delete chat"
-                          aria-label="Delete chat"
-                          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
+              {group.threads.map((item) => (
+                <HistoryThreadRow
+                  key={item.id}
+                  item={item}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(item.id)}
+                  active={!selectMode && item.id === activeThreadId}
+                  onToggle={toggleSelected}
+                  onSelect={selectThread}
+                  onDelete={handleDelete}
+                />
+              ))}
             </div>
           ))
         )}

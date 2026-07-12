@@ -8,11 +8,12 @@ export function DraftDrawer() {
   const draftDrawerOpen = useComposeStore((s) => s.draftDrawerOpen)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
-  const threads = useComposeStore((s) => s.threads)
+  const activeThreadExists = useComposeStore((s) =>
+    Boolean(s.activeThreadId && s.threads[s.activeThreadId]),
+  )
   const [copied, setCopied] = useState(false)
 
-  const threadId =
-    draftDrawerOpen && activeThreadId && threads[activeThreadId] ? activeThreadId : null
+  const threadId = draftDrawerOpen && activeThreadExists ? activeThreadId : null
 
   useEffect(() => {
     if (!threadId) return
