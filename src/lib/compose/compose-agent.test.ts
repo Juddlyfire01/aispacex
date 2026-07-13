@@ -8,7 +8,12 @@ vi.mock('../venice-client', () => ({
   venice: (...args: unknown[]) => veniceMock(...args),
 }))
 
-import { accumulateStreamedToolCalls, runComposeAgent } from './compose-agent'
+import {
+  accumulateStreamedToolCalls,
+  runComposeAgent,
+  safeParseArgs,
+  sanitizeToolCallsForApi,
+} from './compose-agent'
 
 /** Build a ReadableStream of SSE events from chat completion chunks. */
 function sseStreamFromChunks(chunks: ChatCompletionChunk[]): ReadableStream<Uint8Array> {
@@ -61,6 +66,48 @@ describe('accumulateStreamedToolCalls', () => {
     expect(call.id).toBe('call_1')
     expect(call.function.name).toBe('intel_grep')
     expect(call.function.arguments).toBe('{"query":"x"}')
+  })
+})
+
+describe('safeParseArgs / sanitizeToolCallsForApi', () => {
+  it('parses normal object JSON', () => {
+    expect(safeParseArgs('{"brief":"hi","longform":true}')).toEqual({
+      brief: 'hi',
+      longform: true,
+    })
+  })
+
+  it('salvages truncated object as prose brief', () => {
+    const truncated = '{"brief":"Write a longform about VVV staking APR and DIEM'
+    const parsed = safeParseArgs(truncated)
+    expect(parsed.brief).toContain('Write a longform')
+  })
+
+  it('accepts bare JSON string as brief', () => {
+    expect(safeParseArgs(JSON.stringify('just a brief'))).toEqual({ brief: 'just a brief' })
+  })
+
+  it('extracts object from fenced markdown', () => {
+    expect(safeParseArgs('```json\n{"brief":"x"}\n```')).toEqual({ brief: 'x' })
+  })
+
+  it('re-serializes tool calls so Venice always gets a JSON object string', () => {
+    const [clean] = sanitizeToolCallsForApi([
+      {
+        id: 'c1',
+        type: 'function',
+        function: {
+          name: 'compose_write_draft',
+          // Model sometimes emits a bare string instead of {"brief":...}
+          arguments: '"Write a post about burns"',
+        },
+      },
+    ])
+    expect(clean!.function.arguments).toBe(
+      JSON.stringify({ brief: 'Write a post about burns' }),
+    )
+    expect(() => JSON.parse(clean!.function.arguments)).not.toThrow()
+    expect(typeof JSON.parse(clean!.function.arguments)).toBe('object')
   })
 })
 

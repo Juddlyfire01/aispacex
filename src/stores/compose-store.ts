@@ -266,6 +266,10 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
       : Object.keys(threads)
     state.threadOrder = sortStarredFirst(order, (id) => Boolean(threads[id]?.starred))
   }
+  // preferredFormat is session-only (default auto) — drop any persisted choice.
+  if (version < 15) {
+    state.preferredFormat = 'auto'
+  }
 
   if (version < 4) {
     const sessions = (state.sessions ?? {}) as Record<string, LegacyComposeSession>
@@ -691,7 +695,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 14,
+      version: 15,
       // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -708,7 +712,7 @@ export const useComposeStore = create<ComposeState>()(
         webSearch: state.webSearch,
         xNewsOn: state.xNewsOn,
         xNewsMaxAgeHours: state.xNewsMaxAgeHours,
-        preferredFormat: state.preferredFormat,
+        // preferredFormat stays 'auto' by default and is not persisted.
         draftDrawerWidthPct: state.draftDrawerWidthPct,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,

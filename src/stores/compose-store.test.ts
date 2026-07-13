@@ -237,6 +237,21 @@ describe('compose-store', () => {
     expect(migrated.preferredFormat).toBe('auto')
   })
 
+  it('migrateComposeState version < 15 resets preferredFormat to auto (not persisted)', () => {
+    const migrated = migrateComposeState(
+      {
+        threads: {},
+        threadOrder: [],
+        activeThreadId: null,
+        model: 'grok',
+        draftModel: 'same',
+        preferredFormat: 'longform',
+      },
+      14,
+    )
+    expect(migrated.preferredFormat).toBe('auto')
+  })
+
   it('migrateComposeState version < 12 defaults empty draftModel to same', () => {
     const migrated = migrateComposeState(
       {

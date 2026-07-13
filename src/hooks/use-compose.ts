@@ -163,31 +163,21 @@ export function useCompose() {
       const thread = useComposeStore.getState().threads[threadId]
       if (!thread) return
 
-      // Paint busy UI (Send → Stop / Thinking) before hot-window packing stalls the thread.
+      // Skip encrypt+IDB so early store writes don't kick off a disk write.
+      // Stagger paints: busy chrome now → user bubble @20ms → Thinking @40ms.
+      pauseEncryptedPersist()
       flushSync(() => {
         const s = useComposeStore.getState()
         s.setStreaming(true)
         s.clearAgentEvents()
-        s.setAgentPhase('Thinking')
+        s.setAgentPhase(null)
       })
-      await yieldForPaint()
-
-      useComposeStore.getState().addMessage(threadId, {
-        role: 'user',
-        content: userMessage,
-        ...(opts?.displayContent?.trim()
-          ? { displayContent: opts.displayContent.trim() }
-          : {}),
-      })
-      useComposeStore.getState().addMessage(threadId, { role: 'assistant', content: '' })
       pendingDeltaRef.current = ''
       if (dripRafRef.current != null) {
         cancelAnimationFrame(dripRafRef.current)
         dripRafRef.current = null
       }
       activeStreamThreadRef.current = threadId
-      // Skip encrypt+IDB while tokens fly; resume in finally so the tail is saved.
-      pauseEncryptedPersist()
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -199,6 +189,30 @@ export function useCompose() {
       const MIN_TOOL_DISPLAY_MS = 1000
 
       try {
+        await new Promise<void>((r) => setTimeout(r, 20))
+        if (abortController.signal.aborted) return
+
+        flushSync(() => {
+          useComposeStore.getState().addMessage(threadId, {
+            role: 'user',
+            content: userMessage,
+            ...(opts?.displayContent?.trim()
+              ? { displayContent: opts.displayContent.trim() }
+              : {}),
+          })
+          useComposeStore.getState().addMessage(threadId, { role: 'assistant', content: '' })
+        })
+        await yieldForPaint()
+
+        await new Promise<void>((r) => setTimeout(r, 20))
+        if (abortController.signal.aborted) return
+
+        flushSync(() => {
+          useComposeStore.getState().setAgentPhase('Thinking')
+        })
+        // Let Thinking paint before sync packing work.
+        await yieldForPaint()
+
         const store = useComposeStore.getState()
         const selfAccounts = Object.values(useXSelfStore.getState().accounts)
         const reports = Object.values(useXIntelStore.getState().reports)

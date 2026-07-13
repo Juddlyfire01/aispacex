@@ -91,16 +91,97 @@ export interface ComposeAgentOpts {
   onContentReset?: () => void
 }
 
-function safeParseArgs(raw: string | undefined): Record<string, unknown> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {}
-  } catch {
-    return {}
+/**
+ * Parse streamed tool-call arguments into a plain object.
+ * Models often emit truncated JSON, fenced blocks, or a bare string brief —
+ * Venice then rejects the next round with "expected JSON object for tool arguments"
+ * if we re-send the raw string. Always re-serialize via sanitizeToolCallsForApi.
+ */
+export function safeParseArgs(raw: string | undefined | null): Record<string, unknown> {
+  if (raw == null) return {}
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>
   }
+  const text = String(raw).trim()
+  if (!text) return {}
+
+  const tryParseObject = (candidate: string): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+      // Bare JSON string → treat as compose_write_draft brief when it's the whole payload.
+      if (typeof parsed === 'string' && parsed.trim()) {
+        return { brief: parsed.trim() }
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const direct = tryParseObject(text)
+  if (direct) return direct
+
+  // ```json ... ``` fence
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced?.[1]) {
+    const fromFence = tryParseObject(fenced[1].trim())
+    if (fromFence) return fromFence
+  }
+
+  // First balanced {...} substring (handles preamble / trailing junk).
+  const start = text.indexOf('{')
+  if (start >= 0) {
+    let depth = 0
+    let inString = false
+    let escape = false
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i]!
+      if (inString) {
+        if (escape) escape = false
+        else if (ch === '\\') escape = true
+        else if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') {
+        inString = true
+        continue
+      }
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          const slice = text.slice(start, i + 1)
+          const fromSlice = tryParseObject(slice)
+          if (fromSlice) return fromSlice
+          break
+        }
+      }
+    }
+  }
+
+  // Non-JSON prose: salvage as a draft brief so handoff still works.
+  if (text.length > 8 && !text.startsWith('[')) {
+    return { brief: text }
+  }
+  return {}
+}
+
+/** Ensure tool_calls.arguments is always a JSON object string for the API. */
+export function sanitizeToolCallsForApi(calls: ToolCall[]): ToolCall[] {
+  return calls.map((call) => {
+    const args = safeParseArgs(call.function?.arguments)
+    return {
+      ...call,
+      type: 'function' as const,
+      function: {
+        name: call.function?.name ?? '',
+        arguments: JSON.stringify(args),
+      },
+    }
+  })
 }
 
 function contentAsString(content: ChatMessage['content']): string {
@@ -302,11 +383,13 @@ export async function runComposeAgent(
 
     useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
 
-    const calls = callEntries.map((e) => e.call)
+    // Re-serialize args as proper JSON objects — streamed fragments / bare
+    // strings make Venice reject the next round ("expected JSON object…").
+    const sanitizedCalls = sanitizeToolCallsForApi(callEntries.map((e) => e.call))
     const assistantMsg: ChatMessage = {
       role: 'assistant',
       content: content || null,
-      tool_calls: calls.length > 0 ? calls : undefined,
+      tool_calls: sanitizedCalls.length > 0 ? sanitizedCalls : undefined,
     }
     messages.push(assistantMsg)
     lastContent = content
@@ -324,13 +407,15 @@ export async function runComposeAgent(
     // Tool round: clear UI preamble if mid-stream didn't already.
     if (content && !contentResetFired) opts.onContentReset?.()
 
-    for (const { index, call } of callEntries) {
+    for (let i = 0; i < callEntries.length; i++) {
+      const { index, call } = callEntries[i]!
+      const sanitized = sanitizedCalls[i]!
       if (opts.signal?.aborted) {
         throw new DOMException('Aborted', 'AbortError')
       }
-      const name = call.function?.name ?? ''
-      const args = safeParseArgs(call.function?.arguments)
-      opts.onTool?.({ index, id: call.id, name, args })
+      const name = sanitized.function?.name || call.function?.name || ''
+      const args = safeParseArgs(sanitized.function?.arguments)
+      opts.onTool?.({ index, id: sanitized.id || call.id, name, args })
 
       let result: unknown
       if (name === COMPOSE_WRITE_DRAFT_TOOL_NAME) {
@@ -370,10 +455,16 @@ export async function runComposeAgent(
       }
 
       toolCalls++
-      await opts.onToolResult?.({ index, id: call.id, name, args, result })
+      await opts.onToolResult?.({
+        index,
+        id: sanitized.id || call.id,
+        name,
+        args,
+        result,
+      })
       messages.push({
         role: 'tool',
-        tool_call_id: call.id,
+        tool_call_id: sanitized.id || call.id,
         content: JSON.stringify(result),
       })
     }
