@@ -14,6 +14,7 @@ import { scopeFromContext } from '../lib/intel-library/scope'
 import { createDebouncedJSONStorage } from '../lib/encrypted-storage'
 import type { AgentEvent, AgentEventStatus } from '../lib/compose/agent-events'
 import { DRAFT_MODEL_SAME } from '../lib/compose/draft-writer-tool'
+import { sortStarredFirst } from '../lib/starred-order'
 
 // Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
@@ -87,8 +88,10 @@ interface ComposeState {
   createThread: (context?: ComposeScope, target?: PostTarget) => string
   selectThread: (id: string | null) => void
   deleteThread: (id: string) => void
-  /** Remove many threads in one store update (history rail bulk delete). */
+  /** Remove many threads in one store update (history rail bulk delete). Starred ids are skipped. */
   deleteThreads: (ids: string[]) => void
+  /** Toggle star; starred threads pin to top and refuse delete. */
+  toggleStarThread: (id: string) => void
   ensureActiveThread: () => string
   getActiveThread: () => ComposeThread | undefined
   setNewThreadContext: (scope: ComposeScope) => void
@@ -171,8 +174,14 @@ function touch(draft: PostDraft): PostDraft {
   return { ...draft, updatedAt: new Date().toISOString() }
 }
 
-function bumpOrder(order: string[], threadId: string): string[] {
-  return [threadId, ...order.filter((id) => id !== threadId)]
+/** Move thread to front of its partition (starred block, then unstarred). */
+function bumpOrder(
+  order: string[],
+  threadId: string,
+  threads: Record<string, ComposeThread>,
+): string[] {
+  const next = [threadId, ...order.filter((id) => id !== threadId)]
+  return sortStarredFirst(next, (id) => Boolean(threads[id]?.starred))
 }
 
 function mapThread(
@@ -189,9 +198,10 @@ function mapThread(
     title: next.title,
   })
   const updated: ComposeThread = { ...next, ...meta }
+  const threads = { ...state.threads, [threadId]: updated }
   return {
-    threads: { ...state.threads, [threadId]: updated },
-    threadOrder: bumpOrder(state.threadOrder, threadId),
+    threads,
+    threadOrder: bumpOrder(state.threadOrder, threadId, threads),
   }
 }
 
@@ -245,6 +255,16 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
     if (state.draftModel == null || state.draftModel === '') {
       state.draftModel = DRAFT_MODEL_SAME
     }
+  }
+  if (version < 14 && state.threads) {
+    const threads = state.threads as Record<string, ComposeThread>
+    for (const thread of Object.values(threads)) {
+      if (thread.starred == null) thread.starred = false
+    }
+    const order = Array.isArray(state.threadOrder)
+      ? (state.threadOrder as string[])
+      : Object.keys(threads)
+    state.threadOrder = sortStarredFirst(order, (id) => Boolean(threads[id]?.starred))
   }
 
   if (version < 4) {
@@ -351,13 +371,17 @@ export const useComposeStore = create<ComposeState>()(
           draft,
           tokenEstimate: meta.tokenEstimate,
           preview: meta.preview,
+          starred: false,
           compressArchives: [],
         }
-        set((prev) => ({
-          threads: { ...prev.threads, [id]: thread },
-          threadOrder: [id, ...prev.threadOrder],
-          activeThreadId: id,
-        }))
+        set((prev) => {
+          const threads = { ...prev.threads, [id]: thread }
+          return {
+            threads,
+            threadOrder: bumpOrder(prev.threadOrder, id, threads),
+            activeThreadId: id,
+          }
+        })
         return id
       },
 
@@ -368,7 +392,9 @@ export const useComposeStore = create<ComposeState>()(
       deleteThreads: (ids) =>
         set((s) => {
           if (ids.length === 0) return s
-          const idSet = new Set(ids)
+          // Starred threads are protected — skip them entirely.
+          const idSet = new Set(ids.filter((id) => !s.threads[id]?.starred))
+          if (idSet.size === 0) return s
           const threads = { ...s.threads }
           for (const id of idSet) delete threads[id]
           const threadOrder = s.threadOrder.filter((tid) => !idSet.has(tid))
@@ -377,6 +403,18 @@ export const useComposeStore = create<ComposeState>()(
               ? (threadOrder[0] ?? null)
               : s.activeThreadId
           return { threads, threadOrder, activeThreadId }
+        }),
+
+      toggleStarThread: (id) =>
+        set((s) => {
+          const thread = s.threads[id]
+          if (!thread) return s
+          const updated = { ...thread, starred: !thread.starred }
+          const threads = { ...s.threads, [id]: updated }
+          return {
+            threads,
+            threadOrder: sortStarredFirst(s.threadOrder, (tid) => Boolean(threads[tid]?.starred)),
+          }
         }),
 
       ensureActiveThread: () => {
@@ -653,7 +691,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 13,
+      version: 14,
       // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),

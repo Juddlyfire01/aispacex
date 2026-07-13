@@ -30,6 +30,10 @@ function run(name, command, args, color) {
 console.log('[dev] starting API (:3000) + web (:5173)…')
 console.log('[dev] open http://localhost:5173')
 
+// Legacy stack: real vercel dev on :3000, Vite proxies /api to it. Force proxy
+// mode so Vite does NOT also run the API in-process (that would be redundant).
+process.env.VITE_API_TARGET = process.env.VITE_API_TARGET || 'http://localhost:3000'
+
 const api = run('api', 'vercel', ['dev', '--listen', '3000'])
 const web = run('web', 'npx', ['vite', '--port', '5173', '--strictPort'])
 

@@ -1,4 +1,4 @@
-import type { StateStorage } from 'zustand/middleware'
+import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
 import { encryptString, decryptString } from './device-crypto'
 import { idbKvGet, idbKvSet, idbKvDelete } from './idb-kv'
 import { toast } from '../stores/toast-store'
@@ -316,22 +316,18 @@ export function createEncryptedStorage(): StateStorage {
  * `{ state, version }` object and defers JSON.stringify + AES-GCM until idle
  * or flushEncryptedStorage / pagehide.
  */
-export function createDebouncedJSONStorage(): {
-  getItem: (name: string) => Promise<string | null | PersistStorageValue>
-  setItem: (name: string, value: PersistStorageValue) => void
-  removeItem: (name: string) => void | Promise<void>
-} {
+export function createDebouncedJSONStorage<S = unknown>(): PersistStorage<S> {
   const base = createEncryptedStorage()
   return {
     getItem: async (name) => {
       // Prefer in-memory pending (not yet stringified) during the same session.
       const pending = pendingJsonState.get(name)
-      if (pending != null) return pending
+      if (pending != null) return pending as StorageValue<S>
       // base returns a JSON string — parse into { state, version } for zustand persist.
       const raw = await base.getItem(name)
       if (raw == null) return null
       try {
-        return JSON.parse(raw) as PersistStorageValue
+        return JSON.parse(raw) as StorageValue<S>
       } catch {
         return null
       }

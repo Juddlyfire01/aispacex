@@ -11,7 +11,6 @@ import type { LibraryMode, PackResult } from '../../lib/compose/hot-window'
 import type { LibraryCounts } from '../../lib/intel-library/types'
 import { Label, PillGroup } from '../ui/shared'
 import { LibraryMeter } from './library-meter'
-import { FormatPreference } from './format-preference'
 
 const X_SEARCH_MODES: { value: XSearchMode; label: string }[] = [
   { value: 'off', label: 'off' },
@@ -127,8 +126,6 @@ export function ComposeSettings({
             })}
           </select>
         </div>
-
-        <FormatPreference />
 
         <div>
           <Label title="Venice server-side web search for the current turn">Web search</Label>

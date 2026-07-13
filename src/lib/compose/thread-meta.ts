@@ -1,4 +1,5 @@
 import type { ChatMessage } from '../../types/venice'
+import { downloadText, slugifyFilename } from '../download-text'
 import type { ComposeScope } from '../intel-library/types'
 import type { ComposeThread } from './thread-types'
 import type { PostDraft } from './types'
@@ -198,24 +199,12 @@ export function threadToJson(thread: ComposeThread): string {
 
 /** Safe filename from thread title. */
 export function threadExportFilename(thread: ComposeThread, format: ThreadExportFormat = 'md'): string {
-  const base = (thread.title || thread.preview || 'compose-chat')
-    .replace(/[^a-z0-9-_]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase()
-  const stem = base || 'compose-chat'
+  const stem = slugifyFilename(thread.title || thread.preview || 'compose-chat', 'compose-chat')
   return format === 'json' ? `${stem}.json` : `${stem}.md`
 }
 
 export function downloadThread(thread: ComposeThread, format: ThreadExportFormat): void {
   const content = format === 'json' ? threadToJson(thread) : threadToMarkdown(thread)
   const mime = format === 'json' ? 'application/json' : 'text/markdown'
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = threadExportFilename(thread, format)
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  downloadText(content, threadExportFilename(thread, format), mime)
 }

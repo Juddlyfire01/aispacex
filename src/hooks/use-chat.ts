@@ -90,14 +90,20 @@ export function useChat() {
         userMsg = { role: 'user', content: userMessage }
       }
 
-      flushSync(() => {
-        useChatStore.getState().setStreaming(true)
-      })
-      await yieldForPaint()
-
-      useChatStore.getState().addMessage(convId, userMsg)
-      useChatStore.getState().addMessage(convId, { role: 'assistant', content: '' })
+      // Show the user's message + thinking indicator INSTANTLY, in one
+      // synchronous paint, before any async/network work. Previously the
+      // message was added AFTER yieldForPaint(), so it showed up late — the
+      // "my message takes an age to appear" symptom. Pause persist first so the
+      // burst of addMessage calls can't trigger an encrypted disk write.
       pauseEncryptedPersist()
+      flushSync(() => {
+        const s = useChatStore.getState()
+        s.addMessage(convId!, userMsg)
+        s.addMessage(convId!, { role: 'assistant', content: '' })
+        s.setStreaming(true)
+      })
+      // Let the browser paint the user message before we start streaming.
+      await yieldForPaint()
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -131,13 +137,13 @@ export function useChat() {
         store.deleteMessage(convId, lastAssistantIdx)
       }
 
+      pauseEncryptedPersist()
       flushSync(() => {
-        useChatStore.getState().setStreaming(true)
+        const s = useChatStore.getState()
+        s.addMessage(convId, { role: 'assistant', content: '' })
+        s.setStreaming(true)
       })
       await yieldForPaint()
-
-      useChatStore.getState().addMessage(convId, { role: 'assistant', content: '' })
-      pauseEncryptedPersist()
 
       const abortController = new AbortController()
       abortRef.current = abortController

@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { devApiPlugin } from './scripts/vite-api-plugin.mjs'
 
 export default defineConfig(({ mode }) => {
   // loadEnv with '' prefix reads ALL vars (incl. non-VITE_) from .env files so
@@ -8,14 +9,34 @@ export default defineConfig(({ mode }) => {
   // the client bundle.
   const env = loadEnv(mode, process.cwd(), '')
   const veniceKey = env.VENICE_API_KEY
-  // `npm run dev` runs Vite on :5173 and vercel dev on :3000. Vite proxies /api
-  // here by default so OAuth + data stay on the 5173 origin. Override with
-  // VITE_API_TARGET, or set "off" to disable (VeniceStats uses a direct proxy).
-  const rawApiTarget = process.env.VITE_API_TARGET ?? env.VITE_API_TARGET ?? 'http://localhost:3000'
-  const apiTarget = rawApiTarget === 'off' || rawApiTarget === '' ? null : rawApiTarget
+
+  // Surface every .env var (incl. non-VITE_ secrets) to process.env so the
+  // in-process API plugin's handlers can read VENICE_API_KEY, X_CLIENT_ID, etc.
+  // just like they do under vercel dev / on Vercel.
+  for (const [k, v] of Object.entries(env)) {
+    if (!(k in process.env)) process.env[k] = v
+  }
+
+  // API mode for `npm run dev`:
+  //   inprocess (default) → run api/*.ts inside Vite (fast, no vercel dev)
+  //   proxy               → forward /api to VITE_API_TARGET (legacy vercel dev)
+  //   off                 → no /api (UI only); VeniceStats hits its host directly
+  const rawApiTarget = process.env.VITE_API_TARGET ?? env.VITE_API_TARGET ?? ''
+  const apiMode =
+    rawApiTarget === 'off'
+      ? 'off'
+      : rawApiTarget && rawApiTarget !== 'inprocess'
+        ? 'proxy'
+        : 'inprocess'
+  const apiTarget = apiMode === 'proxy' ? rawApiTarget : null
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Serve api/*.ts in-process (replaces vercel dev) unless proxying/off.
+      ...(apiMode === 'inprocess' ? [devApiPlugin()] : []),
+    ],
     server: {
       proxy: {
         '/venice': {
@@ -23,7 +44,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/venice/, ''),
           // BYOK-only path: optional local VENICE_API_KEY inject for /venice.
-          // Server-fronted mode uses /api/venice/proxy (vercel dev) instead.
+          // Server-fronted mode uses /api/venice/proxy (in-process) instead.
           configure: (proxy) => {
             if (!veniceKey) return
             proxy.on('proxyReq', (proxyReq) => {
@@ -36,11 +57,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/xapi/, ''),
         },
-        // VeniceStats: when not proxying /api to vercel dev, hit venicestats.com
-        // directly. With apiTarget set, the catch-all /api rule below handles it.
-        ...(apiTarget
-          ? {}
-          : {
+        // VeniceStats: when the API is fully off, hit venicestats.com directly.
+        // In-process/proxy modes handle /api/venicestats via the handler instead.
+        ...(apiMode === 'off'
+          ? {
               '/api/venicestats': {
                 target: 'https://venicestats.com',
                 changeOrigin: true,
@@ -52,8 +72,9 @@ export default defineConfig(({ mode }) => {
                   })
                 },
               },
-            }),
-        // Forward /api/* to vercel dev (OAuth, X session/proxy, news, etc.).
+            }
+          : {}),
+        // Legacy: forward /api/* to a separate vercel dev (VITE_API_TARGET=<url>).
         ...(apiTarget
           ? {
               '/api': {

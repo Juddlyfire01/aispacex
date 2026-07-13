@@ -394,4 +394,6 @@ export interface Conversation {
   messages: ChatMessage[]
   model: string
   createdAt: number
+  /** Starred chats pin to the top of history and cannot be deleted until unstarred. */
+  starred?: boolean
 }

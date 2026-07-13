@@ -17,8 +17,10 @@ import {
   estimateComposeContextBreakdown,
   type ContextUsageBreakdown,
 } from '../../lib/compose/token-estimate'
+import { SPHERE_REPORT_STARTER } from '../../lib/compose/sphere-report-workflow'
 import { messageContentString } from '../../lib/compose/thread-meta'
 import type { ComposeMessage } from '../../lib/compose/thread-types'
+import { ThreadExportButton } from './thread-export-button'
 
 /** Only this close to the bottom counts as "following" the stream. */
 const STICK_BOTTOM_PX = 36
@@ -48,6 +50,7 @@ export function ComposeChat({
   const liveEvents = useComposeStore((s) => s.agentEvents)
   const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
+  const setPreferredFormat = useComposeStore((s) => s.setPreferredFormat)
   const model = useComposeStore((s) => s.model)
   const xSearch = useComposeStore((s) => s.xSearch)
   const webSearch = useComposeStore((s) => s.webSearch)
@@ -212,6 +215,13 @@ export function ComposeChat({
     [send],
   )
 
+  const launchSphereReport = useCallback(() => {
+    if (isStreaming || sendBlocked) return
+    setPreferredFormat(SPHERE_REPORT_STARTER.preferredFormat)
+    stickToBottomRef.current = true
+    void send(SPHERE_REPORT_STARTER.buildPrompt())
+  }, [isStreaming, sendBlocked, setPreferredFormat, send])
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div
@@ -220,16 +230,34 @@ export function ComposeChat({
         className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3"
       >
         {messages.length === 0 ? (
-          <div className="text-[12px] text-white/20 leading-relaxed space-y-2">
-            <p>
-              Describe the post you want. Your local intel library (Me, All, or a target) is packed
-              into a hot window for this chat&apos;s sticky context.
-            </p>
-            <p>
-              Use the history rail to switch threads or start + New chat. The agent can dig into
-              your stored intel and search past Post chats on its own — you&apos;ll see each step
-              as it works. Live X search is available when enabled — drafts open in the Draft
-              panel.
+          <div className="text-[12px] text-white/20 leading-relaxed space-y-3">
+            <div className="space-y-2">
+              <p>
+                Describe the post you want. Your local intel library (Me, All, or a target) is packed
+                into a hot window for this chat&apos;s sticky context.
+              </p>
+              <p>
+                Use the history rail to switch threads or start + New chat. The agent can dig into
+                your stored intel and search past Post chats on its own — you&apos;ll see each step
+                as it works. Live X search is available when enabled — drafts open in the Draft
+                panel.
+              </p>
+            </div>
+            <p className="text-[11px] text-white/30">
+              Or try{' '}
+              <button
+                type="button"
+                onClick={launchSphereReport}
+                disabled={Boolean(sendBlocked) || isStreaming}
+                title={SPHERE_REPORT_STARTER.hint}
+                className="text-white/50 underline decoration-white/20 underline-offset-2 hover:text-white/75 hover:decoration-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {SPHERE_REPORT_STARTER.label}
+              </button>
+              <span className="text-white/25">
+                {' '}
+                — sphere pulse, outside themes, longform draft.
+              </span>
             </p>
           </div>
         ) : (
@@ -326,6 +354,7 @@ export function ComposeChat({
         onSend={handleSend}
         onStop={stop}
         onOpenDraft={() => setDraftDrawerOpen(true)}
+        onSphereReport={launchSphereReport}
       />
     </div>
   )
@@ -345,6 +374,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   onSend,
   onStop,
   onOpenDraft,
+  onSphereReport,
 }: {
   threadId: string
   baseBreakdown: ContextUsageBreakdown
@@ -355,14 +385,29 @@ const ComposeChatInput = memo(function ComposeChatInput({
   onSend: (text: string) => void
   onStop: () => void
   onOpenDraft: () => void
+  onSphereReport: () => void
 }) {
   const [input, setInput] = useState('')
   const [usageOpen, setUsageOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const ringRef = useRef<HTMLButtonElement>(null)
-  // Switching threads closes the usage popup (state lives here now).
+  const templatesRef = useRef<HTMLDivElement>(null)
+  // Switching threads closes popovers (state lives here now).
   useEffect(() => {
     setUsageOpen(false)
+    setTemplatesOpen(false)
   }, [threadId])
+
+  useEffect(() => {
+    if (!templatesOpen) return
+    const close = (e: MouseEvent) => {
+      if (templatesRef.current && !templatesRef.current.contains(e.target as Node)) {
+        setTemplatesOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [templatesOpen])
   // Debounce pending-user contribution so every key doesn't re-walk the meter.
   const [pendingForMeter, setPendingForMeter] = useState('')
   useEffect(() => {
@@ -420,7 +465,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
             type="button"
             onClick={onStop}
             aria-busy="true"
-            className="px-3 py-1 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors"
           >
             {agentPhase === 'Thinking' && liveEventCount === 0 ? 'Sending…' : 'Stop'}
           </button>
@@ -429,7 +474,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
             type="button"
             onClick={submit}
             disabled={!canSend}
-            className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30"
+            className="px-3 py-1.5 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30"
           >
             Send
           </button>
@@ -437,10 +482,51 @@ const ComposeChatInput = memo(function ComposeChatInput({
         <button
           type="button"
           onClick={onOpenDraft}
-          className="px-3 py-1 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/70 rounded-md hover:text-white/90 hover:border-[var(--color-border-strong)] transition-colors"
+          className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/70 rounded-md hover:text-white/90 hover:border-[var(--color-border-strong)] transition-colors"
         >
           Draft
         </button>
+        <div className="relative" ref={templatesRef}>
+          <button
+            type="button"
+            onClick={() => setTemplatesOpen((o) => !o)}
+            disabled={isStreaming || sendBlocked}
+            aria-haspopup="menu"
+            aria-expanded={templatesOpen}
+            title="Insert a research template"
+            className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/55 rounded-md hover:text-white/85 hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Templates
+          </button>
+          {templatesOpen && (
+            <div
+              role="menu"
+              className="absolute left-0 bottom-full mb-1 z-20 min-w-[13rem] max-w-[18rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setTemplatesOpen(false)
+                  onSphereReport()
+                }}
+                className="block w-full px-3 py-2 text-left hover:bg-white/[0.05] transition-colors"
+              >
+                <div className="text-[11px] font-medium text-white/85">
+                  {SPHERE_REPORT_STARTER.label}
+                </div>
+                <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
+                  {SPHERE_REPORT_STARTER.hint}
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+        <ThreadExportButton
+          threadId={threadId}
+          variant="label"
+          disabled={isStreaming}
+        />
         {sendBlocked && (
           <span className="text-[10px] text-amber-400/60 truncate min-w-0">
             Hot window over budget — adjust hot-window settings

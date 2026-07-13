@@ -3,6 +3,16 @@ import { persist } from 'zustand/middleware'
 import type { ChatMessage, Conversation, VeniceParameters } from '../types/venice'
 import { generateId } from '../lib/utils'
 import { createDebouncedJSONStorage } from '../lib/encrypted-storage'
+import { sortStarredFirst } from '../lib/starred-order'
+
+const MAX_CONVERSATIONS = 50
+
+/** Prefer starred when trimming the persisted history cap. */
+function capConversations(conversations: Conversation[]): Conversation[] {
+  if (conversations.length <= MAX_CONVERSATIONS) return conversations
+  const ordered = sortStarredFirst(conversations, (c) => Boolean(c.starred))
+  return ordered.slice(0, MAX_CONVERSATIONS)
+}
 
 interface ChatState {
   conversations: Conversation[]
@@ -17,6 +27,8 @@ interface ChatState {
   createConversation: (model: string) => string
   setActiveConversation: (id: string | null) => void
   deleteConversation: (id: string) => void
+  /** Toggle star; starred chats pin to top and refuse delete. */
+  toggleStarConversation: (id: string) => void
   addMessage: (conversationId: string, message: ChatMessage) => void
   appendToLastAssistant: (conversationId: string, token: string) => void
   appendReasoningToLastAssistant: (conversationId: string, token: string) => void
@@ -53,9 +65,10 @@ export const useChatStore = create<ChatState>()(
           messages: [],
           model,
           createdAt: Date.now(),
+          starred: false,
         }
         set((s) => ({
-          conversations: [conv, ...s.conversations],
+          conversations: sortStarredFirst([conv, ...s.conversations], (c) => Boolean(c.starred)),
           activeConversationId: id,
         }))
         return id
@@ -64,11 +77,25 @@ export const useChatStore = create<ChatState>()(
       setActiveConversation: (id) => set({ activeConversationId: id }),
 
       deleteConversation: (id) =>
-        set((s) => ({
-          conversations: s.conversations.filter((c) => c.id !== id),
-          activeConversationId:
-            s.activeConversationId === id ? null : s.activeConversationId,
-        })),
+        set((s) => {
+          const target = s.conversations.find((c) => c.id === id)
+          if (target?.starred) return s
+          return {
+            conversations: s.conversations.filter((c) => c.id !== id),
+            activeConversationId:
+              s.activeConversationId === id ? null : s.activeConversationId,
+          }
+        }),
+
+      toggleStarConversation: (id) =>
+        set((s) => {
+          const conversations = s.conversations.map((c) =>
+            c.id === id ? { ...c, starred: !c.starred } : c,
+          )
+          return {
+            conversations: sortStarredFirst(conversations, (c) => Boolean(c.starred)),
+          }
+        }),
 
       addMessage: (conversationId, message) =>
         set((s) => ({
@@ -139,13 +166,20 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'venice-chat',
-      version: 2,
+      version: 3,
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => {
         // v1 → v2: trim conversations to 50, ensure veniceParams shape
+        // v2 → v3: starred defaults + starred-first cap
         if (!persisted || typeof persisted !== 'object') return persisted as ChatState
         const s = persisted as Partial<ChatState>
-        if (Array.isArray(s.conversations)) s.conversations = s.conversations.slice(0, 50)
+        if (Array.isArray(s.conversations)) {
+          s.conversations = s.conversations.map((c) => ({
+            ...c,
+            starred: Boolean(c.starred),
+          }))
+          s.conversations = capConversations(s.conversations)
+        }
         if (!s.veniceParams || typeof s.veniceParams !== 'object') {
           s.veniceParams = { include_venice_system_prompt: false, enable_web_search: 'off' }
         }
@@ -156,7 +190,7 @@ export const useChatStore = create<ChatState>()(
         return s as ChatState
       },
       partialize: (state) => ({
-        conversations: state.conversations.slice(0, 50),
+        conversations: capConversations(state.conversations),
         activeConversationId: state.activeConversationId,
         veniceParams: state.veniceParams,
         systemPrompt: state.systemPrompt,

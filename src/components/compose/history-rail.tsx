@@ -15,6 +15,7 @@ import type { ComposeScope } from '../../lib/intel-library/types'
 import { CostMeter } from '../x-intel/cost-meter'
 import { ThreadExportButton } from './thread-export-button'
 import { Checkbox } from '../ui/checkbox'
+import { StarButton } from '../ui/star-button'
 import { confirmDialog } from '../../stores/confirm-store'
 import { cn } from '../../lib/utils'
 
@@ -26,6 +27,7 @@ export type ThreadRailItem = {
   updatedAt: string
   tokenEstimate: number
   messageCount: number
+  starred: boolean
 }
 
 function toRailItem(thread: ComposeThread): ThreadRailItem {
@@ -36,6 +38,7 @@ function toRailItem(thread: ComposeThread): ThreadRailItem {
     updatedAt: thread.updatedAt,
     tokenEstimate: thread.tokenEstimate,
     messageCount: thread.messages.length,
+    starred: Boolean(thread.starred),
   }
 }
 
@@ -174,6 +177,7 @@ type HistoryThreadRowProps = {
   active: boolean
   onToggle: (id: string) => void
   onSelect: (id: string) => void
+  onToggleStar: (id: string) => void
   onDelete: (id: string, messageCount: number) => void
 }
 
@@ -184,6 +188,7 @@ const HistoryThreadRow = memo(function HistoryThreadRow({
   active,
   onToggle,
   onSelect,
+  onToggleStar,
   onDelete,
 }: HistoryThreadRowProps) {
   return (
@@ -194,14 +199,19 @@ const HistoryThreadRow = memo(function HistoryThreadRow({
       aria-label={`${contextBadgeLabel(item.context)}: ${item.preview}`}
       aria-pressed={selectMode ? selected : undefined}
       onClick={() => {
-        if (selectMode) onToggle(item.id)
-        else onSelect(item.id)
+        if (selectMode) {
+          // Starred chats cannot be bulk-deleted — still allow selection for clarity? skip.
+          if (item.starred) return
+          onToggle(item.id)
+        } else onSelect(item.id)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          if (selectMode) onToggle(item.id)
-          else onSelect(item.id)
+          if (selectMode) {
+            if (item.starred) return
+            onToggle(item.id)
+          } else onSelect(item.id)
         }
       }}
       className={cn(
@@ -222,16 +232,35 @@ const HistoryThreadRow = memo(function HistoryThreadRow({
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
-          <Checkbox
-            checked={selected}
-            onChange={() => onToggle(item.id)}
-            size="sm"
-            aria-label={`Select ${item.preview || 'chat'}`}
-          />
+          {item.starred ? (
+            <span
+              title="Unstar to select for delete"
+              className="inline-flex w-3.5 h-3.5 items-center justify-center text-amber-300/80"
+              aria-label="Starred — cannot bulk delete"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </span>
+          ) : (
+            <Checkbox
+              checked={selected}
+              onChange={() => onToggle(item.id)}
+              size="sm"
+              aria-label={`Select ${item.preview || 'chat'}`}
+            />
+          )}
         </span>
       ) : null}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1 min-w-0">
+          {item.starred && !selectMode && (
+            <span className="shrink-0 text-amber-300/80" aria-hidden>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </span>
+          )}
           <span className="shrink-0 text-[9px] text-[var(--color-text-tertiary)]">
             {contextBadgeLabel(item.context)}
           </span>
@@ -242,23 +271,39 @@ const HistoryThreadRow = memo(function HistoryThreadRow({
         </div>
       </div>
       {!selectMode ? (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
+        <div
+          className={cn(
+            'flex items-center gap-0.5 transition-opacity shrink-0',
+            item.starred
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+          )}
+        >
+          <StarButton
+            starred={item.starred}
+            onToggle={() => onToggleStar(item.id)}
+            label={item.preview || 'chat'}
+            size={10}
+            className="p-0.5"
+          />
           <ThreadExportButton threadId={item.id} />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(item.id, item.messageCount)
-            }}
-            title="Delete chat"
-            aria-label="Delete chat"
-            className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          {item.starred ? null : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(item.id, item.messageCount)
+              }}
+              title="Delete chat"
+              aria-label="Delete chat"
+              className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
         </div>
       ) : null}
     </div>
@@ -275,7 +320,7 @@ export function HistoryRail() {
         if (!t) return ''
         const ctx =
           t.context.type === 'target' ? `t:${t.context.username}` : t.context.type
-        return `${t.id}\0${t.preview}\0${t.updatedAt}\0${t.tokenEstimate}\0${t.messages.length}\0${ctx}`
+        return `${t.id}\0${t.preview}\0${t.updatedAt}\0${t.tokenEstimate}\0${t.messages.length}\0${ctx}\0${t.starred ? '1' : '0'}`
       }),
     ),
   )
@@ -295,15 +340,20 @@ export function HistoryRail() {
   const selectThread = useComposeStore((s) => s.selectThread)
   const deleteThread = useComposeStore((s) => s.deleteThread)
   const deleteThreads = useComposeStore((s) => s.deleteThreads)
+  const toggleStarThread = useComposeStore((s) => s.toggleStarThread)
   const [filter, setFilter] = useState('')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   const rows = useMemo(() => {
+    // threadOrder already keeps starred first; filter preserves that order.
     return railItems.filter((t) => railItemMatchesQuery(t, filter))
   }, [railItems, filter])
 
-  const dayGroups = useMemo(() => groupThreadsByDay(rows), [rows])
+  // Starred threads float above day groups so pins stay visible.
+  const starredRows = useMemo(() => rows.filter((t) => t.starred), [rows])
+  const unstarredRows = useMemo(() => rows.filter((t) => !t.starred), [rows])
+  const dayGroups = useMemo(() => groupThreadsByDay(unstarredRows), [unstarredRows])
 
   const exitSelectMode = useCallback(() => {
     setSelectMode(false)
@@ -311,6 +361,8 @@ export function HistoryRail() {
   }, [])
 
   const toggleSelected = useCallback((id: string) => {
+    const thread = useComposeStore.getState().threads[id]
+    if (thread?.starred) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -321,6 +373,8 @@ export function HistoryRail() {
 
   const handleDelete = useCallback(
     async (id: string, messageCount: number) => {
+      const thread = useComposeStore.getState().threads[id]
+      if (thread?.starred) return
       if (messageCount > 0) {
         const ok = await confirmDialog({
           title: 'Delete chat',
@@ -336,7 +390,7 @@ export function HistoryRail() {
   )
 
   const handleBulkDelete = async () => {
-    const ids = [...selectedIds]
+    const ids = [...selectedIds].filter((id) => !useComposeStore.getState().threads[id]?.starred)
     if (ids.length === 0) return
     const byId = new Map(railItems.map((t) => [t.id, t]))
     const anyWithMessages = ids.some((id) => (byId.get(id)?.messageCount ?? 0) > 0)
@@ -398,25 +452,48 @@ export function HistoryRail() {
               : 'No chats yet — choose a context above'}
           </div>
         ) : (
-          dayGroups.map((group) => (
-            <div key={group.dayKey}>
-              <div className="px-2 pt-2 pb-1 text-[9px] font-medium tracking-wide uppercase text-[var(--color-text-tertiary)]">
-                {group.label}
+          <>
+            {starredRows.length > 0 && (
+              <div>
+                <div className="px-2 pt-2 pb-1 text-[9px] font-medium tracking-wide uppercase text-[var(--color-text-tertiary)]">
+                  Starred
+                </div>
+                {starredRows.map((item) => (
+                  <HistoryThreadRow
+                    key={item.id}
+                    item={item}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(item.id)}
+                    active={!selectMode && item.id === activeThreadId}
+                    onToggle={toggleSelected}
+                    onSelect={selectThread}
+                    onToggleStar={toggleStarThread}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </div>
-              {group.threads.map((item) => (
-                <HistoryThreadRow
-                  key={item.id}
-                  item={item}
-                  selectMode={selectMode}
-                  selected={selectedIds.has(item.id)}
-                  active={!selectMode && item.id === activeThreadId}
-                  onToggle={toggleSelected}
-                  onSelect={selectThread}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          ))
+            )}
+            {dayGroups.map((group) => (
+              <div key={group.dayKey}>
+                <div className="px-2 pt-2 pb-1 text-[9px] font-medium tracking-wide uppercase text-[var(--color-text-tertiary)]">
+                  {group.label}
+                </div>
+                {group.threads.map((item) => (
+                  <HistoryThreadRow
+                    key={item.id}
+                    item={item}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(item.id)}
+                    active={!selectMode && item.id === activeThreadId}
+                    onToggle={toggleSelected}
+                    onSelect={selectThread}
+                    onToggleStar={toggleStarThread}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            ))}
+          </>
         )}
       </div>
 

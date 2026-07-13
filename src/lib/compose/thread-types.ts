@@ -27,6 +27,8 @@ export interface ComposeThread {
   draft: PostDraft
   tokenEstimate: number
   preview: string
+  /** Starred threads pin to the top of history and cannot be deleted until unstarred. */
+  starred?: boolean
   /**
    * Cold compress stacks (newest first). Live `messages` hold a summary marker
    * plus recent turns; full text of older turns lives here for history search.

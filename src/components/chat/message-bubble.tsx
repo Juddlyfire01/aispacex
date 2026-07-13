@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { ChatMessage, ContentPart } from '../../types/venice'
 import { MarkdownMessage } from './markdown-message'
 import { cn } from '../../lib/utils'
@@ -24,7 +24,7 @@ interface MessageBubbleProps {
   onRegenerate?: () => void
 }
 
-export function MessageBubble({ message, onCopy, onDelete, onRegenerate }: MessageBubbleProps) {
+function MessageBubbleImpl({ message, onCopy, onDelete, onRegenerate }: MessageBubbleProps) {
   const [hovering, setHovering] = useState(false)
   const [copied, setCopied] = useState(false)
   const [reasoningOpen, setReasoningOpen] = useState(false)
@@ -121,6 +121,22 @@ export function MessageBubble({ message, onCopy, onDelete, onRegenerate }: Messa
     </div>
   )
 }
+
+// Memoized so a streamed token only re-renders the one changing bubble, not the
+// whole conversation. Non-streaming message objects keep their reference across
+// store updates (appendToLastAssistant only replaces the last message), so a
+// reference check on `message` is sufficient. onDelete/onRegenerate are inline
+// arrows that change identity each parent render but are behaviourally stable —
+// intentionally excluded from the comparison.
+export const MessageBubble = memo(
+  MessageBubbleImpl,
+  (prev, next) =>
+    prev.message === next.message &&
+    prev.index === next.index &&
+    // The last assistant bubble gains/loses its regenerate affordance when
+    // streaming toggles — re-render when that presence changes.
+    Boolean(prev.onRegenerate) === Boolean(next.onRegenerate),
+)
 
 function ActionBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (

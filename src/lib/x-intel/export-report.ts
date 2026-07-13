@@ -1,6 +1,9 @@
+import { downloadText } from '../download-text'
 import { postUrl, profileUrl } from './evidence'
 import { labelForSchemaField, stripMarkdownLabel } from './synthesize'
 import type { IntelReportSnapshot, Post, Profile } from './types'
+
+export { downloadText }
 
 export type ReportExportContext = {
   username: string
@@ -198,18 +201,6 @@ export function reportToJson(snapshot: IntelReportSnapshot, ctx: ReportExportCon
     snapshot,
     citedPosts: (ctx.posts ?? []).filter((p) => citedIds.has(p.id)),
   }, null, 2)
-}
-
-export function downloadText(content: string, filename: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function downloadReport(snapshot: IntelReportSnapshot, format: 'md' | 'json', ctx: ReportExportContext): void {

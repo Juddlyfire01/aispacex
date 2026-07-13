@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { cn } from '../../lib/utils'
+import { sortStarredFirst } from '../../lib/starred-order'
 import { useSettingsStore, type Tab } from '../../stores/settings-store'
 import { useChatStore } from '../../stores/chat-store'
 import { toast } from '../../stores/toast-store'
 import { AppBrand, AppLogo } from '../ui/logo'
+import { ConversationExportButton } from '../chat/conversation-export-button'
+import { StarButton } from '../ui/star-button'
 import { PanelToggleButton } from './panel-toggle'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from './rail-footer'
 import type { Conversation } from '../../types/venice'
@@ -95,6 +98,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
   const createConversation = useChatStore((s) => s.createConversation)
   const deleteConversation = useChatStore((s) => s.deleteConversation)
+  const toggleStarConversation = useChatStore((s) => s.toggleStarConversation)
   const selectedModel = useSettingsStore((s) => s.selectedModels.chat)
   const [search, setSearch] = useState('')
 
@@ -102,29 +106,22 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return conversations
-    return conversations.filter((c) => c.title.toLowerCase().includes(q))
+    const list = q
+      ? conversations.filter((c) => c.title.toLowerCase().includes(q))
+      : conversations
+    return sortStarredFirst(list, (c) => Boolean(c.starred))
   }, [conversations, search])
 
   const handleDelete = (conv: Conversation) => {
+    if (conv.starred) return
     deleteConversation(conv.id)
     toast.error('Conversation deleted', conv.title || 'Untitled', {
       label: 'Undo',
-      onClick: () => useChatStore.setState((s) => ({ conversations: [conv, ...s.conversations] })),
+      onClick: () =>
+        useChatStore.setState((s) => ({
+          conversations: sortStarredFirst([conv, ...s.conversations], (c) => Boolean(c.starred)),
+        })),
     })
-  }
-
-  const exportConversation = (conv: Conversation) => {
-    const md = conversationToMarkdown(conv)
-    const blob = new Blob([md], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${(conv.title || 'conversation').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}.md`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
@@ -253,8 +250,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
                     conv={conv}
                     isActive={conv.id === activeConversationId}
                     onSelect={() => setActiveConversation(conv.id)}
+                    onToggleStar={() => toggleStarConversation(conv.id)}
                     onDelete={() => handleDelete(conv)}
-                    onExport={() => exportConversation(conv)}
                   />
                 ))
               )}
@@ -298,14 +295,15 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
   )
 }
 
-function ConversationRow({ conv, isActive, onSelect, onDelete, onExport }: {
+function ConversationRow({ conv, isActive, onSelect, onToggleStar, onDelete }: {
   conv: Conversation
   isActive: boolean
   onSelect: () => void
+  onToggleStar: () => void
   onDelete: () => void
-  onExport: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
+  const starred = Boolean(conv.starred)
 
   return (
     <div
@@ -318,17 +316,25 @@ function ConversationRow({ conv, isActive, onSelect, onDelete, onExport }: {
       )}
       onClick={onSelect}
     >
+      {starred && (
+        <span className="shrink-0 text-amber-300/80" aria-hidden>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </span>
+      )}
       <span className="truncate flex-1 min-w-0">{conv.title || 'Untitled'}</span>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-        <button
-          onClick={(e) => { e.stopPropagation(); onExport() }}
-          aria-label={`Export ${conv.title}`}
-          title="Export as Markdown"
-          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1 rounded focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-        </button>
-        {confirming ? (
+      <div
+        className={cn(
+          'flex items-center gap-0.5 transition-opacity',
+          starred
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+        )}
+      >
+        <StarButton starred={starred} onToggle={onToggleStar} label={conv.title || 'conversation'} />
+        <ConversationExportButton conversation={conv} />
+        {starred ? null : confirming ? (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); setConfirming(false) }}
             aria-label="Confirm delete"
@@ -351,19 +357,4 @@ function ConversationRow({ conv, isActive, onSelect, onDelete, onExport }: {
       </div>
     </div>
   )
-}
-
-function conversationToMarkdown(conv: Conversation): string {
-  const lines: string[] = [`# ${conv.title}`, '', `_Model: ${conv.model} · Created: ${new Date(conv.createdAt).toISOString()}_`, '']
-  for (const m of conv.messages) {
-    lines.push(`## ${m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Assistant' : 'System'}`)
-    const content = typeof m.content === 'string'
-      ? m.content
-      : Array.isArray(m.content)
-        ? m.content.map((p) => p.type === 'text' ? p.text : p.type === 'image_url' ? `![image](${p.image_url?.url ?? ''})` : '').join('\n')
-        : ''
-    lines.push(content)
-    lines.push('')
-  }
-  return lines.join('\n')
 }

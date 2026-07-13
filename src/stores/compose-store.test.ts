@@ -48,6 +48,38 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().threadOrder).toEqual([b])
   })
 
+  it('toggleStarThread pins starred to top and blocks delete', () => {
+    const a = useComposeStore.getState().createThread({ type: 'me' })
+    const b = useComposeStore.getState().createThread({ type: 'all' })
+    expect(useComposeStore.getState().threadOrder[0]).toBe(b)
+
+    useComposeStore.getState().toggleStarThread(a)
+    expect(useComposeStore.getState().threads[a]?.starred).toBe(true)
+    expect(useComposeStore.getState().threadOrder[0]).toBe(a)
+
+    useComposeStore.getState().deleteThread(a)
+    expect(useComposeStore.getState().threads[a]).toBeDefined()
+
+    useComposeStore.getState().deleteThreads([a, b])
+    expect(useComposeStore.getState().threads[a]).toBeDefined()
+    expect(useComposeStore.getState().threads[b]).toBeUndefined()
+
+    useComposeStore.getState().toggleStarThread(a)
+    useComposeStore.getState().deleteThread(a)
+    expect(useComposeStore.getState().threads[a]).toBeUndefined()
+  })
+
+  it('activity bump keeps starred threads ahead of unstarred', () => {
+    const a = useComposeStore.getState().createThread({ type: 'me' })
+    const b = useComposeStore.getState().createThread({ type: 'all' })
+    useComposeStore.getState().toggleStarThread(a)
+    // b is unstarred and gets a message — should not leapfrog starred a
+    useComposeStore.getState().addMessage(b, { role: 'user', content: 'hello' })
+    const order = useComposeStore.getState().threadOrder
+    expect(order[0]).toBe(a)
+    expect(order[1]).toBe(b)
+  })
+
   it('ensureActiveThread creates when none active, reuses when present', () => {
     const s = useComposeStore.getState()
     const first = s.ensureActiveThread()
