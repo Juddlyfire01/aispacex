@@ -22,14 +22,12 @@ X adds a fourth constraint: the **callback URL must be registered exactly** in t
 npm run dev
 ```
 
-That starts **both** in one command:
+That starts **one** Vite process on **http://localhost:5173**. Serverless handlers under `api/` run **in-process** (no `vercel dev`, no cold starts).
 
-| Process | Port | Role |
-|---------|------|------|
-| Vite | **5173** | UI (your browser origin / localStorage) |
-| vercel dev | **3000** | Serverless `/api` (proxied via Vite) |
-
-Open **http://localhost:5173**.
+| Layer | Port | Role |
+|-------|------|------|
+| Vite UI | **5173** | Browser origin / localStorage |
+| `/api/*` | same process | OAuth, Venice proxy, News, X |
 
 In the X developer portal, add callback:
 
@@ -37,17 +35,18 @@ In the X developer portal, add callback:
 http://localhost:5173/api/x/oauth/callback
 ```
 
-In Vercel / local `.env`: `X_CLIENT_ID` and `X_CLIENT_SECRET` (if confidential). You do **not** need `X_REDIRECT_URI` / `APP_BASE_URL` unless overriding.
+In project-root **`.env`**: `X_CLIENT_ID` and `X_CLIENT_SECRET` (if confidential). The in-process API does **not** auto-pull Vercel env — copy secrets into `.env` (or `vercel env pull .env.local`). You do **not** need `X_REDIRECT_URI` / `APP_BASE_URL` unless overriding.
 
-OAuth URLs are derived from the request `Host` header (`localhost:5173`), so cookies and `redirect_uri` stay on the UI origin. Vite proxies `/api` → `:3000` with `changeOrigin: false` so Host is preserved.
+OAuth URLs are derived from the request `Host` header (`localhost:5173`), so cookies and `redirect_uri` stay on the UI origin.
 
 ### Escape hatches
 
 | Command | When |
 |---------|------|
-| `npm run dev:web` | UI only (no OAuth unless API is already on `:3000`) |
-| `npm run dev:api` | API only |
-| `VITE_API_TARGET=off npm run dev:web` | Disable the Vite → `:3000` proxy |
+| `npm run dev:vercel` | Legacy stack: Vite + `vercel dev` on `:3000` (pulls Vercel env; slow cold starts) |
+| `npm run dev:ui` | UI only (no `/api`) |
+| `npm run dev:api` | `vercel dev` API only |
+| `VITE_API_TARGET=http://localhost:3000 npm run dev:web` | Proxy `/api` to an already-running API on `:3000` |
 
 ## Vercel preview deployments
 

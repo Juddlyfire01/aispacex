@@ -24,22 +24,23 @@ npm install
 npm run dev
 ```
 
-That single command starts:
+That single command starts **one** Vite process on **http://localhost:5173**:
 
-| Process | Port | Role |
-|---------|------|------|
-| **Vite** (UI) | **5173** | App + localStorage (your intel profiles) |
-| **vercel dev** (API) | **3000** | Serverless `/api` (proxied through Vite) |
+| Layer | How | Role |
+|-------|-----|------|
+| UI | Vite | App + localStorage |
+| `/api/*` | In-process handlers (same process) | OAuth, Venice proxy, News, X — **no cold starts** |
 
-Open **http://localhost:5173**.
+Put secrets in a project-root **`.env`** (see `.env.example`). The in-process API reads them from there — it does **not** auto-pull Vercel project env.
 
 If you're running in bring-your-own-key mode, connect your [Venice API key](https://venice.ai/settings/api) from the header.
 
 | Script | What it runs |
 |--------|----------------|
-| `npm run dev` | UI + API (recommended) |
-| `npm run dev:web` | Vite only |
-| `npm run dev:api` | API only |
+| `npm run dev` | UI + in-process API (recommended, fast) |
+| `npm run dev:vercel` | Legacy: Vite + `vercel dev` on :3000 (slow cold starts) |
+| `npm run dev:ui` | Vite UI only (`VITE_API_TARGET=off`) |
+| `npm run dev:api` | `vercel dev` API only |
 
 ### X OAuth (Intel → Connect X)
 

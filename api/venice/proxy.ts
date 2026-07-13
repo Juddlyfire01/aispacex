@@ -14,8 +14,17 @@ export const config = { api: { bodyParser: false } }
 
 const VENICE_API_BASE = 'https://api.venice.ai/api/v1'
 
-const STRIP_REQUEST = new Set(['host', 'authorization', 'cookie', 'content-length', 'connection'])
-const STRIP_RESPONSE = new Set(['content-encoding', 'content-length', 'transfer-encoding', 'connection'])
+// Only forward headers Venice needs. Copying the browser bag (accept-encoding,
+// origin, sec-fetch-*, transfer-encoding, …) breaks Node fetch / SSE under the
+// in-process Vite API and is unnecessary on Vercel too.
+const FORWARD_REQUEST = new Set(['content-type', 'accept', 'accept-language'])
+const STRIP_RESPONSE = new Set([
+  'content-encoding',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'keep-alive',
+])
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v
@@ -36,12 +45,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (v != null) url.searchParams.set(k, v)
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${key}` }
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${key}`,
+    // Undici decompresses gzip/br; force identity so SSE bytes stay intact.
+    'accept-encoding': 'identity',
+  }
   for (const [k, v] of Object.entries(req.headers)) {
-    if (STRIP_REQUEST.has(k.toLowerCase())) continue
+    if (!FORWARD_REQUEST.has(k.toLowerCase())) continue
     const val = firstHeader(v)
     if (val != null) headers[k] = val
   }
+  if (!headers.accept) headers.accept = 'application/json, text/event-stream'
 
   const method = (req.method ?? 'GET').toUpperCase()
   // Uint8Array (not Buffer) so fetch BodyInit types accept the body under Vercel's NodeNext check.
@@ -55,8 +69,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let upstream: Response
   try {
     upstream = await fetch(url.toString(), { method, headers, body })
-  } catch {
-    return res.status(502).json({ error: 'venice_upstream_unreachable' })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return res.status(502).json({ error: 'venice_upstream_unreachable', message })
   }
 
   res.status(upstream.status)
@@ -64,6 +79,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (STRIP_RESPONSE.has(name.toLowerCase())) return
     res.setHeader(name, value)
   })
+  // SSE / long streams: push headers immediately so the browser EventStream
+  // panel and fetch readers see bytes as they arrive.
+  const contentType = upstream.headers.get('content-type') ?? ''
+  if (contentType.includes('text/event-stream')) {
+    res.setHeader('cache-control', 'no-cache, no-transform')
+    res.setHeader('x-accel-buffering', 'no')
+    if (typeof (res as { flushHeaders?: () => void }).flushHeaders === 'function') {
+      ;(res as { flushHeaders: () => void }).flushHeaders()
+    }
+  }
 
   if (!upstream.body) return res.end()
 
@@ -72,9 +97,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      res.write(Buffer.from(value))
+      const ok = res.write(Buffer.from(value))
+      // Backpressure: wait for drain so we don't buffer the entire stream in memory.
+      if (!ok) {
+        await new Promise<void>((resolve) => res.once('drain', resolve))
+      }
     }
+  } catch (err) {
+    // Client aborted mid-stream — normal for stop/remount; don't throw 500.
+    if (!res.writableEnded) {
+      try {
+        res.end()
+      } catch {
+        /* already closed */
+      }
+    }
+    void err
+    return
   } finally {
-    res.end()
+    if (!res.writableEnded) res.end()
   }
 }

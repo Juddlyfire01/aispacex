@@ -181,12 +181,17 @@ export function cookiesAreSecure(req?: OAuthRequest): boolean {
 
 /** Read + validate OAuth env. Pass the incoming request on login/callback routes. */
 export function readEnv(req?: OAuthRequest): XOAuthEnv {
-  const clientId = process.env.X_CLIENT_ID
+  const clientId = process.env.X_CLIENT_ID?.trim()
   if (!clientId) {
     const vercelEnv = process.env.VERCEL_ENV
     if (vercelEnv === 'preview' || vercelEnv === 'development') {
       throw new Error(
         'X_CLIENT_ID is not set for this Vercel environment. In Vercel → Project Settings → Environment Variables, add X_CLIENT_ID (and X_CLIENT_SECRET if required) with Preview enabled, then redeploy.',
+      )
+    }
+    if (!vercelEnv) {
+      throw new Error(
+        'X_CLIENT_ID is not set. For local `npm run dev` (in-process API), put X_CLIENT_ID in project-root .env and restart Vite. It is no longer auto-pulled from Vercel.',
       )
     }
     throw new Error('X_CLIENT_ID is not set')

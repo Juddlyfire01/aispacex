@@ -148,7 +148,16 @@ export function useCompose() {
   }, [])
 
   const send = useCallback(
-    async (userMessage: string): Promise<void> => {
+    async (
+      userMessage: string,
+      opts?: {
+        /**
+         * Short label shown in the chat UI when `userMessage` is a long hidden
+         * prompt (e.g. template launches). Model still receives `userMessage`.
+         */
+        displayContent?: string
+      },
+    ): Promise<void> => {
       const store = useComposeStore.getState()
       const threadId = store.ensureActiveThread()
       const thread = useComposeStore.getState().threads[threadId]
@@ -163,7 +172,13 @@ export function useCompose() {
       })
       await yieldForPaint()
 
-      useComposeStore.getState().addMessage(threadId, { role: 'user', content: userMessage })
+      useComposeStore.getState().addMessage(threadId, {
+        role: 'user',
+        content: userMessage,
+        ...(opts?.displayContent?.trim()
+          ? { displayContent: opts.displayContent.trim() }
+          : {}),
+      })
       useComposeStore.getState().addMessage(threadId, { role: 'assistant', content: '' })
       pendingDeltaRef.current = ''
       if (dripRafRef.current != null) {
@@ -288,7 +303,8 @@ export function useCompose() {
             typeof m.content === 'string' ? m.content !== '' : true,
           )
           const apiHistory = history.map((m, i) => {
-            const { agentEvents: _ae, ...rest } = m
+            // displayContent is UI-only (template labels); never send it to the model.
+            const { agentEvents: _ae, displayContent: _dc, ...rest } = m
             if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
               return { ...rest, content: buildHotUserPrefix(hotText, userMessage) }
             }
@@ -535,7 +551,7 @@ export function useCompose() {
           )
             .filter((m) => m.role === 'user' || m.role === 'assistant')
             .map((m) => {
-              const { agentEvents: _ae, ...rest } = m
+              const { agentEvents: _ae, displayContent: _dc, ...rest } = m
               return rest
             })
 

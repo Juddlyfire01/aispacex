@@ -12,9 +12,11 @@ export default defineConfig(({ mode }) => {
 
   // Surface every .env var (incl. non-VITE_ secrets) to process.env so the
   // in-process API plugin's handlers can read VENICE_API_KEY, X_CLIENT_ID, etc.
-  // just like they do under vercel dev / on Vercel.
+  // just like they do under vercel dev / on Vercel. Prefer non-empty .env values
+  // over empty shell placeholders so local secrets always win when present.
   for (const [k, v] of Object.entries(env)) {
-    if (!(k in process.env)) process.env[k] = v
+    if (!v) continue
+    if (!process.env[k]) process.env[k] = v
   }
 
   // API mode for `npm run dev`:

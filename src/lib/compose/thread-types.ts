@@ -6,6 +6,11 @@ import type { PostDraft } from './types'
 /** Chat message with optional per-turn agent step history (UI-only; stripped before API). */
 export type ComposeMessage = ChatMessage & {
   agentEvents?: AgentEvent[]
+  /**
+   * Short UI label when `content` holds a long hidden prompt (e.g. template launches).
+   * Shown in chat / rail preview; full `content` is what the model receives.
+   */
+  displayContent?: string
 }
 
 /** One compress pass — raw messages moved out of the live transcript for cold search. */

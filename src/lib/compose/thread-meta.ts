@@ -35,10 +35,26 @@ export function messageContentString(m: { content?: unknown }): string {
   return ''
 }
 
+/**
+ * Text shown in UI / rail / titles. Prefers `displayContent` when a template
+ * hid a long prompt behind a short label.
+ */
+export function messageDisplayString(m: {
+  content?: unknown
+  displayContent?: string
+}): string {
+  if (typeof m.displayContent === 'string' && m.displayContent.trim()) {
+    return m.displayContent
+  }
+  return messageContentString(m)
+}
+
 export function messagePreview(messages: ChatMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user')
   if (firstUser) {
-    const t = messageContentString(firstUser).replace(/\s+/g, ' ').trim()
+    const t = messageDisplayString(firstUser as { content?: unknown; displayContent?: string })
+      .replace(/\s+/g, ' ')
+      .trim()
     if (t) return t.length <= 80 ? t : `${t.slice(0, 80)}…`
   }
   return 'New chat'
@@ -143,7 +159,11 @@ export function recomputeThreadMeta(input: {
   let title = input.title
   if (!title || title === 'New chat') {
     const firstUser = input.messages.find((m) => m.role === 'user')
-    if (firstUser) title = autoTitleFromUserText(messageContentString(firstUser))
+    if (firstUser) {
+      title = autoTitleFromUserText(
+        messageDisplayString(firstUser as { content?: unknown; displayContent?: string }),
+      )
+    }
   }
   return {
     title,
@@ -168,7 +188,8 @@ export function threadToMarkdown(thread: ComposeThread): string {
   for (const m of thread.messages) {
     const heading =
       m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Assistant' : m.role === 'system' ? 'System' : m.role
-    lines.push(`## ${heading}`, messageContentString(m), '')
+    // Prefer short template labels in human exports; full prompt stays in JSON.
+    lines.push(`## ${heading}`, messageDisplayString(m), '')
   }
 
   const draftBody = serializeDraftForCopy(thread.draft).trim()

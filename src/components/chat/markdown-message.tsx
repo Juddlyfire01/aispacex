@@ -1,4 +1,4 @@
-import { useState, type ComponentPropsWithoutRef } from 'react'
+import { memo, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { remarkEtherscan } from '../../lib/x-intel/remark-etherscan'
@@ -80,12 +80,75 @@ interface MarkdownMessageProps {
   /** Whether inline @mentions offer "Add as intel target". Off for surfaces with
    *  no target concept (e.g. self report). Defaults to true. */
   canAddTarget?: boolean
+  /**
+   * When true, GFM reparse is throttled (~12fps) so streaming tokens stay
+   * readable without re-running remark on every drip. Final content always
+   * flushes when streaming ends.
+   */
+  streaming?: boolean
+}
+
+/** While streaming, reparse markdown ~12fps; flush immediately when streaming ends. */
+function useStreamRenderContent(content: string, streaming: boolean): string {
+  const [shown, setShown] = useState(content)
+  const lastFlushRef = useRef(0)
+  const timerRef = useRef<number | null>(null)
+  const contentRef = useRef(content)
+  contentRef.current = content
+
+  useEffect(() => {
+    if (!streaming) {
+      if (timerRef.current != null) {
+        window.clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      setShown(content)
+      return
+    }
+
+    const flush = () => {
+      timerRef.current = null
+      lastFlushRef.current = performance.now()
+      setShown(contentRef.current)
+    }
+
+    // First tokens: paint immediately.
+    if (lastFlushRef.current === 0) {
+      flush()
+      return
+    }
+
+    const elapsed = performance.now() - lastFlushRef.current
+    if (elapsed >= 80) {
+      flush()
+      return
+    }
+    if (timerRef.current != null) return
+    timerRef.current = window.setTimeout(flush, 80 - elapsed)
+  }, [content, streaming])
+
+  useEffect(
+    () => () => {
+      if (timerRef.current != null) window.clearTimeout(timerRef.current)
+    },
+    [],
+  )
+
+  return streaming ? shown : content
 }
 
 /** Renders assistant markdown output with shared link-safety, code-block, and
  * prose styling. Wrap in `prose-venice` + a size modifier so both chat
  * surfaces share one visual language. */
-export function MarkdownMessage({ content, size = 'full', className, canAddTarget = true }: MarkdownMessageProps) {
+export const MarkdownMessage = memo(function MarkdownMessage({
+  content,
+  size = 'full',
+  className,
+  canAddTarget = true,
+  streaming = false,
+}: MarkdownMessageProps) {
+  const renderContent = useStreamRenderContent(content, streaming)
+
   return (
     <div className={cn('prose-venice', size === 'compact' && 'prose-venice-compact', className)}>
       <ReactMarkdown
@@ -109,7 +172,9 @@ export function MarkdownMessage({ content, size = 'full', className, canAddTarge
             )
           },
         }}
-      >{content}</ReactMarkdown>
+      >
+        {renderContent}
+      </ReactMarkdown>
     </div>
   )
-}
+})

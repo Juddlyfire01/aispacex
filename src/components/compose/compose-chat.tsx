@@ -219,7 +219,10 @@ export function ComposeChat({
     if (isStreaming || sendBlocked) return
     setPreferredFormat(SPHERE_REPORT_STARTER.preferredFormat)
     stickToBottomRef.current = true
-    void send(SPHERE_REPORT_STARTER.buildPrompt())
+    // Full multi-phase brief goes to the model; chat shows name + process only.
+    void send(SPHERE_REPORT_STARTER.buildPrompt(), {
+      displayContent: SPHERE_REPORT_STARTER.buildDisplayMessage(),
+    })
   }, [isStreaming, sendBlocked, setPreferredFormat, send])
 
   return (
@@ -266,12 +269,16 @@ export function ComposeChat({
             const content = typeof m.content === 'string' ? m.content : ''
 
             if (m.role === 'user' && content) {
+              const shown =
+                typeof m.displayContent === 'string' && m.displayContent.trim()
+                  ? m.displayContent
+                  : content
               return (
                 <div
                   key={i}
                   className="ml-auto max-w-[85%] bg-white/[0.06] rounded-lg px-3 py-2 text-[12.5px] text-white/85 whitespace-pre-wrap break-words"
                 >
-                  {content}
+                  {shown}
                 </div>
               )
             }
@@ -316,18 +323,12 @@ export function ComposeChat({
                 <div key={i} className="relative space-y-2">
                   {activityNode}
                   <div className="max-w-[92%]">
-                    {active ? (
-                      // Plain text while streaming — full GFM reparse every drip was a major lag source.
-                      <div className="text-[12.5px] text-white/70 whitespace-pre-wrap break-words">
-                        {content}
-                      </div>
-                    ) : (
-                      <MarkdownMessage
-                        content={content}
-                        size="compact"
-                        className="text-[12.5px] text-white/70"
-                      />
-                    )}
+                    <MarkdownMessage
+                      content={content}
+                      size="compact"
+                      className="text-[12.5px] text-white/70"
+                      streaming={active}
+                    />
                     {active && (
                       <span
                         className="inline-block w-[1.5px] h-[0.95em] align-[-0.12em] ml-0.5 bg-white/45 animate-pulse"
