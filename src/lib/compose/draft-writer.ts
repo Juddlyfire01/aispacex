@@ -21,7 +21,7 @@ export interface RunDraftWriterOpts {
 /** Exported for tests. */
 export function buildWriterSystem(registerInject?: string | null): string {
   const parts = [
-    `You are the AiSpaceX draft writer. Your only job is to write X post / article copy.
+    `You are the IntelX draft writer. Your only job is to write X post / article copy.
 
 Rules:
 - Output ONLY the publishable text — plain UTF-8 (or Markdown for articles).

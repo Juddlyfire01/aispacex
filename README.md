@@ -1,4 +1,4 @@
-# AiSpaceX
+# IntelX
 
 A privacy-focused dashboard for [Venice AI](https://venice.ai) — X intelligence, community signal, on-chain protocol stats, and curated news — with generation tools for image, audio, music, and video.
 

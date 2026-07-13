@@ -175,7 +175,7 @@ export function threadToMarkdown(thread: ComposeThread): string {
     lines.push('## Draft', draftBody, '')
   }
 
-  lines.push('---', '', '_Exported from AISpaceX Compose_')
+  lines.push('---', '', '_Exported from IntelX Compose_')
   return lines.join('\n')
 }
 
@@ -187,7 +187,7 @@ export function threadToJson(thread: ComposeThread): string {
   return JSON.stringify(
     {
       exportedAt: new Date().toISOString(),
-      source: 'aispacex-compose',
+      source: 'intelx-compose',
       version: 1,
       thread,
     },

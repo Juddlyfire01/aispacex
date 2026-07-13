@@ -185,7 +185,7 @@ export function reportToMarkdown(snapshot: IntelReportSnapshot, ctx: ReportExpor
     lines.push('')
   }
 
-  lines.push('---', '', '_Exported from AISpaceX Intel_')
+  lines.push('---', '', '_Exported from IntelX_')
   return lines.join('\n')
 }
 

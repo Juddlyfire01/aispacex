@@ -269,7 +269,7 @@ describe('period compare + series + catalysts', () => {
     expect(cmp.current.reposts).toBe(2)
     expect(cmp.current.likes).toBe(10)
     expect(cmp.current.postCount).toBe(1)
-    // X-score must not include 6575 inherited retweets
+    // IntelX score must not include 6575 inherited retweets
     expect(cmp.current.xScore).toBeLessThan(100)
   })
 
@@ -307,6 +307,13 @@ describe('period compare + series + catalysts', () => {
     const glance = buildGlance({ posts, window: '7d', nowMs: NOW, followers: 1000, followersDelta: 50 })
     expect(glance.current.likes).toBeGreaterThan(0)
     expect(glance.followersDelta).toBe(50)
+    expect(glance.isAllTime).toBe(false)
+
+    const allGlance = buildGlance({ posts, window: 'all', nowMs: NOW, followers: 1000 })
+    expect(allGlance.isAllTime).toBe(true)
+    expect(allGlance.current.likes).toBe(202)
+    expect(allGlance.current.xScore).toBe(xWeightedScore(posts[0]) + xWeightedScore(posts[1]))
+    expect(allGlance.delta.xScore).toBe(0)
 
     const cat = buildCatalysts({ posts, window: '7d', nowMs: NOW, followersDelta: 50 })
     expect(cat).not.toBeNull()

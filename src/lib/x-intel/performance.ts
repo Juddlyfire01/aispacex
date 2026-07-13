@@ -9,7 +9,7 @@ export interface PerformanceCustomRange {
   endMs: number
 }
 
-/** Rank modes: raw metrics + X-style weighted composite. */
+/** Rank modes: raw metrics + IntelX weighted composite (approx.). */
 export type PerformanceRankMode =
   | 'composite'
   | 'impressions'
@@ -25,7 +25,14 @@ export const PERF_SNAPSHOT_MAX = 180
 export const PERF_SNAPSHOT_MIN_GAP_MS = 6 * 60 * 60 * 1000 // 6h — avoid spam on rapid refreshes
 
 /**
- * X-style engagement weights from the 2023 open-source heavy ranker table,
+ * Short tooltip copy: IntelX score is our approximation, not X's live ranking.
+ * Safe to show next to labels and rank-by controls.
+ */
+export const INTELX_SCORE_TIP =
+  'Approx. engagement weight from public metrics.'
+
+/**
+ * Engagement weights inspired by the 2023 open-source heavy ranker table,
  * adapted to public counts we actually store.
  * - likes (favorite) 0.5
  * - reposts (retweet) 1.0
@@ -129,7 +136,7 @@ export function filterPostsByWindow(
   })
 }
 
-/** X-style weighted engagement score for one post (public counts only). */
+/** IntelX weighted engagement score for one post (public counts only; approximation). */
 export function xWeightedScore(p: Post): number {
   const m = p.metrics
   return (
@@ -190,7 +197,7 @@ export function scorePost(p: Post, mode: PerformanceRankMode): number {
 }
 
 export const MODE_LABEL: Record<PerformanceRankMode, string> = {
-  composite: 'X-style score',
+  composite: 'IntelX score',
   impressions: 'impressions',
   likes: 'likes',
   reposts: 'reposts',
@@ -206,9 +213,9 @@ export function formatWhy(opts: {
   const label = MODE_LABEL[opts.mode]
   if (opts.mode === 'composite') {
     if (opts.multipleOfMedian != null && opts.multipleOfMedian > 0) {
-      return `${opts.multipleOfMedian}× this account's median X-style score (likes cheap, replies/conversation heavy).`
+      return `${opts.multipleOfMedian}× this account's median IntelX score (approx.; likes cheap, replies/conversation heavy).`
     }
-    return 'Ranked by X-style weights (2023 public table) on this account\'s posts.'
+    return 'Ranked by IntelX score (public-metric approximation, not X live ranking) on this account\'s posts.'
   }
   if (opts.multipleOfMedian != null && opts.multipleOfMedian > 0) {
     return `${opts.multipleOfMedian}× this account's median ${label} in this window.`
@@ -456,6 +463,8 @@ export interface PerformanceGlance {
   previous: MetricTotals
   delta: MetricTotals
   periodDays: number
+  /** True when window is `all` — totals are full library, not a time-bucket period compare. */
+  isAllTime: boolean
   leadingKind: PostKind
   followers: number | null
   followersDelta: number | null
@@ -496,8 +505,16 @@ export function buildGlance(opts: {
 }): PerformanceGlance {
   const nowMs = opts.nowMs ?? Date.now()
   const periodDays = periodDaysForWindow(opts.window, opts.range)
-  const cmp =
-    opts.window === 'range' && isValidCustomRange(opts.range)
+  const isAllTime = opts.window === 'all'
+  // All = full library totals (no prior-period compare). Presets/range = posts created in window.
+  const cmp = isAllTime
+    ? (() => {
+        const current = sumPostMetrics(opts.posts)
+        const previous = emptyTotals()
+        const delta = emptyTotals()
+        return { periodDays, current, previous, delta }
+      })()
+    : opts.window === 'range' && isValidCustomRange(opts.range)
       ? compareRangePeriods(opts.posts, opts.range.startMs, opts.range.endMs)
       : comparePeriods(opts.posts, periodDays, nowMs)
   const windowPosts = filterPostsByWindow(opts.posts, opts.window, nowMs, opts.range)
@@ -506,6 +523,7 @@ export function buildGlance(opts: {
     previous: cmp.previous,
     delta: cmp.delta,
     periodDays,
+    isAllTime,
     leadingKind: leadingKindByScore(windowPosts),
     followers: opts.followers ?? null,
     followersDelta: opts.followersDelta ?? null,
@@ -535,7 +553,7 @@ export function buildCatalysts(opts: {
     ? compareRangePeriods(opts.posts, opts.range!.startMs, opts.range!.endMs)
     : comparePeriods(opts.posts, periodDays, nowMs)
   const candidates: { key: keyof MetricTotals | 'followers'; delta: number; label: string }[] = [
-    { key: 'xScore', delta: cmp.delta.xScore, label: 'X-style score' },
+    { key: 'xScore', delta: cmp.delta.xScore, label: 'IntelX score' },
     { key: 'impressions', delta: cmp.delta.impressions, label: 'impressions' },
     { key: 'likes', delta: cmp.delta.likes, label: 'likes' },
     { key: 'replies', delta: cmp.delta.replies, label: 'replies' },

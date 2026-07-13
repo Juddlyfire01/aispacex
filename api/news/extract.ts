@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const upstream = await fetch(parsed.toString(), {
       headers: {
-        'user-agent': 'AiSpaceX/1.0 (+article extract)',
+        'user-agent': 'IntelX/1.0 (+article extract)',
         accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
         'accept-encoding': 'identity',
       },

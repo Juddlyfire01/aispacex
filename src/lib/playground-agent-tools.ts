@@ -197,7 +197,7 @@ function nodeCatalog(): string {
     .join('\n\n')
 }
 
-const SYSTEM_PROMPT = `You are a workflow designer for AiSpaceX. You build visual workflows that chain Venice AI models by calling tools.
+const SYSTEM_PROMPT = `You are a workflow designer for IntelX. You build visual workflows that chain Venice AI models by calling tools.
 
 Available node types:
 

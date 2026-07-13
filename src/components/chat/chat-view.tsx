@@ -7,7 +7,7 @@ import { useAuthStore } from '../../stores/auth-store'
 import { MessageBubble } from './message-bubble'
 import { ChatInput } from './chat-input'
 import { VeniceParams } from './venice-params'
-import { AppLogo } from '../ui/logo'
+import { AppBrand } from '../ui/logo'
 
 const STARTER_PROMPTS = [
   'Explain how RSA encryption works using a metaphor a 10-year-old could grasp.',
@@ -43,7 +43,7 @@ export function ChatView() {
         {!conversation || conversation.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 gap-6">
             <div className="flex flex-col items-center gap-3">
-              <AppLogo size={32} className="opacity-80" />
+              <AppBrand logoSize={32} wordmarkClassName="text-[18px] opacity-90" className="opacity-90" />
               <div className="text-[20px] font-semibold text-white/85">How can I help today?</div>
               <p className="text-[14px] text-white/45 max-w-sm">
                 {apiKey

@@ -1,6 +1,11 @@
 import { PillGroup } from '../ui/shared'
 import { Select } from '../ui/select'
-import type { PerformanceRankMode, PerformanceWindow } from '../../lib/x-intel/performance'
+import { Tooltip } from '../ui/tooltip'
+import {
+  INTELX_SCORE_TIP,
+  type PerformanceRankMode,
+  type PerformanceWindow,
+} from '../../lib/x-intel/performance'
 
 /** High-frequency windows stay as one-click pills; custom is opt-in. */
 const WINDOWS: { value: PerformanceWindow; label: string }[] = [
@@ -12,7 +17,7 @@ const WINDOWS: { value: PerformanceWindow; label: string }[] = [
 ]
 
 const MODES: { value: PerformanceRankMode; label: string }[] = [
-  { value: 'composite', label: 'X-score' },
+  { value: 'composite', label: 'IntelX score' },
   { value: 'impressions', label: 'Views' },
   { value: 'likes', label: 'Likes' },
   { value: 'reposts', label: 'Reposts' },
@@ -88,8 +93,18 @@ export function PerformanceControls({
           value={mode}
           onChange={(v) => onMode(v as PerformanceRankMode)}
           options={MODES}
-          className="w-[9.5rem] [&_button]:py-1 [&_button]:text-[12px] [&_button]:px-2 [&_span]:text-[12px]"
+          className="w-[10.5rem] [&_button]:py-1 [&_button]:text-[12px] [&_button]:px-2 [&_span]:text-[12px]"
         />
+        {mode === 'composite' && (
+          <Tooltip tip={INTELX_SCORE_TIP} side="bottom" underline={false}>
+            <span
+              className="shrink-0 text-[10px] text-[var(--color-text-quaternary)] cursor-help"
+              aria-label="About IntelX score"
+            >
+              ?
+            </span>
+          </Tooltip>
+        )}
       </div>
     </div>
   )

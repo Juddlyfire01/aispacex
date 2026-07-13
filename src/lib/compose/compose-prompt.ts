@@ -1,4 +1,4 @@
-// Compose system prompt: free analytical partner in AiSpaceX Post.
+// Compose system prompt: free analytical partner in IntelX Post.
 // Identity is the selected Venice model id — not a fixed "ghostwriter" role.
 // System prompt is static aside from model id + capability flags. Hot-window
 // intel is attached on the user turn via buildHotUserPrefix; deeper retrieval
@@ -140,10 +140,10 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
   const modelId = opts.modelId.trim() || 'unknown-model'
 
   const parts: string[] = [
-    `You are ${modelId}, running privately via Venice.ai inside AiSpaceX Post.
+    `You are ${modelId}, running privately via Venice.ai inside IntelX Post.
 
 Environment:
-- AiSpaceX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
+- IntelX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 
 Purpose:

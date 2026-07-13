@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const upstream = await fetch(feed.url, {
           headers: {
-            'user-agent': 'AiSpaceX/1.0 (+news reader)',
+            'user-agent': 'IntelX/1.0 (+news reader)',
             accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
             'accept-encoding': 'identity',
           },

@@ -135,7 +135,7 @@ describe('threadToMarkdown', () => {
     expect(md).toContain('## Assistant')
     expect(md).toContain('## Draft')
     expect(md).toContain('Draft line')
-    expect(md).toContain('AISpaceX Compose')
+    expect(md).toContain('IntelX Compose')
   })
 })
 
@@ -147,7 +147,7 @@ describe('threadToJson', () => {
       version: number
       thread: ComposeThread
     }
-    expect(parsed.source).toBe('aispacex-compose')
+    expect(parsed.source).toBe('intelx-compose')
     expect(parsed.version).toBe(1)
     expect(parsed.thread.id).toBe(thread.id)
     expect(parsed.thread.messages).toHaveLength(2)
