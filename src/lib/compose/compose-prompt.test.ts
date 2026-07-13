@@ -6,13 +6,16 @@ describe('buildComposeSystem', () => {
     const system = buildComposeSystem({
       modelId: 'venice-uncensored',
       xSearchOn: false,
-      toolsEnabled: false,
+      toolsEnabled: true,
     })
     expect(system).toMatch(/^You are venice-uncensored,/m)
     expect(system).not.toMatch(/ghostwriter/i)
     expect(system).toMatch(/research partner and analyst/i)
-    expect(system).toMatch(/postdraft/)
-    expect(system).toMatch(/segments/)
+    // Drafting always goes through the write-draft tool; the old postdraft JSON
+    // template must be gone (postdraft may still appear as a forbidden term).
+    expect(system).toMatch(/compose_write_draft/)
+    expect(system).not.toMatch(/```postdraft\n\{/)
+    expect(system).not.toMatch(/"segments":\s*\[\{\s*"text"/)
     expect(system).toMatch(/Do not offer to draft/i)
     // Ids must be emitted as bare digits so the UI can auto-link them.
     expect(system).toMatch(/bare digits/i)
@@ -43,7 +46,9 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/VeniceStats/)
     expect(on).toMatch(/news_read/)
     expect(on).toMatch(/BOOKMARKED NEWS/)
-    expect(on).not.toMatch(/compose_write_draft/)
+    // Drafting tool is always present once tools are enabled.
+    expect(on).toMatch(/compose_write_draft/)
+    expect(off).not.toMatch(/compose_write_draft/)
     expect(on).not.toMatch(/x_news_search/)
   })
 
@@ -92,12 +97,11 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/REGISTER ADHERENCE/)
   })
 
-  it('keeps register inject under draftHandoff (chat + writer both see it)', () => {
+  it('register inject is shared with the writer (chat + writer both see it)', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: true,
-      draftHandoff: true,
       registerInject: 'REGISTER — HARD STYLE CONSTRAINT\nDescription: metric stack',
     })
     expect(system).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
@@ -105,27 +109,25 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/register-critical style cues/i)
   })
 
-  it('same as main (no handoff): uses postdraft, not compose_write_draft', () => {
+  it('drafting always uses compose_write_draft, never a postdraft fence', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: true,
-      draftHandoff: false,
-    })
-    expect(system).toMatch(/postdraft/)
-    expect(system).not.toMatch(/compose_write_draft/)
-    expect(system).not.toMatch(/separate draft-writer model/i)
-  })
-
-  it('separate draft model: briefs a distinct writer with conversation history', () => {
-    const system = buildComposeSystem({
-      modelId: 'm',
-      xSearchOn: false,
-      toolsEnabled: true,
-      draftHandoff: true,
     })
     expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/separate draft-writer model/i)
+    // The legacy JSON draft template is gone (no fence example to fill in).
+    expect(system).not.toMatch(/```postdraft\n\{/)
+    expect(system).toMatch(/streams? .*into the Draft drawer/i)
+  })
+
+  it('draft spec forwards conversation history to the writer', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+    })
+    expect(system).toMatch(/compose_write_draft/)
     expect(system).toMatch(/conversation history/i)
     expect(system).toMatch(/Do not announce a \"handoff\"/i)
     expect(system).not.toMatch(/```postdraft\n/)
@@ -136,21 +138,19 @@ describe('buildComposeSystem', () => {
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: true,
-      draftHandoff: true,
       preferredFormat: 'article',
     })
     expect(system).toMatch(/ARTICLE MODE/)
     expect(system).toMatch(/find-a-post|reply-target/i)
   })
 
-  it('includes postdraft block spec when not handoff', () => {
+  it('omits the draft tool spec when tools are disabled', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: false,
-      draftHandoff: false,
     })
-    expect(system).toMatch(/postdraft/)
+    expect(system).not.toMatch(/postdraft/)
     expect(system).not.toMatch(/compose_write_draft/)
   })
   it('does not embed corpus or target dumps', () => {

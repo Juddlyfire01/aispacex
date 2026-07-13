@@ -3,8 +3,10 @@
 // System prompt is static aside from model id + capability flags. Hot-window
 // intel is attached on the user turn via buildHotUserPrefix; deeper retrieval
 // uses intel_* / compose_history_* tools when toolsEnabled.
-// Optional ```postdraft blocks are a capability when the user wants post text —
-// not the purpose of every turn.
+// Drafting is a capability, not the purpose of every turn: when the user wants
+// publishable copy, the model calls compose_write_draft and the copy streams
+// into the Draft drawer (writer = main model when "Same as main", else the
+// chosen distinct model). There is no ```postdraft path.
 
 import type { PreferredFormat } from './format'
 
@@ -19,12 +21,6 @@ export interface ComposeSystemOpts {
   toolsEnabled: boolean
   /** Pre-formatted register inject block from resolveRegisterPack. */
   registerInject?: string | null
-  /**
-   * When true, a separate draft model is selected — drafting goes through
-   * compose_write_draft (brief + conversation history). When false/omitted
-   * (Same as main), this model writes publishable copy via ```postdraft.
-   */
-  draftHandoff?: boolean
   /** User format preference from compose settings. */
   preferredFormat?: PreferredFormat
   /** Account can natively post long-form / articles when verified. */
@@ -48,9 +44,9 @@ Citations:
 - In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
 - In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
-/** Separate draft model: research agent briefs a distinct writer + conversation. */
-const HANDOFF_DRAFT_SPEC = `Drafting for X — use the compose_write_draft tool (required when drafting):
-A separate draft-writer model will turn your brief into publishable copy in the Draft drawer. The system also forwards this research conversation history to that writer so context is not lost — your brief steers; the conversation fills gaps.
+/** All drafting flows through compose_write_draft; copy streams into the drawer. */
+const DRAFT_TOOL_SPEC = `Drafting for X — ALWAYS use the compose_write_draft tool (this is the only way to produce a draft):
+Calling it streams publishable copy live into the Draft drawer. The system forwards this research conversation history to the writer so context is not lost — your brief steers; the conversation fills gaps.
 
 Call compose_write_draft ONLY when the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article) or says to draft / rewrite / revise / use the draft tool.
 
@@ -58,57 +54,25 @@ Do NOT call compose_write_draft for research, analysis, finding posts, suggestin
 
 When you do call it:
 1. Pass a dense brief (facts, angle, handles, constraints, section outline for Articles). Never set longform:true for Articles (Articles ≠ Premium long-form tweets). Do not try to paste the whole chat into the brief — history is attached automatically — but the brief must still capture priorities and must-include / must-avoid so nothing critical depends on the writer re-reading the full thread.
-2. If a REGISTER block is in this system prompt, the draft writer also receives it — still put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
-3. NEVER paste the full draft/article/thread into chat. The draft drawer owns the copy.
-4. NEVER emit a \`\`\`postdraft fence.
-5. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff" — the Draft drawer is the deliverable.
-6. Image/cover prompts belong in chat (after compose_write_draft), not in the writer brief or article body.
-7. Do not offer to draft unless the user asked for writing/copy.`
+2. If a REGISTER block is in this system prompt, the writer also receives it — still put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
+3. NEVER paste the draft/article/thread copy into chat, and NEVER emit a \`\`\`postdraft fence or any JSON draft block — the Draft drawer owns the copy. Writing copy directly in chat instead of calling the tool is a failure.
+4. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff" — the Draft drawer is the deliverable.
+5. Image/cover prompts belong in chat (after compose_write_draft), not in the writer brief or article body.
+6. Do not offer to draft unless the user asked for writing/copy.`
 
 const REGISTER_CHAT_ADHERENCE = `REGISTER ADHERENCE (this turn has an active register):
 - Chat analysis may stay in your normal analyst voice.
-- Any publishable X copy you produce (postdraft segments, article body, or the brief you hand to compose_write_draft) MUST follow the REGISTER block — treat it as a hard constraint over generic helpful tone.
+- The brief you hand to compose_write_draft MUST carry the REGISTER voice — treat it as a hard constraint over generic helpful tone.
 - Prefer sounding like the anchors over sounding polished. Softening, padding, or "improving" the register is wrong.
-- When drafting or briefing the draft writer: content/facts from research; voice from REGISTER. Encode voice reminders in notes if the request risks drifting (e.g. "terse metric stack, no hype").`
+- When briefing the draft writer: content/facts from research; voice from REGISTER. Encode voice reminders in notes if the request risks drifting (e.g. "terse metric stack, no hype").`
 
 const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
 - Drafting/revising an article → call compose_write_draft (not chat paste).
 - Research / find-a-post / reply-target questions → answer in chat; do NOT call compose_write_draft and do NOT dump a manuscript into chat.
 - Image/cover prompts stay in chat, never in article body.`
 
-const HANDOFF_TOOLS_EXTRA = `Drafting tool:
-- compose_write_draft — hands a brief to the separate draft-writer model (conversation history is attached automatically); fills the Draft drawer. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting.`
-
-const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
-Only when the user asks for post/reply/quote/thread/article copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
-
-\`\`\`postdraft
-{
-  "format": "post",
-  "segments": [{ "text": "the post text" }],
-  "target": { "kind": "original" },
-  "longform": false,
-  "article": { "title": "optional title", "bodyMarkdown": "optional body" }
-}
-\`\`\`
-
-Rules for the block:
-- "format" is optional: "post" | "thread" | "longform" | "article".
-  - "post" → one segment, longform false.
-  - "thread" → 2+ segments.
-  - "longform" → one segment, longform true.
-  - "article" → populate "article" { title, bodyMarkdown }; segments may be [].
-- "segments" is an ordered array; use multiple segments ONLY for an intentional thread. Keep each segment under 280 characters unless "longform" is true.
-- "article" is optional; use for titled structured pieces (not tweet copy).
-- "target" is one of:
-  - { "kind": "original" } — a standalone post (the default).
-  - { "kind": "reply", "toPostId": "<id>", "toUsername": "<handle>" } — only when the user explicitly wants to reply to a specific post whose id you were given.
-  - { "kind": "quote", "postId": "<id>", "username": "<handle>" } — only when quoting a specific post whose id you were given.
-- Do not invent post ids. If you don't have a real id from context, use { "kind": "original" }.
-- Match X conventions when drafting: natural voice, no hashtag spam, no "As an AI" preamble.
-- Post segment text is plain UTF-8 only — no Markdown (**bold**, _italic_, HTML). For emphasis use Unicode styled letters sparingly (mathematical bold/italic on A–Z/a–z). @mentions, #hashtags, $cashtags, plain https:// URLs, emojis, and line breaks are all valid. Do not use ** or __ markup. Article bodyMarkdown may use Markdown.
-- Put your normal reply BEFORE the block as prose. Never mention the block itself to the user.
-- Do not offer to draft or revise a post unless the user asked for writing, a post, a reply, a thread, or similar. Analysis and research answers should end without a draft pitch.`
+const DRAFT_TOOLS_EXTRA = `Drafting tool:
+- compose_write_draft — hands a brief to the draft writer (conversation history attached automatically) and streams the copy into the Draft drawer. This is the only way to produce a draft. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting. Never write the copy yourself in chat.`
 
 const TOOLS_SPEC = `Tools — pick the right one; do not invent others:
 
@@ -191,7 +155,7 @@ Style:
   if (opts.toolsEnabled) {
     parts.push(TOOLS_SPEC)
     if (opts.xNewsOn) parts.push(X_NEWS_TOOLS_SPEC)
-    if (opts.draftHandoff) parts.push(HANDOFF_TOOLS_EXTRA)
+    parts.push(DRAFT_TOOLS_EXTRA)
   }
 
   if (opts.registerInject?.trim()) {
@@ -199,13 +163,13 @@ Style:
     parts.push(REGISTER_CHAT_ADHERENCE)
   }
 
-  if (opts.draftHandoff) {
-    parts.push(HANDOFF_DRAFT_SPEC)
+  // Drafting always flows through compose_write_draft (streams into the drawer).
+  // The tool only exists when tools are enabled, so only spec it then.
+  if (opts.toolsEnabled) {
+    parts.push(DRAFT_TOOL_SPEC)
     if (opts.preferredFormat === 'article') {
       parts.push(ARTICLE_HANDOFF_LOCK)
     }
-  } else {
-    parts.push(BLOCK_SPEC)
   }
   return parts.join('\n\n')
 }

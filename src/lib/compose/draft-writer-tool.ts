@@ -1,6 +1,8 @@
-// Draft writer: when Draft model ≠ Same as main, research agent calls
-// compose_write_draft; the separate writer streams copy into the Draft drawer
-// with brief + conversation history. Same as main writes via ```postdraft.
+// Draft writer: ALL drafting goes through compose_write_draft. The research
+// agent calls the tool with a brief; the writer model (main model when Draft
+// model = Same as main, otherwise the chosen distinct model) streams copy into
+// the Draft drawer with brief + conversation history attached automatically.
+// There is no ```postdraft path — drafting always streams via the tool.
 
 import type { ToolDefinition } from '../../types/venice'
 import type { PreferredFormat } from './format'
@@ -26,7 +28,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Write publishable X copy into the Draft drawer via the separate draft-writer model. The research conversation history is attached automatically — pass a dense brief of priorities and must-include/must-avoid (not the full manuscript or full chat). Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
+      'Write publishable X copy into the Draft drawer. This is the ONLY way to produce a draft — the copy streams live into the Draft drawer. The research conversation history is attached automatically, so pass a dense brief of priorities and must-include/must-avoid (not the full manuscript or full chat). Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Never paste the draft copy into chat yourself. For Articles use this tool; do not set longform true.',
     parameters: {
       type: 'object',
       properties: {
@@ -83,17 +85,22 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
 }
 
 /**
- * True when Draft model is a distinct Venice id — research agent must call
- * compose_write_draft (brief + conversation history). Same as main writes in
- * chat via ```postdraft with no handoff.
+ * True when Draft model is a distinct Venice id (not "Same as main"). Only
+ * affects writer model id, timeline labels, and whether the research
+ * conversation is re-attached — NOT whether the tool exists.
  */
 export function isSeparateDraftModel(draftModel: string | undefined | null): boolean {
   return Boolean(draftModel && draftModel !== DRAFT_MODEL_SAME)
 }
 
-/** Handoff path only when a separate draft writer is selected. */
-export function isDraftHandoffEnabled(draftModel?: string | null): boolean {
-  return isSeparateDraftModel(draftModel)
+/**
+ * Drafting ALWAYS goes through compose_write_draft (streams into the Draft
+ * drawer) regardless of the Draft model setting. Same as main just runs the
+ * writer on the main model id. The legacy ```postdraft path is removed, so the
+ * tool is always available whenever tools are enabled.
+ */
+export function isDraftHandoffEnabled(_draftModel?: string | null): boolean {
+  return true
 }
 
 /** Resolve the Venice model id the draft writer should call. */

@@ -98,7 +98,6 @@ Rules:
   - Never include image prompts, "Image Prompt:", illustration directions, or \`---IMAGE_PROMPT---\` blocks. Image prompts are handled in chat by the research model, not in article copy.
   - Never label the output as "long-form post" — Articles are a distinct X format.
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).
-- Match X conventions: natural voice, no hashtag spam, no "As an AI".
 ${
   hasConversation
     ? `- You receive the research conversation history AND a writing brief. Use the conversation for full context (facts, angle, nuance, decisions). Treat the brief as the research model's writing instructions and priorities — do not discard conversation detail that the brief omitted.
@@ -108,13 +107,6 @@ ${
   ]
   if (registerInject?.trim()) {
     parts.push(registerInject.trim())
-    parts.push(
-      `REGISTER OVERRIDE — highest priority after factual accuracy in the brief${hasConversation ? ' and conversation' : ''}:
-- Voice and texture come from REGISTER, not from a generic social-media template.
-- If REGISTER and a softer "helpful" tone conflict, REGISTER wins.
-- Mirror anchor sentence length, punctuation, and metric stacking even when the brief is factual/dense.
-- Do not pad with enthusiasm, disclaimers, or essay transitions the anchors would not use.`,
-    )
   }
   return parts.join('\n\n')
 }

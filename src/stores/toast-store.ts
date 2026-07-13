@@ -13,10 +13,25 @@ export interface Toast {
   progress?: number
   /** Secondary line under the bar, e.g. "Step 2 of 3 · Writing narrative". */
   progressLabel?: string
+  /**
+   * Raw error text offered via a "Copy error" control. When omitted on an
+   * error toast, the toaster falls back to copying the description.
+   */
+  copyError?: string
 }
 
 export type ToastUpdate = Partial<
-  Pick<Toast, 'variant' | 'title' | 'description' | 'action' | 'duration' | 'progress' | 'progressLabel'>
+  Pick<
+    Toast,
+    | 'variant'
+    | 'title'
+    | 'description'
+    | 'action'
+    | 'duration'
+    | 'progress'
+    | 'progressLabel'
+    | 'copyError'
+  >
 >
 
 interface ToastState {
@@ -92,11 +107,24 @@ export const toast = {
       action,
       duration: action ? 6500 : 4500,
     }),
-  error: (title: string, description?: string, action?: Toast['action']) =>
-    useToastStore.getState().push({ variant: 'error', title, description, action, duration: 6500 }),
+  error: (
+    title: string,
+    description?: string,
+    action?: Toast['action'],
+    copyError?: string,
+  ) =>
+    useToastStore
+      .getState()
+      .push({ variant: 'error', title, description, action, copyError, duration: 6500 }),
   fromError: (err: unknown, title = 'Something went wrong') => {
     const description = err instanceof Error ? err.message : typeof err === 'string' ? err : undefined
-    return useToastStore.getState().push({ variant: 'error', title, description, duration: 6500 })
+    return useToastStore.getState().push({
+      variant: 'error',
+      title,
+      description,
+      copyError: rawErrorText(err),
+      duration: 6500,
+    })
   },
   /**
    * Long-running job toast. Does not auto-dismiss until complete/fail
@@ -127,14 +155,29 @@ export const toast = {
       duration: 4500,
     }),
   /** Turn a progress toast into an error toast that auto-dismisses. */
-  fail: (id: number, title: string, description?: string) =>
+  fail: (id: number, title: string, description?: string, copyError?: string) =>
     useToastStore.getState().update(id, {
       variant: 'error',
       title,
       description,
+      copyError,
       progress: 1,
       progressLabel: 'Failed',
       // Longer so multi-line failure reasons stay readable.
       duration: 12_000,
     }),
+}
+
+/** Full error text (message + stack) for the "Copy error" control. */
+function rawErrorText(err: unknown): string | undefined {
+  if (err instanceof Error) {
+    return err.stack?.trim() || err.message
+  }
+  if (typeof err === 'string') return err
+  if (err == null) return undefined
+  try {
+    return JSON.stringify(err, null, 2)
+  } catch {
+    return String(err)
+  }
 }

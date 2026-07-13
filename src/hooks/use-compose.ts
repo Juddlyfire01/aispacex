@@ -58,8 +58,10 @@ import { yieldForPaint } from '../lib/yield-for-paint'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
 // data, may call intel_* / compose_history_* / compose_write_draft tools (tool
-// rounds stream activity; draft writer streams into the Draft drawer; final
-// chat answer streams tokens). Any leaked ```postdraft is stripped as a fallback.
+// rounds stream activity; the draft writer always streams copy into the Draft
+// drawer — Same-as-main runs the writer on the main model, a distinct Draft
+// model runs it on that model; final chat answer streams tokens). Any leaked
+// ```postdraft fence is still stripped into the drawer as a defensive fallback.
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
@@ -263,6 +265,8 @@ export function useCompose() {
         })
 
         const sameDraftModel = !isSeparateDraftModel(draftModel)
+        // Drafting always streams through the writer tool; Same-as-main just
+        // runs the writer on the main model id.
         const draftHandoff = isDraftHandoffEnabled(draftModel)
         const writerModelId = resolveDraftWriterModelId(draftModel, model)
         const system = buildComposeSystem({
@@ -272,7 +276,6 @@ export function useCompose() {
           xNewsOn,
           toolsEnabled: true,
           registerInject: registerResolved.inject,
-          draftHandoff,
           preferredFormat,
           premiumCapable,
         })
@@ -525,15 +528,16 @@ export function useCompose() {
           draftWriterFlushRef.current = flushDraftDrip
 
           // Snapshot research chat for the writer (user/assistant prose).
-          // Separate-model handoff only — same-as-main writes in chat with full history.
-          const conversationForWriter = draftHandoff
-            ? (useComposeStore.getState().threads[threadId]?.messages ?? [])
-                .filter((m) => m.role === 'user' || m.role === 'assistant')
-                .map((m) => {
-                  const { agentEvents: _ae, ...rest } = m
-                  return rest
-                })
-            : undefined
+          // Always attached now — both Same-as-main and a distinct writer model
+          // draft via this tool, so the writer needs full research context.
+          const conversationForWriter = (
+            useComposeStore.getState().threads[threadId]?.messages ?? []
+          )
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
+            .map((m) => {
+              const { agentEvents: _ae, ...rest } = m
+              return rest
+            })
 
           void runDraftWriter({
             modelId: writerModelId,

@@ -7,10 +7,7 @@ import { AgentActivity } from './agent-activity'
 import { ContextRing } from './context-ring'
 import { ContextUsagePopup } from './context-usage-popup'
 import { buildComposeSystem } from '../../lib/compose/compose-prompt'
-import {
-  COMPOSE_WRITE_DRAFT_TOOL,
-  isDraftHandoffEnabled,
-} from '../../lib/compose/draft-writer-tool'
+import { COMPOSE_WRITE_DRAFT_TOOL } from '../../lib/compose/draft-writer-tool'
 import { COMPOSE_INTEL_TOOLS } from '../../lib/compose/intel-tools'
 import { COMPOSE_HISTORY_TOOLS } from '../../lib/compose/history-tools'
 import { COMPOSE_STATS_TOOLS } from '../../lib/compose/stats-tools'
@@ -52,7 +49,6 @@ export function ComposeChat({
   const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
   const model = useComposeStore((s) => s.model)
-  const draftModel = useComposeStore((s) => s.draftModel)
   const xSearch = useComposeStore((s) => s.xSearch)
   const webSearch = useComposeStore((s) => s.webSearch)
   const xNewsOn = useComposeStore((s) => s.xNewsOn)
@@ -80,16 +76,17 @@ export function ComposeChat({
   const meterMessages = isStreaming ? frozenMessagesRef.current : messages
 
   const toolsJson = useMemo(() => {
-    const draftHandoff = isDraftHandoffEnabled(draftModel)
+    // Drafting always goes through the write-draft tool (both Same-as-main and a
+    // distinct Draft model), so it is always part of the tool payload.
     const tools = [
       ...COMPOSE_INTEL_TOOLS,
       ...COMPOSE_HISTORY_TOOLS,
       ...COMPOSE_STATS_TOOLS,
       ...getComposeNewsTools({ xNewsOn }),
-      ...(draftHandoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
+      COMPOSE_WRITE_DRAFT_TOOL,
     ]
     return JSON.stringify(tools)
-  }, [draftModel, xNewsOn])
+  }, [xNewsOn])
 
   const systemPromptForMeter = useMemo(
     () =>
@@ -99,9 +96,8 @@ export function ComposeChat({
         webSearchOn: webSearch !== 'off',
         xNewsOn,
         toolsEnabled: true,
-        draftHandoff: isDraftHandoffEnabled(draftModel),
       }),
-    [model, draftModel, xSearch, webSearch, xNewsOn, toolModels],
+    [model, xSearch, webSearch, xNewsOn, toolModels],
   )
 
   const baseContextBreakdown = useMemo(() => {
@@ -133,9 +129,9 @@ export function ComposeChat({
   const scrollBucket = Math.floor(lastContent.length / SCROLL_CHARS_BUCKET)
 
   // New thread → re-attach follow (and jump to bottom once messages load).
+  // Usage popup state lives in ComposeChatInput; it resets itself on threadId.
   useEffect(() => {
     stickToBottomRef.current = true
-    setUsageOpen(false)
   }, [threadId])
 
   const onScroll = useCallback(() => {
@@ -321,6 +317,7 @@ export function ComposeChat({
       </div>
 
       <ComposeChatInput
+        threadId={threadId}
         baseBreakdown={baseContextBreakdown}
         isStreaming={isStreaming}
         sendBlocked={Boolean(sendBlocked)}
@@ -339,6 +336,7 @@ export function ComposeChat({
  * message list / markdown). Context ring pending-user tokens update here.
  */
 const ComposeChatInput = memo(function ComposeChatInput({
+  threadId,
   baseBreakdown,
   isStreaming,
   sendBlocked,
@@ -348,6 +346,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   onStop,
   onOpenDraft,
 }: {
+  threadId: string
   baseBreakdown: ContextUsageBreakdown
   isStreaming: boolean
   sendBlocked: boolean
@@ -360,6 +359,10 @@ const ComposeChatInput = memo(function ComposeChatInput({
   const [input, setInput] = useState('')
   const [usageOpen, setUsageOpen] = useState(false)
   const ringRef = useRef<HTMLButtonElement>(null)
+  // Switching threads closes the usage popup (state lives here now).
+  useEffect(() => {
+    setUsageOpen(false)
+  }, [threadId])
   // Debounce pending-user contribution so every key doesn't re-walk the meter.
   const [pendingForMeter, setPendingForMeter] = useState('')
   useEffect(() => {

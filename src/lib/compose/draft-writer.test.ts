@@ -45,10 +45,10 @@ describe('parseDraftWriteBrief', () => {
 })
 
 describe('isDraftHandoffEnabled', () => {
-  it('enables handoff only for a separate draft model', () => {
-    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(false)
-    expect(isDraftHandoffEnabled('')).toBe(false)
-    expect(isDraftHandoffEnabled(null)).toBe(false)
+  it('is always enabled — drafting always streams through the writer tool', () => {
+    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(true)
+    expect(isDraftHandoffEnabled('')).toBe(true)
+    expect(isDraftHandoffEnabled(null)).toBe(true)
     expect(isDraftHandoffEnabled('venice-uncensored-1-2')).toBe(true)
   })
 })
@@ -156,11 +156,17 @@ describe('buildWriterUser', () => {
 })
 
 describe('buildWriterSystem', () => {
-  it('adds register override when inject present', () => {
+  it('appends the register inject verbatim with no extra style guidance', () => {
     const sys = buildWriterSystem('REGISTER — HARD STYLE CONSTRAINT\nDescription: terse')
     expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
-    expect(sys).toMatch(/REGISTER OVERRIDE/)
+    expect(sys).not.toMatch(/REGISTER OVERRIDE/)
     expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
+  })
+
+  it('adds no X-conventions / voice style guidance', () => {
+    const sys = buildWriterSystem(null)
+    expect(sys).not.toMatch(/Match X conventions/)
+    expect(sys).not.toMatch(/hashtag spam/)
   })
 
   it('instructs writer to use conversation + brief when hasConversation', () => {

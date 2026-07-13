@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useToastStore, type Toast } from '../../stores/toast-store'
 import { cn } from '../../lib/utils'
 
@@ -55,71 +56,104 @@ export function Toaster() {
       aria-live="polite"
       aria-label="Notifications"
     >
-      {toasts.map((t) => {
-        const hasProgress = typeof t.progress === 'number'
-        const auxText =
-          t.progressLabel ??
-          (t.variant === 'success' && hasProgress
-            ? 'Complete'
-            : t.variant === 'error' && hasProgress
-              ? 'Failed'
-              : null)
-        return (
-          <div
-            key={t.id}
-            role={t.variant === 'error' ? 'alert' : 'status'}
-            className={TOAST_SHELL}
-            title={t.description ? `${t.title}: ${t.description}` : t.title}
-          >
-            <div className="flex w-full items-start gap-3">
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* Row 1 — status title */}
-                <div className={cn('text-[13.5px] font-medium leading-snug', TITLE_COLOR[t.variant])}>
-                  {t.title}
-                </div>
-                {/* Row 2 — context (wrap; clamp only after several lines) */}
-                <div className="mt-0.5 min-h-[1.25rem] text-[12.5px] leading-snug text-[var(--color-text-secondary)] line-clamp-4 break-words">
-                  {t.description ?? '\u00a0'}
-                </div>
-                {/* Row 3 — progress bar or blank reserved */}
-                <div className="mt-2 h-1 w-full shrink-0">
-                  {hasProgress ? <ProgressBar value={t.progress!} /> : null}
-                </div>
-                {/* Row 4 — aux / action or blank reserved */}
-                <div className="mt-1.5 flex min-h-[1.125rem] items-center">
-                  {t.action ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        t.action?.onClick()
-                        dismiss(t.id)
-                      }}
-                      className="truncate text-[12.5px] font-medium text-[var(--color-text-secondary)] underline underline-offset-2 hover:text-[var(--color-text-primary)]"
-                    >
-                      {t.action.label}
-                    </button>
-                  ) : (
-                    <div className="h-full truncate text-[11.5px] tabular-nums text-[var(--color-text-tertiary)]">
-                      {auxText ?? '\u00a0'}
-                    </div>
-                  )}
-                </div>
-              </div>
+      {toasts.map((t) => (
+        <ToastCard key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
+      ))}
+    </div>
+  )
+}
+
+function ToastCard({ toast: t, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const hasProgress = typeof t.progress === 'number'
+  const auxText =
+    t.progressLabel ??
+    (t.variant === 'success' && hasProgress
+      ? 'Complete'
+      : t.variant === 'error' && hasProgress
+        ? 'Failed'
+        : null)
+
+  // Error toasts always offer a copyable payload — explicit copyError, else the
+  // human-readable description falls back so there's still something to grab.
+  const copyText = t.variant === 'error' ? (t.copyError ?? t.description) : undefined
+  const showCopy = Boolean(copyText)
+
+  const handleCopy = () => {
+    if (!copyText) return
+    void navigator.clipboard.writeText(copyText).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      },
+      () => {
+        /* clipboard blocked — nothing else we can do */
+      },
+    )
+  }
+
+  return (
+    <div
+      role={t.variant === 'error' ? 'alert' : 'status'}
+      className={TOAST_SHELL}
+      title={t.description ? `${t.title}: ${t.description}` : t.title}
+    >
+      <div className="flex w-full items-start gap-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Row 1 — status title */}
+          <div className={cn('text-[13.5px] font-medium leading-snug', TITLE_COLOR[t.variant])}>
+            {t.title}
+          </div>
+          {/* Row 2 — context (wrap; clamp only after several lines) */}
+          <div className="mt-0.5 min-h-[1.25rem] text-[12.5px] leading-snug text-[var(--color-text-secondary)] line-clamp-4 break-words">
+            {t.description ?? '\u00a0'}
+          </div>
+          {/* Row 3 — progress bar or blank reserved */}
+          <div className="mt-2 h-1 w-full shrink-0">
+            {hasProgress ? <ProgressBar value={t.progress!} /> : null}
+          </div>
+          {/* Row 4 — action + copy-error + aux */}
+          <div className="mt-1.5 flex min-h-[1.125rem] items-center gap-3">
+            {t.action ? (
               <button
                 type="button"
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss notification"
-                className="-m-0.5 shrink-0 rounded p-0.5 text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
+                onClick={() => {
+                  t.action?.onClick()
+                  onDismiss()
+                }}
+                className="truncate text-[12.5px] font-medium text-[var(--color-text-secondary)] underline underline-offset-2 hover:text-[var(--color-text-primary)]"
               >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                {t.action.label}
               </button>
-            </div>
+            ) : null}
+            {showCopy ? (
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-[var(--color-text-secondary)] underline underline-offset-2 hover:text-[var(--color-text-primary)]"
+              >
+                {copied ? 'Copied' : 'Copy error'}
+              </button>
+            ) : null}
+            {!t.action && !showCopy ? (
+              <div className="h-full truncate text-[11.5px] tabular-nums text-[var(--color-text-tertiary)]">
+                {auxText ?? '\u00a0'}
+              </div>
+            ) : null}
           </div>
-        )
-      })}
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss notification"
+          className="-m-0.5 shrink-0 rounded p-0.5 text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
