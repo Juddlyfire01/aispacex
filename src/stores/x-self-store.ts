@@ -153,7 +153,7 @@ interface XSelfState {
 
 export const useXSelfStore = create<XSelfState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       accounts: {},
       accountOrder: [],
       activeAccountId: null,
@@ -333,30 +333,33 @@ export const useXSelfStore = create<XSelfState>()(
           }
         }),
 
-      appendReport: (id, snapshot) =>
+      appendReport: (id, snapshot) => {
+        const a = get().accounts[id]
+        if (!a) throw new Error(`Cannot save report — account ${id} is not loaded`)
         set((s) => {
-          const a = s.accounts[id]
-          if (!a) return s
+          const cur = s.accounts[id]
+          if (!cur) return s
           const includedReportIds = growIncludedReportIdsIfMax(
-            a.synthesisSettings.includedReportIds ?? [],
-            a.reportHistory,
+            cur.synthesisSettings.includedReportIds ?? [],
+            cur.reportHistory,
             snapshot.id,
           )
           return {
             accounts: {
               ...s.accounts,
               [id]: {
-                ...a,
-                reportHistory: [snapshot, ...a.reportHistory],
+                ...cur,
+                reportHistory: [snapshot, ...cur.reportHistory],
                 activeReportId: snapshot.id,
                 synthesisSettings: {
-                  ...a.synthesisSettings,
+                  ...cur.synthesisSettings,
                   includedReportIds,
                 },
               },
             },
           }
-        }),
+        })
+      },
 
       patchActiveReportRegister: (id, register) =>
         set((s) => {

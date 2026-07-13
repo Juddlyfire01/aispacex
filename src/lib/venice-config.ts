@@ -2,9 +2,9 @@
 // owner pays for everyone) instead of each user bringing their own key.
 //
 // This is a CLIENT-visible boolean only — never the key itself. The real
-// VENICE_API_KEY lives server-side and is injected by the Venice proxy
-// (api/venice/proxy.ts in prod, the Vite /venice proxy in dev), so it never
-// reaches the browser bundle. When true: calls route through the proxy with no
+// VENICE_API_KEY lives server-side and is injected by api/venice/proxy.ts
+// (via vercel dev locally and Vercel Functions in prod), so it never reaches
+// the browser bundle. When true: calls route through /api/venice/proxy with no
 // client Authorization header, the "Connect API key" UI is hidden, and a
 // sentinel key satisfies the existing availability gates. Flip to false (unset)
 // to restore the bring-your-own-key flow.

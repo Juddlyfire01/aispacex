@@ -400,10 +400,11 @@ export const useXIntelStore = create<XIntelState>()(
         }),
 
       appendReport: (username, snapshot) => {
+        const key = findReportKey(get().reports, username)
+        if (!key) throw new Error(`Cannot save report — profile @${username} is not loaded`)
         set((s) => {
-          const key = findReportKey(s.reports, username)
-          if (!key) return s
           const report = s.reports[key]
+          if (!report) return s
           const includedReportIds = growIncludedReportIdsIfMax(
             report.synthesisSettings.includedReportIds ?? [],
             report.reportHistory,

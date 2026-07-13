@@ -47,7 +47,13 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
   const statusTextCompact = busy ? 'updating…' : `updated ${relativeTime(lastGatheredIso)}`
   const btn = (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={(e) => {
+        // Blur so the browser does not scroll this control into view when the
+        // busy/disabled state flips after refresh — toast already signals done.
+        e.currentTarget.blur()
+        onClick()
+      }}
       disabled={busy || disabled}
       // Native title only when disabled — busy/last-refreshed are already shown inline.
       title={disabled && !busy ? 'Connect X first' : undefined}

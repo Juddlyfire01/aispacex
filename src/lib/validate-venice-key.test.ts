@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { validateVeniceKey } from './validate-venice-key'
+import { BASE_URL } from './venice-client'
 
 describe('validateVeniceKey', () => {
   beforeEach(() => {
@@ -35,7 +36,7 @@ describe('validateVeniceKey', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
     await validateVeniceKey('sk-my-key')
-    expect(fetchMock).toHaveBeenCalledWith('/venice/api/v1/api_keys/rate_limits', {
+    expect(fetchMock).toHaveBeenCalledWith(`${BASE_URL}/api_keys/rate_limits`, {
       headers: { Authorization: 'Bearer sk-my-key' },
     })
   })

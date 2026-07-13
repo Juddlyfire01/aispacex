@@ -134,6 +134,7 @@ export const toast = {
       description,
       progress: 1,
       progressLabel: 'Failed',
-      duration: 6500,
+      // Longer so multi-line failure reasons stay readable.
+      duration: 12_000,
     }),
 }

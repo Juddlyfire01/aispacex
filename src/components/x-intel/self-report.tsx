@@ -8,6 +8,8 @@ import { postUrl } from '../../lib/x-intel/evidence'
 import { formatTokens } from '../../lib/utils'
 import { ReportExportButton } from './report-export-button'
 import { LoadingState } from '../ui/spinner'
+import { usePreserveScroll } from '../../hooks/use-preserve-scroll'
+import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from '../../lib/x-intel/report-gate'
 import type { Post } from '../../lib/x-intel/types'
 
 function relDate(iso: string): string {
@@ -89,16 +91,34 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
   const active = reportHistory.find((r) => r.id === activeReportId) ?? reportHistory[0] ?? null
   const liveAnalytics = !active && profile && hasPosts ? computeAnalytics(profile, posts, edges) : null
 
+  const latestReportAt = reportHistory[0]?.createdAt
+  const needsRefresh = !canGenerateAfterRefresh(latestReportAt, account?.refreshedAt?.profile)
+  const canGenerate = Boolean(profile && hasPosts && !needsRefresh)
+
   const run = () => {
-    if (busy) return
+    if (busy || !canGenerate) return
+    // Blur so focus restoration does not yank the pane when the button re-enables.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void generateSelfReport().catch(() => { /* error stored on x-self-store */ })
   }
 
   // Self view has no "add target" affordance; mentions/replies just no-op.
   const noAdd = () => { /* self report: engaged accounts are not target-addable */ }
 
+  // Anchor on active report so a finished generate (or timeline pick) lands at top;
+  // mid-read refreshes still preserve scroll via the same hook.
+  const { ref: scrollRef, onScroll } = usePreserveScroll(activeAccountId, active?.id ?? null)
+
+  const generateTitle = !profile
+    ? 'Load your profile first'
+    : !hasPosts
+      ? 'Gather posts first'
+      : needsRefresh
+        ? GENERATE_NEEDS_REFRESH_HINT
+        : `Analyzes ${posts.length} stored posts (Venice tokens)`
+
   return (
-    <div className="h-full overflow-y-auto px-6 py-4 space-y-4">
+    <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-6 py-4 space-y-4">
       <div className="flex items-center gap-2">
         <h2 className="text-[13px] font-semibold text-white/80">Your intelligence report</h2>
         <span className="text-[10px] text-white/25 font-mono">{hasPosts ? `${posts.length} posts stored` : 'no posts yet'}</span>
@@ -112,8 +132,10 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
           />
         )}
         <button
+          type="button"
           onClick={run}
-          disabled={busy || !hasPosts || !profile}
+          disabled={busy || !canGenerate}
+          title={generateTitle}
           className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {busy ? 'Generating…' : reportHistory.length > 0 ? 'Generate new report' : 'Generate report'}

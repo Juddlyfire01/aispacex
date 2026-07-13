@@ -3,15 +3,16 @@ import { useAuthStore } from '../stores/auth-store'
 import { VENICE_SERVER_FRONTED } from './venice-config'
 
 const ENV_BASE = (import.meta.env.VITE_VENICE_BASE_URL as string | undefined)?.replace(/\/$/, '')
-// When server-fronted, prod routes through our own proxy (which injects the
-// shared key); dev keeps using the Vite /venice proxy (which does the same).
-// Otherwise (BYOK) prod hits Venice directly with the user's client key.
+// Server-fronted: always hit our /api/venice/proxy so the shared key is injected
+// by vercel dev / Vercel Functions (same path in local dev and production).
+// BYOK: Vite /venice proxy in dev (optional local key inject or pass-through),
+// direct Venice API in production with the user's client key.
 export const BASE_URL =
   ENV_BASE ||
-  (import.meta.env.DEV
-    ? '/venice/api/v1'
-    : VENICE_SERVER_FRONTED
-      ? '/api/venice/proxy'
+  (VENICE_SERVER_FRONTED
+    ? '/api/venice/proxy'
+    : import.meta.env.DEV
+      ? '/venice/api/v1'
       : 'https://api.venice.ai/api/v1')
 
 const RETRY_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
@@ -105,8 +106,8 @@ interface VeniceFetchOptions extends RequestInit {
 export async function veniceFetch(path: string, options: VeniceFetchOptions): Promise<Response> {
   const { stream, noAuth, retries = MAX_RETRIES, ...fetchOptions } = options
   const headers = new Headers(fetchOptions.headers)
-  // When server-fronted, the proxy (prod) or Vite dev proxy injects the shared
-  // key — the browser must not send one. Otherwise use the user's client key.
+  // When server-fronted, /api/venice/proxy injects the shared key — the browser
+  // must not send one. Otherwise use the user's client key.
   if (!noAuth && !VENICE_SERVER_FRONTED) headers.set('Authorization', `Bearer ${getApiKey()}`)
   if (fetchOptions.body && typeof fetchOptions.body === 'string') {
     headers.set('Content-Type', 'application/json')

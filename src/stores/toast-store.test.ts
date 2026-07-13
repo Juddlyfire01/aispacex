@@ -48,8 +48,9 @@ describe('toast store progress lifecycle', () => {
     expect(failed.description).toBe('Venice timed out')
     expect(failed.progress).toBe(1)
     expect(failed.progressLabel).toBe('Failed')
+    expect(failed.duration).toBe(12_000)
 
-    vi.advanceTimersByTime(6500)
+    vi.advanceTimersByTime(12_000)
     expect(useToastStore.getState().toasts).toHaveLength(0)
   })
 

@@ -1,9 +1,9 @@
 import { useToastStore, type Toast } from '../../stores/toast-store'
 import { cn } from '../../lib/utils'
 
-/** Shared shell — every toast, every variant. Status color lives only on row 1. */
+/** Shared shell — min height keeps progress cards stable; grows for long errors. */
 const TOAST_SHELL =
-  'pointer-events-auto box-border flex h-[6.75rem] w-80 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-card)] px-3.5 py-2.5 shadow-[var(--color-surface-shadow)] animate-scale-in'
+  'pointer-events-auto box-border flex min-h-[6.75rem] w-80 max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-card)] px-3.5 py-2.5 shadow-[var(--color-surface-shadow)] animate-scale-in'
 
 const TITLE_COLOR: Record<Toast['variant'], string> = {
   info: 'text-[var(--color-accent)]',
@@ -38,8 +38,9 @@ function ProgressBar({ value }: { value: number }) {
 }
 
 /**
- * Global toast host. Every toast is a fixed 4-row card:
- * 1 title (status-colored) · 2 context · 3 progress bar or blank · 4 aux or blank.
+ * Global toast host. Layout:
+ * 1 title (status-colored) · 2 context (wraps, up to 4 lines) · 3 progress bar · 4 aux.
+ * Fixed height used to clip long failure reasons — description now wraps.
  */
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts)
@@ -68,15 +69,16 @@ export function Toaster() {
             key={t.id}
             role={t.variant === 'error' ? 'alert' : 'status'}
             className={TOAST_SHELL}
+            title={t.description ? `${t.title}: ${t.description}` : t.title}
           >
-            <div className="flex h-full w-full items-start gap-3">
+            <div className="flex w-full items-start gap-3">
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* Row 1 — status title */}
-                <div className={cn('truncate text-[13.5px] font-medium', TITLE_COLOR[t.variant])}>
+                <div className={cn('text-[13.5px] font-medium leading-snug', TITLE_COLOR[t.variant])}>
                   {t.title}
                 </div>
-                {/* Row 2 — context */}
-                <div className="mt-0.5 min-h-[1.25rem] truncate text-[12.5px] leading-relaxed text-[var(--color-text-secondary)]">
+                {/* Row 2 — context (wrap; clamp only after several lines) */}
+                <div className="mt-0.5 min-h-[1.25rem] text-[12.5px] leading-snug text-[var(--color-text-secondary)] line-clamp-4 break-words">
                   {t.description ?? '\u00a0'}
                 </div>
                 {/* Row 3 — progress bar or blank reserved */}
@@ -84,7 +86,7 @@ export function Toaster() {
                   {hasProgress ? <ProgressBar value={t.progress!} /> : null}
                 </div>
                 {/* Row 4 — aux / action or blank reserved */}
-                <div className="mt-1.5 flex h-[1.125rem] items-center">
+                <div className="mt-1.5 flex min-h-[1.125rem] items-center">
                   {t.action ? (
                     <button
                       type="button"

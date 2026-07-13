@@ -67,8 +67,8 @@ Deploy to [Vercel](https://vercel.com). The repo includes serverless proxies for
 
 Set environment variables in Vercel → Settings → Environment Variables:
 
-- `VENICE_API_KEY` — optional shared Venice key (server-side only)
-- `VITE_VENICE_SERVER_FRONTED=true` — hide BYOK UI when using a shared key
+- `VENICE_API_KEY` — optional shared Venice key (server-side only; injected by `/api/venice/proxy`)
+- `VITE_VENICE_SERVER_FRONTED=true` — hide BYOK UI and route Venice through that proxy (local + prod)
 - `X_CLIENT_ID` / `X_CLIENT_SECRET` — for Intel Connect X
 
 See `.env.example` for the full list.

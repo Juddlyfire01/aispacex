@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
 import { useModels } from '../../hooks/use-models'
+import { usePreserveScroll } from '../../hooks/use-preserve-scroll'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
 import { VerifiedBadge } from './verified-badge'
@@ -350,6 +351,8 @@ export function ProfileOverview({
 }: ProfileOverviewProps) {
   const { data: models } = useModels('text')
   const [settingsOpen, setSettingsOpen] = useState(true)
+  // Stay put while refresh rewrites profile/posts; reset only when subject changes.
+  const { ref: scrollRef, onScroll } = usePreserveScroll(profile?.id ?? null)
 
   useEffect(() => {
     if (!models?.length) return
@@ -417,7 +420,7 @@ export function ProfileOverview({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto">
       {/* Refresh bar */}
       <div className="px-5 pt-4 pb-3 border-b border-white/[0.04]">
         <SectionRefresh

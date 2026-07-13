@@ -6,9 +6,11 @@ import {
   X_ENGAGEMENT_WEIGHTS,
   buildTopPosts,
   comparePeriods,
+  compareRangePeriods,
   buildDailySeries,
   buildGlance,
   buildCatalysts,
+  periodDaysForWindow,
   makeSnapshot,
   appendSnapshot,
   followersDeltaFromHistory,
@@ -24,13 +26,28 @@ describe('filterPostsByWindow', () => {
   const mid = makePost({ id: 'm', createdAt: '2026-06-20T12:00:00.000Z' })
   const old = makePost({ id: 'o', createdAt: '2026-01-01T12:00:00.000Z' })
 
-  it('keeps 7d / 30d / all correctly', () => {
+  it('keeps 1d / 7d / 30d / all correctly', () => {
+    const today = makePost({ id: 't', createdAt: '2026-07-12T08:00:00.000Z' })
+    expect(filterPostsByWindow([today, recent, mid, old], '1d', NOW).map((p) => p.id)).toEqual([
+      't',
+    ])
     expect(filterPostsByWindow([recent, mid, old], '7d', NOW).map((p) => p.id)).toEqual(['r'])
     expect(filterPostsByWindow([recent, mid, old], '30d', NOW).map((p) => p.id).sort()).toEqual([
       'm',
       'r',
     ])
     expect(filterPostsByWindow([recent, mid, old], 'all', NOW)).toHaveLength(3)
+  })
+
+  it('filters by custom range', () => {
+    const range = {
+      startMs: Date.parse('2026-06-01T00:00:00.000Z'),
+      endMs: Date.parse('2026-07-01T00:00:00.000Z'),
+    }
+    expect(
+      filterPostsByWindow([recent, mid, old], 'range', NOW, range).map((p) => p.id),
+    ).toEqual(['m'])
+    expect(filterPostsByWindow([recent, mid, old], 'range', NOW, null)).toEqual([])
   })
 
   it('drops pure retweets even when in window', () => {
@@ -197,6 +214,40 @@ describe('period compare + series + catalysts', () => {
     expect(cmp.current.likes).toBe(100)
     expect(cmp.previous.likes).toBe(10)
     expect(cmp.delta.likes).toBe(90)
+  })
+
+  it('compareRangePeriods uses equal-length prior interval', () => {
+    // Range [Jul 1, Jul 11) = 10d; prior [Jun 21, Jul 1)
+    const posts = [
+      own({
+        id: 'cur',
+        createdAt: '2026-07-05T12:00:00.000Z',
+        metrics: { impressions: 500, likes: 50, reposts: 0, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+      own({
+        id: 'prev',
+        createdAt: '2026-06-25T12:00:00.000Z',
+        metrics: { impressions: 100, likes: 10, reposts: 0, replies: 0, quotes: 0, bookmarks: 0 },
+      }),
+    ]
+    const startMs = Date.parse('2026-07-01T00:00:00.000Z')
+    const endMs = Date.parse('2026-07-11T00:00:00.000Z')
+    const cmp = compareRangePeriods(posts, startMs, endMs)
+    expect(cmp.current.likes).toBe(50)
+    expect(cmp.previous.likes).toBe(10)
+    expect(cmp.delta.likes).toBe(40)
+    expect(cmp.periodDays).toBe(10)
+  })
+
+  it('periodDaysForWindow handles 1d and range', () => {
+    expect(periodDaysForWindow('1d')).toBe(1)
+    expect(periodDaysForWindow('7d')).toBe(7)
+    expect(
+      periodDaysForWindow('range', {
+        startMs: Date.parse('2026-07-01T00:00:00.000Z'),
+        endMs: Date.parse('2026-07-15T00:00:00.000Z'),
+      }),
+    ).toBe(14)
   })
 
   it('does not credit viral RT shells as earned reposts', () => {

@@ -5,9 +5,14 @@ import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { maxOwnPostId, partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
 import { beginReportProgress } from './report-progress'
+import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from './report-gate'
+import { flushEncryptedStorage } from '../encrypted-storage'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
 import { toast } from '../../stores/toast-store'
 import type { IntelReportSnapshot, Post } from './types'
+
+const REPORT_DISK_SAVE_FAILED =
+  'Report is in this tab, but browser storage could not save it (often full). It will be lost on reload — free space and generate again.'
 
 function requireReport(username: string): { key: string; report: IntelReport } {
   const reports = useXIntelStore.getState().reports
@@ -208,6 +213,10 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   }
   if (!report.profile) throw new Error('Gather the profile first')
   if (report.posts.length === 0) throw new Error('Gather posts first (re-gather from the profile rail)')
+  const latestReportAt = report.reportHistory[0]?.createdAt
+  if (!canGenerateAfterRefresh(latestReportAt, report.refreshedAt?.profile)) {
+    throw new Error(GENERATE_NEEDS_REFRESH_HINT)
+  }
 
   // Snapshot inputs up front so navigate-away / store churn cannot mid-flight
   // the analytics + synthesis against a different corpus.
@@ -279,6 +288,14 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
     }
 
     useXIntelStore.getState().appendReport(key, snapshot)
+    // Persist is async (encrypt + localStorage). Await so we don't claim "ready"
+    // when the write failed (quota) — that looked like "report failed to save".
+    const saved = await flushEncryptedStorage('x-intel-reports')
+    if (!saved) {
+      useXIntelStore.getState().setReportGenerateError(key, REPORT_DISK_SAVE_FAILED)
+      progress.fail('Report not saved', REPORT_DISK_SAVE_FAILED)
+      return snapshot
+    }
     progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {

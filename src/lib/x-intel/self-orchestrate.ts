@@ -29,6 +29,8 @@ import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
 import { beginReportProgress } from './report-progress'
+import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from './report-gate'
+import { flushEncryptedStorage } from '../encrypted-storage'
 import type { IntelTopTab } from '../../stores/x-intel-store'
 import { findReportKey, mergePosts, newReportId, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -408,6 +410,10 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
   const account = state.accounts[accountId]
   if (!account || !account.profile) throw new Error('Load your profile first')
   if (account.posts.length === 0) throw new Error('Gather your posts first')
+  const latestReportAt = account.reportHistory[0]?.createdAt
+  if (!canGenerateAfterRefresh(latestReportAt, account.refreshedAt?.profile)) {
+    throw new Error(GENERATE_NEEDS_REFRESH_HINT)
+  }
 
   // Snapshot inputs so unmount / account switch cannot mid-flight the job.
   const profile = account.profile
@@ -470,6 +476,16 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
     }
 
     useXSelfStore.getState().appendReport(accountId, snapshot)
+    // Persist is async (encrypt + localStorage). Await so we don't claim "ready"
+    // when the write failed (quota) — that looked like "report failed to save".
+    const saved = await flushEncryptedStorage('x-self-profile')
+    if (!saved) {
+      const msg =
+        'Report is in this tab, but browser storage could not save it (often full). It will be lost on reload — free space and generate again.'
+      useXSelfStore.getState().setReportGenerateError(accountId, msg)
+      progress.fail('Report not saved', msg)
+      return snapshot
+    }
     progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {

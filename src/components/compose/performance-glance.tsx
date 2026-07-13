@@ -58,7 +58,7 @@ export function PerformanceGlance({ glance }: { glance: PerformanceGlanceData })
   return (
     <div className="px-4 py-3 space-y-2">
       <p className="text-[10px] text-[var(--color-text-tertiary)]">
-        Totals for posts created in the last {glance.periodDays}d · {period}
+        Totals for posts in this window · {period}
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <PerfStat

@@ -1,7 +1,13 @@
 import type { Post, PostKind, Profile } from './types'
 import { isPureRetweet } from './post-kind'
 
-export type PerformanceWindow = '7d' | '30d' | 'all'
+export type PerformanceWindow = '1d' | '7d' | '30d' | 'all' | 'range'
+
+/** Inclusive calendar range as half-open [startMs, endMs). Used when window is `range`. */
+export interface PerformanceCustomRange {
+  startMs: number
+  endMs: number
+}
 
 /** Rank modes: raw metrics + X-style weighted composite. */
 export type PerformanceRankMode =
@@ -54,16 +60,68 @@ export function earnedEngagementPosts(posts: Post[]): Post[] {
   return posts.filter(isEarnedEngagementPost)
 }
 
+/** Local calendar day start for a `YYYY-MM-DD` input value. */
+export function parseDateInputStart(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return NaN
+  return new Date(y, m - 1, d, 0, 0, 0, 0).getTime()
+}
+
+/** Exclusive end: start of the day after `YYYY-MM-DD` (local). */
+export function parseDateInputEndExclusive(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return NaN
+  return new Date(y, m - 1, d + 1, 0, 0, 0, 0).getTime()
+}
+
+/** Format a timestamp as local `YYYY-MM-DD` for date inputs. */
+export function toDateInputValue(ms: number): string {
+  const d = new Date(ms)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function defaultCustomRange(nowMs: number = Date.now()): PerformanceCustomRange {
+  const endDay = toDateInputValue(nowMs)
+  const startDay = toDateInputValue(nowMs - 29 * DAY_MS)
+  return {
+    startMs: parseDateInputStart(startDay),
+    endMs: parseDateInputEndExclusive(endDay),
+  }
+}
+
+function isValidCustomRange(range?: PerformanceCustomRange | null): range is PerformanceCustomRange {
+  return (
+    !!range &&
+    Number.isFinite(range.startMs) &&
+    Number.isFinite(range.endMs) &&
+    range.endMs > range.startMs
+  )
+}
+
+function presetWindowDays(window: PerformanceWindow): number {
+  if (window === '1d') return 1
+  if (window === '7d') return 7
+  return 30
+}
+
 export function filterPostsByWindow(
   posts: Post[],
   window: PerformanceWindow,
   nowMs: number = Date.now(),
+  range?: PerformanceCustomRange | null,
 ): Post[] {
   const earned = earnedEngagementPosts(posts)
+  if (window === 'range') {
+    if (!isValidCustomRange(range)) return []
+    return postsInRange(posts, range.startMs, range.endMs)
+  }
   if (window === 'all') {
     return earned.filter((p) => Number.isFinite(Date.parse(p.createdAt)))
   }
-  const days = window === '7d' ? 7 : 30
+  const days = presetWindowDays(window)
   const cutoff = nowMs - days * DAY_MS
   return earned.filter((p) => {
     const t = Date.parse(p.createdAt)
@@ -202,10 +260,11 @@ export function buildTopPosts(opts: {
   window: PerformanceWindow
   mode: PerformanceRankMode
   nowMs?: number
+  range?: PerformanceCustomRange | null
   inbound?: Post[]
 }): TopPostsResult {
   const nowMs = opts.nowMs ?? Date.now()
-  const candidates = filterPostsByWindow(opts.posts, opts.window, nowMs)
+  const candidates = filterPostsByWindow(opts.posts, opts.window, nowMs, opts.range)
   const mode = opts.mode
   const inbound = opts.inbound ?? []
 
@@ -319,10 +378,34 @@ export function comparePeriods(
   return { periodDays, current, previous, delta }
 }
 
-export function periodDaysForWindow(window: PerformanceWindow): number {
+/** Current range vs equal-length prior interval immediately before start. */
+export function compareRangePeriods(
+  posts: Post[],
+  startMs: number,
+  endMs: number,
+): PeriodCompare {
+  const duration = Math.max(1, endMs - startMs)
+  const periodDays = Math.max(1, Math.round(duration / DAY_MS))
+  const current = sumPostMetrics(postsInRange(posts, startMs, endMs))
+  const previous = sumPostMetrics(postsInRange(posts, startMs - duration, startMs))
+  const delta = emptyTotals()
+  for (const k of Object.keys(delta) as (keyof MetricTotals)[]) {
+    delta[k] = current[k] - previous[k]
+  }
+  return { periodDays, current, previous, delta }
+}
+
+export function periodDaysForWindow(
+  window: PerformanceWindow,
+  range?: PerformanceCustomRange | null,
+): number {
+  if (window === '1d') return 1
   if (window === '7d') return 7
   if (window === '30d') return 30
-  return 30 // All still uses 30d period compare for deltas
+  if (window === 'range' && isValidCustomRange(range)) {
+    return Math.max(1, Math.round((range.endMs - range.startMs) / DAY_MS))
+  }
+  return 30 // All / invalid range still uses 30d period compare for deltas
 }
 
 export interface SeriesPoint {
@@ -336,8 +419,9 @@ export function buildDailySeries(
   window: PerformanceWindow,
   mode: PerformanceRankMode,
   nowMs: number = Date.now(),
+  range?: PerformanceCustomRange | null,
 ): SeriesPoint[] {
-  const candidates = filterPostsByWindow(posts, window, nowMs)
+  const candidates = filterPostsByWindow(posts, window, nowMs, range)
   const byDay = new Map<number, number>()
   for (const p of candidates) {
     const t = Date.parse(p.createdAt)
@@ -406,13 +490,17 @@ export function buildGlance(opts: {
   posts: Post[]
   window: PerformanceWindow
   nowMs?: number
+  range?: PerformanceCustomRange | null
   followers?: number | null
   followersDelta?: number | null
 }): PerformanceGlance {
   const nowMs = opts.nowMs ?? Date.now()
-  const periodDays = periodDaysForWindow(opts.window)
-  const cmp = comparePeriods(opts.posts, periodDays, nowMs)
-  const windowPosts = filterPostsByWindow(opts.posts, opts.window, nowMs)
+  const periodDays = periodDaysForWindow(opts.window, opts.range)
+  const cmp =
+    opts.window === 'range' && isValidCustomRange(opts.range)
+      ? compareRangePeriods(opts.posts, opts.range.startMs, opts.range.endMs)
+      : comparePeriods(opts.posts, periodDays, nowMs)
+  const windowPosts = filterPostsByWindow(opts.posts, opts.window, nowMs, opts.range)
   return {
     current: cmp.current,
     previous: cmp.previous,
@@ -437,11 +525,15 @@ export function buildCatalysts(opts: {
   posts: Post[]
   window: PerformanceWindow
   nowMs?: number
+  range?: PerformanceCustomRange | null
   followersDelta?: number | null
 }): CatalystResult | null {
   const nowMs = opts.nowMs ?? Date.now()
-  const periodDays = periodDaysForWindow(opts.window)
-  const cmp = comparePeriods(opts.posts, periodDays, nowMs)
+  const periodDays = periodDaysForWindow(opts.window, opts.range)
+  const useRange = opts.window === 'range' && isValidCustomRange(opts.range)
+  const cmp = useRange
+    ? compareRangePeriods(opts.posts, opts.range!.startMs, opts.range!.endMs)
+    : comparePeriods(opts.posts, periodDays, nowMs)
   const candidates: { key: keyof MetricTotals | 'followers'; delta: number; label: string }[] = [
     { key: 'xScore', delta: cmp.delta.xScore, label: 'X-style score' },
     { key: 'impressions', delta: cmp.delta.impressions, label: 'impressions' },
@@ -463,8 +555,9 @@ export function buildCatalysts(opts: {
     .sort((a, b) => b.delta - a.delta)[0]
   if (!best) return null
 
-  const curStart = nowMs - periodDays * DAY_MS
-  const posts = catalystPosts(opts.posts, curStart, nowMs + 1)
+  const curStart = useRange ? opts.range!.startMs : nowMs - periodDays * DAY_MS
+  const curEnd = useRange ? opts.range!.endMs : nowMs + 1
+  const posts = catalystPosts(opts.posts, curStart, curEnd)
   if (posts.length === 0) return null
 
   const caption = `${best.label} up vs prior ${periodDays}d — posts that stood out in this window (correlation, not proof of cause).`

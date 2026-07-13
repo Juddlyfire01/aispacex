@@ -13,9 +13,14 @@ import {
   buildDailySeries,
   buildGlance,
   buildTopPosts,
+  defaultCustomRange,
   followersDeltaFromHistory,
+  parseDateInputEndExclusive,
+  parseDateInputStart,
   periodDaysForWindow,
+  toDateInputValue,
   type MetricSnapshot,
+  type PerformanceCustomRange,
   type PerformanceRankMode,
   type PerformanceWindow,
 } from '../../lib/x-intel/performance'
@@ -65,6 +70,19 @@ export function PerformanceView({
   const [timeWindow, setTimeWindow] = useState<PerformanceWindow>('30d')
   const [mode, setMode] = useState<PerformanceRankMode>('composite')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const initialRange = useMemo(() => defaultCustomRange(), [])
+  const [rangeFrom, setRangeFrom] = useState(() => toDateInputValue(initialRange.startMs))
+  const [rangeTo, setRangeTo] = useState(() =>
+    toDateInputValue(initialRange.endMs - 1),
+  )
+
+  const customRange = useMemo((): PerformanceCustomRange | null => {
+    if (!rangeFrom || !rangeTo) return null
+    const startMs = parseDateInputStart(rangeFrom)
+    const endMs = parseDateInputEndExclusive(rangeTo)
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null
+    return { startMs, endMs }
+  }, [rangeFrom, rangeTo])
 
   const selfAccount = useMemo(
     () => toSelfSlice(activeAccountId ? accounts[activeAccountId] : undefined),
@@ -150,48 +168,51 @@ export function PerformanceView({
       profile: subject.profile,
       window: timeWindow,
       mode,
+      range: customRange,
       inbound: subject.inbound,
     })
-  }, [subject, timeWindow, mode])
+  }, [subject, timeWindow, mode, customRange])
 
   const followersDelta = useMemo(() => {
     if (subject.status !== 'ok') return null
     return followersDeltaFromHistory(
       metricHistory,
-      periodDaysForWindow(timeWindow),
+      periodDaysForWindow(timeWindow, customRange),
     )
-  }, [subject, metricHistory, timeWindow])
+  }, [subject, metricHistory, timeWindow, customRange])
 
   const glance = useMemo(() => {
     if (subject.status !== 'ok') return null
     return buildGlance({
       posts: subject.ownPosts,
       window: timeWindow,
+      range: customRange,
       followers: subject.profile.metrics.followers,
       followersDelta,
     })
-  }, [subject, timeWindow, followersDelta])
+  }, [subject, timeWindow, customRange, followersDelta])
 
   const series = useMemo(() => {
     if (subject.status !== 'ok') return []
-    return buildDailySeries(subject.ownPosts, timeWindow, mode)
-  }, [subject, timeWindow, mode])
+    return buildDailySeries(subject.ownPosts, timeWindow, mode, Date.now(), customRange)
+  }, [subject, timeWindow, mode, customRange])
 
   const catalyst = useMemo(() => {
     if (subject.status !== 'ok') return null
     return buildCatalysts({
       posts: subject.ownPosts,
       window: timeWindow,
+      range: customRange,
       followersDelta,
     })
-  }, [subject, timeWindow, followersDelta])
+  }, [subject, timeWindow, customRange, followersDelta])
 
   const subjectKey = subject.status === 'ok' ? subject.username : null
   const firstId = top?.items[0]?.post.id ?? null
 
   useEffect(() => {
     setExpandedId(firstId)
-  }, [subjectKey, timeWindow, mode, firstId])
+  }, [subjectKey, timeWindow, mode, customRange, firstId])
 
   let body: ReactNode
   if (subject.status === 'need_profile') {
@@ -207,7 +228,13 @@ export function PerformanceView({
   } else if (subject.status === 'missing_target') {
     body = <EmptyBody>{`No report loaded for @${subject.username}.`}</EmptyBody>
   } else if (!top || top.candidates.length === 0) {
-    body = <EmptyBody>No posts in this window — try 30d or All.</EmptyBody>
+    body = (
+      <EmptyBody>
+        {timeWindow === 'range'
+          ? 'No posts in this date range — widen From/To or try 30d / All.'
+          : 'No posts in this window — try 30d or All.'}
+      </EmptyBody>
+    )
   } else {
     body = (
       <>
@@ -245,6 +272,10 @@ export function PerformanceView({
         mode={mode}
         onWindow={setTimeWindow}
         onMode={setMode}
+        rangeFrom={rangeFrom}
+        rangeTo={rangeTo}
+        onRangeFrom={setRangeFrom}
+        onRangeTo={setRangeTo}
       />
       <div className="flex-1 min-h-0 overflow-y-auto">{body}</div>
     </div>

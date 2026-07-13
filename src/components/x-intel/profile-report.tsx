@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { usePreserveScroll } from '../../hooks/use-preserve-scroll'
+import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from '../../lib/x-intel/report-gate'
 import { MarkdownMessage } from '../chat/markdown-message'
 import { MentionLink } from './mention-link'
 import { EthAddressLink } from './eth-address-link'
@@ -616,15 +618,31 @@ export function ProfileReport() {
   // Live analytics preview over current posts (free, instant) when no report is selected yet.
   const liveAnalytics = !active && profile && hasPosts ? computeAnalytics(profile, posts, edges) : null
 
+  const latestReportAt = reportHistory[0]?.createdAt
+  const needsRefresh = !canGenerateAfterRefresh(latestReportAt, report.refreshedAt?.profile)
+  const canGenerate = Boolean(profile && hasPosts && !needsRefresh)
+
   const run = () => {
-    if (busy) return
+    if (busy || !canGenerate) return
+    // Blur so focus restoration does not yank the pane when the button re-enables.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     void generateReport(activeTarget).catch(() => { /* error stored on x-intel-store */ })
   }
 
   const buttonLabel = busy ? 'Generating…' : reportHistory.length > 0 ? 'Generate new report' : 'Generate report'
+  const generateTitle = !profile
+    ? 'Gather the profile first'
+    : !hasPosts
+      ? 'Gather posts first'
+      : needsRefresh
+        ? GENERATE_NEEDS_REFRESH_HINT
+        : `Analyzes ${posts.length} stored posts (Venice tokens)`
+
+  // Anchor on active report so a finished generate (or timeline pick) lands at top.
+  const { ref: scrollRef, onScroll } = usePreserveScroll(activeTarget, active?.id ?? null)
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-4 space-y-4">
+    <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-6 py-4 space-y-4">
       {/* Header: title + generate */}
       <div className="flex items-center gap-2">
         <h2 className="text-[13px] font-semibold text-white/80">Intelligence report</h2>
@@ -641,9 +659,10 @@ export function ProfileReport() {
           />
         )}
         <button
+          type="button"
           onClick={run}
-          disabled={busy || !hasPosts || !profile}
-          title={!hasPosts ? 'Gather posts first' : `Analyzes ${posts.length} stored posts (Venice tokens)`}
+          disabled={busy || !canGenerate}
+          title={generateTitle}
           className="px-3 py-1 text-[11px] font-medium rounded-md bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {buttonLabel}

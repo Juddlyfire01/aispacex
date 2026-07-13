@@ -22,9 +22,8 @@ export default defineConfig(({ mode }) => {
           target: 'https://api.venice.ai',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/venice/, ''),
-          // Front Venice in dev the same way prod does: inject the shared key
-          // server-side so the browser never holds it. Only when configured —
-          // otherwise the client's own Authorization header (BYOK) passes through.
+          // BYOK-only path: optional local VENICE_API_KEY inject for /venice.
+          // Server-fronted mode uses /api/venice/proxy (vercel dev) instead.
           configure: (proxy) => {
             if (!veniceKey) return
             proxy.on('proxyReq', (proxyReq) => {
