@@ -7,7 +7,7 @@ import {
   describeDraftWriteLabels,
   DRAFT_MODEL_SAME,
 } from './draft-writer-tool'
-import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText } from './draft-writer'
+import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText, packConversationForWriter } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
 
@@ -45,10 +45,10 @@ describe('parseDraftWriteBrief', () => {
 })
 
 describe('isDraftHandoffEnabled', () => {
-  it('always enables the draft tool path', () => {
-    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(true)
-    expect(isDraftHandoffEnabled('')).toBe(true)
-    expect(isDraftHandoffEnabled(null)).toBe(true)
+  it('enables handoff only for a separate draft model', () => {
+    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(false)
+    expect(isDraftHandoffEnabled('')).toBe(false)
+    expect(isDraftHandoffEnabled(null)).toBe(false)
     expect(isDraftHandoffEnabled('venice-uncensored-1-2')).toBe(true)
   })
 })
@@ -161,6 +161,50 @@ describe('buildWriterSystem', () => {
     expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
     expect(sys).toMatch(/REGISTER OVERRIDE/)
     expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
+  })
+
+  it('instructs writer to use conversation + brief when hasConversation', () => {
+    const sys = buildWriterSystem(null, { hasConversation: true })
+    expect(sys).toMatch(/conversation history AND a writing brief/i)
+    expect(buildWriterSystem(null, { hasConversation: false })).toMatch(/Follow the brief tightly/)
+  })
+})
+
+describe('packConversationForWriter', () => {
+  it('packs user/assistant turns and drops system/tool', () => {
+    const packed = packConversationForWriter([
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'Research Oregon and SpaceX' },
+      { role: 'assistant', content: 'Oregon + orbital compute angle.' },
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 't1' },
+    ])
+    expect(packed).toMatch(/User:\nResearch Oregon/)
+    expect(packed).toMatch(/Research model:\nOregon/)
+    expect(packed).not.toMatch(/sys/)
+    expect(packed).not.toMatch(/ok/)
+  })
+
+  it('keeps recent turns when over maxChars', () => {
+    const packed = packConversationForWriter(
+      [
+        { role: 'user', content: 'AAAA' },
+        { role: 'assistant', content: 'BBBB' },
+        { role: 'user', content: 'CCCC' },
+      ],
+      40,
+    )
+    expect(packed).toMatch(/CCCC/)
+    expect(packed).toMatch(/omitted for length/)
+    expect(packed).not.toMatch(/AAAA/)
+  })
+})
+
+describe('buildWriterUser with conversation', () => {
+  it('prepends research conversation before the brief', () => {
+    const u = buildWriterUser({ brief: 'Write the article' }, false, 'User:\nDo Plan L')
+    expect(u).toMatch(/Research conversation/)
+    expect(u).toMatch(/Do Plan L/)
+    expect(u).toMatch(/Brief:\nWrite the article/)
   })
 })
 

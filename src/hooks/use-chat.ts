@@ -1,33 +1,37 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { venice } from '../lib/venice-client'
 import { parseSSEStream } from '../lib/stream'
 import { useChatStore } from '../stores/chat-store'
 import type { ChatCompletionRequest, ChatMessage, ContentPart } from '../types/venice'
 import { yieldForPaint } from '../lib/yield-for-paint'
+import {
+  pauseEncryptedPersist,
+  resumeEncryptedPersist,
+  flushEncryptedStorage,
+} from '../lib/encrypted-storage'
+import { registerWipFlush } from '../lib/wip-guard'
 
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null)
-  const {
-    addMessage,
-    appendToLastAssistant,
-    appendReasoningToLastAssistant,
-    deleteMessage,
-    setStreaming,
-    isStreaming,
-    veniceParams,
-    systemPrompt,
-    temperature,
-    topP,
-    maxTokens,
-    createConversation,
-  } = useChatStore()
+  // Narrow: bare useChatStore() re-rendered the whole chat tree on every token.
+  const isStreaming = useChatStore((s) => s.isStreaming)
+
+  useEffect(
+    () =>
+      registerWipFlush(() => {
+        // Chat writes tokens straight to the store; just ensure disk flush later.
+      }),
+    [],
+  )
 
   const streamResponse = useCallback(
     async (convId: string, model: string, abortController: AbortController) => {
-      const conv = useChatStore.getState().conversations.find((c) => c.id === convId)
+      const state = useChatStore.getState()
+      const conv = state.conversations.find((c) => c.id === convId)
       if (!conv) return
 
+      const { systemPrompt, temperature, topP, maxTokens, veniceParams } = state
       const messages = conv.messages.filter((m) => {
         if (typeof m.content === 'string') return m.content !== ''
         return true
@@ -56,21 +60,22 @@ export function useChat() {
       for await (const chunk of parseSSEStream(stream, { signal: abortController.signal })) {
         const delta = chunk.choices[0]?.delta
         if (delta?.content) {
-          appendToLastAssistant(convId, delta.content)
+          useChatStore.getState().appendToLastAssistant(convId, delta.content)
         }
         if (delta?.reasoning_content) {
-          appendReasoningToLastAssistant(convId, delta.reasoning_content)
+          useChatStore.getState().appendReasoningToLastAssistant(convId, delta.reasoning_content)
         }
       }
     },
-    [appendToLastAssistant, appendReasoningToLastAssistant, veniceParams, systemPrompt, temperature, topP, maxTokens],
+    [],
   )
 
   const send = useCallback(
     async (userMessage: string, model: string, imageAttachments?: string[]) => {
-      let convId = useChatStore.getState().activeConversationId
+      const store = useChatStore.getState()
+      let convId = store.activeConversationId
       if (!convId) {
-        convId = createConversation(model)
+        convId = store.createConversation(model)
       }
 
       // Build user message — plain text or multimodal with images
@@ -86,12 +91,13 @@ export function useChat() {
       }
 
       flushSync(() => {
-        setStreaming(true)
+        useChatStore.getState().setStreaming(true)
       })
       await yieldForPaint()
 
-      addMessage(convId, userMsg)
-      addMessage(convId, { role: 'assistant', content: '' })
+      useChatStore.getState().addMessage(convId, userMsg)
+      useChatStore.getState().addMessage(convId, { role: 'assistant', content: '' })
+      pauseEncryptedPersist()
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -101,33 +107,37 @@ export function useChat() {
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         const message = err instanceof Error ? err.message : 'Unknown error'
-        appendToLastAssistant(convId!, `\n\n[Error: ${message}]`)
+        useChatStore.getState().appendToLastAssistant(convId!, `\n\n[Error: ${message}]`)
       } finally {
-        setStreaming(false)
+        useChatStore.getState().setStreaming(false)
         abortRef.current = null
+        resumeEncryptedPersist()
+        void flushEncryptedStorage('venice-chat')
       }
     },
-    [addMessage, appendToLastAssistant, createConversation, setStreaming, streamResponse],
+    [streamResponse],
   )
 
   const regenerate = useCallback(
     async (model: string) => {
-      const convId = useChatStore.getState().activeConversationId
+      const store = useChatStore.getState()
+      const convId = store.activeConversationId
       if (!convId) return
-      const conv = useChatStore.getState().conversations.find((c) => c.id === convId)
+      const conv = store.conversations.find((c) => c.id === convId)
       if (!conv) return
 
       const lastAssistantIdx = conv.messages.length - 1
       if (conv.messages[lastAssistantIdx]?.role === 'assistant') {
-        deleteMessage(convId, lastAssistantIdx)
+        store.deleteMessage(convId, lastAssistantIdx)
       }
 
       flushSync(() => {
-        setStreaming(true)
+        useChatStore.getState().setStreaming(true)
       })
       await yieldForPaint()
 
-      addMessage(convId, { role: 'assistant', content: '' })
+      useChatStore.getState().addMessage(convId, { role: 'assistant', content: '' })
+      pauseEncryptedPersist()
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -137,19 +147,23 @@ export function useChat() {
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         const message = err instanceof Error ? err.message : 'Unknown error'
-        appendToLastAssistant(convId, `\n\n[Error: ${message}]`)
+        useChatStore.getState().appendToLastAssistant(convId, `\n\n[Error: ${message}]`)
       } finally {
-        setStreaming(false)
+        useChatStore.getState().setStreaming(false)
         abortRef.current = null
+        resumeEncryptedPersist()
+        void flushEncryptedStorage('venice-chat')
       }
     },
-    [addMessage, appendToLastAssistant, deleteMessage, setStreaming, streamResponse],
+    [streamResponse],
   )
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
-    setStreaming(false)
-  }, [setStreaming])
+    useChatStore.getState().setStreaming(false)
+    resumeEncryptedPersist()
+    void flushEncryptedStorage('venice-chat')
+  }, [])
 
   return { send, stop, regenerate, isStreaming }
 }

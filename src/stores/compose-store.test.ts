@@ -94,6 +94,38 @@ describe('compose-store', () => {
     expect(draft.updatedAt >= before).toBe(true)
   })
 
+  it('patchSegmentsStream skips meta recompute / order bump', () => {
+    const s = useComposeStore.getState()
+    const id = s.createThread()
+    const orderBefore = useComposeStore.getState().threadOrder
+    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
+    const updatedAtBefore = useComposeStore.getState().threads[id].draft.updatedAt
+    s.patchSegmentsStream(id, [{ id: 'stream', text: 'hello', media: [] }])
+    const after = useComposeStore.getState()
+    expect(after.threads[id].draft.segments[0].text).toBe('hello')
+    expect(after.threadOrder).toEqual(orderBefore)
+    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
+    // Hot path does not touch draft.updatedAt
+    expect(after.threads[id].draft.updatedAt).toBe(updatedAtBefore)
+  })
+
+  it('setSegmentText is a hot path (no meta / order / timestamp)', () => {
+    const s = useComposeStore.getState()
+    const id = s.createThread()
+    const segId = useComposeStore.getState().threads[id].draft.segments[0].id
+    const orderBefore = useComposeStore.getState().threadOrder
+    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
+    const updatedAtBefore = useComposeStore.getState().threads[id].draft.updatedAt
+    const titleBefore = useComposeStore.getState().threads[id].title
+    s.setSegmentText(id, segId, 'typed live')
+    const after = useComposeStore.getState()
+    expect(after.threads[id].draft.segments[0].text).toBe('typed live')
+    expect(after.threadOrder).toEqual(orderBefore)
+    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
+    expect(after.threads[id].draft.updatedAt).toBe(updatedAtBefore)
+    expect(after.threads[id].title).toBe(titleBefore)
+  })
+
   it('adds, edits, moves and removes segments', () => {
     const s = useComposeStore.getState()
     const id = s.createThread()

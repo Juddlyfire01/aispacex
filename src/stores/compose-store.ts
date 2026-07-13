@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PreferredFormat } from '../lib/compose/format'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
@@ -11,7 +11,7 @@ import { recomputeThreadMeta } from '../lib/compose/thread-meta'
 import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import type { ComposeScope } from '../lib/intel-library/types'
 import { scopeFromContext } from '../lib/intel-library/scope'
-import { createEncryptedStorage } from '../lib/encrypted-storage'
+import { createDebouncedJSONStorage } from '../lib/encrypted-storage'
 import type { AgentEvent, AgentEventStatus } from '../lib/compose/agent-events'
 import { DRAFT_MODEL_SAME } from '../lib/compose/draft-writer-tool'
 
@@ -103,6 +103,11 @@ interface ComposeState {
     threadId: string,
     patch: { title: string; bodyMarkdown: string },
   ) => void
+  /**
+   * Hot path for draft-writer post/thread segments — skips meta / order bump.
+   * Finalize with applyDraftPatch (or setLastAssistantContent-style path) once.
+   */
+  patchSegmentsStream: (threadId: string, segments: PostSegment[]) => void
 
   addMessage: (threadId: string, message: ComposeMessage) => void
   appendToLastAssistant: (threadId: string, token: string) => void
@@ -391,12 +396,22 @@ export const useComposeStore = create<ComposeState>()(
         set({ draftDrawerWidthPct: Math.min(75, Math.max(25, Math.round(pct))) }),
       setDraftWriterStreaming: (streaming) => set({ draftWriterStreaming: streaming }),
 
-      // Hot path: do NOT recomputeThreadMeta / bumpOrder on every writer token.
+      // Hot path: do NOT recomputeThreadMeta / bumpOrder on every writer token
+      // or keystroke into the article title/body.
       patchArticleStream: (threadId, patch) =>
         set((s) => {
           const thread = s.threads[threadId]
           if (!thread) return {}
           const prev = thread.draft.article
+          const nextTitle = patch.title
+          const nextBody = patch.bodyMarkdown
+          if (
+            prev &&
+            prev.title === nextTitle &&
+            prev.bodyMarkdown === nextBody
+          ) {
+            return {}
+          }
           return {
             threads: {
               ...s.threads,
@@ -407,12 +422,31 @@ export const useComposeStore = create<ComposeState>()(
                   longform: false,
                   target: { kind: 'original' as const },
                   article: {
-                    title: patch.title,
-                    bodyMarkdown: patch.bodyMarkdown,
+                    title: nextTitle,
+                    bodyMarkdown: nextBody,
                     cover: prev?.cover,
                     inlineMedia: prev?.inlineMedia ?? [],
                     contentState: prev?.contentState,
                   },
+                },
+              },
+            },
+          }
+        }),
+
+      patchSegmentsStream: (threadId, segments) =>
+        set((s) => {
+          const thread = s.threads[threadId]
+          if (!thread) return {}
+          return {
+            threads: {
+              ...s.threads,
+              [threadId]: {
+                ...thread,
+                draft: {
+                  ...thread.draft,
+                  segments,
+                  article: undefined,
                 },
               },
             },
@@ -483,21 +517,69 @@ export const useComposeStore = create<ComposeState>()(
       applyDraftPatch: (threadId, patch) =>
         set((s) => mapDraft(s, threadId, (draft) => ({ ...draft, ...patch }))),
 
+      // Hot path: typing into a segment must not recomputeThreadMeta / bumpOrder /
+      // touch timestamps — that + full-thread JSON persist made every keystroke lag.
+      // Meta is refreshed on structural draft changes (add/remove/move) and finalize.
       setSegmentText: (threadId, segmentId, text) =>
-        set((s) =>
-          mapDraft(s, threadId, (draft) => ({
-            ...draft,
-            segments: draft.segments.map((seg) => (seg.id === segmentId ? { ...seg, text } : seg)),
-          })),
-        ),
+        set((s) => {
+          const thread = s.threads[threadId]
+          if (!thread) return {}
+          const segs = thread.draft.segments
+          const idx = segs.findIndex((seg) => seg.id === segmentId)
+          if (idx < 0) return {}
+          const cur = segs[idx]!
+          if (cur.text === text) return {}
+          const nextSegs = segs.slice()
+          nextSegs[idx] = { ...cur, text }
+          return {
+            threads: {
+              ...s.threads,
+              [threadId]: {
+                ...thread,
+                draft: { ...thread.draft, segments: nextSegs },
+              },
+            },
+          }
+        }),
 
       patchSegment: (threadId, segmentId, patch) =>
-        set((s) =>
-          mapDraft(s, threadId, (draft) => ({
-            ...draft,
-            segments: draft.segments.map((seg) => (seg.id === segmentId ? { ...seg, ...patch } : seg)),
-          })),
-        ),
+        set((s) => {
+          // Media/poll structural edits still use full mapDraft (meta refresh).
+          if (
+            patch.media !== undefined ||
+            patch.poll !== undefined ||
+            Object.keys(patch).some((k) => k !== 'text')
+          ) {
+            return mapDraft(s, threadId, (draft) => ({
+              ...draft,
+              segments: draft.segments.map((seg) =>
+                seg.id === segmentId ? { ...seg, ...patch } : seg,
+              ),
+            }))
+          }
+          // Text-only → same hot path as setSegmentText.
+          if (typeof patch.text === 'string') {
+            const thread = s.threads[threadId]
+            if (!thread) return {}
+            const segs = thread.draft.segments
+            const idx = segs.findIndex((seg) => seg.id === segmentId)
+            if (idx < 0) return {}
+            const cur = segs[idx]!
+            if (cur.text === patch.text) return {}
+            const nextSegs = segs.slice()
+            nextSegs[idx] = { ...cur, text: patch.text }
+            return {
+              threads: {
+                ...s.threads,
+                [threadId]: {
+                  ...thread,
+                  draft: { ...thread.draft, segments: nextSegs },
+                },
+              },
+            }
+          }
+          return {}
+        }),
 
       addSegment: (threadId) =>
         set((s) =>
@@ -572,14 +654,16 @@ export const useComposeStore = create<ComposeState>()(
     {
       name: 'venice-compose',
       version: 13,
-      // Threads + drafts encrypted at rest (device-bound AES-GCM).
-      storage: createJSONStorage(() => createEncryptedStorage()),
+      // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
+      storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
       partialize: (state) => ({
         threads: state.threads,
         threadOrder: state.threadOrder,
         activeThreadId: state.activeThreadId,
         newThreadContext: state.newThreadContext,
+        // Restore open draft drawer after refresh so WIP stays visible.
+        draftDrawerOpen: state.draftDrawerOpen,
         model: state.model,
         draftModel: state.draftModel,
         xSearch: state.xSearch,

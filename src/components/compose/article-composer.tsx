@@ -69,18 +69,29 @@ function MediaPreview({
 }
 
 export function ArticleComposer({ threadId }: ArticleComposerProps) {
-  const thread = useComposeStore((s) => s.threads[threadId])
+  // Narrow selectors: do not re-render this tree on every chat token / segment edit.
+  const article = useComposeStore(
+    (s) => s.threads[threadId]?.draft.article ?? null,
+  )
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
+  const patchArticleStream = useComposeStore((s) => s.patchArticleStream)
   const streaming = useComposeStore((s) => s.draftWriterStreaming)
   const coverInputRef = useRef<HTMLInputElement>(null)
   const inlineInputRef = useRef<HTMLInputElement>(null)
 
-  if (!thread) return null
+  const threadExists = useComposeStore((s) => Boolean(s.threads[threadId]))
+  if (!threadExists) return null
 
-  const article: ArticleDraft = thread.draft.article ?? emptyArticleDraft()
+  const resolved: ArticleDraft = article ?? emptyArticleDraft()
 
+  /** Structural article edits (media, seed) — full meta refresh. */
   const patchArticle = (next: ArticleDraft) => {
     applyDraftPatch(threadId, { article: next, longform: false })
+  }
+
+  /** Title/body typing — hot path (no meta / order / timestamp). */
+  const patchArticleText = (title: string, bodyMarkdown: string) => {
+    patchArticleStream(threadId, { title, bodyMarkdown })
   }
 
   const onCover = (files: FileList | null) => {
@@ -112,8 +123,8 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
     <div className="space-y-3">
       <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)]">
         <input
-          value={article.title}
-          onChange={(e) => patchArticle({ ...article, title: e.target.value })}
+          value={resolved.title}
+          onChange={(e) => patchArticleText(e.target.value, resolved.bodyMarkdown)}
           placeholder="Article title"
           readOnly={streaming}
           className="w-full bg-transparent text-[17px] font-semibold text-white/90 outline-none placeholder:text-white/25 placeholder:font-normal read-only:cursor-default"
@@ -121,21 +132,21 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
       </div>
 
       <ArticleBodyEditor
-        value={article.bodyMarkdown}
+        value={resolved.bodyMarkdown}
         streaming={streaming}
         onChange={(bodyMarkdown) => {
           const current =
             useComposeStore.getState().threads[threadId]?.draft.article ?? emptyArticleDraft()
-          patchArticle({ ...current, bodyMarkdown })
+          patchArticleText(current.title, bodyMarkdown)
         }}
       />
 
       <div className="space-y-2">
         <div className="text-[11px] text-white/40">Cover image</div>
-        {article.cover ? (
+        {resolved.cover ? (
           <MediaPreview
-            item={article.cover}
-            onRemove={() => patchArticle({ ...article, cover: undefined })}
+            item={resolved.cover}
+            onRemove={() => patchArticle({ ...resolved, cover: undefined })}
           />
         ) : (
           <>
@@ -159,19 +170,19 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
 
       <div className="space-y-2">
         <div className="text-[11px] text-white/40">Inline images</div>
-        {article.inlineMedia.map((m) => (
+        {resolved.inlineMedia.map((m) => (
           <MediaPreview
             key={m.id}
             item={m}
             onRemove={() =>
               patchArticle({
-                ...article,
-                inlineMedia: article.inlineMedia.filter((x) => x.id !== m.id),
+                ...resolved,
+                inlineMedia: resolved.inlineMedia.filter((x) => x.id !== m.id),
               })
             }
           />
         ))}
-        {article.inlineMedia.length < INLINE_MEDIA_CAP && (
+        {resolved.inlineMedia.length < INLINE_MEDIA_CAP && (
           <>
             <input
               ref={inlineInputRef}

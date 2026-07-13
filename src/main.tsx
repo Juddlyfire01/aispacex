@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import { App } from './app'
 import { ErrorBoundary } from './components/ui/error-boundary'
+import { installWipGuard } from './lib/wip-guard'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,6 +14,9 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Flush in-memory stream buffers + encrypted IDB before tab teardown.
+installWipGuard()
 
 window.addEventListener('unhandledrejection', (e) => {
   // Surface promise rejections in dev; don't crash the app.

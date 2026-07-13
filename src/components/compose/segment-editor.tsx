@@ -17,12 +17,19 @@ interface SegmentEditorProps {
 
 export function SegmentEditor({ threadId, segment, index, total, longform }: SegmentEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Own this segment from the store so sibling editors don't re-render on each key,
+  // and media/poll stay live even when the parent only passes a structural stub.
+  const liveSegment: PostSegment =
+    useComposeStore(
+      (s) => s.threads[threadId]?.draft.segments.find((seg) => seg.id === segment.id),
+    ) ?? segment
+  const text = liveSegment.text
   const setSegmentText = useComposeStore((s) => s.setSegmentText)
   const removeSegment = useComposeStore((s) => s.removeSegment)
   const moveSegment = useComposeStore((s) => s.moveSegment)
 
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
-  const used = tweetLength(segment.text)
+  const used = tweetLength(text)
 
   return (
     <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-2">
@@ -51,14 +58,14 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
       )}
 
       <FormatToolbar
-        value={segment.text}
-        onChange={(text) => setSegmentText(threadId, segment.id, text)}
+        value={text}
+        onChange={(next) => setSegmentText(threadId, segment.id, next)}
         textareaRef={textareaRef}
       />
 
       <textarea
         ref={textareaRef}
-        value={segment.text}
+        value={text}
         onChange={(e) => setSegmentText(threadId, segment.id, e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.shiftKey) {
@@ -72,13 +79,13 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
             })
           }
         }}
-        rows={Math.max(3, Math.ceil((segment.text.length || 1) / 60))}
+        rows={Math.max(3, Math.ceil((text.length || 1) / 60))}
         placeholder={index === 0 ? 'What do you want to post?' : 'Continue the thread…'}
         className="w-full bg-transparent text-[13px] text-white/85 font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)]"
       />
 
-      <MediaAttachments threadId={threadId} segment={segment} />
-      <PollEditor threadId={threadId} segment={segment} />
+      <MediaAttachments threadId={threadId} segment={liveSegment} />
+      <PollEditor threadId={threadId} segment={liveSegment} />
 
       <div className="flex items-center justify-end pt-1">
         <CharRing used={used} limit={limit} />

@@ -104,7 +104,7 @@ export function ComposeSettings({
         <div>
           <Label
             htmlFor="compose-draft-model"
-            title="Writes post copy when the research model hands off"
+            title="Same as main: research model writes in chat (no handoff). Separate model: receives brief + conversation history."
           >
             Draft Model
           </Label>

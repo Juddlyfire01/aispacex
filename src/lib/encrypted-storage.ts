@@ -33,6 +33,71 @@ const pendingValues = new Map<string, string>()
 const writeLoops = new Map<string, Promise<void>>()
 /** Last completed write outcome per key (for callers that await flush). */
 const lastWriteOk = new Map<string, boolean>()
+/**
+ * Debounce timers: typing into a large compose corpus must not AES-GCM encrypt
+ * on every keystroke. Coalesce to the latest snapshot, then encrypt once after
+ * idle. flushEncryptedStorage / pause-resume still force immediately.
+ */
+const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Idle ms before encrypting a coalesced snapshot (typing / rapid store patches). */
+const PERSIST_DEBOUNCE_MS = 400
+
+/** Object-level debounce for createDebouncedJSONStorage (before JSON.stringify). */
+type PersistStorageValue = { state: unknown; version?: number }
+const pendingJsonState = new Map<string, PersistStorageValue>()
+const jsonDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/**
+ * While > 0, setItem still coalesces the latest snapshot in memory but does not
+ * AES-GCM encrypt / IndexedDB write. Streaming can update the store hundreds of
+ * times/sec without freezing the main thread; resume + flush persists the tail.
+ */
+let persistPauseDepth = 0
+
+function clearDebounce(name: string): void {
+  const t = debounceTimers.get(name)
+  if (t != null) {
+    clearTimeout(t)
+    debounceTimers.delete(name)
+  }
+}
+
+function clearJsonDebounce(name: string): void {
+  const t = jsonDebounceTimers.get(name)
+  if (t != null) {
+    clearTimeout(t)
+    jsonDebounceTimers.delete(name)
+  }
+}
+
+/** Defer encrypted disk writes (nestable). Latest snapshot still held in memory. */
+export function pauseEncryptedPersist(): void {
+  persistPauseDepth++
+  // Cancel pending debounced encrypts / JSON stringifies — held until resume/flush.
+  for (const name of [...debounceTimers.keys()]) clearDebounce(name)
+  for (const name of [...jsonDebounceTimers.keys()]) clearJsonDebounce(name)
+}
+
+/**
+ * Resume disk writes. If depth returns to 0, kicks a write loop for every key
+ * that has a pending snapshot so the latest state hits IndexedDB.
+ */
+export function resumeEncryptedPersist(): void {
+  persistPauseDepth = Math.max(0, persistPauseDepth - 1)
+  if (persistPauseDepth > 0) return
+  // Drain object-level debounce first (stringify → pendingValues).
+  for (const name of [...pendingJsonState.keys()]) {
+    flushPendingJson(name)
+  }
+  for (const [name, value] of [...pendingValues.entries()]) {
+    clearDebounce(name)
+    void startWriteLoop(name, value)
+  }
+}
+
+export function isEncryptedPersistPaused(): boolean {
+  return persistPauseDepth > 0
+}
 
 // A silent persist failure means data loss on the next reload — exactly the bug
 // where reports vanished across disconnect/reconnect. Surface it loudly, but
@@ -81,8 +146,38 @@ async function encryptAndStore(name: string, value: string): Promise<boolean> {
   }
 }
 
+/**
+ * Schedule a debounced encrypt of the latest pending snapshot.
+ * Rapid setItem calls only reset the timer — one AES-GCM after idle.
+ */
 function enqueueWrite(name: string, value: string): Promise<void> {
   pendingValues.set(name, value)
+  // Hold the latest snapshot only — do not burn CPU encrypting mid-stream.
+  if (persistPauseDepth > 0) return Promise.resolve()
+
+  // Already encrypting this key — the in-flight loop will pick up pendingValues.
+  if (writeLoops.has(name)) return writeLoops.get(name)!
+
+  clearDebounce(name)
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      debounceTimers.delete(name)
+      const latest = pendingValues.get(name)
+      if (latest == null || persistPauseDepth > 0) {
+        resolve()
+        return
+      }
+      void startWriteLoop(name, latest).then(resolve)
+    }, PERSIST_DEBOUNCE_MS)
+    debounceTimers.set(name, timer)
+  })
+}
+
+/** Immediate write loop (no debounce). Used by flush / resume. */
+function startWriteLoop(name: string, value: string): Promise<void> {
+  pendingValues.set(name, value)
+  if (persistPauseDepth > 0) return Promise.resolve()
+
   const existing = writeLoops.get(name)
   if (existing) return existing
 
@@ -92,6 +187,7 @@ function enqueueWrite(name: string, value: string): Promise<void> {
   loop = (async () => {
     try {
       while (pendingValues.has(name)) {
+        if (persistPauseDepth > 0) break
         const next = pendingValues.get(name)
         pendingValues.delete(name)
         if (next == null) continue
@@ -106,12 +202,51 @@ function enqueueWrite(name: string, value: string): Promise<void> {
   return loop
 }
 
+function stringifyAndEnqueue(name: string, value: PersistStorageValue): void {
+  let json: string
+  try {
+    json = JSON.stringify(value)
+  } catch (err) {
+    reportPersistFailure(name, 'JSON.stringify failed', err)
+    return
+  }
+  void enqueueWrite(name, json)
+}
+
+/** Force any debounced JSON snapshot through stringify + encrypt. */
+function flushPendingJson(name: string): void {
+  clearJsonDebounce(name)
+  const pending = pendingJsonState.get(name)
+  if (pending == null) return
+  pendingJsonState.delete(name)
+  stringifyAndEnqueue(name, pending)
+}
+
 /**
  * Wait until all coalesced encrypted writes for `name` have finished.
  * Returns false if the last write for that key failed (quota, crypto, etc.).
  * Call after critical mutations (e.g. appendReport) so the UI can report save failure.
+ *
+ * Works even while pauseEncryptedPersist is active — critical for pagehide
+ * mid-stream (pause holds the latest snapshot; flush must still hit disk).
+ * Also drains debounced JSON (createDebouncedJSONStorage) before encrypt.
  */
 export async function flushEncryptedStorage(name: string): Promise<boolean> {
+  // Drain object-level debounce first so stringify lands in pendingValues.
+  flushPendingJson(name)
+  clearDebounce(name)
+  // Force any paused / debounced snapshot through the write path immediately.
+  if (pendingValues.has(name)) {
+    const value = pendingValues.get(name)!
+    // Temporarily ignore pause for this critical flush.
+    const prevDepth = persistPauseDepth
+    persistPauseDepth = 0
+    try {
+      await startWriteLoop(name, value)
+    } finally {
+      persistPauseDepth = prevDepth
+    }
+  }
   const loop = writeLoops.get(name)
   if (loop) await loop
   // If nothing was queued, treat as ok (no pending loss).
@@ -156,6 +291,7 @@ export function createEncryptedStorage(): StateStorage {
     setItem: (name, value) => enqueueWrite(name, value),
     removeItem: (name) => {
       // Drop any coalesced snapshot and sequence removal after the current loop.
+      clearDebounce(name)
       pendingValues.delete(name)
       const prev = writeLoops.get(name) ?? Promise.resolve()
       const next = prev
@@ -167,6 +303,56 @@ export function createEncryptedStorage(): StateStorage {
       writeLoops.set(name, next)
       next.finally(() => { if (writeLoops.get(name) === next) writeLoops.delete(name) })
       return next
+    },
+  }
+}
+
+/**
+ * Debounced JSON storage for large zustand persist stores (compose / chat).
+ *
+ * Default `createJSONStorage` runs `JSON.stringify(partialize(state))` on every
+ * set — for multi-MB thread corpora that freezes typing. Use this as the
+ * `persist` storage option (do NOT wrap in createJSONStorage). Accepts the
+ * `{ state, version }` object and defers JSON.stringify + AES-GCM until idle
+ * or flushEncryptedStorage / pagehide.
+ */
+export function createDebouncedJSONStorage(): {
+  getItem: (name: string) => Promise<string | null | PersistStorageValue>
+  setItem: (name: string, value: PersistStorageValue) => void
+  removeItem: (name: string) => void | Promise<void>
+} {
+  const base = createEncryptedStorage()
+  return {
+    getItem: async (name) => {
+      // Prefer in-memory pending (not yet stringified) during the same session.
+      const pending = pendingJsonState.get(name)
+      if (pending != null) return pending
+      // base returns a JSON string — parse into { state, version } for zustand persist.
+      const raw = await base.getItem(name)
+      if (raw == null) return null
+      try {
+        return JSON.parse(raw) as PersistStorageValue
+      } catch {
+        return null
+      }
+    },
+    setItem: (name, value) => {
+      pendingJsonState.set(name, value)
+      if (persistPauseDepth > 0) return
+      clearJsonDebounce(name)
+      const timer = setTimeout(() => {
+        jsonDebounceTimers.delete(name)
+        const latest = pendingJsonState.get(name)
+        if (latest == null || persistPauseDepth > 0) return
+        pendingJsonState.delete(name)
+        stringifyAndEnqueue(name, latest)
+      }, PERSIST_DEBOUNCE_MS)
+      jsonDebounceTimers.set(name, timer)
+    },
+    removeItem: (name) => {
+      clearJsonDebounce(name)
+      pendingJsonState.delete(name)
+      return base.removeItem(name)
     },
   }
 }

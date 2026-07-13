@@ -1,7 +1,13 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useComposeStore } from '../stores/compose-store'
+import {
+  pauseEncryptedPersist,
+  resumeEncryptedPersist,
+  flushEncryptedStorage,
+} from '../lib/encrypted-storage'
+import { registerWipFlush } from '../lib/wip-guard'
 import { useXSelfStore } from '../stores/x-self-store'
 import { useXIntelStore } from '../stores/x-intel-store'
 import { buildComposeSystem, buildHotUserPrefix } from '../lib/compose/compose-prompt'
@@ -16,6 +22,7 @@ import {
 import { findReportKey } from '../stores/x-intel-store'
 import {
   describeDraftWriteLabels,
+  isDraftHandoffEnabled,
   isSeparateDraftModel,
   resolveDraftWriterModelId,
   type DraftWriteBrief,
@@ -59,18 +66,18 @@ export function useCompose() {
   /** SSE tokens wait here; dripped to the store for a rapid-typing feel. */
   const pendingDeltaRef = useRef('')
   const dripRafRef = useRef<number | null>(null)
+  /** Active stream thread — pagehide flush needs this without waiting for stop. */
+  const activeStreamThreadRef = useRef<string | null>(null)
+  /**
+   * Draft-writer drip lives on the send closure; pagehide needs a shared flush.
+   * Set while a writer is streaming; cleared when it finishes.
+   */
+  const draftWriterFlushRef = useRef<(() => void) | null>(null)
   const queryClient = useQueryClient()
-  const {
-    isStreaming,
-    ensureActiveThread,
-    addMessage,
-    appendToLastAssistant,
-    setLastAssistantContent,
-    applyDraftPatch,
-    setStreaming,
-  } = useComposeStore()
+  // Narrow selector: bare useComposeStore() re-renders on every token.
+  const isStreaming = useComposeStore((s) => s.isStreaming)
 
-  /** Push the whole buffer now (tool boundaries, finalize, stop). */
+  /** Push the whole buffer now (tool boundaries, finalize, stop, pagehide). */
   const flushPendingDelta = useCallback((threadId: string) => {
     if (dripRafRef.current != null) {
       cancelAnimationFrame(dripRafRef.current)
@@ -82,7 +89,24 @@ export function useCompose() {
     useComposeStore.getState().appendToLastAssistant(threadId, pending)
   }, [])
 
-  /** Reveal pending tokens in small chunks so the stream reads like fast typing. */
+  /** Pin live agent timeline + drip buffers so refresh keeps WIP. */
+  const settleWip = useCallback(() => {
+    const s = useComposeStore.getState()
+    const threadId = activeStreamThreadRef.current ?? s.activeThreadId
+    if (threadId) flushPendingDelta(threadId)
+    draftWriterFlushRef.current?.()
+    for (const e of s.agentEvents) {
+      if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
+    }
+    const finalEvents = useComposeStore.getState().agentEvents
+    if (threadId && finalEvents.length > 0) {
+      s.setLastAssistantAgentEvents(threadId, finalEvents)
+    }
+  }, [flushPendingDelta])
+
+  useEffect(() => registerWipFlush(settleWip), [settleWip])
+
+  /** Reveal pending tokens in larger chunks — fewer store updates = less jank. */
   const scheduleDrip = useCallback((threadId: string) => {
     if (dripRafRef.current != null) return
 
@@ -92,21 +116,21 @@ export function useCompose() {
       if (!pending) return
 
       const backlog = pending.length
-      // Base ~3 chars/frame (~180/s); accelerate when the network gets ahead.
+      // Larger base chunks than before (~12 chars/frame) to cut re-renders in half+.
       let n: number
-      if (backlog > 160) n = Math.ceil(backlog * 0.28)
-      else if (backlog > 64) n = 14
-      else if (backlog > 20) n = 7
-      else n = Math.min(3, backlog)
+      if (backlog > 160) n = Math.ceil(backlog * 0.35)
+      else if (backlog > 64) n = 28
+      else if (backlog > 24) n = 16
+      else n = Math.min(12, backlog)
 
       // Prefer ending on whitespace so chunks feel word-ish, not mid-glyph.
       let take = n
       if (backlog > n) {
-        const window = pending.slice(0, n + 8)
+        const window = pending.slice(0, n + 12)
         const sp = window.lastIndexOf(' ')
         const nl = window.lastIndexOf('\n')
         const breakAt = Math.max(sp, nl)
-        if (breakAt >= Math.floor(n * 0.45)) take = breakAt + 1
+        if (breakAt >= Math.floor(n * 0.4)) take = breakAt + 1
       }
 
       const chunk = pending.slice(0, take)
@@ -144,6 +168,9 @@ export function useCompose() {
         cancelAnimationFrame(dripRafRef.current)
         dripRafRef.current = null
       }
+      activeStreamThreadRef.current = threadId
+      // Skip encrypt+IDB while tokens fly; resume in finally so the tail is saved.
+      pauseEncryptedPersist()
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -236,6 +263,7 @@ export function useCompose() {
         })
 
         const sameDraftModel = !isSeparateDraftModel(draftModel)
+        const draftHandoff = isDraftHandoffEnabled(draftModel)
         const writerModelId = resolveDraftWriterModelId(draftModel, model)
         const system = buildComposeSystem({
           modelId: model,
@@ -244,7 +272,7 @@ export function useCompose() {
           xNewsOn,
           toolsEnabled: true,
           registerInject: registerResolved.inject,
-          draftHandoff: true,
+          draftHandoff,
           preferredFormat,
           premiumCapable,
         })
@@ -436,10 +464,7 @@ export function useCompose() {
               text: segText,
               media: [] as { id: string; kind: 'image' | 'video' | 'gif' }[],
             }))
-            useComposeStore.getState().applyDraftPatch(threadId, {
-              segments: stable,
-              article: undefined,
-            })
+            useComposeStore.getState().patchSegmentsStream(threadId, stable)
           }
 
           const flushDraftDrip = () => {
@@ -463,18 +488,18 @@ export function useCompose() {
 
               const backlog = pending.length
               let n: number
-              if (backlog > 160) n = Math.ceil(backlog * 0.28)
-              else if (backlog > 64) n = 14
-              else if (backlog > 20) n = 7
-              else n = Math.min(3, backlog)
+              if (backlog > 160) n = Math.ceil(backlog * 0.35)
+              else if (backlog > 64) n = 28
+              else if (backlog > 24) n = 16
+              else n = Math.min(12, backlog)
 
               let take = n
               if (backlog > n) {
-                const window = pending.slice(0, n + 8)
+                const window = pending.slice(0, n + 12)
                 const sp = window.lastIndexOf(' ')
                 const nl = window.lastIndexOf('\n')
                 const breakAt = Math.max(sp, nl)
-                if (breakAt >= Math.floor(n * 0.45)) take = breakAt + 1
+                if (breakAt >= Math.floor(n * 0.4)) take = breakAt + 1
               }
 
               const chunk = pending.slice(0, take)
@@ -489,6 +514,7 @@ export function useCompose() {
 
           const finishWriter = (status: 'done' | 'error' | 'cancelled', detail: string) => {
             flushDraftDrip()
+            draftWriterFlushRef.current = null
             useComposeStore.getState().setDraftWriterStreaming(false)
             useComposeStore.getState().updateAgentEvent(writerEventId, {
               status: status === 'cancelled' ? 'done' : status,
@@ -496,10 +522,24 @@ export function useCompose() {
             })
           }
 
+          draftWriterFlushRef.current = flushDraftDrip
+
+          // Snapshot research chat for the writer (user/assistant prose).
+          // Separate-model handoff only — same-as-main writes in chat with full history.
+          const conversationForWriter = draftHandoff
+            ? (useComposeStore.getState().threads[threadId]?.messages ?? [])
+                .filter((m) => m.role === 'user' || m.role === 'assistant')
+                .map((m) => {
+                  const { agentEvents: _ae, ...rest } = m
+                  return rest
+                })
+            : undefined
+
           void runDraftWriter({
             modelId: writerModelId,
             modelSpec: draftModelSpec,
             brief: writerBrief,
+            conversation: conversationForWriter,
             registerInject: registerResolved.inject,
             signal: abortController.signal,
             onDelta: (token) => {
@@ -624,9 +664,11 @@ export function useCompose() {
             xNewsMaxAgeHours,
             newsBookmarks,
             signal: abortController.signal,
-            onDraftHandoff: startDraftWriter,
+            onDraftHandoff: draftHandoff ? startDraftWriter : undefined,
             forceDraftHandoff:
-              preferredFormat === 'article' && looksLikeDraftIntent(userMessage),
+              draftHandoff &&
+              preferredFormat === 'article' &&
+              looksLikeDraftIntent(userMessage),
             onWebSearch: ({ resultCount }) => {
               const s = useComposeStore.getState()
               s.pushAgentEvent({
@@ -751,6 +793,7 @@ export function useCompose() {
         useComposeStore.getState().setLastAssistantContent(threadId, `[Error: ${message}]${hint}`)
       } finally {
         flushPendingDelta(threadId)
+        draftWriterFlushRef.current?.()
         const s = useComposeStore.getState()
         // Settle interrupted steps, then pin the full timeline onto this turn.
         for (const e of s.agentEvents) {
@@ -765,46 +808,28 @@ export function useCompose() {
         // Live strip is cleared; history lives on the assistant message.
         s.clearAgentEvents()
         abortRef.current = null
+        activeStreamThreadRef.current = null
+        // Resume encrypt+IDB and force the settled snapshot to disk.
+        resumeEncryptedPersist()
+        void flushEncryptedStorage('venice-compose')
       }
     },
-    // store actions are stable; active thread read fresh via getState in send
-    [
-      queryClient,
-      ensureActiveThread,
-      addMessage,
-      appendToLastAssistant,
-      setLastAssistantContent,
-      applyDraftPatch,
-      setStreaming,
-      flushPendingDelta,
-      scheduleDrip,
-    ],
+    // store actions read via getState; only stable helpers in deps
+    [queryClient, flushPendingDelta, scheduleDrip],
   )
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
+    settleWip()
     const s = useComposeStore.getState()
-    const threadId = s.activeThreadId
-    if (threadId) flushPendingDelta(threadId)
-    else {
-      if (dripRafRef.current != null) {
-        cancelAnimationFrame(dripRafRef.current)
-        dripRafRef.current = null
-      }
-      pendingDeltaRef.current = ''
-    }
-    for (const e of s.agentEvents) {
-      if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
-    }
-    const finalEvents = useComposeStore.getState().agentEvents
-    if (threadId && finalEvents.length > 0) {
-      s.setLastAssistantAgentEvents(threadId, finalEvents)
-    }
     s.setStreaming(false)
     s.setDraftWriterStreaming(false)
     s.setAgentPhase(null)
     s.clearAgentEvents()
-  }, [setStreaming, flushPendingDelta])
+    activeStreamThreadRef.current = null
+    resumeEncryptedPersist()
+    void flushEncryptedStorage('venice-compose')
+  }, [settleWip])
 
   return { send, stop, isStreaming }
 }

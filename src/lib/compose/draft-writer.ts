@@ -3,23 +3,88 @@
 import { venice } from '../venice-client'
 import { parseSSEStream } from '../stream'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
-import type { VeniceModel } from '../../types/venice'
+import type { ChatMessage, VeniceModel } from '../../types/venice'
 import type { DraftWriteBrief } from './draft-writer-tool'
+import { messageContentString } from './thread-meta'
 
 export { parseArticleFromWriterText, splitArticleImagePrompt } from './article-parse'
 export type { ParsedWriterArticle } from './article-parse'
+
+/** Cap conversation payload so the writer stays within context. */
+export const WRITER_CONVERSATION_MAX_CHARS = 48_000
 
 export interface RunDraftWriterOpts {
   modelId: string
   modelSpec?: VeniceModel | null
   brief: DraftWriteBrief
+  /**
+   * Research-thread messages (user/assistant prose). Attached on separate-model
+   * handoff so the writer is not limited to a lossy brief.
+   */
+  conversation?: ChatMessage[] | null
   registerInject?: string | null
   signal?: AbortSignal
   onDelta?: (token: string) => void
 }
 
+function contentAsText(content: ChatMessage['content']): string {
+  return messageContentString({ content }).trim()
+}
+
+/**
+ * Pack research chat into a transcript for the draft writer.
+ * Keeps user/assistant prose; drops system, tool results, and empty turns.
+ * Prefer recent turns when over maxChars.
+ */
+export function packConversationForWriter(
+  messages: ChatMessage[] | null | undefined,
+  maxChars = WRITER_CONVERSATION_MAX_CHARS,
+): string {
+  if (!messages?.length) return ''
+  const turns: string[] = []
+  for (const m of messages) {
+    if (m.role !== 'user' && m.role !== 'assistant') continue
+    // Skip pure tool-call assistant shells with no visible prose.
+    if (m.role === 'assistant' && m.tool_calls?.length && !contentAsText(m.content)) continue
+    const text = contentAsText(m.content)
+    if (!text) continue
+    // Strip leaked postdraft fences if any.
+    const cleaned = text
+      .replace(/```postdraft[\s\S]*?```/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    if (!cleaned) continue
+    const label = m.role === 'user' ? 'User' : 'Research model'
+    turns.push(`${label}:\n${cleaned}`)
+  }
+  if (turns.length === 0) return ''
+
+  let packed = turns.join('\n\n')
+  if (packed.length <= maxChars) return packed
+
+  // Keep the tail (most recent context) when over budget.
+  const kept: string[] = []
+  let used = 0
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const t = turns[i]!
+    const cost = t.length + (kept.length ? 2 : 0)
+    if (used + cost > maxChars && kept.length > 0) break
+    kept.unshift(t)
+    used += cost
+  }
+  packed = kept.join('\n\n')
+  if (kept.length < turns.length) {
+    return `[Earlier turns omitted for length — ${turns.length - kept.length} older turn(s)]\n\n${packed}`
+  }
+  return packed
+}
+
 /** Exported for tests. */
-export function buildWriterSystem(registerInject?: string | null): string {
+export function buildWriterSystem(
+  registerInject?: string | null,
+  opts?: { hasConversation?: boolean },
+): string {
+  const hasConversation = Boolean(opts?.hasConversation)
   const parts = [
     `You are the IntelX draft writer. Your only job is to write X post / article copy.
 
@@ -34,12 +99,17 @@ Rules:
   - Never label the output as "long-form post" — Articles are a distinct X format.
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).
 - Match X conventions: natural voice, no hashtag spam, no "As an AI".
-- Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.`,
+${
+  hasConversation
+    ? `- You receive the research conversation history AND a writing brief. Use the conversation for full context (facts, angle, nuance, decisions). Treat the brief as the research model's writing instructions and priorities — do not discard conversation detail that the brief omitted.
+- Prefer concrete facts and numbers from the conversation and brief over invention.`
+    : `- Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.`
+}`,
   ]
   if (registerInject?.trim()) {
     parts.push(registerInject.trim())
     parts.push(
-      `REGISTER OVERRIDE — highest priority after factual accuracy in the brief:
+      `REGISTER OVERRIDE — highest priority after factual accuracy in the brief${hasConversation ? ' and conversation' : ''}:
 - Voice and texture come from REGISTER, not from a generic social-media template.
 - If REGISTER and a softer "helpful" tone conflict, REGISTER wins.
 - Mirror anchor sentence length, punctuation, and metric stacking even when the brief is factual/dense.
@@ -50,8 +120,18 @@ Rules:
 }
 
 /** Exported for tests. */
-export function buildWriterUser(brief: DraftWriteBrief, hasRegister = false): string {
-  const lines = [`Brief:\n${brief.brief}`]
+export function buildWriterUser(
+  brief: DraftWriteBrief,
+  hasRegister = false,
+  conversationText = '',
+): string {
+  const lines: string[] = []
+  if (conversationText.trim()) {
+    lines.push(
+      `Research conversation (full context — use this; do not rely on the brief alone):\n${conversationText.trim()}`,
+    )
+  }
+  lines.push(`Brief:\n${brief.brief}`)
   if (brief.notes?.trim()) lines.push(`Constraints:\n${brief.notes.trim()}`)
   if (brief.target) lines.push(`Target: ${JSON.stringify(brief.target)}`)
   if (brief.preferredFormat && brief.preferredFormat !== 'auto') {
@@ -71,7 +151,9 @@ export function buildWriterUser(brief: DraftWriteBrief, hasRegister = false): st
   }
   if (hasRegister) {
     lines.push(
-      'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from the brief; style from REGISTER.',
+      conversationText.trim()
+        ? 'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from conversation + brief; style from REGISTER.'
+        : 'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from the brief; style from REGISTER.',
     )
   }
   if (brief.preferredFormat === 'article') {
@@ -102,13 +184,21 @@ export function splitWriterSegments(text: string): string[] {
 export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> {
   const isArticle = opts.brief.preferredFormat === 'article'
   const hasRegister = Boolean(opts.registerInject?.trim())
+  const conversationText = packConversationForWriter(opts.conversation)
+  const hasConversation = Boolean(conversationText)
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
       model: opts.modelId,
       messages: [
-        { role: 'system', content: buildWriterSystem(opts.registerInject) },
-        { role: 'user', content: buildWriterUser(opts.brief, hasRegister) },
+        {
+          role: 'system',
+          content: buildWriterSystem(opts.registerInject, { hasConversation }),
+        },
+        {
+          role: 'user',
+          content: buildWriterUser(opts.brief, hasRegister, conversationText),
+        },
       ],
       stream: true,
       stream_options: { include_usage: true },

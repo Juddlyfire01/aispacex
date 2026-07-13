@@ -105,7 +105,19 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/register-critical style cues/i)
   })
 
-  it('includes handoff draft tool instructions when draftHandoff', () => {
+  it('same as main (no handoff): uses postdraft, not compose_write_draft', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      draftHandoff: false,
+    })
+    expect(system).toMatch(/postdraft/)
+    expect(system).not.toMatch(/compose_write_draft/)
+    expect(system).not.toMatch(/separate draft-writer model/i)
+  })
+
+  it('separate draft model: briefs a distinct writer with conversation history', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
@@ -113,9 +125,9 @@ describe('buildComposeSystem', () => {
       draftHandoff: true,
     })
     expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/ONLY when the user asks/i)
-    expect(system).toMatch(/NEVER paste the full draft/i)
-    expect(system).toMatch(/Do not announce a "handoff"/i)
+    expect(system).toMatch(/separate draft-writer model/i)
+    expect(system).toMatch(/conversation history/i)
+    expect(system).toMatch(/Do not announce a \"handoff\"/i)
     expect(system).not.toMatch(/```postdraft\n/)
   })
 

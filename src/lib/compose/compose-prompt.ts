@@ -20,8 +20,9 @@ export interface ComposeSystemOpts {
   /** Pre-formatted register inject block from resolveRegisterPack. */
   registerInject?: string | null
   /**
-   * When true, drafting must go through compose_write_draft (second model).
-   * Do not emit ```postdraft yourself.
+   * When true, a separate draft model is selected — drafting goes through
+   * compose_write_draft (brief + conversation history). When false/omitted
+   * (Same as main), this model writes publishable copy via ```postdraft.
    */
   draftHandoff?: boolean
   /** User format preference from compose settings. */
@@ -47,13 +48,16 @@ Citations:
 - In draft body text (segments or article bodyMarkdown), cite external posts with permalinks: https://x.com/i/status/{id}
 - In chat prose (outside the draft), you may still use bare digits or post:{id} so the UI can link them.`
 
+/** Separate draft model: research agent briefs a distinct writer + conversation. */
 const HANDOFF_DRAFT_SPEC = `Drafting for X — use the compose_write_draft tool (required when drafting):
+A separate draft-writer model will turn your brief into publishable copy in the Draft drawer. The system also forwards this research conversation history to that writer so context is not lost — your brief steers; the conversation fills gaps.
+
 Call compose_write_draft ONLY when the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article) or says to draft / rewrite / revise / use the draft tool.
 
 Do NOT call compose_write_draft for research, analysis, finding posts, suggesting reply targets, outlining ideas, or answering questions. Answer those in chat with intel_*/compose_history_*/search as needed.
 
 When you do call it:
-1. Pass a dense brief (facts, angle, handles, constraints). For Articles: section outline; never set longform:true (Articles ≠ Premium long-form tweets).
+1. Pass a dense brief (facts, angle, handles, constraints, section outline for Articles). Never set longform:true for Articles (Articles ≠ Premium long-form tweets). Do not try to paste the whole chat into the brief — history is attached automatically — but the brief must still capture priorities and must-include / must-avoid so nothing critical depends on the writer re-reading the full thread.
 2. If a REGISTER block is in this system prompt, the draft writer also receives it — still put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
 3. NEVER paste the full draft/article/thread into chat. The draft drawer owns the copy.
 4. NEVER emit a \`\`\`postdraft fence.
@@ -65,12 +69,15 @@ const REGISTER_CHAT_ADHERENCE = `REGISTER ADHERENCE (this turn has an active reg
 - Chat analysis may stay in your normal analyst voice.
 - Any publishable X copy you produce (postdraft segments, article body, or the brief you hand to compose_write_draft) MUST follow the REGISTER block — treat it as a hard constraint over generic helpful tone.
 - Prefer sounding like the anchors over sounding polished. Softening, padding, or "improving" the register is wrong.
-- When handing off: brief = content/facts; register = voice. Encode voice reminders in notes if the request risks drifting (e.g. "terse metric stack, no hype").`
+- When drafting or briefing the draft writer: content/facts from research; voice from REGISTER. Encode voice reminders in notes if the request risks drifting (e.g. "terse metric stack, no hype").`
 
 const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
 - Drafting/revising an article → call compose_write_draft (not chat paste).
 - Research / find-a-post / reply-target questions → answer in chat; do NOT call compose_write_draft and do NOT dump a manuscript into chat.
 - Image/cover prompts stay in chat, never in article body.`
+
+const HANDOFF_TOOLS_EXTRA = `Drafting tool:
+- compose_write_draft — hands a brief to the separate draft-writer model (conversation history is attached automatically); fills the Draft drawer. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting.`
 
 const BLOCK_SPEC = `Optional post draft (capability — not your default goal):
 Only when the user asks for post/reply/quote/thread/article copy, or explicitly wants an update to draft text for X, append a fenced block exactly like this at the END of your reply:
@@ -132,9 +139,6 @@ Rules:
 const X_NEWS_TOOLS_SPEC = `X News (live stories clustered from posts on X):
 - x_news_search / x_news_get — search or fetch AI-generated X News stories (summary, hook, clustered post ids). Use for breaking topics on X; recency follows compose settings.
 - Prefer bookmarked RSS + news_read for curated external articles; use X News for live X narrative.`
-
-const HANDOFF_TOOLS_EXTRA = `Drafting tool:
-- compose_write_draft — hands a brief to the draft writer; fills the Draft drawer. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting.`
 
 export function buildComposeSystem(opts: ComposeSystemOpts): string {
   const modelId = opts.modelId.trim() || 'unknown-model'

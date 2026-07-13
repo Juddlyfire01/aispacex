@@ -1,5 +1,6 @@
-// Draft writer: main model calls compose_write_draft; a writer model (same as
-// main, or a separate Venice id) streams copy into the Draft drawer.
+// Draft writer: when Draft model ≠ Same as main, research agent calls
+// compose_write_draft; the separate writer streams copy into the Draft drawer
+// with brief + conversation history. Same as main writes via ```postdraft.
 
 import type { ToolDefinition } from '../../types/venice'
 import type { PreferredFormat } from './format'
@@ -25,7 +26,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Write publishable X copy into the Draft drawer. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Pass a dense brief (not the full manuscript). Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
+      'Write publishable X copy into the Draft drawer via the separate draft-writer model. The research conversation history is attached automatically — pass a dense brief of priorities and must-include/must-avoid (not the full manuscript or full chat). Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Do not emit a postdraft fence. For Articles still use this tool; do not set longform true.',
     parameters: {
       type: 'object',
       properties: {
@@ -82,16 +83,17 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
 }
 
 /**
- * Draft tool path is always on — the main agent must call compose_write_draft
- * rather than emitting a ```postdraft fence in chat.
+ * True when Draft model is a distinct Venice id — research agent must call
+ * compose_write_draft (brief + conversation history). Same as main writes in
+ * chat via ```postdraft with no handoff.
  */
-export function isDraftHandoffEnabled(_draftModel?: string | null): boolean {
-  return true
-}
-
-/** True when Draft model is a distinct Venice id (not Same as main). */
 export function isSeparateDraftModel(draftModel: string | undefined | null): boolean {
   return Boolean(draftModel && draftModel !== DRAFT_MODEL_SAME)
+}
+
+/** Handoff path only when a separate draft writer is selected. */
+export function isDraftHandoffEnabled(draftModel?: string | null): boolean {
+  return isSeparateDraftModel(draftModel)
 }
 
 /** Resolve the Venice model id the draft writer should call. */
