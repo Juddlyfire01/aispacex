@@ -439,7 +439,9 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
       const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
       const newPosts = posts.filter((p) => !prevIds.has(p.id))
       const { own: newOwn, inbound: newInbound } = partitionPosts(profile, newPosts)
-      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+      // Cutoff = when the previous report ran. Anything timestamped before then
+      // is backfill (older data only now captured), not activity since last report.
+      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound, prevSnapshot.createdAt)
     }
 
     const includedIds = new Set(settings.includedReportIds ?? [])

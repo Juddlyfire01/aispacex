@@ -6,21 +6,31 @@ import { useCallback, useLayoutEffect, useRef, type UIEvent } from 'react'
  * this, store updates + focus restoration often jump the pane mid-read.
  *
  * - `resetKey` (account/target id): switching subjects always starts at top.
- * - `anchorKey` (e.g. active report id): intentional content swap (new report
- *   finished, user picked another snapshot) also jumps to top — not a mid-read
- *   restore of a stale offset against a different document height.
+ * - `anchorKey` (e.g. active report id): a content swap (new report finished,
+ *   user picked another snapshot) does NOT jump — it freezes the current scroll
+ *   position and skips the stale-offset restore for that render, so a report
+ *   finishing while the user reads mid-page never yanks the pane to the top.
  */
 export function usePreserveScroll(resetKey?: string | null, anchorKey?: string | null) {
   const ref = useRef<HTMLDivElement>(null)
   const saved = useRef(0)
-  // Skip one preserve pass after we deliberately reset to top.
+  // Skip one preserve pass after a deliberate reset / content swap.
   const skipPreserve = useRef(false)
 
+  // Switching subjects starts at the top.
   useLayoutEffect(() => {
     saved.current = 0
     skipPreserve.current = true
     if (ref.current) ref.current.scrollTop = 0
-  }, [resetKey, anchorKey])
+  }, [resetKey])
+
+  // A content swap (active report changed) must not jump: keep the user where
+  // they are and skip one stale-offset restore against the new document height.
+  useLayoutEffect(() => {
+    const el = ref.current
+    skipPreserve.current = true
+    if (el) saved.current = el.scrollTop
+  }, [anchorKey])
 
   // After every paint that might have reset scroll (data rewrite, focus scroll),
   // put the user back where they were — unless we just reset for a new subject/report.

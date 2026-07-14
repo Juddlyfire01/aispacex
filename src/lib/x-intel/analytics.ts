@@ -280,17 +280,40 @@ function labelSet(items: RankedCount[]): Set<string> {
  *
  * @param addedOwn newly gathered posts authored by the target
  * @param addedInbound newly gathered inbound mentions of the target
+ * @param inboundIntervalCutoff ISO timestamp of when the previous report ran
+ *   (its createdAt). Newly gathered inbound mentions timestamped AFTER this are
+ *   genuine new attention since the last report; those timestamped ON/BEFORE it
+ *   are historical backfill (older mentions only now captured), NOT activity in
+ *   the interval. Pass null only for a baseline with no previous report.
  */
 export function computeDelta(
   prev: ReportAnalytics,
   curr: ReportAnalytics,
   addedOwn: Post[],
   addedInbound: Post[],
+  inboundIntervalCutoff: string | null = null,
 ): Omit<ChangeSummary, 'narrative'> {
   const newPostIds = [...addedOwn, ...addedInbound].map((p) => p.id)
   const dateRangeAddedOwn = postDateRange(addedOwn)
   const dateRangeAddedInbound = postDateRange(addedInbound)
   const dateRangeAdded = postDateRange([...addedOwn, ...addedInbound])
+
+  // Split newly gathered inbound mentions into genuine in-interval attention vs
+  // historical backfill, using the previous report's newest inbound timestamp.
+  const cutoffMs = inboundIntervalCutoff ? Date.parse(inboundIntervalCutoff) : NaN
+  const inboundInInterval: Post[] = []
+  const inboundBackfilled: Post[] = []
+  for (const p of addedInbound) {
+    const t = Date.parse(p.createdAt)
+    // No usable cutoff (no prior inbound) or newer than cutoff => genuinely new.
+    if (!Number.isFinite(cutoffMs) || (Number.isFinite(t) && t > cutoffMs)) {
+      inboundInInterval.push(p)
+    } else {
+      inboundBackfilled.push(p)
+    }
+  }
+  const dateRangeAddedInboundInInterval = postDateRange(inboundInInterval)
+  const dateRangeAddedInboundBackfilled = postDateRange(inboundBackfilled)
   const metricShifts = [
     { metric: 'engagementRate', from: prev.engagement.engagementRate, to: curr.engagement.engagementRate },
     { metric: 'bookmarkRate', from: prev.engagement.bookmarkRate, to: curr.engagement.bookmarkRate },
@@ -338,9 +361,13 @@ export function computeDelta(
     volumeAdded: newPostIds.length,
     volumeAddedOwn: addedOwn.length,
     volumeAddedInbound: addedInbound.length,
+    volumeAddedInboundInInterval: inboundInInterval.length,
+    volumeAddedInboundBackfilled: inboundBackfilled.length,
     dateRangeAdded,
     dateRangeAddedOwn,
     dateRangeAddedInbound,
+    dateRangeAddedInboundInInterval,
+    dateRangeAddedInboundBackfilled,
     metricShifts,
     compositionDrift,
     cadenceDrift,

@@ -227,11 +227,27 @@ export interface ChangeSummary {
   volumeAdded: number
   /** New posts authored by the target since the previous report. */
   volumeAddedOwn: number
-  /** New inbound mentions of the target gathered since the previous report. */
+  /** New inbound mentions of the target gathered since the previous report (total). */
   volumeAddedInbound: number
+  /**
+   * Of the newly gathered inbound mentions, how many were *created* after the
+   * previous report's newest inbound mention — i.e. genuine new attention in the
+   * inter-report interval, not historical backfill.
+   */
+  volumeAddedInboundInInterval: number
+  /**
+   * Of the newly gathered inbound mentions, how many were *created* on or before
+   * the previous report's newest inbound mention — i.e. older mentions the
+   * gatherer only now captured (backfill), NOT attention received in the interval.
+   */
+  volumeAddedInboundBackfilled: number
   dateRangeAdded: { from: string; to: string } | null
   dateRangeAddedOwn: { from: string; to: string } | null
   dateRangeAddedInbound: { from: string; to: string } | null
+  /** Timestamp span of the in-interval (genuinely new) inbound mentions. */
+  dateRangeAddedInboundInInterval: { from: string; to: string } | null
+  /** Timestamp span of the backfilled (historical) inbound mentions. */
+  dateRangeAddedInboundBackfilled: { from: string; to: string } | null
   metricShifts: { metric: string; from: number; to: number; deltaPct: number }[]
   compositionDrift: string[]      // human-readable computed drift lines
   cadenceDrift: string[]

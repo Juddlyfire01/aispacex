@@ -176,9 +176,11 @@ CRITICAL RULES:
 - BAD: "avgPerDay 3.48 → 3.33" / "engagementRate unchanged at 0.0244" / "(volumeAddedOwn=2)"
 - GOOD: "posts per day eased from 3.48 to 3.33" / "engagement rate held at 0.0244" / "2 own posts"
 - Own authored additions = new posts the TARGET wrote. Inbound additions = new mentions OF the target gathered from others. Only own authored volume counts as the target "posting more" — never attribute inbound mention volume to the target's posting behavior.
-- When inbound additions dominate own authored additions, say the target received more inbound attention/mentions, not that they posted more.
+- CRITICAL — backfill vs. real new attention: the inbound "mentions added" total is split into (a) mentions genuinely new this interval and (b) older mentions that are backfill. Backfill = historical mentions the gatherer only now captured; they are NOT attention the account received since the last report. Base any statement about the account "receiving more attention" ONLY on the genuinely-new-this-interval count. If most inbound additions are backfill, say the added mentions are mostly older mentions now captured (a data-coverage/backfill effect), NOT a surge in attention.
+- Do NOT use amplifying qualifiers like "far more", "surge", or "spike" for inbound attention unless the genuinely-new-this-interval count actually supports it. A large total that is mostly backfill does not justify such language.
+- When genuinely-new inbound additions dominate own authored additions, say the target received more inbound attention/mentions, not that they posted more.
 - Posting velocity / average posts-per-day shifts reflect authored posts only.
-- Distinguish clocks clearly: date ranges on newly added posts are the span of those posts' timestamps, not necessarily the wall-clock gap between report runs. Do not imply the whole inter-report interval equals a short post-cluster span.
+- Distinguish clocks clearly: date ranges on newly added posts are the span of those posts' timestamps, not necessarily the wall-clock gap between report runs. A wide inbound date span (e.g. several months) across additions that are mostly backfill is a sign of historical capture, not of attention received in a short inter-report interval — never conflate the two.
 - Interpret what the shifts mean for the target's strategy/posture. Be concise and concrete.
 - The narrative may use light Markdown but must NOT begin with a label like "markdown:" — write the actual content directly.
 
@@ -320,11 +322,15 @@ export function humanizeComputedDelta(
 ): Record<string, unknown> {
   return {
     'own posts added': delta.volumeAddedOwn,
-    'inbound mentions added': delta.volumeAddedInbound,
+    'inbound mentions added (total newly gathered)': delta.volumeAddedInbound,
+    'inbound mentions that are genuinely new this interval': delta.volumeAddedInboundInInterval,
+    'inbound mentions that are older backfill (not new attention)': delta.volumeAddedInboundBackfilled,
     'total rows added': delta.volumeAdded,
     'date range of added posts': delta.dateRangeAdded,
     'date range of own posts added': delta.dateRangeAddedOwn,
     'date range of inbound mentions added': delta.dateRangeAddedInbound,
+    'date range of genuinely new inbound mentions': delta.dateRangeAddedInboundInInterval,
+    'date range of backfilled inbound mentions': delta.dateRangeAddedInboundBackfilled,
     'metric shifts': delta.metricShifts.map((s) => ({
       metric: SCHEMA_FIELD_LABELS[s.metric] ?? s.metric,
       from: s.from,

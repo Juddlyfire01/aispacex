@@ -202,6 +202,37 @@ describe('computeDelta', () => {
     expect(delta.volumeAdded).toBe(2)
     expect(delta.volumeAddedOwn).toBe(1)
     expect(delta.volumeAddedInbound).toBe(1)
+    // No cutoff supplied => every added inbound mention counts as genuinely new.
+    expect(delta.volumeAddedInboundInInterval).toBe(1)
+    expect(delta.volumeAddedInboundBackfilled).toBe(0)
+  })
+
+  it('splits added inbound mentions into in-interval vs backfilled by the cutoff', () => {
+    const profile = makeProfile()
+    const prev = computeAnalytics(profile, [makePost({ id: 'a' })], [])
+    // Cutoff = when the previous report ran.
+    const cutoff = '2026-06-01T00:00:00Z'
+    const addedInbound = [
+      // Backfill: created before the cutoff (older mention only now captured).
+      makePost({ id: 'old1', authorId: '99', createdAt: '2026-02-15T00:00:00Z' }),
+      makePost({ id: 'old2', authorId: '99', createdAt: '2026-05-20T00:00:00Z' }),
+      // Genuinely new: created after the cutoff.
+      makePost({ id: 'new1', authorId: '99', createdAt: '2026-07-10T00:00:00Z' }),
+    ]
+    const curr = computeAnalytics(profile, [makePost({ id: 'a' }), ...addedInbound], [])
+    const delta = computeDelta(prev, curr, [], addedInbound, cutoff)
+
+    expect(delta.volumeAddedInbound).toBe(3)
+    expect(delta.volumeAddedInboundInInterval).toBe(1)
+    expect(delta.volumeAddedInboundBackfilled).toBe(2)
+    expect(delta.dateRangeAddedInboundInInterval).toEqual({
+      from: '2026-07-10T00:00:00.000Z',
+      to: '2026-07-10T00:00:00.000Z',
+    })
+    expect(delta.dateRangeAddedInboundBackfilled).toEqual({
+      from: '2026-02-15T00:00:00.000Z',
+      to: '2026-05-20T00:00:00.000Z',
+    })
   })
 
   it('flags cadence pattern change', () => {

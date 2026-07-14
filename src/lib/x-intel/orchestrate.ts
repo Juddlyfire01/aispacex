@@ -244,7 +244,9 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
       const prevIds = new Set(prevSnapshot.meta.postIdsAnalyzed)
       const newPosts = posts.filter((p) => !prevIds.has(p.id))
       const { own: newOwn, inbound: newInbound } = partitionPosts(profile, newPosts)
-      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound)
+      // Cutoff = when the previous report ran. Anything timestamped before then
+      // is backfill (older data only now captured), not activity since last report.
+      computedDelta = computeDelta(prevSnapshot.analytics, analytics, newOwn, newInbound, prevSnapshot.createdAt)
     }
 
     // Resolve the prior reports the user chose to feed in as narrative context.
