@@ -6,6 +6,7 @@ import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { SectionRefresh, SectionEmpty } from './section-actions'
 import { canGatherTarget } from '../../lib/x-intel/fields'
 import { type EdgeKind, type SiblingSubject } from '../../lib/x-intel/network-build'
+import { collectSiblings } from '../../lib/x-intel/collect-siblings'
 import { buildNetworkFromPosts, type NetworkDirection } from '../../lib/x-intel/network-direction'
 import { addTargetWithToast } from '../../lib/x-intel/add-target'
 import { NetworkBubbleMap, kindTint } from './network-bubble-map'
@@ -231,29 +232,6 @@ export function NetworkGraphInner({
       </div>
     </div>
   )
-}
-
-/** Collect sibling subjects (other tracked targets + cached self accounts) so
- *  the builder can draw cross-links and reuse known avatars. */
-export function collectSiblings(excludeProfileId: string | null): SiblingSubject[] {
-  const { reports } = useXIntelStore.getState()
-  const { accounts } = useXSelfStore.getState()
-  const out: SiblingSubject[] = []
-  const seen = new Set<string>()
-
-  for (const report of Object.values(reports)) {
-    const p = report.profile
-    if (!p || p.id === excludeProfileId || seen.has(p.id)) continue
-    seen.add(p.id)
-    out.push({ id: p.id, username: p.username, avatarUrl: p.avatarUrl || null, edges: report.edges ?? [] })
-  }
-  for (const account of Object.values(accounts)) {
-    const p = account.profile
-    if (!p || p.id === excludeProfileId || seen.has(p.id)) continue
-    seen.add(p.id)
-    out.push({ id: p.id, username: p.username, avatarUrl: p.avatarUrl || null, edges: account.edges })
-  }
-  return out
 }
 
 /** Target-side wrapper: pulls the active target's data from useXIntelStore. */

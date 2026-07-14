@@ -4,7 +4,8 @@ import { useXIntelStore } from '../../stores/x-intel-store'
 import { refreshSelfNetwork } from '../../lib/x-intel/self-orchestrate'
 import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
 import { addTargetWithToast } from '../../lib/x-intel/add-target'
-import { NetworkGraphInner, collectSiblings } from './network-graph'
+import { NetworkGraphInner } from './network-graph'
+import { collectSiblings } from '../../lib/x-intel/collect-siblings'
 
 /** Network sub-tab for the self Profile tab. Wires the shared NetworkGraphInner
  *  to the active self account's edges. Clicking a node offers to add that
