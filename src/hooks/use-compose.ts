@@ -21,6 +21,7 @@ import {
 } from '../lib/compose/register'
 import { findReportKey } from '../stores/x-intel-store'
 import {
+  COMPOSE_WRITE_DRAFT_TOOL_NAME,
   describeDraftWriteLabels,
   isDraftHandoffEnabled,
   isSeparateDraftModel,
@@ -182,6 +183,10 @@ export function useCompose() {
       const abortController = new AbortController()
       abortRef.current = abortController
       let clearedToolActivity = false
+      /** One-shot: open the draft drawer optimistically the moment the writer
+       * tool name appears in the SSE stream, so the pane stops looking empty
+       * while the brief args + writer request are still in flight. */
+      let draftSkeletonShown = false
       /** Stream index → timeline event id (set on onToolStart, reused on execute). */
       const eventByIndex = new Map<number, string>()
       /** name+args → event id for onToolResult matching. */
@@ -742,6 +747,29 @@ export function useCompose() {
               ensureToolEvent(index, name, {})
               useComposeStore.getState().setAgentPhase(null)
               clearedToolActivity = false
+              // Optimistic drawer: as soon as the writer tool name is seen (args
+              // + the second /chat/completions request still pending), open the
+              // pane and flip on the "Writing…" affordance so it isn't blank.
+              if (
+                draftHandoff &&
+                !draftSkeletonShown &&
+                name === COMPOSE_WRITE_DRAFT_TOOL_NAME
+              ) {
+                draftSkeletonShown = true
+                const s = useComposeStore.getState()
+                s.setDraftDrawerOpen(true)
+                s.setDraftWriterStreaming(true)
+                if (preferredFormat === 'article') {
+                  const existing = s.threads[threadId]?.draft.article
+                  if (!existing || (!existing.title.trim() && !existing.bodyMarkdown.trim())) {
+                    s.applyDraftPatch(threadId, {
+                      article: emptyArticleDraft(),
+                      longform: false,
+                      target: { kind: 'original' },
+                    })
+                  }
+                }
+              }
             },
             onTool: ({ index, name, args }) => {
               flushPendingDelta(threadId)
@@ -828,6 +856,12 @@ export function useCompose() {
       } finally {
         flushPendingDelta(threadId)
         draftWriterFlushRef.current?.()
+        // If we optimistically flipped on the writer skeleton but the writer
+        // never actually started (empty brief, or the run ended first), clear
+        // the streaming flag so the drawer doesn't get stuck in "Writing…".
+        if (draftSkeletonShown && !draftWriterFlushRef.current) {
+          useComposeStore.getState().setDraftWriterStreaming(false)
+        }
         const s = useComposeStore.getState()
         // Settle interrupted steps, then pin the full timeline onto this turn.
         for (const e of s.agentEvents) {

@@ -158,10 +158,16 @@ html {
   /* Default = Medium (FONT_SCALE_MAP.md) — ≥ X default body size. */
   --font-scale: 1.1;
   --density-space: 1;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -173,6 +179,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* Inter-only features; harmless no-ops on other faces. */
   font-feature-settings: "ss01", "cv11";
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Pure emoji faces (picker cells). Not for body/input text. */

@@ -168,7 +168,7 @@ export function ComposeWorkspace() {
         <HistoryRail />
       )}
 
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
         <SubTabs
           tabs={POST_SUB_TABS}
           value={activeSubTab}

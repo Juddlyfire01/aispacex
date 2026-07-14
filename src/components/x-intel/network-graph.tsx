@@ -126,7 +126,7 @@ export function NetworkGraphInner({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[var(--color-border-faint)] text-[10px]">
         <div className="flex items-center rounded-md border border-[var(--color-border-soft)] overflow-hidden">
           {(['inbound', 'outbound'] as NetworkDirection[]).map((dir) => (

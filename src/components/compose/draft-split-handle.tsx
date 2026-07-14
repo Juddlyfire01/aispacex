@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 
 /** Drag handle between chat and draft panes. */
@@ -27,18 +27,24 @@ export function DraftSplitHandle() {
     dragging.current = false
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
-  }, [])
+    window.removeEventListener('pointermove', onPointerMove)
+    window.removeEventListener('pointerup', endDrag)
+    window.removeEventListener('pointercancel', endDrag)
+  }, [onPointerMove])
 
-  useEffect(() => {
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', endDrag)
-    window.addEventListener('pointercancel', endDrag)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', endDrag)
-      window.removeEventListener('pointercancel', endDrag)
-    }
-  }, [onPointerMove, endDrag])
+  const beginDrag = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      dragging.current = true
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+      window.addEventListener('pointermove', onPointerMove)
+      window.addEventListener('pointerup', endDrag)
+      window.addEventListener('pointercancel', endDrag)
+    },
+    [onPointerMove, endDrag],
+  )
 
   return (
     <div
@@ -49,13 +55,7 @@ export function DraftSplitHandle() {
       aria-valuemin={25}
       aria-valuemax={75}
       aria-label="Resize draft pane"
-      onPointerDown={(e) => {
-        e.preventDefault()
-        dragging.current = true
-        document.body.style.cursor = 'col-resize'
-        document.body.style.userSelect = 'none'
-        ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-      }}
+      onPointerDown={beginDrag}
       className="group relative w-1.5 shrink-0 cursor-col-resize bg-[var(--color-border-faint)] hover:bg-white/20 active:bg-white/30 transition-colors"
     >
       <div className="absolute inset-y-0 -left-1 -right-1" />

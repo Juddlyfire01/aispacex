@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   forceSimulation, forceManyBody, forceCollide, forceRadial, forceLink, forceX, forceY,
   type SimulationNodeDatum, type SimulationLinkDatum,
@@ -158,7 +158,10 @@ export function NetworkBubbleMap({ model, onNodeClick }: NetworkBubbleMapProps) 
     return () => ro.disconnect()
   }, [])
 
-  const laidOut = useMemo(() => layoutGraph(model), [model])
+  // Defer layout so filter/slider changes stay responsive; keep the prior graph visible.
+  const layoutModel = useDeferredValue(model)
+  const laidOut = useMemo(() => layoutGraph(layoutModel), [layoutModel])
+  const layoutPending = layoutModel !== model
   const nodeById = useMemo(() => new Map(laidOut.map((n) => [n.id, n])), [laidOut])
 
   // Fit the settled layout into view on model change.
@@ -226,6 +229,9 @@ export function NetworkBubbleMap({ model, onNodeClick }: NetworkBubbleMapProps) 
 
   return (
     <div className="relative w-full h-full overflow-hidden">
+      {layoutPending && (
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[var(--color-bg-base)]/20" aria-hidden />
+      )}
       <svg
         ref={svgRef}
         className="w-full h-full cursor-grab active:cursor-grabbing select-none"

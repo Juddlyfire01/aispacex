@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue, memo } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import { useCompose } from '../../hooks/use-compose'
 import { useModels } from '../../hooks/use-models'
@@ -46,7 +46,15 @@ export function ComposeChat({
   hotText = '',
   hotTokens,
 }: ComposeChatProps) {
-  const thread = useComposeStore((s) => s.threads[threadId])
+  // Defer the thread used for RENDERING the message list. On switch, React keeps
+  // the current (already-formatted) chat committed while it parses the new
+  // thread's markdown off the main path, then swaps it in fully formatted — no
+  // raw-markdown flash, no spinner, and typing/streaming stay responsive because
+  // the input + store writes run on the real threadId. During streaming threadId
+  // never changes, so this is a no-op on the hot token path.
+  const renderThreadId = useDeferredValue(threadId)
+  const thread = useComposeStore((s) => s.threads[renderThreadId])
+  const isThreadPending = renderThreadId !== threadId
   const liveEvents = useComposeStore((s) => s.agentEvents)
   const agentPhase = useComposeStore((s) => s.agentPhase)
   const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
@@ -230,7 +238,10 @@ export function ComposeChat({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3"
+        aria-busy={isThreadPending}
+        className={`flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3 transition-opacity duration-150 ${
+          isThreadPending ? 'opacity-60' : 'opacity-100'
+        }`}
       >
         {messages.length === 0 ? (
           <div className="text-[12px] text-white/20 leading-relaxed space-y-3">
@@ -446,7 +457,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   }
 
   return (
-    <div className="px-4 py-3 border-t border-white/[0.05]">
+    <div className="px-4 py-3 border-t border-white/[0.05] shrink-0">
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}

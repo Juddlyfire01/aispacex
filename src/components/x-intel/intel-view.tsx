@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useXIntelStore, findReportKey, type IntelTopTab } from '../../stores/x-intel-store'
+import { useXIntelStore, findReportKey } from '../../stores/x-intel-store'
 import { TargetRail } from './target-rail'
 import { ActivityFeed } from './activity-feed'
 import { ProfileCard } from './profile-card'
@@ -43,17 +43,12 @@ export function IntelView() {
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const prevTopTab = useRef(activeTopTab)
 
-  // Lazy keep-alive: mount a top tab on first visit, then hide instead of unmounting
-  // so Post (and other heavy panes) stay warm across tab switches.
-  const [mountedTabs, setMountedTabs] = useState(() => new Set<IntelTopTab>([activeTopTab]))
+  // Keep Post warm once visited (ComposeWorkspace is expensive to remount).
+  // You/Targets unmount when inactive so dev doesn't keep every intel pane alive.
+  const [postMounted, setPostMounted] = useState(activeTopTab === 'post')
 
   useEffect(() => {
-    setMountedTabs((prev) => {
-      if (prev.has(activeTopTab)) return prev
-      const next = new Set(prev)
-      next.add(activeTopTab)
-      return next
-    })
+    if (activeTopTab === 'post') setPostMounted(true)
   }, [activeTopTab])
 
   // Entering Post from Profile/Targets: carry the active target into compose context.
@@ -89,22 +84,19 @@ export function IntelView() {
   }, [])
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <SubTabs tabs={TOP_TABS} value={activeTopTab} onChange={setActiveTopTab} className="px-4" />
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <SubTabs tabs={TOP_TABS} value={activeTopTab} onChange={setActiveTopTab} className="px-4 shrink-0" />
 
-      {mountedTabs.has('me') && (
+      {activeTopTab === 'me' && (
         // Profile ("me") tab: rail + Profile/Feed/Network sub-tab bar + content,
         // mirroring the Targets layout. SelfRail switches the active connected
         // account; the content swaps between the self profile split / feed / network.
-        <div
-          className={cn('flex flex-1 min-h-0', activeTopTab !== 'me' && 'hidden')}
-          aria-hidden={activeTopTab !== 'me'}
-        >
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           <SelfRail />
 
-          <div className="flex flex-col flex-1 min-w-0">
-            <SubTabs tabs={SELF_SUB_TABS} value={activeSelfSubTab} onChange={setActiveSelfSubTab} className="px-4" size="sm" />
-            <div className="flex-1 min-h-0">
+          <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+            <SubTabs tabs={SELF_SUB_TABS} value={activeSelfSubTab} onChange={setActiveSelfSubTab} className="px-4 shrink-0" size="sm" />
+            <div className="flex-1 min-h-0 overflow-hidden">
               {activeSelfSubTab === 'profile' && <SelfProfileView />}
               {activeSelfSubTab === 'feed' && <SelfFeed />}
               {activeSelfSubTab === 'network' && <SelfNetwork />}
@@ -113,18 +105,15 @@ export function IntelView() {
         </div>
       )}
 
-      {mountedTabs.has('targets') && (
-        <div
-          className={cn('flex flex-1 min-h-0', activeTopTab !== 'targets' && 'hidden')}
-          aria-hidden={activeTopTab !== 'targets'}
-        >
+      {activeTopTab === 'targets' && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           <TargetRail />
 
-          <div className="flex flex-col flex-1 min-w-0">
-            <SubTabs tabs={subTabs} value={activeSubTab} onChange={setActiveSubTab} className="px-4" size="sm" />
-            <div className="flex-1 min-h-0">
+          <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+            <SubTabs tabs={subTabs} value={activeSubTab} onChange={setActiveSubTab} className="px-4 shrink-0" size="sm" />
+            <div className="flex-1 min-h-0 overflow-hidden">
               {activeSubTab === 'profile' && (
-                <div className="flex flex-col lg:flex-row h-full min-h-0">
+                <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
                   <div className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] lg:h-full min-h-0 overflow-hidden">
                     <ProfileCard />
                   </div>
@@ -140,9 +129,9 @@ export function IntelView() {
         </div>
       )}
 
-      {mountedTabs.has('post') && (
+      {postMounted && (
         <div
-          className={cn('flex-1 min-h-0', activeTopTab !== 'post' && 'hidden')}
+          className={cn('flex flex-1 min-h-0 overflow-hidden', activeTopTab !== 'post' && 'hidden')}
           aria-hidden={activeTopTab !== 'post'}
         >
           <ComposeWorkspace />

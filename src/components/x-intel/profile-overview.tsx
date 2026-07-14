@@ -372,11 +372,18 @@ export function ProfileOverview({
   // actually ship, then estimates tokens heuristically. This is an ESTIMATE — the
   // real, exact count is logged per-report after the call returns.
   const includedIds = synthesisSettings.includedReportIds ?? []
+  const [debouncedSynthesis, setDebouncedSynthesis] = useState(synthesisSettings)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSynthesis(synthesisSettings), 250)
+    return () => clearTimeout(t)
+  }, [synthesisSettings])
+
   const estTokens = useMemo(() => {
     if (!profile || posts.length === 0) return 0
     const analytics = computeAnalytics(profile, posts, edges)
     const { own } = partitionPosts(profile, posts)
-    const includedSet = new Set(includedIds)
+    const debouncedIncludedIds = debouncedSynthesis.includedReportIds ?? []
+    const includedSet = new Set(debouncedIncludedIds)
     const includedReports = reportHistory.filter((r) => includedSet.has(r.id))
     const messages = buildReportMessages({
       profile,
@@ -384,13 +391,13 @@ export function ProfileOverview({
       analytics,
       inboundCount: posts.length - own.length,
       includedReports,
-      settings: synthesisSettings,
+      settings: debouncedSynthesis,
     })
     return estimateMessagesTokens(messages)
-  }, [profile, posts, edges, reportHistory, synthesisSettings, includedIds])
+  }, [profile, posts, edges, reportHistory, debouncedSynthesis])
 
   const actionFooter = footerAction ? (
-    <div className={RAIL_FOOTER_CLASS}>
+    <div className={cn(RAIL_FOOTER_CLASS, 'shrink-0')}>
       <div className={cn(RAIL_FOOTER_ROW_CLASS, 'justify-end')}>
         <button type="button" onClick={footerAction.onClick} className={sectionActionBtnCls}>
           {footerAction.label}

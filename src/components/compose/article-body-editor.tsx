@@ -24,6 +24,10 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
   const ignoreScrollRef = useRef(false)
   const touchYRef = useRef<number | null>(null)
   const wasStreamingRef = useRef(false)
+  // Incremental streaming render: how many chars of markdown are already
+  // committed as stable DOM, and the DOM node holding the not-yet-stable tail.
+  const stableLenRef = useRef(0)
+  const tailNodeRef = useRef<HTMLDivElement | null>(null)
 
   // New stream → re-attach follow so the first tokens stay in view.
   useEffect(() => {
@@ -85,23 +89,92 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
     const el = editorRef.current
     if (!el) return
 
-    if (!seeded.current) {
+    const settleScroll = (follow: boolean, prevTop: number) => {
+      ignoreScrollRef.current = true
+      if (follow) el.scrollTop = el.scrollHeight
+      else el.scrollTop = prevTop
+      requestAnimationFrame(() => {
+        ignoreScrollRef.current = false
+      })
+    }
+
+    // Full (re)seed. Also used to (re)initialize incremental streaming state.
+    const seed = () => {
       el.innerHTML = markdownToArticleHtml(value) || '<p><br></p>'
       lastEmitted.current = value
       seeded.current = true
-      if (streaming && stickToBottomRef.current) {
-        ignoreScrollRef.current = true
-        el.scrollTop = el.scrollHeight
-        requestAnimationFrame(() => {
-          ignoreScrollRef.current = false
-        })
-      }
+      resetIncremental()
+      if (streaming && stickToBottomRef.current) settleScroll(true, 0)
+    }
+
+    // Discard any incremental streaming scaffolding.
+    function resetIncremental() {
+      stableLenRef.current = 0
+      tailNodeRef.current = null
+    }
+
+    if (!seeded.current) {
+      seed()
+      return
+    }
+
+    // Streaming just ended: canonicalize the DOM once (drop the tail wrapper)
+    // so contentEditable + articleHtmlToMarkdown round-trips cleanly on edit.
+    if (!streaming && tailNodeRef.current) {
+      const prevTop = el.scrollTop
+      el.innerHTML = markdownToArticleHtml(value) || '<p><br></p>'
+      lastEmitted.current = value
+      resetIncremental()
+      settleScroll(false, prevTop)
       return
     }
 
     if (value === lastEmitted.current) return
 
-    // User edits while not streaming — don't overwrite from a stale prop race.
+    // While streaming the writer only ever APPENDS. Render just the newly
+    // stabilized block(s) + the small in-progress tail instead of reparsing
+    // and replacing the entire document every frame (O(tail) not O(n)).
+    if (streaming && typeof value === 'string' && value.startsWith(lastEmitted.current ?? '')) {
+      const prevTop = el.scrollTop
+      const follow = stickToBottomRef.current
+
+      // Blocks are delimited by blank lines; everything up to the last "\n\n"
+      // is committed. The remainder is the still-growing tail.
+      const boundary = value.lastIndexOf('\n\n')
+      const commitEnd = boundary >= 0 ? boundary + 2 : 0
+
+      // Lazily create the tail container the first incremental frame.
+      if (!tailNodeRef.current) {
+        el.innerHTML = ''
+        const tail = document.createElement('div')
+        tail.setAttribute('data-streaming-tail', '')
+        el.appendChild(tail)
+        tailNodeRef.current = tail
+        stableLenRef.current = 0
+      }
+      const tailEl = tailNodeRef.current
+
+      // Commit any blocks that became stable since last frame.
+      if (commitEnd > stableLenRef.current) {
+        const chunkMd = value.slice(stableLenRef.current, commitEnd)
+        const chunkHtml = markdownToArticleHtml(chunkMd)
+        if (chunkHtml) {
+          const holder = document.createElement('div')
+          holder.innerHTML = chunkHtml
+          while (holder.firstChild) el.insertBefore(holder.firstChild, tailEl)
+        }
+        stableLenRef.current = commitEnd
+      }
+
+      // Re-render only the tail (one block worth of markdown).
+      tailEl.innerHTML = markdownToArticleHtml(value.slice(stableLenRef.current))
+
+      lastEmitted.current = value
+      settleScroll(follow, prevTop)
+      return
+    }
+
+    // Non-append change (user edit race, reset, or non-streaming): full render.
     if (!streaming) {
       const currentMd = articleHtmlToMarkdown(el.innerHTML)
       if (currentMd === value) {
@@ -115,16 +188,8 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
 
     el.innerHTML = markdownToArticleHtml(value) || '<p><br></p>'
     lastEmitted.current = value
-
-    ignoreScrollRef.current = true
-    if (follow) {
-      el.scrollTop = el.scrollHeight
-    } else {
-      el.scrollTop = prevTop
-    }
-    requestAnimationFrame(() => {
-      ignoreScrollRef.current = false
-    })
+    resetIncremental()
+    settleScroll(follow, prevTop)
   }, [value, streaming])
 
   const emitFromDom = () => {

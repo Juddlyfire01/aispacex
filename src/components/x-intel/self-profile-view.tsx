@@ -169,9 +169,9 @@ export function SelfProfileView() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full min-h-0">
+    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
       {/* Left: identity + metrics (shared with the Targets tab) */}
-      <div className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] lg:h-full min-h-0 overflow-hidden">
+      <div className="flex-1 lg:flex-none lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] min-h-0 overflow-hidden">
         <ProfileOverview
           profile={profile}
           connected={connected}
