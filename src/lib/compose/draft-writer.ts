@@ -1,4 +1,5 @@
-// Stream post copy from the draft-writer model (no tools) into the compose draft.
+// Draft writer: distinct-model handoff streams post copy (no tools) into the
+// compose draft. Same-as-main continues the research agent turn instead.
 
 import { venice } from '../venice-client'
 import { parseSSEStream } from '../stream'

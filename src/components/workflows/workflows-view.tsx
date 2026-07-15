@@ -1,3 +1,4 @@
+/** SHELVED — not routed (see SHELVED_TABS). Kept for possible restore/deletion. */
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,

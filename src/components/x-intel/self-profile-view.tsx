@@ -168,10 +168,11 @@ export function SelfProfileView() {
     )
   }
 
+  // Same shell as Targets profile / GenerationView: fixed rail + flex main.
+  // ProfileOverview pins its action footer via flex (scroll body + shrink-0 footer).
   return (
-    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
-      {/* Left: identity + metrics (shared with the Targets tab) */}
-      <div className="flex-1 lg:flex-none lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] min-h-0 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full min-h-0">
+      <aside className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] flex flex-col max-h-[55vh] lg:max-h-none min-h-0">
         <ProfileOverview
           profile={profile}
           connected={connected}
@@ -191,7 +192,7 @@ export function SelfProfileView() {
           onSynthesisChange={(patch) => setSynthesisSettings(activeAccountId, patch)}
           footerAction={connected ? { label: 'Disconnect account', onClick: () => { void disconnectActiveAccount() } } : undefined}
         />
-      </div>
+      </aside>
 
       {/* Right: report (reuses the target analytics + narrative pipeline).
           `syncing` = a gather is in flight, so the report panel shows a spinner

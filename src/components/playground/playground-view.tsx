@@ -1,3 +1,4 @@
+/** SHELVED — not routed (see SHELVED_TABS). Kept for possible restore/deletion. */
 import { useState } from 'react'
 import { usePlaygroundStore } from '../../stores/playground-store'
 import { useWorkflowStore } from '../../stores/workflow-store'

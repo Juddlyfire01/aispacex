@@ -137,6 +137,7 @@ export function describeToolResult(name: string, result: unknown): string | unde
       return `${arr.length} ${noun}${arr.length === 1 ? '' : 's'}`
     }
     if (name === 'compose_write_draft' && obj.status === 'started') return 'streaming'
+    if (name === 'compose_write_draft' && obj.status === 'write_now') return 'ready'
   }
   return undefined
 }

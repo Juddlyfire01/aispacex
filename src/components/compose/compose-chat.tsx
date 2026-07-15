@@ -308,22 +308,11 @@ export function ComposeChat({
                 />
               ) : null
 
-              // Stick live activity to the top of the scrollport so Writing
-              // auto-scroll doesn't push steps off-screen.
-              const activityNode =
-                active && activity ? (
-                  <div className="sticky top-0 z-10 -mx-4 px-4 py-1.5 mb-1 bg-[var(--color-bg-base)]/95 backdrop-blur-sm">
-                    {activity}
-                  </div>
-                ) : (
-                  activity
-                )
-
               if (!content) {
                 if (active) {
                   return (
                     <div key={i} className="relative">
-                      {activityNode}
+                      {activity}
                     </div>
                   )
                 }
@@ -332,7 +321,7 @@ export function ComposeChat({
 
               return (
                 <div key={i} className="relative space-y-2">
-                  {activityNode}
+                  {activity}
                   <div className="max-w-[92%]">
                     <MarkdownMessage
                       content={content}

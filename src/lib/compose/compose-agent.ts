@@ -74,10 +74,21 @@ export interface ComposeAgentOpts {
   /** Fired for each content token as the final (or intermediate) answer streams. */
   onDelta?: (token: string) => void
   /**
-   * When set, compose_write_draft is available. Called fire-and-forget when the
-   * main model hands off — do not await; chat continues while the writer runs.
+   * When set, compose_write_draft spawns a separate writer fetch (distinct draft
+   * model). Fire-and-forget — chat continues while the writer runs.
    */
   onDraftHandoff?: (brief: DraftWriteBrief) => void
+  /**
+   * Same-as-main: after compose_write_draft, the next agent round streams copy
+   * into the Draft drawer (no separate /chat/completions).
+   */
+  sameModelDraftContinuation?: boolean
+  /** Prepare the draft drawer when compose_write_draft executes (same-as-main). */
+  onDraftContinuationStart?: (brief: DraftWriteBrief) => void
+  /** Stream draft tokens from the continuation round into the drawer. */
+  onDraftDelta?: (token: string) => void
+  /** Finalize the draft drawer after the continuation round completes. */
+  onDraftContinuationEnd?: (text: string) => void
   /**
    * Force the first round to call compose_write_draft (Article draft intents).
    * Later rounds use tool_choice auto so research tools still work after handoff.
@@ -254,6 +265,7 @@ async function streamComposeRound(
   messages: ChatMessage[],
   tools: ToolDefinition[],
   toolChoice: 'auto' | { type: 'function'; function: { name: string } } = 'auto',
+  routeContentToDraft = false,
 ): Promise<StreamedRound> {
   const webSearch = opts.webSearch ?? 'off'
   const webSearchEnabled = webSearch !== 'off'
@@ -309,7 +321,10 @@ async function streamComposeRound(
       content += delta.content
       // Once tools are in flight, keep content for the API message but don't
       // drip preamble into the chat — activity UI owns the surface.
-      if (!toolsStarted) opts.onDelta?.(delta.content)
+      if (!toolsStarted) {
+        if (routeContentToDraft) opts.onDraftDelta?.(delta.content)
+        else opts.onDelta?.(delta.content)
+      }
     }
     if (delta.tool_calls?.length) {
       accumulateStreamedToolCalls(toolAcc, delta.tool_calls)
@@ -353,15 +368,18 @@ export async function runComposeAgent(
   const messages: ChatMessage[] = [...opts.messages]
   let toolCalls = 0
   const handoff = typeof opts.onDraftHandoff === 'function'
+  const sameModelContinuation = Boolean(opts.sameModelDraftContinuation)
+  const draftToolEnabled = handoff || sameModelContinuation
   const xNewsOn = opts.xNewsOn !== false
   const tools: ToolDefinition[] = [
     ...COMPOSE_INTEL_TOOLS,
     ...COMPOSE_HISTORY_TOOLS,
     ...COMPOSE_STATS_TOOLS,
     ...getComposeNewsTools({ xNewsOn }),
-    ...(handoff ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
+    ...(draftToolEnabled ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
   ]
   let lastContent = ''
+  let awaitingDraftContent = false
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (opts.signal?.aborted) {
@@ -371,7 +389,7 @@ export async function runComposeAgent(
     opts.onRoundStart?.(round + 1)
 
     const toolChoice =
-      round === 0 && opts.forceDraftHandoff && handoff
+      round === 0 && opts.forceDraftHandoff && draftToolEnabled
         ? {
             type: 'function' as const,
             function: { name: COMPOSE_WRITE_DRAFT_TOOL_NAME },
@@ -379,7 +397,7 @@ export async function runComposeAgent(
         : ('auto' as const)
 
     const { content, toolCalls: callEntries, contentResetFired, usage } =
-      await streamComposeRound(opts, messages, tools, toolChoice)
+      await streamComposeRound(opts, messages, tools, toolChoice, awaitingDraftContent)
 
     useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
 
@@ -396,8 +414,13 @@ export async function runComposeAgent(
 
     if (callEntries.length === 0) {
       const final = content.trim()
-      // In handoff mode, strip any leaked postdraft from the main model.
-      if (handoff) {
+      if (awaitingDraftContent) {
+        awaitingDraftContent = false
+        opts.onDraftContinuationEnd?.(final)
+        return { content: '', toolCalls }
+      }
+      // Draft-tool mode: strip any leaked postdraft from the main model.
+      if (draftToolEnabled) {
         const { visibleText } = parseDraftBlock(final)
         return { content: visibleText.trim() || final, toolCalls }
       }
@@ -406,6 +429,10 @@ export async function runComposeAgent(
 
     // Tool round: clear UI preamble if mid-stream didn't already.
     if (content && !contentResetFired) opts.onContentReset?.()
+
+    if (awaitingDraftContent) {
+      awaitingDraftContent = false
+    }
 
     for (let i = 0; i < callEntries.length; i++) {
       const { index, call } = callEntries[i]!
@@ -422,8 +449,26 @@ export async function runComposeAgent(
         const brief = parseDraftWriteBrief(args)
         if (!brief.brief) {
           result = { error: 'compose_write_draft requires a non-empty brief' }
+        } else if (sameModelContinuation) {
+          try {
+            opts.onDraftContinuationStart?.(brief)
+            awaitingDraftContent = true
+            result = {
+              status: 'write_now',
+              message:
+                'Write the publishable copy in your next response. Output ONLY the draft text — no preamble, markdown fences, or chat commentary. It streams into the Draft drawer.',
+              brief: brief.brief,
+              ...(brief.notes ? { notes: brief.notes } : {}),
+              ...(brief.target ? { target: brief.target } : {}),
+              ...(brief.longform != null ? { longform: brief.longform } : {}),
+            }
+          } catch (err) {
+            result = {
+              error: err instanceof Error ? err.message : 'Failed to start draft continuation',
+            }
+          }
         } else {
-          // Fire-and-forget — chat continues while the writer streams.
+          // Fire-and-forget — chat continues while the separate writer streams.
           try {
             opts.onDraftHandoff?.(brief)
             result = {
@@ -472,7 +517,7 @@ export async function runComposeAgent(
 
   const trimmed = lastContent.trim()
   if (trimmed) {
-    if (handoff) {
+    if (draftToolEnabled) {
       const { visibleText } = parseDraftBlock(trimmed)
       return { content: visibleText.trim() || trimmed, toolCalls }
     }
@@ -484,7 +529,7 @@ export async function runComposeAgent(
     if (m.role === 'assistant') {
       const text = contentAsString(m.content).trim()
       if (text) {
-        if (handoff) {
+        if (draftToolEnabled) {
           const { visibleText } = parseDraftBlock(text)
           return { content: visibleText.trim() || text, toolCalls }
         }

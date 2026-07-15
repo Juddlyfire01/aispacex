@@ -1,3 +1,4 @@
+/** SHELVED — not routed (see SHELVED_TABS). Kept for possible restore/deletion. */
 import { useState } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'

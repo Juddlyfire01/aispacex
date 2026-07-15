@@ -45,10 +45,10 @@ describe('parseDraftWriteBrief', () => {
 })
 
 describe('isDraftHandoffEnabled', () => {
-  it('is always enabled — drafting always streams through the writer tool', () => {
-    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(true)
-    expect(isDraftHandoffEnabled('')).toBe(true)
-    expect(isDraftHandoffEnabled(null)).toBe(true)
+  it('is enabled only for a distinct draft model', () => {
+    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(false)
+    expect(isDraftHandoffEnabled('')).toBe(false)
+    expect(isDraftHandoffEnabled(null)).toBe(false)
     expect(isDraftHandoffEnabled('venice-uncensored-1-2')).toBe(true)
   })
 })

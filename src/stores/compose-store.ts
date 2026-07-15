@@ -52,7 +52,7 @@ interface ComposeState {
   /** Draft pane width as % of the chat+draft split (25–75). Default 50. */
   draftDrawerWidthPct: number
   model: string
-  /** Draft writer: 'same' = use research model; else a Venice model id. */
+  /** Draft writer: 'same' = continue research turn; else a Venice model id for handoff. */
   draftModel: string
   xSearch: XSearchMode
   /** Venice native web search (`enable_web_search`). */

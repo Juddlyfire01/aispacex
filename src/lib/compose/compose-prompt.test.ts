@@ -121,7 +121,7 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/streams? .*into the Draft drawer/i)
   })
 
-  it('draft spec forwards conversation history to the writer', () => {
+  it('draft spec forwards conversation history to a separate writer', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
@@ -131,6 +131,18 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/conversation history/i)
     expect(system).toMatch(/Do not announce a \"handoff\"/i)
     expect(system).not.toMatch(/```postdraft\n/)
+  })
+
+  it('same-as-main spec continues the research turn instead of a separate writer', () => {
+    const system = buildComposeSystem({
+      modelId: 'm',
+      xSearchOn: false,
+      toolsEnabled: true,
+      sameModelDraft: true,
+    })
+    expect(system).toMatch(/status write_now/i)
+    expect(system).toMatch(/very next response/i)
+    expect(system).not.toMatch(/distinct writer model receives/i)
   })
 
   it('adds article mode rules when preferredFormat is article', () => {

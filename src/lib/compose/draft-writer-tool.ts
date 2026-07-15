@@ -1,7 +1,7 @@
 // Draft writer: ALL drafting goes through compose_write_draft. The research
-// agent calls the tool with a brief; the writer model (main model when Draft
-// model = Same as main, otherwise the chosen distinct model) streams copy into
-// the Draft drawer with brief + conversation history attached automatically.
+// agent calls the tool with a brief; a distinct draft model streams copy into
+// the Draft drawer with brief + conversation history attached. Same as main
+// continues the research agent turn — no separate writer fetch.
 // There is no ```postdraft path — drafting always streams via the tool.
 
 import type { ToolDefinition } from '../../types/venice'
@@ -85,22 +85,18 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
 }
 
 /**
- * True when Draft model is a distinct Venice id (not "Same as main"). Only
- * affects writer model id, timeline labels, and whether the research
- * conversation is re-attached — NOT whether the tool exists.
+ * True when Draft model is a distinct Venice id (not "Same as main").
  */
 export function isSeparateDraftModel(draftModel: string | undefined | null): boolean {
   return Boolean(draftModel && draftModel !== DRAFT_MODEL_SAME)
 }
 
 /**
- * Drafting ALWAYS goes through compose_write_draft (streams into the Draft
- * drawer) regardless of the Draft model setting. Same as main just runs the
- * writer on the main model id. The legacy ```postdraft path is removed, so the
- * tool is always available whenever tools are enabled.
+ * True when compose_write_draft should spawn a separate writer fetch.
+ * Same-as-main continues the research agent loop instead.
  */
-export function isDraftHandoffEnabled(_draftModel?: string | null): boolean {
-  return true
+export function isDraftHandoffEnabled(draftModel?: string | null): boolean {
+  return isSeparateDraftModel(draftModel)
 }
 
 /** Resolve the Venice model id the draft writer should call. */

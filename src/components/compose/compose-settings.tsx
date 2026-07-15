@@ -103,7 +103,7 @@ export function ComposeSettings({
         <div>
           <Label
             htmlFor="compose-draft-model"
-            title="Same as main: research model writes in chat (no handoff). Separate model: receives brief + conversation history."
+            title="Same as main: continues the research turn to stream copy into the drawer. Separate model: distinct writer fetch with brief + history."
           >
             Draft Model
           </Label>

@@ -1,21 +1,13 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, type ComponentType } from 'react'
 import { useSettingsStore, type Tab } from './stores/settings-store'
-import { useChatStore } from './stores/chat-store'
 import { useAuthStore } from './stores/auth-store'
 import { Sidebar } from './components/layout/sidebar'
 import { Header } from './components/layout/header'
 import { ApiKeyDialog } from './components/layout/api-key-dialog'
-import { ChatView } from './components/chat/chat-view'
-import { ImagePage } from './components/image/image-page'
-import { AudioView } from './components/audio/audio-view'
-import { MusicView } from './components/music/music-view'
-import { VideoView } from './components/video/video-view'
-import { EmbeddingsView } from './components/embeddings/embeddings-view'
 import { ErrorBoundary } from './components/ui/error-boundary'
 import { Toaster } from './components/ui/toaster'
 import { ConfirmDialogHost } from './components/ui/confirm-dialog'
 import { PromptDialogHost } from './components/ui/prompt-dialog'
-import { SettingsView } from './components/settings/settings-view'
 import { useApplyAppearance } from './hooks/use-apply-appearance'
 import { useXOAuthBootstrap } from './hooks/use-x-oauth-bootstrap'
 import { primeXOAuthReturnShell } from './lib/x-intel/self-orchestrate'
@@ -29,23 +21,54 @@ import { XConnectFlow } from './components/x-intel/x-connect-flow'
 // so we never flash the previous tab or a generic Suspense spinner.
 primeXOAuthReturnShell()
 
-const LazyWorkflowsView = lazy(() => import('./components/workflows/workflows-view').then((m) => ({ default: m.WorkflowsView })))
-function WorkflowsView() {
-  return (
-    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.workflows} />}>
-      <LazyWorkflowsView />
-    </Suspense>
-  )
+/** Named-export lazy view with a standard Suspense fallback. */
+function lazyView(
+  loader: () => Promise<{ default: ComponentType }>,
+  label: string,
+): ComponentType {
+  const Lazy = lazy(loader)
+  return function LazyViewShell() {
+    return (
+      <Suspense fallback={<ViewLoadingFallback label={label} />}>
+        <Lazy />
+      </Suspense>
+    )
+  }
 }
 
-const LazyPlaygroundView = lazy(() => import('./components/playground/playground-view').then((m) => ({ default: m.PlaygroundView })))
-function PlaygroundView() {
-  return (
-    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.playground} />}>
-      <LazyPlaygroundView />
-    </Suspense>
-  )
-}
+// Live tabs match the sidebar (+ Settings). Shelved: chat/playground/workflows/embeddings.
+const ImagePage = lazyView(
+  () => import('./components/image/image-page').then((m) => ({ default: m.ImagePage })),
+  VIEW_LOADING_LABEL.image,
+)
+const AudioView = lazyView(
+  () => import('./components/audio/audio-view').then((m) => ({ default: m.AudioView })),
+  VIEW_LOADING_LABEL.audio,
+)
+const MusicView = lazyView(
+  () => import('./components/music/music-view').then((m) => ({ default: m.MusicView })),
+  VIEW_LOADING_LABEL.music,
+)
+const VideoView = lazyView(
+  () => import('./components/video/video-view').then((m) => ({ default: m.VideoView })),
+  VIEW_LOADING_LABEL.video,
+)
+const StatsView = lazyView(
+  () => import('./components/stats/stats-view').then((m) => ({ default: m.StatsView })),
+  VIEW_LOADING_LABEL.stats,
+)
+const SignalView = lazyView(
+  () => import('./components/signal/signal-view').then((m) => ({ default: m.SignalView })),
+  VIEW_LOADING_LABEL.signal,
+)
+const NewsView = lazyView(
+  () => import('./components/news/news-view').then((m) => ({ default: m.NewsView })),
+  VIEW_LOADING_LABEL.news,
+)
+const SettingsView = lazyView(
+  () => import('./components/settings/settings-view').then((m) => ({ default: m.SettingsView })),
+  VIEW_LOADING_LABEL.settings,
+)
 
 const LazyIntelView = lazy(() => import('./components/x-intel/intel-view').then((m) => ({ default: m.IntelView })))
 function IntelView() {
@@ -62,42 +85,11 @@ function IntelView() {
   )
 }
 
-const LazyStatsView = lazy(() => import('./components/stats/stats-view').then((m) => ({ default: m.StatsView })))
-function StatsView() {
-  return (
-    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.stats} />}>
-      <LazyStatsView />
-    </Suspense>
-  )
-}
-
-const LazySignalView = lazy(() => import('./components/signal/signal-view').then((m) => ({ default: m.SignalView })))
-function SignalView() {
-  return (
-    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.signal} />}>
-      <LazySignalView />
-    </Suspense>
-  )
-}
-
-const LazyNewsView = lazy(() => import('./components/news/news-view').then((m) => ({ default: m.NewsView })))
-function NewsView() {
-  return (
-    <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.news} />}>
-      <LazyNewsView />
-    </Suspense>
-  )
-}
-
 const views = {
-  chat: ChatView,
   image: ImagePage,
   audio: AudioView,
   music: MusicView,
   video: VideoView,
-  embeddings: EmbeddingsView,
-  workflows: WorkflowsView,
-  playground: PlaygroundView,
   intel: IntelView,
   signal: SignalView,
   stats: StatsView,
@@ -105,7 +97,9 @@ const views = {
   settings: SettingsView,
 } as const
 
-const TAB_ORDER: Tab[] = ['chat', 'image', 'audio', 'music', 'video', 'embeddings', 'workflows', 'playground', 'intel']
+type LiveTab = keyof typeof views
+
+const TAB_ORDER: LiveTab[] = ['image', 'audio', 'music', 'video', 'intel']
 
 export function App() {
   const needsUnlock = useAuthStore((s) => s.hasEncrypted && !s.apiKey)
@@ -113,27 +107,18 @@ export function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const activeTab = useSettingsStore((s) => s.activeTab)
   const setActiveTab = useSettingsStore((s) => s.setActiveTab)
-  const ActiveView = views[activeTab]
+  const ActiveView = (activeTab in views ? views[activeTab as LiveTab] : views.intel)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isMeta = e.metaKey || e.ctrlKey
       if (!isMeta) return
 
-      if (e.key === 'n') {
-        e.preventDefault()
-        setActiveTab('chat')
-        setMobileSidebarOpen(false)
-        useChatStore.getState().setActiveConversation(null)
-        return
-      }
-
       const num = parseInt(e.key, 10)
       if (num >= 1 && num <= TAB_ORDER.length) {
         e.preventDefault()
-        setActiveTab(TAB_ORDER[num - 1])
+        setActiveTab(TAB_ORDER[num - 1] as Tab)
         setMobileSidebarOpen(false)
-        return
       }
     }
 

@@ -11,12 +11,16 @@ export type SpinnerSize = keyof typeof SPINNER_SIZES
 
 /** Shared copy for Suspense + in-view data gates so the label never changes mid-load. */
 export const VIEW_LOADING_LABEL = {
-  workflows: 'Loading workflows…',
-  playground: 'Loading playground…',
+  image: 'Loading image…',
+  audio: 'Loading audio…',
+  music: 'Loading music…',
+  video: 'Loading video…',
   intel: 'Loading intel…',
+  compose: 'Loading compose…',
   stats: 'Loading stats…',
   signal: 'Loading signal…',
   news: 'Loading news…',
+  settings: 'Loading settings…',
 } as const
 
 export function Spinner({ className, size = 'sm' }: { className?: string; size?: SpinnerSize }) {

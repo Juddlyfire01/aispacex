@@ -5,8 +5,8 @@
 // uses intel_* / compose_history_* tools when toolsEnabled.
 // Drafting is a capability, not the purpose of every turn: when the user wants
 // publishable copy, the model calls compose_write_draft and the copy streams
-// into the Draft drawer (writer = main model when "Same as main", else the
-// chosen distinct model). There is no ```postdraft path.
+// into the Draft drawer (writer = distinct model when set; Same as main continues
+// the research agent turn). There is no ```postdraft path.
 
 import type { PreferredFormat } from './format'
 
@@ -25,6 +25,8 @@ export interface ComposeSystemOpts {
   preferredFormat?: PreferredFormat
   /** Account can natively post long-form / articles when verified. */
   premiumCapable?: boolean
+  /** Draft model = Same as main — copy streams in the next agent turn, not a separate writer. */
+  sameModelDraft?: boolean
 }
 
 const FORMAT_SPEC = `Output formats (when drafting for X):
@@ -46,19 +48,27 @@ Citations:
 
 /** All drafting flows through compose_write_draft; copy streams into the drawer. */
 const DRAFT_TOOL_SPEC = `Drafting for X — ALWAYS use the compose_write_draft tool (this is the only way to produce a draft):
-Calling it streams publishable copy live into the Draft drawer. The system forwards this research conversation history to the writer so context is not lost — your brief steers; the conversation fills gaps.
+Calling it streams publishable copy live into the Draft drawer. Your brief steers what gets written.
 
 Call compose_write_draft ONLY when the user asks for publishable copy (post, reply, quote, thread, long-form tweet, or Article) or says to draft / rewrite / revise / use the draft tool.
 
 Do NOT call compose_write_draft for research, analysis, finding posts, suggesting reply targets, outlining ideas, or answering questions. Answer those in chat with intel_*/compose_history_*/search as needed.
 
 When you do call it:
-1. Pass a dense brief (facts, angle, handles, constraints, section outline for Articles). Never set longform:true for Articles (Articles ≠ Premium long-form tweets). Do not try to paste the whole chat into the brief — history is attached automatically — but the brief must still capture priorities and must-include / must-avoid so nothing critical depends on the writer re-reading the full thread.
-2. If a REGISTER block is in this system prompt, the writer also receives it — still put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
+1. Pass a dense brief (facts, angle, handles, constraints, section outline for Articles). Never set longform:true for Articles (Articles ≠ Premium long-form tweets).
+2. If a REGISTER block is in this system prompt, put register-critical style cues in brief/notes (cadence, devices, metric density, must-sound-like) so the brief reinforces the voice. Do not rewrite the full few-shot anchors into the brief.
 3. NEVER paste the draft/article/thread copy into chat, and NEVER emit a \`\`\`postdraft fence or any JSON draft block — the Draft drawer owns the copy. Writing copy directly in chat instead of calling the tool is a failure.
 4. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff" — the Draft drawer is the deliverable.
 5. Image/cover prompts belong in chat (after compose_write_draft), not in the writer brief or article body.
 6. Do not offer to draft unless the user asked for writing/copy.`
+
+const SAME_MODEL_DRAFT_SPEC = `Same-as-main drafting:
+- After compose_write_draft returns status write_now, your very next response must be ONLY the publishable copy — it streams into the Draft drawer. No preamble, no fences, no chat commentary in that turn.
+- You already have full research context in this conversation — use it directly; do not wait for a separate writer.`
+
+const SEPARATE_MODEL_DRAFT_SPEC = `Separate draft writer:
+- After compose_write_draft, a distinct writer model receives your brief plus this conversation history and streams the copy into the Draft drawer.
+- Your brief must still capture priorities and must-include / must-avoid so nothing critical depends on the writer re-reading the full thread.`
 
 const REGISTER_CHAT_ADHERENCE = `REGISTER ADHERENCE (this turn has an active register):
 - Chat analysis may stay in your normal analyst voice.
@@ -72,7 +82,7 @@ const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
 - Image/cover prompts stay in chat, never in article body.`
 
 const DRAFT_TOOLS_EXTRA = `Drafting tool:
-- compose_write_draft — hands a brief to the draft writer (conversation history attached automatically) and streams the copy into the Draft drawer. This is the only way to produce a draft. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting. Never write the copy yourself in chat.`
+- compose_write_draft — streams publishable copy into the Draft drawer. This is the only way to produce a draft. Use ONLY when the user wants a post/reply/quote/thread/long-form/Article written or revised. Not for research answers or reply scouting. Never write the copy yourself in chat.`
 
 const TOOLS_SPEC = `Tools — pick the right one; do not invent others:
 
@@ -167,6 +177,7 @@ Style:
   // The tool only exists when tools are enabled, so only spec it then.
   if (opts.toolsEnabled) {
     parts.push(DRAFT_TOOL_SPEC)
+    parts.push(opts.sameModelDraft ? SAME_MODEL_DRAFT_SPEC : SEPARATE_MODEL_DRAFT_SPEC)
     if (opts.preferredFormat === 'article') {
       parts.push(ARTICLE_HANDOFF_LOCK)
     }

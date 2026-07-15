@@ -1,19 +1,9 @@
-import { useMemo, useState } from 'react'
 import { cn } from '../../lib/utils'
-import { sortStarredFirst } from '../../lib/starred-order'
 import { useSettingsStore, type Tab } from '../../stores/settings-store'
-import { useChatStore } from '../../stores/chat-store'
-import { toast } from '../../stores/toast-store'
 import { AppBrand, AppLogo } from '../ui/logo'
-import { ConversationExportButton } from '../chat/conversation-export-button'
-import { StarButton } from '../ui/star-button'
 import { PanelToggleButton } from './panel-toggle'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from './rail-footer'
-import type { Conversation } from '../../types/venice'
 
-function ChatIcon() {
-  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>)
-}
 function ImageIcon() {
   return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>)
 }
@@ -25,15 +15,6 @@ function VideoIcon() {
 }
 function MusicIcon() {
   return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="5.5" cy="17.5" r="2.5" /><circle cx="17.5" cy="15.5" r="2.5" /><path d="M8 17.5V5l12-2v12.5" /></svg>)
-}
-function EmbedIcon() {
-  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>)
-}
-function WorkflowIcon() {
-  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="19" r="2" /><path d="M12 7v4M12 11l-6 6M12 11l6 6" /></svg>)
-}
-function PlaygroundIcon() {
-  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>)
 }
 function IntelIcon() {
   return (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><circle cx="11" cy="11" r="2.5" /></svg>)
@@ -93,36 +74,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
   const setActiveTab = useSettingsStore((s) => s.setActiveTab)
   const sidebarOpen = useSettingsStore((s) => s.sidebarOpen)
   const toggleSidebar = useSettingsStore((s) => s.toggleSidebar)
-  const conversations = useChatStore((s) => s.conversations)
-  const activeConversationId = useChatStore((s) => s.activeConversationId)
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
-  const createConversation = useChatStore((s) => s.createConversation)
-  const deleteConversation = useChatStore((s) => s.deleteConversation)
-  const toggleStarConversation = useChatStore((s) => s.toggleStarConversation)
-  const selectedModel = useSettingsStore((s) => s.selectedModels.chat)
-  const [search, setSearch] = useState('')
 
   const expanded = sidebarOpen || mobileOpen
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const list = q
-      ? conversations.filter((c) => c.title.toLowerCase().includes(q))
-      : conversations
-    return sortStarredFirst(list, (c) => Boolean(c.starred))
-  }, [conversations, search])
-
-  const handleDelete = (conv: Conversation) => {
-    if (conv.starred) return
-    deleteConversation(conv.id)
-    toast.error('Conversation deleted', conv.title || 'Untitled', {
-      label: 'Undo',
-      onClick: () =>
-        useChatStore.setState((s) => ({
-          conversations: sortStarredFirst([conv, ...s.conversations], (c) => Boolean(c.starred)),
-        })),
-    })
-  }
 
   return (
     <aside
@@ -213,51 +166,6 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
             </div>
           ))}
         </nav>
-
-        {expanded && activeTab === 'chat' && (
-          <div className="flex flex-col flex-1 min-h-0 min-w-0 mt-1 border-t border-[var(--color-border-faint)]">
-            <div className="flex items-center justify-between px-2 pt-3 pb-1.5">
-              <span className="text-[10.5px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-[0.1em]">History</span>
-              <button
-                onClick={() => createConversation(selectedModel || 'qwen3-next-80b')}
-                aria-label="New chat"
-                className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors p-1 rounded-md hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-                title="New chat"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              </button>
-            </div>
-            {conversations.length > 5 && (
-              <div className="px-2 pb-2">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search…"
-                  aria-label="Search conversations"
-                  className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2.5 py-1 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] placeholder:text-[var(--color-text-placeholder)]"
-                />
-              </div>
-            )}
-            <div className="flex-1 min-w-0 overflow-y-auto px-2 pb-3" role="list">
-              {filtered.length === 0 ? (
-                <div className="px-2 py-6 text-[13px] text-[var(--color-text-tertiary)] text-center">
-                  {search ? 'No matches' : 'No conversations yet'}
-                </div>
-              ) : (
-                filtered.map((conv) => (
-                  <ConversationRow
-                    key={conv.id}
-                    conv={conv}
-                    isActive={conv.id === activeConversationId}
-                    onSelect={() => setActiveConversation(conv.id)}
-                    onToggleStar={() => toggleStarConversation(conv.id)}
-                    onDelete={() => handleDelete(conv)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className={RAIL_FOOTER_CLASS}>
@@ -292,69 +200,5 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
         </button>
       </div>
     </aside>
-  )
-}
-
-function ConversationRow({ conv, isActive, onSelect, onToggleStar, onDelete }: {
-  conv: Conversation
-  isActive: boolean
-  onSelect: () => void
-  onToggleStar: () => void
-  onDelete: () => void
-}) {
-  const [confirming, setConfirming] = useState(false)
-  const starred = Boolean(conv.starred)
-
-  return (
-    <div
-      role="listitem"
-      className={cn(
-        'group relative flex items-center gap-1 min-w-0 px-2.5 py-1.5 rounded-md text-[13px] cursor-pointer transition-colors',
-        isActive
-          ? 'bg-white/[0.04] text-[var(--color-text-primary)]'
-          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03]',
-      )}
-      onClick={onSelect}
-    >
-      {starred && (
-        <span className="shrink-0 text-amber-300/80" aria-hidden>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-          </svg>
-        </span>
-      )}
-      <span className="truncate flex-1 min-w-0">{conv.title || 'Untitled'}</span>
-      <div
-        className={cn(
-          'flex items-center gap-0.5 transition-opacity',
-          starred
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-        )}
-      >
-        <StarButton starred={starred} onToggle={onToggleStar} label={conv.title || 'conversation'} />
-        <ConversationExportButton conversation={conv} />
-        {starred ? null : confirming ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); setConfirming(false) }}
-            aria-label="Confirm delete"
-            className="text-rose-300 hover:text-rose-200 px-1.5 text-[11px] font-semibold rounded"
-          >
-            Delete?
-          </button>
-        ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirming(true); setTimeout(() => setConfirming(false), 2500) }}
-            aria-label={`Delete ${conv.title}`}
-            title="Delete"
-            className="text-[var(--color-text-tertiary)] hover:text-rose-300 p-1 rounded focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </div>
   )
 }

@@ -73,4 +73,11 @@ describe('settings-store', () => {
     expect(useSettingsStore.getState().activeTab).toBe('intel')
     expect(useSettingsStore.getState().lastNonSettingsTab).toBe('intel')
   })
+
+  it('remaps shelved tabs to intel', () => {
+    for (const tab of ['chat', 'playground', 'workflows', 'embeddings'] as const) {
+      useSettingsStore.getState().setActiveTab(tab)
+      expect(useSettingsStore.getState().activeTab).toBe('intel')
+    }
+  })
 })

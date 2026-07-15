@@ -1,3 +1,4 @@
+/** SHELVED — not routed (see SHELVED_TABS). Kept for possible restore/deletion. */
 import { useEffect, useRef } from 'react'
 import { useChatStore } from '../../stores/chat-store'
 import { useSettingsStore } from '../../stores/settings-store'

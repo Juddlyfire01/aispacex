@@ -59,10 +59,10 @@ import { yieldForPaint } from '../lib/yield-for-paint'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
 // data, may call intel_* / compose_history_* / compose_write_draft tools (tool
-// rounds stream activity; the draft writer always streams copy into the Draft
-// drawer — Same-as-main runs the writer on the main model, a distinct Draft
-// model runs it on that model; final chat answer streams tokens). Any leaked
-// ```postdraft fence is still stripped into the drawer as a defensive fallback.
+// rounds stream activity; draft copy streams into the Draft drawer — Same-as-main
+// continues the research agent turn, a distinct Draft model uses a separate
+// writer fetch; final chat answer streams tokens). Any leaked ```postdraft fence
+// is still stripped into the drawer as a defensive fallback.
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
@@ -299,8 +299,6 @@ export function useCompose() {
         })
 
         const sameDraftModel = !isSeparateDraftModel(draftModel)
-        // Drafting always streams through the writer tool; Same-as-main just
-        // runs the writer on the main model id.
         const draftHandoff = isDraftHandoffEnabled(draftModel)
         const writerModelId = resolveDraftWriterModelId(draftModel, model)
         const system = buildComposeSystem({
@@ -312,6 +310,7 @@ export function useCompose() {
           registerInject: registerResolved.inject,
           preferredFormat,
           premiumCapable,
+          sameModelDraft: sameDraftModel,
         })
 
         // Transcript minus the trailing empty assistant placeholder.
@@ -437,12 +436,24 @@ export function useCompose() {
 
         useComposeStore.getState().setAgentPhase('Thinking')
 
-        const startDraftWriter = (brief: DraftWriteBrief) => {
+        type DraftStreamSession = {
+          onDelta: (token: string) => void
+          flush: () => void
+          finishFromText: (text: string) => void
+          finishError: (err: unknown) => void
+        }
+
+        let draftStreamSession: DraftStreamSession | null = null
+        let draftContinuationCompleted = false
+
+        const createDraftStreamSession = (
+          brief: DraftWriteBrief,
+          opts?: { showWriterEvent?: boolean },
+        ): DraftStreamSession => {
           const writerBrief: DraftWriteBrief = {
             ...brief,
             preferredFormat: brief.preferredFormat ?? preferredFormat,
-            // Articles are not Premium long-form tweets — never carry longform:true into the writer.
-            ...( (brief.preferredFormat ?? preferredFormat) === 'article'
+            ...((brief.preferredFormat ?? preferredFormat) === 'article'
               ? { longform: false }
               : {}),
           }
@@ -470,22 +481,25 @@ export function useCompose() {
           let displayedAcc = ''
           let pendingDraft = ''
           let draftDripRaf: number | null = null
-          const writerLabels = describeDraftWriteLabels({
-            sameModel: sameDraftModel,
-            article: wantsArticle,
-          })
-          const writerEventId = newAgentEventId()
-          useComposeStore.getState().pushAgentEvent({
-            id: writerEventId,
-            label: writerLabels.label,
-            progressLabel: sameDraftModel
-              ? writerLabels.progressLabel
-              : wantsArticle
-                ? `Article writer streaming (${writerModelId})`
-                : `Draft writer streaming (${writerModelId})`,
-            status: 'running',
-            startedAt: Date.now(),
-          })
+          let writerEventId: string | null = null
+          if (opts?.showWriterEvent) {
+            const writerLabels = describeDraftWriteLabels({
+              sameModel: sameDraftModel,
+              article: wantsArticle,
+            })
+            writerEventId = newAgentEventId()
+            useComposeStore.getState().pushAgentEvent({
+              id: writerEventId,
+              label: writerLabels.label,
+              progressLabel: sameDraftModel
+                ? writerLabels.progressLabel
+                : wantsArticle
+                  ? `Article writer streaming (${writerModelId})`
+                  : `Draft writer streaming (${writerModelId})`,
+              status: 'running',
+              startedAt: Date.now(),
+            })
+          }
 
           const applyDisplayed = (text: string) => {
             if (wantsArticle) {
@@ -554,17 +568,105 @@ export function useCompose() {
             flushDraftDrip()
             draftWriterFlushRef.current = null
             useComposeStore.getState().setDraftWriterStreaming(false)
-            useComposeStore.getState().updateAgentEvent(writerEventId, {
-              status: status === 'cancelled' ? 'done' : status,
-              detail,
-            })
+            if (writerEventId) {
+              useComposeStore.getState().updateAgentEvent(writerEventId, {
+                status: status === 'cancelled' ? 'done' : status,
+                detail,
+              })
+            }
           }
 
           draftWriterFlushRef.current = flushDraftDrip
 
-          // Snapshot research chat for the writer (user/assistant prose).
-          // Always attached now — both Same-as-main and a distinct writer model
-          // draft via this tool, so the writer needs full research context.
+          const finalizeText = (text: string) => {
+            flushDraftDrip()
+            const store = useComposeStore.getState()
+            const looksLikeArticle =
+              allowArticleHeuristic && /^#\s+\S/.test(text.trim())
+            if (wantsArticle || looksLikeArticle) {
+              const parsed = parseArticleFromWriterText(text)
+              const current = store.threads[threadId]?.draft.article
+              store.applyDraftPatch(threadId, {
+                article: {
+                  title: parsed.title,
+                  bodyMarkdown: parsed.bodyMarkdown,
+                  cover: current?.cover,
+                  inlineMedia: current?.inlineMedia ?? [],
+                  contentState: current?.contentState,
+                },
+                longform: false,
+                target: { kind: 'original' },
+                segments: [emptySegment()],
+              })
+              finishWriter('done', 'article ready')
+              return
+            }
+            const texts = splitWriterSegments(text)
+            const segments =
+              texts.length > 0
+                ? texts.map((segText, i) => ({
+                    id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
+                    text: segText,
+                    media: [],
+                  }))
+                : [{ ...seg, text }]
+            const isVerified = getActiveAccountVerified()
+            const pref = store.longformPreference
+            const patch: Partial<PostDraft> = {
+              segments,
+              article: undefined,
+              ...(writerBrief.target ? { target: writerBrief.target } : {}),
+              ...(typeof writerBrief.longform === 'boolean'
+                ? { longform: writerBrief.longform }
+                : {}),
+            }
+            const gated = syncDraftForVerification(
+              { ...store.threads[threadId]!.draft, ...patch },
+              isVerified,
+              pref,
+            )
+            store.applyDraftPatch(threadId, gated ? { ...patch, ...gated } : patch)
+            finishWriter(
+              'done',
+              texts.length > 1 ? `${texts.length} segments` : 'ready',
+            )
+          }
+
+          return {
+            onDelta: (token: string) => {
+              networkAcc += token
+              pendingDraft += token
+              scheduleDraftDrip()
+            },
+            flush: flushDraftDrip,
+            finishFromText: (text: string) => {
+              finalizeText(text || networkAcc)
+            },
+            finishError: (err: unknown) => {
+              if (err instanceof DOMException && err.name === 'AbortError') {
+                finishWriter('cancelled', 'cancelled')
+                return
+              }
+              const message = err instanceof Error ? err.message : 'Draft writer failed'
+              finishWriter('error', message)
+            },
+          }
+        }
+
+        const startDraftContinuation = (brief: DraftWriteBrief) => {
+          draftStreamSession = createDraftStreamSession(brief)
+        }
+
+        const startDraftWriter = (brief: DraftWriteBrief) => {
+          const session = createDraftStreamSession(brief, { showWriterEvent: true })
+          draftStreamSession = session
+          const writerBrief: DraftWriteBrief = {
+            ...brief,
+            preferredFormat: brief.preferredFormat ?? preferredFormat,
+            ...((brief.preferredFormat ?? preferredFormat) === 'article'
+              ? { longform: false }
+              : {}),
+          }
           const conversationForWriter = (
             useComposeStore.getState().threads[threadId]?.messages ?? []
           )
@@ -581,72 +683,10 @@ export function useCompose() {
             conversation: conversationForWriter,
             registerInject: registerResolved.inject,
             signal: abortController.signal,
-            onDelta: (token) => {
-              networkAcc += token
-              pendingDraft += token
-              scheduleDraftDrip()
-            },
+            onDelta: session.onDelta,
           })
-            .then((finalText) => {
-              flushDraftDrip()
-              const store = useComposeStore.getState()
-              const text = finalText || networkAcc
-              const looksLikeArticle =
-                allowArticleHeuristic && /^#\s+\S/.test(text.trim())
-              if (wantsArticle || looksLikeArticle) {
-                const parsed = parseArticleFromWriterText(text)
-                const current = store.threads[threadId]?.draft.article
-                store.applyDraftPatch(threadId, {
-                  article: {
-                    title: parsed.title,
-                    bodyMarkdown: parsed.bodyMarkdown,
-                    cover: current?.cover,
-                    inlineMedia: current?.inlineMedia ?? [],
-                    contentState: current?.contentState,
-                  },
-                  longform: false,
-                  target: { kind: 'original' },
-                  segments: [emptySegment()],
-                })
-                finishWriter('done', 'article ready')
-                return
-              }
-              const texts = splitWriterSegments(text)
-              const segments =
-                texts.length > 0
-                  ? texts.map((segText, i) => ({
-                      id: i === 0 ? seg.id : `dw_${i}_${seg.id}`,
-                      text: segText,
-                      media: [],
-                    }))
-                  : [{ ...seg, text: networkAcc }]
-              const isVerified = getActiveAccountVerified()
-              const pref = store.longformPreference
-              const patch: Partial<PostDraft> = {
-                segments,
-                article: undefined,
-                ...(brief.target ? { target: brief.target } : {}),
-                ...(typeof brief.longform === 'boolean' ? { longform: brief.longform } : {}),
-              }
-              const gated = syncDraftForVerification(
-                { ...store.threads[threadId]!.draft, ...patch },
-                isVerified,
-                pref,
-              )
-              store.applyDraftPatch(threadId, gated ? { ...patch, ...gated } : patch)
-              finishWriter(
-                'done',
-                texts.length > 1 ? `${texts.length} segments` : 'ready',
-              )
-            })
-            .catch((err) => {
-              if (err instanceof DOMException && err.name === 'AbortError') {
-                finishWriter('cancelled', 'cancelled')
-                return
-              }
-              const message = err instanceof Error ? err.message : 'Draft writer failed'
-              finishWriter('error', message)
-            })
+            .then((finalText) => session.finishFromText(finalText))
+            .catch((err) => session.finishError(err))
         }
 
         const ensureToolEvent = (
@@ -704,10 +744,26 @@ export function useCompose() {
             newsBookmarks,
             signal: abortController.signal,
             onDraftHandoff: draftHandoff ? startDraftWriter : undefined,
+            sameModelDraftContinuation: sameDraftModel,
+            onDraftContinuationStart: sameDraftModel ? startDraftContinuation : undefined,
+            onDraftDelta: sameDraftModel
+              ? (token) => {
+                  if (!clearedToolActivity) {
+                    clearedToolActivity = true
+                    useComposeStore.getState().setAgentPhase('Writing')
+                  }
+                  draftStreamSession?.onDelta(token)
+                }
+              : undefined,
+            onDraftContinuationEnd: sameDraftModel
+              ? (text) => {
+                  draftContinuationCompleted = true
+                  draftStreamSession?.finishFromText(text)
+                  draftStreamSession = null
+                }
+              : undefined,
             forceDraftHandoff:
-              draftHandoff &&
-              preferredFormat === 'article' &&
-              looksLikeDraftIntent(userMessage),
+              preferredFormat === 'article' && looksLikeDraftIntent(userMessage),
             onWebSearch: ({ resultCount }) => {
               const s = useComposeStore.getState()
               s.pushAgentEvent({
@@ -751,7 +807,7 @@ export function useCompose() {
               // + the second /chat/completions request still pending), open the
               // pane and flip on the "Writing…" affordance so it isn't blank.
               if (
-                draftHandoff &&
+                (draftHandoff || sameDraftModel) &&
                 !draftSkeletonShown &&
                 name === COMPOSE_WRITE_DRAFT_TOOL_NAME
               ) {
@@ -843,7 +899,10 @@ export function useCompose() {
             finishedStore.setLastAssistantContent(threadId, content)
           }
         } else {
-          finishedStore.setLastAssistantContent(threadId, '')
+          finishedStore.setLastAssistantContent(
+            threadId,
+            draftContinuationCompleted ? 'Draft updated.' : '',
+          )
         }
       } catch (err) {
         flushPendingDelta(threadId)

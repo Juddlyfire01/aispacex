@@ -20,6 +20,21 @@ export type FontScale = 'sm' | 'md' | 'lg'
 export type Density = 'compact' | 'comfortable'
 export type { Typeface, SurfaceEmphasis }
 
+/**
+ * Shelved product surfaces — source kept on disk but not registered in app
+ * routes/nav. Rule of thumb: anything not in the sidebar (or Settings footer).
+ * Currently: former Build cluster (chat, playground, workflows, embeddings).
+ * Restoring = remove from this set, rewire lazy views in app.tsx, optionally nav.
+ */
+export const SHELVED_TABS = ['chat', 'playground', 'workflows', 'embeddings'] as const
+export type ShelvedTab = (typeof SHELVED_TABS)[number]
+
+const SHELVED_TAB_SET: ReadonlySet<string> = new Set(SHELVED_TABS)
+
+export function isShelvedTab(tab: string | undefined): tab is ShelvedTab {
+  return tab != null && SHELVED_TAB_SET.has(tab)
+}
+
 interface SettingsState {
   activeTab: Tab
   setActiveTab: (tab: Tab) => void
@@ -58,14 +73,15 @@ interface SettingsState {
 const NON_SETTINGS_DEFAULT: Tab = 'intel'
 
 function remapDeprecatedTab(tab: Tab | undefined): Tab {
-  return tab === 'chat' ? 'intel' : (tab ?? NON_SETTINGS_DEFAULT)
+  if (!tab || isShelvedTab(tab)) return NON_SETTINGS_DEFAULT
+  return tab
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       activeTab: NON_SETTINGS_DEFAULT,
-      setActiveTab: (tab) => set({ activeTab: tab }),
+      setActiveTab: (tab) => set({ activeTab: remapDeprecatedTab(tab) }),
       sidebarOpen: true,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
@@ -101,11 +117,11 @@ export const useSettingsStore = create<SettingsState>()(
           settingsFocus: focus ?? null,
         })),
       closeSettings: () =>
-        set((s) => ({ activeTab: s.lastNonSettingsTab ?? NON_SETTINGS_DEFAULT })),
+        set((s) => ({ activeTab: remapDeprecatedTab(s.lastNonSettingsTab) })),
     }),
     {
       name: 'venice-settings',
-      version: 6,
+      version: 8,
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<SettingsState> & { zoom?: Scale }

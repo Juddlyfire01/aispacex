@@ -8,23 +8,17 @@ import { Select } from '../ui/select'
 import { ConnectionPill } from '../ui/shared'
 
 const modelTypeMap: Record<string, string> = {
-  chat: 'text',
   image: 'image',
   audio: 'tts',
   music: 'music',
   video: 'video',
-  embeddings: 'embedding',
 }
 
 const tabLabels: Record<string, string> = {
-  chat: 'Chat',
   image: 'Image',
   audio: 'Audio',
   music: 'Music',
   video: 'Video',
-  embeddings: 'Embeddings',
-  workflows: 'Workflows',
-  playground: 'Playground',
   intel: 'Intel',
   signal: 'Signal',
   stats: 'Stats',
@@ -33,14 +27,10 @@ const tabLabels: Record<string, string> = {
 }
 
 const tabSubtitles: Record<string, string> = {
-  chat: 'Conversational AI',
   image: 'Generate images from text',
   audio: 'Text-to-speech and transcription',
   music: 'Generate music and sound',
   video: 'Generate video clips',
-  embeddings: 'Vector representations of text',
-  workflows: 'Chain models visually',
-  playground: 'Build workflows by chatting',
   intel: 'X intelligence gathering',
   signal: 'Venice community & attention across X',
   stats: 'Real-time on-chain data for VVV & DIEM on Base',
@@ -48,7 +38,7 @@ const tabSubtitles: Record<string, string> = {
   settings: 'Preferences and appearance',
 }
 
-const noModelSelector = new Set(['video', 'music', 'audio', 'image', 'workflows', 'playground', 'intel', 'signal', 'stats', 'news', 'settings'])
+const noModelSelector = new Set(['video', 'music', 'audio', 'image', 'intel', 'signal', 'stats', 'news', 'settings'])
 
 interface Props {
   onOpenApiKey: () => void
