@@ -17,7 +17,11 @@ import {
   estimateComposeContextBreakdown,
   type ContextUsageBreakdown,
 } from '../../lib/compose/token-estimate'
-import { SPHERE_REPORT_STARTER } from '../../lib/compose/sphere-report-workflow'
+import {
+  COMPOSE_TEMPLATES,
+  PRIMARY_TEMPLATE,
+  type ComposeTemplateStarter,
+} from '../../lib/compose/compose-templates'
 import { messageContentString } from '../../lib/compose/thread-meta'
 import type { ComposeMessage } from '../../lib/compose/thread-types'
 import { ThreadExportButton } from './thread-export-button'
@@ -223,15 +227,18 @@ export function ComposeChat({
     [send],
   )
 
-  const launchSphereReport = useCallback(() => {
-    if (isStreaming || sendBlocked) return
-    setPreferredFormat(threadId, SPHERE_REPORT_STARTER.preferredFormat)
-    stickToBottomRef.current = true
-    // Full multi-phase brief goes to the model; chat shows name + process only.
-    void send(SPHERE_REPORT_STARTER.buildPrompt(), {
-      displayContent: SPHERE_REPORT_STARTER.buildDisplayMessage(),
-    })
-  }, [isStreaming, sendBlocked, setPreferredFormat, send, threadId])
+  const launchTemplate = useCallback(
+    (starter: ComposeTemplateStarter) => {
+      if (isStreaming || sendBlocked) return
+      setPreferredFormat(threadId, starter.preferredFormat)
+      stickToBottomRef.current = true
+      // Full multi-phase brief goes to the model; chat shows the launch line only.
+      void send(starter.buildPrompt(), {
+        displayContent: starter.buildDisplayMessage(),
+      })
+    },
+    [isStreaming, sendBlocked, setPreferredFormat, send, threadId],
+  )
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -261,16 +268,16 @@ export function ComposeChat({
               Or try{' '}
               <button
                 type="button"
-                onClick={launchSphereReport}
+                onClick={() => launchTemplate(PRIMARY_TEMPLATE)}
                 disabled={Boolean(sendBlocked) || isStreaming}
-                title={SPHERE_REPORT_STARTER.hint}
+                title={PRIMARY_TEMPLATE.hint}
                 className="text-white/50 underline decoration-white/20 underline-offset-2 hover:text-white/75 hover:decoration-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {SPHERE_REPORT_STARTER.label}
+                {PRIMARY_TEMPLATE.label}
               </button>
               <span className="text-white/25">
                 {' '}
-                — what&apos;s new in the sphere.
+                — {PRIMARY_TEMPLATE.blurb} Or open Templates for more.
               </span>
             </p>
           </div>
@@ -355,7 +362,7 @@ export function ComposeChat({
         onSend={handleSend}
         onStop={stop}
         onOpenDraft={() => setDraftDrawerOpen(true)}
-        onSphereReport={launchSphereReport}
+        onLaunchTemplate={launchTemplate}
       />
     </div>
   )
@@ -375,7 +382,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   onSend,
   onStop,
   onOpenDraft,
-  onSphereReport,
+  onLaunchTemplate,
 }: {
   threadId: string
   baseBreakdown: ContextUsageBreakdown
@@ -386,7 +393,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   onSend: (text: string) => void
   onStop: () => void
   onOpenDraft: () => void
-  onSphereReport: () => void
+  onLaunchTemplate: (starter: ComposeTemplateStarter) => void
 }) {
   const [input, setInput] = useState('')
   const [usageOpen, setUsageOpen] = useState(false)
@@ -504,22 +511,25 @@ const ComposeChatInput = memo(function ComposeChatInput({
               role="menu"
               className="absolute left-0 bottom-full mb-1 z-20 min-w-[13rem] max-w-[18rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg"
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setTemplatesOpen(false)
-                  onSphereReport()
-                }}
-                className="block w-full px-3 py-2 text-left hover:bg-white/[0.05] transition-colors"
-              >
-                <div className="text-[11px] font-medium text-white/85">
-                  {SPHERE_REPORT_STARTER.label}
-                </div>
-                <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
-                  {SPHERE_REPORT_STARTER.hint}
-                </div>
-              </button>
+              {COMPOSE_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setTemplatesOpen(false)
+                    onLaunchTemplate(tpl)
+                  }}
+                  className="block w-full px-3 py-2 text-left hover:bg-white/[0.05] transition-colors"
+                >
+                  <div className="text-[11px] font-medium text-white/85">
+                    {tpl.label}
+                  </div>
+                  <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
+                    {tpl.hint}
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </div>

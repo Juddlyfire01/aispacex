@@ -6,6 +6,8 @@
  * then calls compose_write_draft for the publishable longform.
  */
 
+import type { ComposeTemplateStarter } from './template-types'
+
 export const SPHERE_REPORT_WORKFLOW_ID = 'sphere-report' as const
 
 export const SPHERE_REPORT_LABEL = 'Sphere report'
@@ -140,12 +142,13 @@ If evidence is thin, say what is missing rather than inventing posts, metrics, o
 }
 
 /** Empty-state starter entry for Compose. */
-export const SPHERE_REPORT_STARTER = {
+export const SPHERE_REPORT_STARTER: ComposeTemplateStarter = {
   id: SPHERE_REPORT_WORKFLOW_ID,
   label: SPHERE_REPORT_LABEL,
   hint: SPHERE_REPORT_HINT,
+  blurb: "what's new in the sphere.",
   /** Preferred format forced when launching this workflow. */
-  preferredFormat: 'longform' as const,
+  preferredFormat: 'longform',
   /** Full multi-phase instructions for the model (not shown in chat). */
   buildPrompt: () => buildSphereReportPrompt({ informationalRegister: true }),
   /** Short label + process steps shown in the user bubble. */
