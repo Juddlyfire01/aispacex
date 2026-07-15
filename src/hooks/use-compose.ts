@@ -235,8 +235,10 @@ export function useCompose() {
           xNewsOn,
           xNewsMaxAgeHours,
           contextLimit,
-          preferredFormat,
         } = useComposeStore.getState()
+        // preferredFormat is per-thread now; default auto when unset.
+        const preferredFormat =
+          useComposeStore.getState().threads[threadId]?.preferredFormat ?? 'auto'
         const premiumCapable = getActiveAccountVerified()
         const budget = computeHotBudget(contextLimit, budgetPct)
         const pack = packHotWindowCached({

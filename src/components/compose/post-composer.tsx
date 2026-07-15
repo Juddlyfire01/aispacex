@@ -48,7 +48,9 @@ export function PostComposer({ threadId }: PostComposerProps) {
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
   const setLongformPreference = useComposeStore((s) => s.setLongformPreference)
   const longformPreference = useComposeStore((s) => s.longformPreference)
-  const preferredFormat = useComposeStore((s) => s.preferredFormat)
+  const preferredFormat = useComposeStore(
+    (s) => s.threads[threadId]?.preferredFormat ?? 'auto',
+  )
   const resetDraft = useComposeStore((s) => s.resetDraft)
   const { connected, isVerified } = useComposeVerified()
 
@@ -120,7 +122,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
         </button>
       </div>
 
-      <FormatPreference />
+      <FormatPreference threadId={threadId} />
 
       {showArticle ? (
         <ArticleComposer threadId={threadId} />

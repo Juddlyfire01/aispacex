@@ -32,6 +32,26 @@ describe('buildSphereReportPrompt', () => {
     expect(prompt).toMatch(/exact section headings/i)
   })
 
+  it('adds a Phase 4 conclusion after the draft', () => {
+    const prompt = buildSphereReportPrompt()
+    expect(prompt).toMatch(/Phase 4/i)
+    expect(prompt).toMatch(/Conclusion/i)
+    expect(prompt).toMatch(/after the draft/i)
+    // Conclusion is a sign-off, not another full report.
+    expect(prompt).toMatch(/NOT another full report|not a re-run/i)
+  })
+
+  it('enforces the novelty / prior-art gate', () => {
+    const prompt = buildSphereReportPrompt()
+    expect(prompt).toMatch(/Phase 0/i)
+    expect(prompt).toMatch(/prior art/i)
+    expect(prompt).toMatch(/FORBIDDEN REUSE/i)
+    expect(prompt).toMatch(/REQUIRED DELTA/i)
+    expect(prompt).toMatch(/NOVELTY HARD RULE/i)
+    expect(prompt).toMatch(/too similar/i)
+    expect(prompt).toMatch(/FAILED run/i)
+  })
+
   it('defaults to informational register without metrics dump in draft', () => {
     const prompt = buildSphereReportPrompt({ informationalRegister: true })
     expect(prompt).toMatch(/NO Venice protocol metrics dump/i)
@@ -52,13 +72,10 @@ describe('SPHERE_REPORT_STARTER', () => {
     expect(SPHERE_REPORT_STARTER.buildPrompt().length).toBeGreaterThan(200)
   })
 
-  it('display message is short name + process, not the full prompt', () => {
+  it('display message is a short launch line, not the full prompt', () => {
     const display = buildSphereReportDisplayMessage()
     const prompt = SPHERE_REPORT_STARTER.buildPrompt()
-    expect(display).toContain('Sphere report')
-    expect(display).toContain('Central')
-    expect(display).toContain('Related')
-    expect(display).toContain('Longform')
+    expect(display).toBe('Generate the Sphere Report')
     expect(display.length).toBeLessThan(prompt.length / 2)
     expect(display).not.toMatch(/compose_write_draft/)
     expect(display).not.toMatch(/CRITICAL/)

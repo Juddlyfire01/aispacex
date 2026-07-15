@@ -223,7 +223,7 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().toolActivity).toBeNull()
   })
 
-  it('migrateComposeState version < 9 sets preferredFormat to auto', () => {
+  it('migrateComposeState version < 9 no longer keeps a top-level preferredFormat', () => {
     const migrated = migrateComposeState(
       {
         threads: {},
@@ -234,7 +234,10 @@ describe('compose-store', () => {
       },
       8,
     )
-    expect(migrated.preferredFormat).toBe('auto')
+    // v16 removes the old global field; per-thread default applies instead.
+    expect(
+      (migrated as unknown as Record<string, unknown>).preferredFormat,
+    ).toBeUndefined()
   })
 
   it('migrateComposeState version < 15 resets preferredFormat to auto (not persisted)', () => {
@@ -249,7 +252,49 @@ describe('compose-store', () => {
       },
       14,
     )
-    expect(migrated.preferredFormat).toBe('auto')
+    // Old global field is dropped by the v16 step below; nothing persisted at top level.
+    expect(
+      (migrated as unknown as Record<string, unknown>).preferredFormat,
+    ).toBeUndefined()
+  })
+
+  it('migrateComposeState version < 16 moves preferredFormat onto each thread', () => {
+    const migrated = migrateComposeState(
+      {
+        threads: {
+          t1: { id: 't1', messages: [], draft: {} },
+          t2: { id: 't2', messages: [], draft: {}, preferredFormat: 'longform' },
+        },
+        threadOrder: ['t1', 't2'],
+        activeThreadId: 't1',
+        model: 'grok',
+        draftModel: 'same',
+        preferredFormat: 'article',
+      },
+      15,
+    )
+    // Top-level global field is removed.
+    expect(
+      (migrated as unknown as Record<string, unknown>).preferredFormat,
+    ).toBeUndefined()
+    // Threads without a choice backfill to auto; existing per-thread choice is kept.
+    expect(migrated.threads.t1?.preferredFormat).toBe('auto')
+    expect(migrated.threads.t2?.preferredFormat).toBe('longform')
+  })
+
+  it('setPreferredFormat persists per-thread without touching other threads', () => {
+    const s = useComposeStore.getState()
+    const a = s.createThread()
+    const b = s.createThread()
+    useComposeStore.getState().setPreferredFormat(a, 'longform')
+    expect(useComposeStore.getState().threads[a]?.preferredFormat).toBe('longform')
+    // Sibling thread keeps its own default.
+    expect(useComposeStore.getState().threads[b]?.preferredFormat).toBe('auto')
+  })
+
+  it('createThread seeds preferredFormat auto', () => {
+    const id = useComposeStore.getState().createThread()
+    expect(useComposeStore.getState().threads[id]?.preferredFormat).toBe('auto')
   })
 
   it('migrateComposeState version < 12 defaults empty draftModel to same', () => {

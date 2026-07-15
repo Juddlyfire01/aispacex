@@ -61,8 +61,6 @@ interface ComposeState {
   xNewsOn: boolean
   /** X News search recency window in hours. Default 24. */
   xNewsMaxAgeHours: number
-  /** Preferred draft format; auto lets the model choose. */
-  preferredFormat: PreferredFormat
   isStreaming: boolean
   /** Ephemeral — true while the draft writer is streaming into the drawer. */
   draftWriterStreaming: boolean
@@ -140,7 +138,8 @@ interface ComposeState {
   setWebSearch: (mode: WebSearchMode) => void
   setXNewsOn: (on: boolean) => void
   setXNewsMaxAgeHours: (hours: number) => void
-  setPreferredFormat: (format: PreferredFormat) => void
+  /** Set the preferred draft format for a specific thread (persisted). */
+  setPreferredFormat: (threadId: string, format: PreferredFormat) => void
   setStreaming: (streaming: boolean) => void
   setLongformPreference: (enabled: boolean) => void
   setRegisterDefault: (def: RegisterDefault) => void
@@ -266,9 +265,19 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
       : Object.keys(threads)
     state.threadOrder = sortStarredFirst(order, (id) => Boolean(threads[id]?.starred))
   }
-  // preferredFormat is session-only (default auto) — drop any persisted choice.
+  // preferredFormat was session-only (default auto) — drop any persisted choice.
   if (version < 15) {
     state.preferredFormat = 'auto'
+  }
+  // v16: preferredFormat becomes per-thread + persisted. Backfill every thread
+  // to 'auto' and drop the old top-level field.
+  if (version < 16) {
+    if (state.threads) {
+      for (const thread of Object.values(state.threads as Record<string, ComposeThread>)) {
+        if (thread.preferredFormat == null) thread.preferredFormat = 'auto'
+      }
+    }
+    delete state.preferredFormat
   }
 
   if (version < 4) {
@@ -322,6 +331,10 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (state.newThreadContext == null) state.newThreadContext = { type: 'all' }
   if (state.draftDrawerOpen == null) state.draftDrawerOpen = false
   if (!isPostSubTab(state.activePostSubTab)) state.activePostSubTab = 'profile'
+  // Defensive: every thread should carry a preferredFormat (default auto).
+  for (const thread of Object.values(state.threads as Record<string, ComposeThread>)) {
+    if (thread.preferredFormat == null) thread.preferredFormat = 'auto'
+  }
 
   return state as unknown as ComposeState
 }
@@ -341,7 +354,6 @@ export const useComposeStore = create<ComposeState>()(
       webSearch: 'auto',
       xNewsOn: true,
       xNewsMaxAgeHours: 24,
-      preferredFormat: 'auto',
       isStreaming: false,
       draftWriterStreaming: false,
       longformPreference: true,
@@ -375,6 +387,7 @@ export const useComposeStore = create<ComposeState>()(
           draft,
           tokenEstimate: meta.tokenEstimate,
           preview: meta.preview,
+          preferredFormat: 'auto',
           starred: false,
           compressArchives: [],
         }
@@ -674,7 +687,18 @@ export const useComposeStore = create<ComposeState>()(
         set({
           xNewsMaxAgeHours: Math.min(168, Math.max(1, Math.round(hours) || 24)),
         }),
-      setPreferredFormat: (format) => set({ preferredFormat: format }),
+      setPreferredFormat: (threadId, format) =>
+        set((s) => {
+          const thread = s.threads[threadId]
+          if (!thread || thread.preferredFormat === format) return {}
+          // Light update: a format toggle should not bump thread order or meta.
+          return {
+            threads: {
+              ...s.threads,
+              [threadId]: { ...thread, preferredFormat: format },
+            },
+          }
+        }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
       setLongformPreference: (enabled) => set({ longformPreference: enabled }),
       setRegisterDefault: (def) => set({ registerDefault: def }),
@@ -695,7 +719,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 15,
+      version: 16,
       // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -712,7 +736,7 @@ export const useComposeStore = create<ComposeState>()(
         webSearch: state.webSearch,
         xNewsOn: state.xNewsOn,
         xNewsMaxAgeHours: state.xNewsMaxAgeHours,
-        // preferredFormat stays 'auto' by default and is not persisted.
+        // preferredFormat now lives per-thread (persisted inside `threads`).
         draftDrawerWidthPct: state.draftDrawerWidthPct,
         longformPreference: state.longformPreference,
         registerDefault: state.registerDefault,

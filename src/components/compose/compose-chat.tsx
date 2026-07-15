@@ -225,13 +225,13 @@ export function ComposeChat({
 
   const launchSphereReport = useCallback(() => {
     if (isStreaming || sendBlocked) return
-    setPreferredFormat(SPHERE_REPORT_STARTER.preferredFormat)
+    setPreferredFormat(threadId, SPHERE_REPORT_STARTER.preferredFormat)
     stickToBottomRef.current = true
     // Full multi-phase brief goes to the model; chat shows name + process only.
     void send(SPHERE_REPORT_STARTER.buildPrompt(), {
       displayContent: SPHERE_REPORT_STARTER.buildDisplayMessage(),
     })
-  }, [isStreaming, sendBlocked, setPreferredFormat, send])
+  }, [isStreaming, sendBlocked, setPreferredFormat, send, threadId])
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -270,7 +270,7 @@ export function ComposeChat({
               </button>
               <span className="text-white/25">
                 {' '}
-                — sphere pulse, outside themes, longform draft.
+                — what&apos;s new in the sphere.
               </span>
             </p>
           </div>

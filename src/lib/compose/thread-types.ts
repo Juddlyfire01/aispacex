@@ -2,6 +2,7 @@ import type { ChatMessage } from '../../types/venice'
 import type { ComposeScope } from '../intel-library/types'
 import type { AgentEvent } from './agent-events'
 import type { PostDraft } from './types'
+import type { PreferredFormat } from './format'
 
 /** Chat message with optional per-turn agent step history (UI-only; stripped before API). */
 export type ComposeMessage = ChatMessage & {
@@ -32,6 +33,11 @@ export interface ComposeThread {
   draft: PostDraft
   tokenEstimate: number
   preview: string
+  /**
+   * Preferred draft format for this thread; `auto` lets the model choose.
+   * Per-thread and persisted so each conversation keeps its own choice.
+   */
+  preferredFormat?: PreferredFormat
   /** Starred threads pin to the top of history and cannot be deleted until unstarred. */
   starred?: boolean
   /**

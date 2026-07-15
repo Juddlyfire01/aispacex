@@ -32,7 +32,9 @@ interface ComposeActionsProps {
 export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const resetDraft = useComposeStore((s) => s.resetDraft)
-  const preferredFormat = useComposeStore((s) => s.preferredFormat)
+  const preferredFormat = useComposeStore(
+    (s) => s.threads[threadId]?.preferredFormat ?? 'auto',
+  )
   const connected = useXSelfStore((s) => s.connected)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const { isVerified } = useComposeVerified()
