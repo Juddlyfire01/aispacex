@@ -54,6 +54,16 @@ NOVELTY HARD RULE (mandatory):
 - This is a periodic delta brief, not a static landscape map. Success = NEW ideas + NEW receipts since the last edition. Cite the prior map only as a baseline to move past.
 - If the user links a post mid-run and says "too similar," treat that post id as PRIOR ART immediately: re-open Phase 0, rebuild the forbidden-reuse list, and do NOT draft until Phases 1–2 are rewritten around the delta.
 
+EVIDENCE SWEEP (gather your own evidence intelligently — do NOT wait to be fed data):
+Do not rely only on what is pre-loaded in the hot window. You have the tools and the library, so go get what the report actually needs. This is NOT a rote checklist to run end-to-end every time — gather intelligently: start from the delta hunt, follow the strongest leads, pull more where signal is live, and stop when coverage is genuinely sufficient. A report that is thin because you leaned only on pre-loaded context is a FAILED run; an over-padded dump of every tool is also wrong.
+- Judge what's needed per run, then reach for the right tools:
+  - Local library (intel_*): intel_list_subjects to see what's in scope, then intel_get_posts / intel_grep / intel_glob, intel_get_report, intel_get_profile, intel_get_edges for the handles and threads that matter this edition.
+  - Prior editions (compose_history_*): recover past sphere reports / dual maps for the prior-art baseline.
+  - Protocol / market / social (stats_*): stats_protocol, stats_market, stats_social when the snapshot or a claim needs them.
+  - Fresh framing (when enabled): news_read, x_news_search / x_news_get, web search for since-last-edition developments.
+- Cast wide enough to catch what's new, then narrow to the strongest, newest receipts. Depth where it matters over breadth for its own sake; follow leads rather than enumerate tools.
+Report this to the user as ONE high-level overview line (e.g. "Swept the active handles + reports, live stats, fresh news"), NOT a per-tool log or manifest.
+
 ## Phase 0 — Prior art & novelty gate (chat only — before Phase 1)
 Establish what already exists so this edition does not re-derive the last one.
 1. Locate prior Sphere / dual-map outputs from @aispace_bot (and any hot-window dual map). Fetch text/ids of the most recent 1–2 sphere-style posts.

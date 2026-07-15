@@ -41,6 +41,20 @@ describe('buildSphereReportPrompt', () => {
     expect(prompt).toMatch(/NOT another full report|not a re-run/i)
   })
 
+  it('mandates an intelligent evidence sweep, not pre-loaded context only', () => {
+    const prompt = buildSphereReportPrompt()
+    expect(prompt).toMatch(/EVIDENCE SWEEP/i)
+    expect(prompt).toMatch(/intelligent/i)
+    expect(prompt).toMatch(/NOT a rote checklist|not a rote/i)
+    expect(prompt).toMatch(/do NOT wait to be fed data/i)
+    // References real tool families the agent actually has.
+    expect(prompt).toMatch(/intel_/)
+    expect(prompt).toMatch(/compose_history_/)
+    expect(prompt).toMatch(/stats_/)
+    // Feedback to the user stays high-level, not a manifest.
+    expect(prompt).toMatch(/high-level overview line/i)
+  })
+
   it('enforces the novelty / prior-art gate', () => {
     const prompt = buildSphereReportPrompt()
     expect(prompt).toMatch(/Phase 0/i)
