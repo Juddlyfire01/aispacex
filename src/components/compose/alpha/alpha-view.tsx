@@ -22,10 +22,42 @@ import {
   fetchPostsByIds,
   fetchSearchRecent,
 } from '../../../lib/alpha/x-alpha-client'
-import type { AlphaColdBrief, AlphaPostCard, AlphaStory } from '../../../lib/alpha/types'
+import type {
+  AlphaColdBrief,
+  AlphaColdStory,
+  AlphaPostCard,
+  AlphaStory,
+} from '../../../lib/alpha/types'
+import {
+  buildBriefHandoffMessages,
+  buildRailHandoffMessages,
+  buildStoryHandoffMessages,
+  openComposeWithAlphaSeed,
+} from '../../../lib/compose/open-alpha-compose'
 import { openComposeForPost } from '../../../lib/compose/open-compose'
 import { XAPIError } from '../../../lib/x-intel/x-client'
 import { cn } from '../../../lib/utils'
+
+function storyToCold(st: AlphaStory, cold?: AlphaColdStory): AlphaColdStory {
+  return {
+    id: st.id,
+    name: st.name,
+    hook: st.hook,
+    summary: st.summary,
+    category: st.category,
+    clusterPostIds: st.clusterPostIds,
+    url: st.url,
+    fetchedAt: cold?.fetchedAt ?? Date.now(),
+    pinned: cold?.pinned ?? false,
+  }
+}
+
+function railVelocityLine(hourPct: number | null, dayPct: number | null): string | undefined {
+  const bits: string[] = []
+  if (hourPct != null) bits.push(`${formatVelocityPct(hourPct)} 1h`)
+  if (dayPct != null) bits.push(`${formatVelocityPct(dayPct)} 24h`)
+  return bits.length > 0 ? bits.join(' · ') : undefined
+}
 
 function Sparkline({ buckets }: { buckets: { tweet_count: number }[] }) {
   const vals = buckets.map((b) => b.tweet_count)
@@ -501,7 +533,16 @@ export function AlphaView() {
           {grokLoading && !latestGlobalBrief && <LoadingState label="Grok scanning live X…" />}
           {latestGlobalBrief && (
             <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[13px] leading-relaxed">
-              <div className="mb-1.5 flex justify-end">
+              <div className="mb-1.5 flex justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openComposeWithAlphaSeed(buildBriefHandoffMessages(latestGlobalBrief))
+                  }
+                  className="rounded border border-sky-400/25 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-sky-200/90 hover:bg-sky-500/15"
+                >
+                  Open in Composer
+                </button>
                 <button
                   type="button"
                   onClick={() =>
@@ -609,14 +650,27 @@ export function AlphaView() {
                         ? `${st.clusterPostIds.length} posts in cluster`
                         : 'X News'}
                     </p>
-                    <button
-                      type="button"
-                      disabled={!canHydrate || hydrating}
-                      onClick={() => void loadCluster(st)}
-                      className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
-                    >
-                      {hydrating ? 'Loading…' : 'Load cluster'}
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openComposeWithAlphaSeed(
+                            buildStoryHandoffMessages(storyToCold(st, coldStories[st.id])),
+                          )
+                        }
+                        className="rounded border border-sky-400/25 px-2 py-0.5 text-[10px] text-sky-200/90 hover:bg-sky-500/15"
+                      >
+                        Open in Composer
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canHydrate || hydrating}
+                        onClick={() => void loadCluster(st)}
+                        className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
+                      >
+                        {hydrating ? 'Loading…' : 'Load cluster'}
+                      </button>
+                    </div>
                   </div>
                   {(hydrating || hydrated.length > 0) && (
                     <div className="mt-2 space-y-1.5 border-t border-white/[0.05] pt-2">
@@ -850,6 +904,20 @@ export function AlphaView() {
                       </button>
                       <button
                         type="button"
+                        onClick={() =>
+                          openComposeWithAlphaSeed(
+                            buildRailHandoffMessages(
+                              rail,
+                              railVelocityLine(hourPct, dayPct),
+                            ),
+                          )
+                        }
+                        className="rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15"
+                      >
+                        Open in Composer
+                      </button>
+                      <button
+                        type="button"
                         disabled={!xConnected}
                         onClick={() => onToggleExpand(rail.id, rail.query)}
                         className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
@@ -882,7 +950,16 @@ export function AlphaView() {
                       )}
                       {railBrief && (
                         <div className="rounded-md border border-white/[0.06] bg-black/15 px-2.5 py-2 text-[12px] leading-relaxed">
-                          <div className="mb-1 flex justify-end">
+                          <div className="mb-1 flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openComposeWithAlphaSeed(buildBriefHandoffMessages(railBrief))
+                              }
+                              className="rounded border border-sky-400/25 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-sky-200/90 hover:bg-sky-500/15"
+                            >
+                              Open in Composer
+                            </button>
                             <button
                               type="button"
                               onClick={() =>
