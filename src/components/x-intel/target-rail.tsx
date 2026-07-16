@@ -6,6 +6,7 @@ import { useListDragReorder } from '../../hooks/use-list-drag-reorder'
 import { RailDropIndicator } from './rail-drop-indicator'
 import { CostMeter } from './cost-meter'
 import { RailTopAddProfileInput } from './rail-top-control'
+import { ensureProfileShape } from '../../lib/x-intel/normalize'
 import { cn } from '../../lib/utils'
 
 function relativeTime(iso: string | undefined): string {
@@ -23,6 +24,16 @@ export function TargetRail() {
   const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget, reorderTargets, gatheringTargets } = useXIntelStore()
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [officialOnly, setOfficialOnly] = useState(false)
+
+  // Org-affiliation badge for a target, if its gathered profile carries one.
+  const affiliationOf = (username: string) => {
+    const profile = reports[username]?.profile
+    return profile ? ensureProfileShape(profile).affiliation : null
+  }
+
+  const affiliatedCount = targets.filter((t) => affiliationOf(t)).length
+  const visibleTargets = officialOnly ? targets.filter((t) => affiliationOf(t)) : targets
 
   const handleReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
@@ -77,15 +88,44 @@ export function TargetRail() {
         {error && <p className="text-[10px] text-red-400/70 mt-1 px-0.5">{error}</p>}
       </div>
 
+      {affiliatedCount > 0 && (
+        <div className="px-2 pb-1.5">
+          <button
+            type="button"
+            onClick={() => setOfficialOnly((v) => !v)}
+            aria-pressed={officialOnly}
+            title="Show only accounts with an X organization affiliation badge"
+            className={cn(
+              'w-full flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors',
+              officialOnly
+                ? 'border-[var(--color-accent)]/40 text-[var(--color-accent)] bg-[var(--color-accent)]/[0.06]'
+                : 'border-white/[0.08] text-white/40 hover:text-white/60',
+            )}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L3.2 7.7l5.4-.8z" />
+            </svg>
+            Official only{officialOnly ? '' : ` · ${affiliatedCount}`}
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-2">
         {targets.length === 0 ? (
           <div className="px-2 py-5 text-[11px] text-[var(--color-text-tertiary)] text-center">
             Add a profile to start gathering intel
             <div className="mt-2 text-[var(--color-text-quaternary)]">e.g. ErikVoorhees · venice_ai</div>
           </div>
+        ) : officialOnly && visibleTargets.length === 0 ? (
+          <div className="px-2 py-5 text-[11px] text-[var(--color-text-tertiary)] text-center">
+            No affiliated accounts gathered yet
+          </div>
         ) : (
           targets.map((t, index) => {
+            // Keep the full-array index for drag reorder; hide filtered-out rows.
+            if (officialOnly && !affiliationOf(t)) return null
             const report = reports[t]
+            const affiliation = affiliationOf(t)
             const dragProps = getItemProps(index)
             const isLast = index === targets.length - 1
             return (
@@ -114,7 +154,18 @@ export function TargetRail() {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1 min-w-0">
-                    <span className="truncate">@{t}</span>
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="truncate">@{t}</span>
+                      {affiliation && (
+                        <img
+                          src={affiliation.badgeUrl}
+                          alt=""
+                          title={`Affiliated with ${affiliation.org?.name ?? affiliation.description ?? 'an organization'}`}
+                          className="w-3 h-3 rounded-[2px] shrink-0 opacity-70"
+                          draggable={false}
+                        />
+                      )}
+                    </span>
                     {(report?.totalCost ?? 0) > 0 && (
                       <span
                         title={`All-time API spend for @${t}`}

@@ -16,6 +16,7 @@ function makeProfile(over: Partial<Profile> = {}): Profile {
     url: null,
     verified: { legacy: false, type: null },
     automatedBy: null,
+    affiliation: null,
     metrics: { followers: 10000, following: 100, posts: 2000, likes: 0, listed: 50, media: 0 },
     accountCreated: new Date(Date.now() - 1000 * 86_400_000).toISOString(), // 1000 days old
     pinnedPostId: null,

@@ -24,6 +24,7 @@ function profile(verifiedType: Profile['verified']['type']): Profile {
     avatarUrl: '',
     bannerUrl: null,
     automatedBy: null,
+    affiliation: null,
     pinnedPostId: null,
     mostRecentPostId: null,
     connectionStatus: null,

@@ -108,6 +108,7 @@ describe('reportToMarkdown', () => {
         url: null,
         verified: { legacy: false, type: null },
         automatedBy: null,
+        affiliation: null,
         metrics: { followers: 1, following: 1, posts: 1, likes: 1, listed: 1, media: 0 },
         accountCreated: '2020-01-01T00:00:00.000Z',
         pinnedPostId: null,

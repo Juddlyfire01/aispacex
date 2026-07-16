@@ -3,7 +3,7 @@ import { useModels } from '../../hooks/use-models'
 import { usePreserveScroll } from '../../hooks/use-preserve-scroll'
 import { SectionRefresh, SectionEmpty, sectionActionBtnCls } from './section-actions'
 import { ActivityGlance } from './activity-glance'
-import { VerifiedBadge } from './verified-badge'
+import { VerifiedBadge, AffiliationBadge } from './verified-badge'
 import { Checkbox } from '../ui/checkbox'
 import { Tooltip } from '../ui/tooltip'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from '../layout/rail-footer'
@@ -468,6 +468,7 @@ export function ProfileOverview({
           <div className="flex items-center gap-1.5">
             <h2 className="text-[15px] font-semibold text-white/90 truncate">{profile.displayName}</h2>
             {profile.verified.type && <VerifiedBadge type={profile.verified.type} />}
+            {profile.affiliation && <AffiliationBadge affiliation={profile.affiliation} />}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             <span className="text-[11px] text-white/40">@{profile.username}</span>

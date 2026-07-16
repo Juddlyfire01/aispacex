@@ -48,6 +48,7 @@ export function makeProfile(username: string, bio?: string): Profile {
     url: null,
     verified: { legacy: false, type: null },
     automatedBy: null,
+    affiliation: null,
     metrics: { followers: 1000, following: 100, posts: 50, likes: 0, listed: 10, media: 0 },
     accountCreated: '2020-01-01T00:00:00.000Z',
     pinnedPostId: null,

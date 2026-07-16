@@ -22,6 +22,7 @@ const profile: Profile = {
   url: null,
   verified: { legacy: false, type: null },
   automatedBy: null,
+  affiliation: null,
   metrics: { followers: 0, following: 0, posts: 0, likes: 0, listed: 0, media: 0 },
   accountCreated: '',
   pinnedPostId: null,

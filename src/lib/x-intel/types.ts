@@ -1,3 +1,21 @@
+/**
+ * X affiliation badge — the small org logo X renders beside a member's name
+ * when their account is an affiliated member of a Verified Organization
+ * (e.g. Erik Voorhees → Venice). This is distinct from the verification
+ * checkmark (`verified.type`): the badge is the org's own image
+ * (affiliation.badge_url) and links to the parent org account.
+ */
+export interface Affiliation {
+  /** Org badge image URL — the icon shown next to the name (affiliation.badge_url). */
+  badgeUrl: string
+  /** Org display name from the affiliation payload (e.g. "Venice"), or null. */
+  description: string | null
+  /** Badge link target — affiliation.url, else the resolved org profile URL. */
+  url: string | null
+  /** Parent org account, resolved via the affiliation.user_id expansion. */
+  org: { id: string; username: string; name: string } | null
+}
+
 export interface Profile {
   id: string
   username: string
@@ -15,6 +33,12 @@ export interface Profile {
   verified: { legacy: boolean; type: 'blue' | 'business' | 'government' | null }
   /** Parent account for X automated-account label (affiliation.user_id). */
   automatedBy: { username: string } | null
+  /**
+   * Org affiliation badge (Verified Organization membership), or null.
+   * Present when the account is an affiliated member of an org and X ships an
+   * `affiliation.badge_url` — the org-logo badge shown next to the name.
+   */
+  affiliation: Affiliation | null
   metrics: { followers: number; following: number; posts: number; likes: number; listed: number; media: number }
   accountCreated: string  // ISO
   pinnedPostId: string | null

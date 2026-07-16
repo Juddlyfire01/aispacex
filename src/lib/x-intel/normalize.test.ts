@@ -1,6 +1,6 @@
 // src/lib/x-intel/normalize.test.ts
 import { describe, it, expect } from 'vitest'
-import { normalizeProfile, normalizePost, deriveEdges, ensureProfileShape, profileNeedsLinkRefresh } from './normalize'
+import { normalizeProfile, normalizePost, deriveEdges, ensureProfileShape, profileNeedsLinkRefresh, isAffiliatedWith } from './normalize'
 import type { XUserRaw, XPostRaw } from './types'
 
 const rawUser: XUserRaw = {
@@ -54,7 +54,7 @@ describe('normalizeProfile', () => {
     expect(p.automatedBy).toEqual({ username: 'parent' })
   })
 
-  it('skips org affiliation badges that ship badge_url', () => {
+  it('skips org affiliation badges that ship badge_url (automatedBy stays null)', () => {
     const p = normalizeProfile({
       ...rawUser,
       affiliation: { user_id: ['99'], badge_url: 'https://pbs.twimg.com/badge.png' },
@@ -62,6 +62,57 @@ describe('normalizeProfile', () => {
       users: [{ id: '99', name: 'Org', username: 'org' }],
     })
     expect(p.automatedBy).toBeNull()
+  })
+
+  it('maps the org affiliation badge from badge_url + resolved parent org', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      affiliation: {
+        badge_url: 'https://pbs.twimg.com/profile_images/2063006544615120896/yzx4UbK7_bigger.png',
+        description: 'Venice',
+        url: 'https://twitter.com/AskVenice',
+        user_id: ['1764736490515685376'],
+      },
+    }, {
+      users: [{ id: '1764736490515685376', name: 'Venice', username: 'AskVenice', verified_type: 'business' }],
+    })
+    expect(p.affiliation).toEqual({
+      badgeUrl: 'https://pbs.twimg.com/profile_images/2063006544615120896/yzx4UbK7_bigger.png',
+      description: 'Venice',
+      url: 'https://twitter.com/AskVenice',
+      org: { id: '1764736490515685376', name: 'Venice', username: 'AskVenice' },
+    })
+    // Org badge must NOT be misread as an automated-account label.
+    expect(p.automatedBy).toBeNull()
+  })
+
+  it('falls back to the org profile URL when affiliation.url is absent', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      affiliation: { badge_url: 'https://pbs.twimg.com/badge.png', user_id: ['99'] },
+    }, {
+      users: [{ id: '99', name: 'Org', username: 'org' }],
+    })
+    expect(p.affiliation?.url).toBe('https://x.com/org')
+    expect(p.affiliation?.description).toBeNull()
+  })
+
+  it('maps affiliation badge with no resolvable parent org', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      affiliation: { badge_url: 'https://pbs.twimg.com/badge.png', description: 'Org' },
+    })
+    expect(p.affiliation).toEqual({
+      badgeUrl: 'https://pbs.twimg.com/badge.png',
+      description: 'Org',
+      url: null,
+      org: null,
+    })
+  })
+
+  it('leaves affiliation null when there is no badge', () => {
+    const p = normalizeProfile(rawUser)
+    expect(p.affiliation).toBeNull()
   })
 
   it('maps description and profile url entities for condensed display', () => {
@@ -266,5 +317,43 @@ describe('deriveEdges', () => {
     const edges = deriveEdges('42', [noId, withId]) // placeholder first, then real id
     const mention = edges.find((e) => e.kind === 'mention' && e.targetUsername === 'venice_ai')
     expect(mention!.target).toBe('77') // upgraded from user:venice_ai
+  })
+})
+
+describe('isAffiliatedWith', () => {
+  const veniceAffiliated = normalizeProfile({
+    ...rawUser,
+    affiliation: {
+      badge_url: 'https://pbs.twimg.com/badge.png',
+      description: 'Venice',
+      user_id: ['1764736490515685376'],
+    },
+  }, {
+    users: [{ id: '1764736490515685376', name: 'Venice', username: 'AskVenice' }],
+  })
+
+  it('defaults to the app org (@AskVenice) and matches on resolved org handle', () => {
+    expect(isAffiliatedWith(veniceAffiliated)).toBe(true)
+  })
+
+  it('is case-insensitive and tolerates a leading @', () => {
+    expect(isAffiliatedWith(veniceAffiliated, '@askvenice')).toBe(true)
+  })
+
+  it('returns false for a different org', () => {
+    expect(isAffiliatedWith(veniceAffiliated, 'SomeOtherOrg')).toBe(false)
+  })
+
+  it('returns false when the profile has no affiliation badge', () => {
+    expect(isAffiliatedWith(normalizeProfile(rawUser))).toBe(false)
+  })
+
+  it('falls back to the affiliation description when the org handle is unresolved', () => {
+    const p = normalizeProfile({
+      ...rawUser,
+      affiliation: { badge_url: 'https://pbs.twimg.com/badge.png', description: 'AskVenice' },
+    })
+    expect(p.affiliation?.org).toBeNull()
+    expect(isAffiliatedWith(p)).toBe(true)
   })
 })

@@ -1,7 +1,8 @@
 // src/lib/x-intel/normalize.ts
-import type { XUserRaw, XPostRaw, XPostEntities, Profile, Post, Edge } from './types'
+import type { XUserRaw, XPostRaw, XPostEntities, Profile, Post, Edge, Affiliation } from './types'
 import { condenseUrlLabel } from './linkify'
 import { explicitOutboundMentions, threadPrefixMentions } from './activity'
+import { DEFAULT_TARGET } from './fields'
 
 function mapBioUrls(raw: XUserRaw): Profile['bioUrls'] {
   return (raw.entities?.description?.urls ?? []).map((u) => ({
@@ -40,6 +41,32 @@ function mapAutomatedBy(raw: XUserRaw, includedUsers?: XUserRaw[]): Profile['aut
   return { username: parent.username }
 }
 
+/**
+ * Org affiliation badge (Verified Organization membership). This is the case
+ * `mapAutomatedBy` deliberately ignores: an `affiliation` carrying a
+ * `badge_url` is the org-logo badge X renders next to the member's name
+ * (e.g. @ErikVoorhees → Venice), not an automated-account label. Returns null
+ * when there is no badge. The parent org is resolved via the
+ * `affiliation.user_id` expansion in `includes.users`.
+ */
+function mapAffiliation(raw: XUserRaw, includedUsers?: XUserRaw[]): Affiliation | null {
+  const aff = raw.affiliation
+  if (!aff?.badge_url) return null
+
+  const ids = affiliationUserIds(raw)
+  const parent = ids.length ? includedUsers?.find((u) => u.id === ids[0]) : undefined
+  const org = parent?.username
+    ? { id: parent.id, username: parent.username, name: parent.name }
+    : null
+
+  return {
+    badgeUrl: aff.badge_url,
+    description: aff.description?.trim() || null,
+    url: aff.url || (org ? `https://x.com/${org.username}` : null),
+    org,
+  }
+}
+
 function mapConnection(raw: XUserRaw): Pick<Profile, 'connectionStatus' | 'followsYou'> {
   const status = raw.connection_status
   if (!status || !Array.isArray(status)) {
@@ -70,6 +97,7 @@ export function normalizeProfile(raw: XUserRaw, includes?: { users?: XUserRaw[] 
       type: raw.verified_type && raw.verified_type !== 'none' ? raw.verified_type : null,
     },
     automatedBy: mapAutomatedBy(raw, includes?.users),
+    affiliation: mapAffiliation(raw, includes?.users),
     metrics: {
       followers: m?.followers_count ?? 0,
       following: m?.following_count ?? 0,
@@ -102,6 +130,7 @@ export function ensureProfileShape(profile: Profile): Profile {
     website: profile.website ?? null,
     bannerUrl: profile.bannerUrl ?? null,
     automatedBy: profile.automatedBy ?? null,
+    affiliation: profile.affiliation ?? null,
     connectionStatus,
     followsYou,
   }
@@ -113,6 +142,24 @@ export function profileNeedsLinkRefresh(profile: Profile): boolean {
   if (!profile.bio?.includes('t.co')) return false
   if (profile.bioUrls.length === 0) return true
   return profile.bioUrls.every((u) => u.start == null)
+}
+
+/**
+ * True when a profile carries an X org-affiliation badge for `orgUsername`
+ * (case-insensitive, `@` optional). Matches on the resolved parent org handle
+ * first (the reliable signal), falling back to the affiliation description when
+ * the `affiliation.user_id` expansion wasn't resolved. Defaults to the app's
+ * primary org (`@AskVenice`) so `isAffiliatedWith(profile)` answers the common
+ * "is this a Venice team member?" check.
+ */
+export function isAffiliatedWith(profile: Profile, orgUsername: string = DEFAULT_TARGET): boolean {
+  const aff = profile.affiliation
+  if (!aff) return false
+  const want = orgUsername.replace(/^@/, '').toLowerCase()
+  if (aff.org?.username && aff.org.username.toLowerCase() === want) return true
+  // Fallback: the org handle may be unresolved, but the description often
+  // carries the org name — compare loosely against the display name too.
+  return aff.description?.toLowerCase() === want
 }
 
 const KIND_MAP: Record<string, Post['kind']> = {

@@ -1,7 +1,7 @@
 import { useId, type ComponentType } from 'react'
 import { cn } from '../../lib/utils'
 import { X_LINK_BLUE } from '../../lib/theme-palettes'
-import type { Profile } from '../../lib/x-intel/types'
+import type { Profile, Affiliation } from '../../lib/x-intel/types'
 
 export type VerifiedType = NonNullable<Profile['verified']['type']>
 
@@ -114,4 +114,47 @@ export function VerifiedBadge({ type, className }: { type: VerifiedType; classNa
       <Icon />
     </span>
   )
+}
+
+/**
+ * X affiliation badge — the org-logo icon shown next to a member's name when
+ * their account is an affiliated member of a Verified Organization (as per X,
+ * e.g. @ErikVoorhees → Venice). Renders the org's own `badge_url` image (X does
+ * not use a fixed SVG here — each org supplies its logo), linking to the parent
+ * org when known.
+ */
+export function AffiliationBadge({
+  affiliation,
+  className,
+}: {
+  affiliation: Affiliation
+  className?: string
+}) {
+  const orgName = affiliation.org?.name ?? affiliation.description ?? 'organization'
+  const label = `Affiliated with ${orgName}`
+  const img = (
+    <img
+      src={affiliation.badgeUrl}
+      alt={label}
+      className={cn(ICON_CLASS, 'rounded-[3px] object-contain')}
+      loading="lazy"
+    />
+  )
+  const content = affiliation.url ? (
+    <a
+      href={affiliation.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={label}
+      aria-label={label}
+      className={cn('inline-flex', className)}
+    >
+      {img}
+    </a>
+  ) : (
+    <span title={label} aria-label={label} className={cn('inline-flex', className)}>
+      {img}
+    </span>
+  )
+  return content
 }
