@@ -109,24 +109,9 @@ export async function fetchCountsRecent(
   }
 }
 
-export async function fetchSearchRecent(
-  query: string,
-  maxResults = 10,
-  signal?: AbortSignal,
-): Promise<{ posts: AlphaPostCard[]; cost: number }> {
-  const resp = await alphaGet<SearchApiResponse>(
-    'tweets/search/recent',
-    {
-      query,
-      max_results: String(Math.min(100, Math.max(10, maxResults))),
-      'tweet.fields': POST_FIELDS.join(','),
-      expansions: POST_EXPANSIONS.join(','),
-      'user.fields': 'id,name,username',
-    },
-    signal,
-  )
+function mapSearchPosts(resp: SearchApiResponse): AlphaPostCard[] {
   const users = new Map((resp.includes?.users ?? []).map((u) => [u.id, u]))
-  const posts: AlphaPostCard[] = (resp.data ?? []).map((p) => {
+  return (resp.data ?? []).map((p) => {
     const author = p.author_id ? users.get(p.author_id) : undefined
     const m = p.public_metrics
     return {
@@ -144,6 +129,49 @@ export async function fetchSearchRecent(
       url: `https://x.com/i/status/${p.id}`,
     }
   })
+}
+
+export async function fetchSearchRecent(
+  query: string,
+  maxResults = 10,
+  signal?: AbortSignal,
+): Promise<{ posts: AlphaPostCard[]; cost: number }> {
+  const resp = await alphaGet<SearchApiResponse>(
+    'tweets/search/recent',
+    {
+      query,
+      max_results: String(Math.min(100, Math.max(10, maxResults))),
+      'tweet.fields': POST_FIELDS.join(','),
+      expansions: POST_EXPANSIONS.join(','),
+      'user.fields': 'id,name,username',
+    },
+    signal,
+  )
+  const posts = mapSearchPosts(resp)
+  return { posts, cost: COST_PER_POST * posts.length }
+}
+
+/** Max ids per X tweets lookup (API allows 100; we keep clusters smaller). */
+export const ALPHA_HYDRATE_MAX_IDS = 25
+
+export async function fetchPostsByIds(
+  ids: string[],
+  signal?: AbortSignal,
+): Promise<{ posts: AlphaPostCard[]; cost: number }> {
+  const unique = [...new Set(ids.filter(Boolean))].slice(0, ALPHA_HYDRATE_MAX_IDS)
+  if (unique.length === 0) return { posts: [], cost: 0 }
+
+  const resp = await alphaGet<SearchApiResponse>(
+    'tweets',
+    {
+      ids: unique.join(','),
+      'tweet.fields': POST_FIELDS.join(','),
+      expansions: POST_EXPANSIONS.join(','),
+      'user.fields': 'id,name,username',
+    },
+    signal,
+  )
+  const posts = mapSearchPosts(resp)
   return { posts, cost: COST_PER_POST * posts.length }
 }
 
