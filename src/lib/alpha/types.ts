@@ -68,3 +68,37 @@ export interface AlphaGrokBriefCache {
   model: string
   fetchedAt: number
 }
+
+export type AlphaBriefKind = 'global' | 'rail'
+
+export interface AlphaColdBrief {
+  id: string
+  kind: AlphaBriefKind
+  railId?: string
+  railLabel?: string
+  query?: string
+  markdown: string
+  model: string
+  fetchedAt: number
+  pinned: boolean
+}
+
+export interface AlphaColdStory {
+  id: string
+  name: string
+  hook?: string
+  summary?: string
+  category?: string
+  clusterPostIds: string[]
+  url?: string
+  fetchedAt: number
+  pinned: boolean
+}
+
+/** Hydrated post kept in cold archive (AlphaPostCard + archive meta). */
+export interface AlphaColdPost extends AlphaPostCard {
+  fetchedAt: number
+  pinned: boolean
+  storyId?: string
+  railId?: string
+}

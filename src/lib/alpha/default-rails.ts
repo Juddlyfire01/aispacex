@@ -6,6 +6,9 @@ export const ALPHA_MAX_RAILS = 8
 /** Band 1 counts cache TTL (ms). */
 export const ALPHA_COUNTS_TTL_MS = 12 * 60_000
 
+/** Cold archive retention for unpinned items (product: trending window). */
+export const ALPHA_COLD_TTL_MS = 24 * 60 * 60 * 1000
+
 /**
  * Product-owned Radar pack. Queries are X recent-search / counts operators.
  * Tunable here — users can disable or add rails (soft cap ALPHA_MAX_RAILS).
