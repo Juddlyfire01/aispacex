@@ -1,7 +1,7 @@
 # Alpha Memory + Handoff — Design
 
 **Date:** 2026-07-16  
-**Status:** Approved for planning  
+**Status:** Implemented  
 **Depends on:** [2026-07-15-alpha-watchlist-design.md](./2026-07-15-alpha-watchlist-design.md) (Radar surface)
 
 ## Product intent
