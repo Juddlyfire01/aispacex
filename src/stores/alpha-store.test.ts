@@ -11,6 +11,9 @@ describe('useAlphaStore', () => {
       expandedRailId: null,
       sessionCost: 0,
       lifetimeCost: 0,
+      briefs: {},
+      stories: {},
+      posts: {},
     })
   })
 
@@ -42,5 +45,41 @@ describe('useAlphaStore', () => {
     useAlphaStore.getState().addCost(0.01)
     expect(useAlphaStore.getState().sessionCost).toBeCloseTo(0.015)
     expect(useAlphaStore.getState().lifetimeCost).toBeCloseTo(0.015)
+  })
+
+  it('keeps briefs and prunes unpinned after 24h', () => {
+    const now = Date.now()
+    useAlphaStore.getState().keepBrief({
+      id: 'b-old',
+      kind: 'global',
+      markdown: 'old',
+      model: 'm',
+      fetchedAt: now - 25 * 60 * 60 * 1000,
+      pinned: false,
+    })
+    useAlphaStore.getState().keepBrief({
+      id: 'b-pin',
+      kind: 'global',
+      markdown: 'pin',
+      model: 'm',
+      fetchedAt: now - 25 * 60 * 60 * 1000,
+      pinned: true,
+    })
+    useAlphaStore.getState().pruneCold()
+    const { briefs } = useAlphaStore.getState()
+    expect(briefs['b-old']).toBeUndefined()
+    expect(briefs['b-pin']).toBeTruthy()
+  })
+
+  it('toggles pin on a story', () => {
+    useAlphaStore.getState().keepStory({
+      id: 's1',
+      name: 'Story',
+      clusterPostIds: [],
+      fetchedAt: Date.now(),
+      pinned: false,
+    })
+    useAlphaStore.getState().setColdPinned('story', 's1', true)
+    expect(useAlphaStore.getState().stories['s1']?.pinned).toBe(true)
   })
 })

@@ -5,7 +5,21 @@ import {
   ALPHA_MAX_RAILS,
   buildDefaultSystemRails,
 } from '../lib/alpha/default-rails'
-import type { AlphaRail, RailCountsCache } from '../lib/alpha/types'
+import {
+  pruneAlphaArchive,
+  setPinned,
+  upsertBrief,
+  upsertPosts,
+  upsertStory,
+  type AlphaArchiveState,
+} from '../lib/alpha/archive'
+import type {
+  AlphaColdBrief,
+  AlphaColdPost,
+  AlphaColdStory,
+  AlphaRail,
+  RailCountsCache,
+} from '../lib/alpha/types'
 
 interface AlphaState {
   systemRails: AlphaRail[]
@@ -15,6 +29,10 @@ interface AlphaState {
   expandedRailId: string | null
   sessionCost: number
   lifetimeCost: number
+  /** Cold archive (24h + pins). */
+  briefs: Record<string, AlphaColdBrief>
+  stories: Record<string, AlphaColdStory>
+  posts: Record<string, AlphaColdPost>
 
   allRails: () => AlphaRail[]
   setRailEnabled: (id: string, enabled: boolean) => void
@@ -25,10 +43,23 @@ interface AlphaState {
   setCountsCache: (cache: RailCountsCache) => void
   setExpandedRailId: (id: string | null) => void
   addCost: (usd: number) => void
+  keepBrief: (brief: AlphaColdBrief) => void
+  keepStory: (story: AlphaColdStory) => void
+  keepPosts: (posts: AlphaColdPost[]) => void
+  setColdPinned: (kind: 'brief' | 'story' | 'post', id: string, pinned: boolean) => void
+  pruneCold: (now?: number) => void
 }
 
 function newUserRailId(): string {
   return `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function archiveSlice(s: {
+  briefs: Record<string, AlphaColdBrief>
+  stories: Record<string, AlphaColdStory>
+  posts: Record<string, AlphaColdPost>
+}): AlphaArchiveState {
+  return { briefs: s.briefs, stories: s.stories, posts: s.posts }
 }
 
 export const useAlphaStore = create<AlphaState>()(
@@ -40,6 +71,9 @@ export const useAlphaStore = create<AlphaState>()(
       expandedRailId: null,
       sessionCost: 0,
       lifetimeCost: 0,
+      briefs: {},
+      stories: {},
+      posts: {},
 
       allRails: () => {
         const s = get()
@@ -112,20 +146,50 @@ export const useAlphaStore = create<AlphaState>()(
           lifetimeCost: s.lifetimeCost + usd,
         }))
       },
+
+      pruneCold: (now = Date.now()) => {
+        const next = pruneAlphaArchive(archiveSlice(get()), now)
+        set({ briefs: next.briefs, stories: next.stories, posts: next.posts })
+      },
+
+      keepBrief: (brief) => {
+        get().pruneCold()
+        const next = upsertBrief(archiveSlice(get()), brief)
+        set({ briefs: next.briefs, stories: next.stories, posts: next.posts })
+      },
+
+      keepStory: (story) => {
+        get().pruneCold()
+        const next = upsertStory(archiveSlice(get()), story)
+        set({ briefs: next.briefs, stories: next.stories, posts: next.posts })
+      },
+
+      keepPosts: (posts) => {
+        get().pruneCold()
+        const next = upsertPosts(archiveSlice(get()), posts)
+        set({ briefs: next.briefs, stories: next.stories, posts: next.posts })
+      },
+
+      setColdPinned: (kind, id, pinned) => {
+        const next = setPinned(archiveSlice(get()), kind, id, pinned)
+        set({ briefs: next.briefs, stories: next.stories, posts: next.posts })
+      },
     }),
     {
       name: 'venice-alpha',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => createEncryptedStorage()),
       partialize: (s) => ({
         systemRails: s.systemRails,
         userRails: s.userRails,
         countsByRail: s.countsByRail,
         lifetimeCost: s.lifetimeCost,
+        briefs: s.briefs,
+        stories: s.stories,
+        posts: s.posts,
       }),
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<AlphaState>
-        // Always re-seed system rails from product pack (preserve enabled flags by id).
         const defaults = buildDefaultSystemRails()
         const prevEnabled = new Map(
           (Array.isArray(p.systemRails) ? p.systemRails : []).map((r) => [r.id, r.enabled]),
@@ -139,6 +203,17 @@ export const useAlphaStore = create<AlphaState>()(
           p.countsByRail = {}
         }
         if (typeof p.lifetimeCost !== 'number') p.lifetimeCost = 0
+        if (p.briefs == null || typeof p.briefs !== 'object') p.briefs = {}
+        if (p.stories == null || typeof p.stories !== 'object') p.stories = {}
+        if (p.posts == null || typeof p.posts !== 'object') p.posts = {}
+        const pruned = pruneAlphaArchive({
+          briefs: p.briefs,
+          stories: p.stories,
+          posts: p.posts,
+        })
+        p.briefs = pruned.briefs
+        p.stories = pruned.stories
+        p.posts = pruned.posts
         return p as AlphaState
       },
     },
