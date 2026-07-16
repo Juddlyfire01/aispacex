@@ -22,7 +22,7 @@ import {
   fetchPostsByIds,
   fetchSearchRecent,
 } from '../../../lib/alpha/x-alpha-client'
-import type { AlphaGrokBriefCache, AlphaPostCard, AlphaStory } from '../../../lib/alpha/types'
+import type { AlphaColdBrief, AlphaPostCard, AlphaStory } from '../../../lib/alpha/types'
 import { openComposeForPost } from '../../../lib/compose/open-compose'
 import { XAPIError } from '../../../lib/x-intel/x-client'
 import { cn } from '../../../lib/utils'
@@ -56,6 +56,28 @@ function postEngagementLine(p: AlphaPostCard): string {
   return bits.join(' · ')
 }
 
+function latestBriefOfKind(
+  briefs: Record<string, AlphaColdBrief>,
+  kind: 'global' | 'rail',
+  railId?: string,
+): AlphaColdBrief | null {
+  const list = Object.values(briefs).filter((b) => {
+    if (b.kind !== kind) return false
+    if (kind === 'rail' && railId != null) return b.railId === railId
+    return true
+  })
+  if (list.length === 0) return null
+  return list.reduce((a, b) => (b.fetchedAt > a.fetchedAt ? b : a))
+}
+
+function formatPostsExtraContext(posts: AlphaPostCard[] | undefined): string | undefined {
+  if (!posts?.length) return undefined
+  return posts
+    .slice(0, 5)
+    .map((p) => `@${p.authorUsername ?? '?'}: ${p.text.slice(0, 180)}`)
+    .join('\n')
+}
+
 export function AlphaView() {
   const systemRails = useAlphaStore((s) => s.systemRails)
   const userRails = useAlphaStore((s) => s.userRails)
@@ -70,9 +92,11 @@ export function AlphaView() {
   const sessionCost = useAlphaStore((s) => s.sessionCost)
   const keepStory = useAlphaStore((s) => s.keepStory)
   const keepPosts = useAlphaStore((s) => s.keepPosts)
+  const keepBrief = useAlphaStore((s) => s.keepBrief)
   const setColdPinned = useAlphaStore((s) => s.setColdPinned)
   const coldStories = useAlphaStore((s) => s.stories)
   const coldPosts = useAlphaStore((s) => s.posts)
+  const coldBriefs = useAlphaStore((s) => s.briefs)
 
   const xConnected = useXSelfStore((s) => s.connected)
   const selfAccounts = useXSelfStore((s) => s.accounts)
@@ -97,9 +121,10 @@ export function AlphaView() {
   >({})
   const [hydratingStoryId, setHydratingStoryId] = useState<string | null>(null)
 
-  const [grokBrief, setGrokBrief] = useState<AlphaGrokBriefCache | null>(null)
   const [grokLoading, setGrokLoading] = useState(false)
   const [grokError, setGrokError] = useState<string | null>(null)
+  const [railBriefLoadingId, setRailBriefLoadingId] = useState<string | null>(null)
+  const [railBriefErrors, setRailBriefErrors] = useState<Record<string, string>>({})
 
   const [newLabel, setNewLabel] = useState('')
   const [newQuery, setNewQuery] = useState('')
@@ -111,6 +136,21 @@ export function AlphaView() {
     () => rankRailsByHeat(rails, countsByRail),
     [rails, countsByRail],
   )
+
+  const latestGlobalBrief = useMemo(
+    () => latestBriefOfKind(coldBriefs, 'global'),
+    [coldBriefs],
+  )
+
+  const latestRailBriefById = useMemo(() => {
+    const map: Record<string, AlphaColdBrief> = {}
+    for (const b of Object.values(coldBriefs)) {
+      if (b.kind !== 'rail' || !b.railId) continue
+      const prev = map[b.railId]
+      if (!prev || b.fetchedAt > prev.fetchedAt) map[b.railId] = b
+    }
+    return map
+  }, [coldBriefs])
 
   const graphHeat = useMemo(() => {
     const posts = [
@@ -195,10 +235,11 @@ export function AlphaView() {
         setGrokError('No Grok / X-search model in the catalog. Connect Venice and reload models.')
         return
       }
+      const cached = latestBriefOfKind(useAlphaStore.getState().briefs, 'global')
       if (
         !force &&
-        grokBrief &&
-        Date.now() - grokBrief.fetchedAt < ALPHA_GROK_BRIEF_TTL_MS
+        cached &&
+        Date.now() - cached.fetchedAt < ALPHA_GROK_BRIEF_TTL_MS
       ) {
         return
       }
@@ -211,11 +252,23 @@ export function AlphaView() {
           rails,
           countsByRail,
         })
-        setGrokBrief({
+        if (!res.markdown.trim()) {
+          setGrokError('Brief returned empty — nothing stored.')
+          return
+        }
+        const prev = latestBriefOfKind(useAlphaStore.getState().briefs, 'global')
+        const id = `brief-global-${res.fetchedAt}`
+        keepBrief({
+          id,
+          kind: 'global',
           markdown: res.markdown,
           model: res.model,
           fetchedAt: res.fetchedAt,
+          pinned: prev?.pinned ?? false,
         })
+        if (prev?.pinned && prev.id !== id) {
+          setColdPinned('brief', prev.id, false)
+        }
         addCost(res.cost)
       } catch (err) {
         setGrokError(err instanceof Error ? err.message : String(err))
@@ -223,7 +276,71 @@ export function AlphaView() {
         setGrokLoading(false)
       }
     },
-    [models, grokModelId, grokBrief, rails, countsByRail, addCost],
+    [models, grokModelId, rails, countsByRail, addCost, keepBrief, setColdPinned],
+  )
+
+  const runRailBrief = useCallback(
+    async (rail: (typeof rails)[number]) => {
+      if (!models?.length || !grokModelId) {
+        setRailBriefErrors((s) => ({
+          ...s,
+          [rail.id]:
+            'No Grok / X-search model in the catalog. Connect Venice and reload models.',
+        }))
+        return
+      }
+      setRailBriefLoadingId(rail.id)
+      setRailBriefErrors((s) => {
+        const next = { ...s }
+        delete next[rail.id]
+        return next
+      })
+      try {
+        const res = await fetchAlphaGrokBrief({
+          model: grokModelId,
+          models,
+          rails: [rail],
+          countsByRail,
+          extraContext: formatPostsExtraContext(postsByRail[rail.id]),
+        })
+        if (!res.markdown.trim()) {
+          setRailBriefErrors((s) => ({
+            ...s,
+            [rail.id]: 'Brief returned empty — nothing stored.',
+          }))
+          return
+        }
+        const prev = latestBriefOfKind(
+          useAlphaStore.getState().briefs,
+          'rail',
+          rail.id,
+        )
+        const id = `brief-rail-${rail.id}-${res.fetchedAt}`
+        keepBrief({
+          id,
+          kind: 'rail',
+          railId: rail.id,
+          railLabel: rail.label,
+          query: rail.query,
+          markdown: res.markdown,
+          model: res.model,
+          fetchedAt: res.fetchedAt,
+          pinned: prev?.pinned ?? false,
+        })
+        if (prev?.pinned && prev.id !== id) {
+          setColdPinned('brief', prev.id, false)
+        }
+        addCost(res.cost)
+      } catch (err) {
+        setRailBriefErrors((s) => ({
+          ...s,
+          [rail.id]: err instanceof Error ? err.message : String(err),
+        }))
+      } finally {
+        setRailBriefLoadingId(null)
+      }
+    },
+    [models, grokModelId, countsByRail, postsByRail, addCost, keepBrief, setColdPinned],
   )
 
   useEffect(() => {
@@ -371,22 +488,44 @@ export function AlphaView() {
               onClick={() => void runGrokBrief(true)}
               className="rounded bg-sky-500/20 px-3 py-1.5 text-[11px] font-medium text-sky-100 hover:bg-sky-500/30 disabled:opacity-40"
             >
-              {grokLoading ? 'Searching X…' : grokBrief ? 'Re-run brief' : 'Run live brief'}
+              {grokLoading
+                ? 'Searching X…'
+                : latestGlobalBrief
+                  ? 'Re-run brief'
+                  : 'Run live brief'}
             </button>
           </div>
           {grokError && (
             <p className="text-[11px] text-red-300/90">{grokError}</p>
           )}
-          {grokLoading && !grokBrief && <LoadingState label="Grok scanning live X…" />}
-          {grokBrief && (
+          {grokLoading && !latestGlobalBrief && <LoadingState label="Grok scanning live X…" />}
+          {latestGlobalBrief && (
             <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[13px] leading-relaxed">
-              <MarkdownMessage content={grokBrief.markdown} size="compact" />
+              <div className="mb-1.5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setColdPinned('brief', latestGlobalBrief.id, !latestGlobalBrief.pinned)
+                  }
+                  className={cn(
+                    'rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                    latestGlobalBrief.pinned
+                      ? 'border-sky-400/40 text-sky-200/90'
+                      : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
+                  )}
+                  title={latestGlobalBrief.pinned ? 'Unpin brief' : 'Pin brief'}
+                >
+                  {latestGlobalBrief.pinned ? 'Pinned' : 'Pin'}
+                </button>
+              </div>
+              <MarkdownMessage content={latestGlobalBrief.markdown} size="compact" />
               <p className="mt-2 text-[10px] text-[var(--color-text-tertiary)]">
-                {new Date(grokBrief.fetchedAt).toLocaleTimeString()} · native X search via Venice
+                {new Date(latestGlobalBrief.fetchedAt).toLocaleTimeString()} ·{' '}
+                {latestGlobalBrief.model} · native X search via Venice
               </p>
             </div>
           )}
-          {!grokBrief && !grokLoading && (
+          {!latestGlobalBrief && !grokLoading && (
             <p className="text-[12px] text-[var(--color-text-secondary)]">
               One shot: Grok searches live X against your rails and returns accelerating narratives,
               accounts, and post angles — not a static feed scrape.
@@ -612,11 +751,18 @@ export function AlphaView() {
           )}
 
           <div className="space-y-2">
-            {ranked.map(({ rail, hourPct, dayPct, totalTweetCount, lastHourCount }) => {
+            {ranked.map(({ rail, hourPct, dayPct, totalTweetCount, lastHourCount }, rankIdx) => {
               const cache = countsByRail[rail.id]
               const expanded = expandedRailId === rail.id
               const posts = postsByRail[rail.id] ?? []
               const disabledRail = rails.find((r) => r.id === rail.id)
+              const railBrief = latestRailBriefById[rail.id]
+              const railBriefLoading = railBriefLoadingId === rail.id
+              const railBriefError = railBriefErrors[rail.id]
+              const isHottest = rankIdx === 0
+              const recentRailBrief =
+                railBrief != null && Date.now() - railBrief.fetchedAt < ALPHA_COUNTS_TTL_MS
+              const showBriefNudge = isHottest && !recentRailBrief && !railBriefLoading
 
               return (
                 <article
@@ -629,6 +775,16 @@ export function AlphaView() {
                         <h3 className="text-[13px] font-medium text-[var(--color-text-primary)]">
                           {rail.label}
                         </h3>
+                        {showBriefNudge && (
+                          <button
+                            type="button"
+                            disabled={!grokModelId || railBriefLoading}
+                            onClick={() => void runRailBrief(rail)}
+                            className="text-[10px] text-[var(--color-text-tertiary)] hover:text-sky-300/80 disabled:opacity-40"
+                          >
+                            Brief this?
+                          </button>
+                        )}
                         <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
                           {rail.source}
                         </span>
@@ -682,6 +838,18 @@ export function AlphaView() {
                       </label>
                       <button
                         type="button"
+                        disabled={!grokModelId || railBriefLoading}
+                        onClick={() => void runRailBrief(rail)}
+                        className="rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15 disabled:opacity-40"
+                      >
+                        {railBriefLoading
+                          ? 'Briefing…'
+                          : railBrief
+                            ? 'Re-brief rail'
+                            : 'Brief this rail'}
+                      </button>
+                      <button
+                        type="button"
                         disabled={!xConnected}
                         onClick={() => onToggleExpand(rail.id, rail.query)}
                         className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
@@ -703,6 +871,43 @@ export function AlphaView() {
                       )}
                     </div>
                   </div>
+
+                  {(railBriefLoading || railBriefError || railBrief) && (
+                    <div className="space-y-2 border-t border-white/[0.05] px-3 py-3">
+                      {railBriefError && (
+                        <p className="text-[11px] text-red-300/90">{railBriefError}</p>
+                      )}
+                      {railBriefLoading && !railBrief && (
+                        <LoadingState label="Grok briefing this rail…" />
+                      )}
+                      {railBrief && (
+                        <div className="rounded-md border border-white/[0.06] bg-black/15 px-2.5 py-2 text-[12px] leading-relaxed">
+                          <div className="mb-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setColdPinned('brief', railBrief.id, !railBrief.pinned)
+                              }
+                              className={cn(
+                                'rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                                railBrief.pinned
+                                  ? 'border-sky-400/40 text-sky-200/90'
+                                  : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
+                              )}
+                              title={railBrief.pinned ? 'Unpin brief' : 'Pin brief'}
+                            >
+                              {railBrief.pinned ? 'Pinned' : 'Pin'}
+                            </button>
+                          </div>
+                          <MarkdownMessage content={railBrief.markdown} size="compact" />
+                          <p className="mt-1.5 text-[10px] text-[var(--color-text-tertiary)]">
+                            {new Date(railBrief.fetchedAt).toLocaleTimeString()} ·{' '}
+                            {railBrief.model}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {expanded && (
                     <div className="space-y-2 border-t border-white/[0.05] px-3 py-3">
