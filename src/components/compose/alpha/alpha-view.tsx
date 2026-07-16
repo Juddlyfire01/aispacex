@@ -509,13 +509,32 @@ export function AlphaView() {
   }, [heroRailId])
 
   const onAddRail = () => {
-    const id = addUserRail(newLabel || 'Custom', newQuery)
-    if (id) {
-      setNewLabel('')
-      setNewQuery('')
-      setShowAdd(false)
-      void refreshCounts(true)
-    }
+    const query = newQuery
+    const id = addUserRail(newLabel || 'Custom', query)
+    if (!id) return
+    setNewLabel('')
+    setNewQuery('')
+    setShowAdd(false)
+    // Fetch counts for the new rail directly — refreshCounts closes over the
+    // pre-add rails list, so it would skip the rail we just created.
+    if (!xConnected) return
+    void (async () => {
+      setRefreshing(true)
+      setLiveError(null)
+      try {
+        const cache = await fetchCountsRecent(id, query.trim())
+        setCountsCache(cache)
+        addCost(cache.cost)
+      } catch (err) {
+        if (err instanceof XAPIError && err.status === 401) {
+          setLiveError(err.message)
+        } else {
+          setLiveError(err instanceof Error ? err.message : String(err))
+        }
+      } finally {
+        setRefreshing(false)
+      }
+    })()
   }
 
   const hottest = ranked[0]
