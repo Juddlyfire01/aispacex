@@ -28,13 +28,22 @@ export type XSearchMode = 'off' | 'auto' | 'on'
 /** Same off/auto/on shape as X search — Venice `enable_web_search`. */
 export type WebSearchMode = 'off' | 'auto' | 'on'
 
-/** Post top-tab sub-chrome: Composer | Performance | Network. */
-export type PostSubTab = 'profile' | 'feed' | 'network'
+/** Post top-tab sub-chrome: Composer | Alpha | Performance. */
+export type PostSubTab = 'composer' | 'alpha' | 'performance'
 
-const POST_SUB_TABS: readonly PostSubTab[] = ['profile', 'feed', 'network']
+const POST_SUB_TABS: readonly PostSubTab[] = ['composer', 'alpha', 'performance']
 
 function isPostSubTab(v: unknown): v is PostSubTab {
   return typeof v === 'string' && (POST_SUB_TABS as readonly string[]).includes(v)
+}
+
+/** Map legacy profile/feed/network placeholders → real Post tabs. */
+export function migratePostSubTab(v: unknown): PostSubTab {
+  if (isPostSubTab(v)) return v
+  if (v === 'profile') return 'composer'
+  if (v === 'feed') return 'performance'
+  if (v === 'network') return 'alpha'
+  return 'composer'
 }
 
 /** Legacy session shape (persist versions < 4). */
@@ -72,7 +81,7 @@ interface ComposeState {
   budgetPct: number
   /** null = all time */
   dayWindowDays: number | null
-  /** Post → Composer / Performance / Network. Persisted across refresh. */
+  /** Post → Composer / Alpha / Performance. Persisted across refresh. */
   activePostSubTab: PostSubTab
   /** Ephemeral tool activity label — not persisted. */
   toolActivity: string | null
@@ -330,7 +339,7 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
   if (state.activeThreadId === undefined) state.activeThreadId = null
   if (state.newThreadContext == null) state.newThreadContext = { type: 'all' }
   if (state.draftDrawerOpen == null) state.draftDrawerOpen = false
-  if (!isPostSubTab(state.activePostSubTab)) state.activePostSubTab = 'profile'
+  state.activePostSubTab = migratePostSubTab(state.activePostSubTab)
   // Defensive: every thread should carry a preferredFormat (default auto).
   for (const thread of Object.values(state.threads as Record<string, ComposeThread>)) {
     if (thread.preferredFormat == null) thread.preferredFormat = 'auto'
@@ -361,7 +370,7 @@ export const useComposeStore = create<ComposeState>()(
       libraryMode: 'auto',
       budgetPct: 0.5,
       dayWindowDays: 7,
-      activePostSubTab: 'profile',
+      activePostSubTab: 'composer',
       toolActivity: null,
       agentEvents: [],
       agentPhase: null,
@@ -719,7 +728,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 16,
+      version: 17,
       // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),

@@ -24,23 +24,14 @@ import { ComposeChat } from './compose-chat'
 import { DraftDrawer } from './draft-drawer'
 import { DraftSplitHandle } from './draft-split-handle'
 import { PerformanceView } from './performance-view'
+import { AlphaView } from './alpha/alpha-view'
 
-/** Post chrome: Composer + Performance wired; network slot reserved (blank label). */
+/** Post chrome: Composer | Alpha | Performance. */
 const POST_SUB_TABS: { id: PostSubTab; label: string }[] = [
-  { id: 'profile', label: 'Composer' },
-  { id: 'feed', label: 'Performance' },
-  { id: 'network', label: '' },
+  { id: 'composer', label: 'Composer' },
+  { id: 'alpha', label: 'Alpha' },
+  { id: 'performance', label: 'Performance' },
 ]
-
-function PostSubTabPlaceholder({ label }: { label: string }) {
-  return (
-    <div className="flex h-full min-h-0 items-center justify-center px-6">
-      <p className="text-[11px] text-[var(--color-text-tertiary)] text-center">
-        {label} — coming soon
-      </p>
-    </div>
-  )
-}
 
 export function ComposeWorkspace() {
   const { data: models, defaultModelId, mostUncensoredModelId } = useModels('text')
@@ -162,9 +153,9 @@ export function ComposeWorkspace() {
 
   return (
     <div className="flex h-full min-h-0">
-      {activeSubTab === 'feed' ? (
+      {activeSubTab === 'performance' ? (
         <PerformanceProfileRail selection={perfSelection} onSelect={handlePerfSelect} />
-      ) : (
+      ) : activeSubTab === 'alpha' ? null : (
         <HistoryRail />
       )}
 
@@ -178,7 +169,7 @@ export function ComposeWorkspace() {
         />
 
         <div className="flex-1 min-h-0">
-          {activeSubTab === 'profile' && (
+          {activeSubTab === 'composer' && (
             <div className="flex h-full min-h-0">
               <ComposeSettings
                 pack={pack}
@@ -230,13 +221,13 @@ export function ComposeWorkspace() {
               </div>
             </div>
           )}
-          {activeSubTab === 'feed' && (
+          {activeSubTab === 'alpha' && <AlphaView />}
+          {activeSubTab === 'performance' && (
             <PerformanceView
               selection={perfSelection}
               onSelectionChange={setPerfSelection}
             />
           )}
-          {activeSubTab === 'network' && <PostSubTabPlaceholder label="Network" />}
         </div>
       </div>
     </div>

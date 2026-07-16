@@ -15,7 +15,7 @@ function reset() {
     libraryMode: 'auto',
     budgetPct: 0.5,
     dayWindowDays: 7,
-    activePostSubTab: 'profile',
+    activePostSubTab: 'composer',
     toolActivity: null,
   })
 }
@@ -314,7 +314,7 @@ describe('compose-store', () => {
     expect(migrated.draftModel).toBe('same')
   })
 
-  it('migrateComposeState defaults activePostSubTab to profile', () => {
+  it('migrateComposeState defaults activePostSubTab to composer', () => {
     const migrated = migrateComposeState(
       {
         threads: {},
@@ -326,14 +326,28 @@ describe('compose-store', () => {
       },
       12,
     )
-    expect(migrated.activePostSubTab).toBe('profile')
+    expect(migrated.activePostSubTab).toBe('composer')
+  })
+
+  it('migrateComposeState maps legacy profile/feed/network Post ids', () => {
+    expect(migrateComposeState({ activePostSubTab: 'profile' }, 16).activePostSubTab).toBe(
+      'composer',
+    )
+    expect(migrateComposeState({ activePostSubTab: 'feed' }, 16).activePostSubTab).toBe(
+      'performance',
+    )
+    expect(migrateComposeState({ activePostSubTab: 'network' }, 16).activePostSubTab).toBe(
+      'alpha',
+    )
   })
 
   it('setActivePostSubTab updates Post sub-tab', () => {
-    useComposeStore.getState().setActivePostSubTab('feed')
-    expect(useComposeStore.getState().activePostSubTab).toBe('feed')
-    useComposeStore.getState().setActivePostSubTab('profile')
-    expect(useComposeStore.getState().activePostSubTab).toBe('profile')
+    useComposeStore.getState().setActivePostSubTab('performance')
+    expect(useComposeStore.getState().activePostSubTab).toBe('performance')
+    useComposeStore.getState().setActivePostSubTab('composer')
+    expect(useComposeStore.getState().activePostSubTab).toBe('composer')
+    useComposeStore.getState().setActivePostSubTab('alpha')
+    expect(useComposeStore.getState().activePostSubTab).toBe('alpha')
   })
 
   it('migrateComposeState v3 sessions → v4 threads', () => {
