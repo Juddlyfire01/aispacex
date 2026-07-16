@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAlphaStore } from '../../../stores/alpha-store'
 import { useXIntelStore } from '../../../stores/x-intel-store'
 import { useXSelfStore } from '../../../stores/x-self-store'
@@ -154,6 +154,7 @@ export function AlphaView() {
   const [liveError, setLiveError] = useState<string | null>(null)
   const [postsByRail, setPostsByRail] = useState<Record<string, AlphaPostCard[]>>({})
   const [loadingExpand, setLoadingExpand] = useState<string | null>(null)
+  const heroRailRef = useRef<HTMLElement | null>(null)
 
   const [newsLoading, setNewsLoading] = useState(false)
   const [clusterPostsByStory, setClusterPostsByStory] = useState<
@@ -167,6 +168,8 @@ export function AlphaView() {
   const [grokError, setGrokError] = useState<string | null>(null)
   const [railBriefLoadingId, setRailBriefLoadingId] = useState<string | null>(null)
   const [railBriefErrors, setRailBriefErrors] = useState<Record<string, string>>({})
+  /** Which rail's brief is shown (single-open, like expand). Not persisted. */
+  const [openBriefRailId, setOpenBriefRailId] = useState<string | null>(null)
 
   const [newLabel, setNewLabel] = useState('')
   const [newQuery, setNewQuery] = useState('')
@@ -178,6 +181,20 @@ export function AlphaView() {
     () => rankRailsByHeat(rails, countsByRail),
     [rails, countsByRail],
   )
+
+  /** Rail promoted to full-width hero: expanded posts OR an open brief. */
+  const heroRailId = expandedRailId ?? openBriefRailId
+
+  /** Hero rail floats to the top as a full-width card; rest packs 2-per-row. */
+  const orderedRails = useMemo(() => {
+    if (!heroRailId) return ranked
+    const idx = ranked.findIndex((r) => r.rail.id === heroRailId)
+    if (idx <= 0) return ranked
+    const next = [...ranked]
+    const [hero] = next.splice(idx, 1)
+    next.unshift(hero)
+    return next
+  }, [ranked, heroRailId])
 
   const latestGlobalBrief = useMemo(
     () => latestBriefOfKind(coldBriefs, 'global'),
@@ -340,6 +357,7 @@ export function AlphaView() {
         return
       }
       setRailBriefLoadingId(rail.id)
+      setOpenBriefRailId(rail.id)
       setRailBriefErrors((s) => {
         const next = { ...s }
         delete next[rail.id]
@@ -481,6 +499,14 @@ export function AlphaView() {
       void loadExpand(railId, query)
     }
   }
+
+  // When a rail becomes the hero (expanded posts or open brief), scroll it in.
+  useEffect(() => {
+    if (!heroRailId) return
+    const el = heroRailRef.current
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [heroRailId])
 
   const onAddRail = () => {
     const id = addUserRail(newLabel || 'Custom', newQuery)
@@ -857,7 +883,7 @@ export function AlphaView() {
           )}
 
           <div className="grid items-start gap-2 sm:grid-cols-2">
-            {ranked.map(({ rail, hourPct, dayPct, totalTweetCount, lastHourCount }, rankIdx) => {
+            {orderedRails.map(({ rail, hourPct, dayPct, totalTweetCount, lastHourCount }) => {
               const cache = countsByRail[rail.id]
               const expanded = expandedRailId === rail.id
               const posts = postsByRail[rail.id] ?? []
@@ -865,7 +891,9 @@ export function AlphaView() {
               const railBrief = latestRailBriefById[rail.id]
               const railBriefLoading = railBriefLoadingId === rail.id
               const railBriefError = railBriefErrors[rail.id]
-              const isHottest = rankIdx === 0
+              const briefOpen = openBriefRailId === rail.id
+              const isHero = rail.id === heroRailId
+              const isHottest = rail.id === ranked[0]?.rail.id
               const recentRailBrief =
                 railBrief != null && Date.now() - railBrief.fetchedAt < ALPHA_COUNTS_TTL_MS
               const shimmerBrief = isHottest && !recentRailBrief && !railBriefLoading
@@ -873,9 +901,12 @@ export function AlphaView() {
               return (
                 <article
                   key={rail.id}
+                  ref={isHero ? heroRailRef : undefined}
                   className={cn(
-                    'rounded-lg border border-white/[0.07] bg-white/[0.02]',
-                    expanded && 'sm:col-span-2',
+                    'scroll-mt-4 rounded-lg border bg-white/[0.02] transition-colors',
+                    isHero
+                      ? 'border-sky-400/40 ring-1 ring-sky-400/20 sm:col-span-2'
+                      : 'border-white/[0.07]',
                   )}
                 >
                   <div className="space-y-2 px-3 py-2.5">
@@ -946,8 +977,18 @@ export function AlphaView() {
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
                       <button
                         type="button"
-                        disabled={!grokModelId || railBriefLoading}
-                        onClick={() => void runRailBrief(rail)}
+                        disabled={
+                          railBriefLoading ||
+                          ((!grokModelId || !xConnected) && !(railBrief && !briefOpen))
+                        }
+                        onClick={() => {
+                          // Reopening a cached brief is free; only (re)brief refetches.
+                          if (railBrief && !briefOpen && !railBriefLoading) {
+                            setOpenBriefRailId(rail.id)
+                            return
+                          }
+                          void runRailBrief(rail)
+                        }}
                         className={cn(
                           'relative overflow-hidden rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15 disabled:opacity-40',
                           shimmerBrief && 'border-sky-400/45 bg-sky-500/10',
@@ -962,9 +1003,11 @@ export function AlphaView() {
                         <span className="relative">
                           {railBriefLoading
                             ? 'Briefing…'
-                            : railBrief
-                              ? 'Re-brief rail'
-                              : 'Brief this rail'}
+                            : !railBrief
+                              ? 'Brief this rail'
+                              : briefOpen
+                                ? 'Re-brief rail'
+                                : 'Show brief'}
                         </span>
                       </button>
                       <button
@@ -983,7 +1026,7 @@ export function AlphaView() {
                       </button>
                       <button
                         type="button"
-                        disabled={!xConnected}
+                        disabled={!xConnected && !expanded}
                         onClick={() => onToggleExpand(rail.id, rail.query)}
                         className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
                       >
@@ -1005,8 +1048,20 @@ export function AlphaView() {
                     </div>
                   </div>
 
-                  {(railBriefLoading || railBriefError || railBrief) && (
+                  {briefOpen && (railBriefLoading || railBriefError || railBrief) && (
                     <div className="space-y-2 border-t border-white/[0.05] px-3 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                          Rail brief
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setOpenBriefRailId(null)}
+                          className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05]"
+                        >
+                          Hide brief
+                        </button>
+                      </div>
                       {railBriefError && (
                         <p className="text-[11px] text-red-300/90">{railBriefError}</p>
                       )}
