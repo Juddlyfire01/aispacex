@@ -16,11 +16,14 @@ import {
   pickAlphaGrokModel,
 } from '../../../lib/alpha/grok-brief'
 import {
+  ALPHA_HYDRATE_MAX_IDS,
   fetchCountsRecent,
   fetchNewsScan,
+  fetchPostsByIds,
   fetchSearchRecent,
 } from '../../../lib/alpha/x-alpha-client'
 import type { AlphaGrokBriefCache, AlphaPostCard, AlphaStory } from '../../../lib/alpha/types'
+import { openComposeForPost } from '../../../lib/compose/open-compose'
 import { XAPIError } from '../../../lib/x-intel/x-client'
 import { cn } from '../../../lib/utils'
 
@@ -65,6 +68,11 @@ export function AlphaView() {
   const addUserRail = useAlphaStore((s) => s.addUserRail)
   const removeUserRail = useAlphaStore((s) => s.removeUserRail)
   const sessionCost = useAlphaStore((s) => s.sessionCost)
+  const keepStory = useAlphaStore((s) => s.keepStory)
+  const keepPosts = useAlphaStore((s) => s.keepPosts)
+  const setColdPinned = useAlphaStore((s) => s.setColdPinned)
+  const coldStories = useAlphaStore((s) => s.stories)
+  const coldPosts = useAlphaStore((s) => s.posts)
 
   const xConnected = useXSelfStore((s) => s.connected)
   const selfAccounts = useXSelfStore((s) => s.accounts)
@@ -84,6 +92,10 @@ export function AlphaView() {
   const [stories, setStories] = useState<AlphaStory[]>([])
   const [newsLoading, setNewsLoading] = useState(false)
   const [newsFetchedAt, setNewsFetchedAt] = useState<number | null>(null)
+  const [clusterPostsByStory, setClusterPostsByStory] = useState<
+    Record<string, AlphaPostCard[]>
+  >({})
+  const [hydratingStoryId, setHydratingStoryId] = useState<string | null>(null)
 
   const [grokBrief, setGrokBrief] = useState<AlphaGrokBriefCache | null>(null)
   const [grokLoading, setGrokLoading] = useState(false)
@@ -155,12 +167,27 @@ export function AlphaView() {
       setStories(res.stories)
       setNewsFetchedAt(Date.now())
       addCost(res.cost)
+      const fetchedAt = Date.now()
+      for (const st of res.stories) {
+        const prevPinned = useAlphaStore.getState().stories[st.id]?.pinned ?? false
+        keepStory({
+          id: st.id,
+          name: st.name,
+          hook: st.hook,
+          summary: st.summary,
+          category: st.category,
+          clusterPostIds: st.clusterPostIds,
+          url: st.url,
+          fetchedAt,
+          pinned: prevPinned,
+        })
+      }
     } catch (err) {
       setLiveError(err instanceof Error ? err.message : String(err))
     } finally {
       setNewsLoading(false)
     }
-  }, [xConnected, addCost])
+  }, [xConnected, addCost, keepStory])
 
   const runGrokBrief = useCallback(
     async (force = false) => {
@@ -200,11 +227,43 @@ export function AlphaView() {
   )
 
   useEffect(() => {
+    useAlphaStore.getState().pruneCold()
+  }, [])
+
+  useEffect(() => {
     if (!xConnected) return
     void refreshCounts(false)
     void refreshNews()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open + connection; TTL handles re-fetch
   }, [xConnected])
+
+  const loadCluster = useCallback(
+    async (st: AlphaStory) => {
+      if (!xConnected || st.clusterPostIds.length === 0) return
+      setHydratingStoryId(st.id)
+      setLiveError(null)
+      try {
+        const { posts, cost } = await fetchPostsByIds(
+          st.clusterPostIds.slice(0, ALPHA_HYDRATE_MAX_IDS),
+        )
+        keepPosts(
+          posts.map((p) => ({
+            ...p,
+            fetchedAt: Date.now(),
+            pinned: false,
+            storyId: st.id,
+          })),
+        )
+        addCost(cost)
+        setClusterPostsByStory((s) => ({ ...s, [st.id]: posts }))
+      } catch (err) {
+        setLiveError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setHydratingStoryId(null)
+      }
+    },
+    [xConnected, keepPosts, addCost],
+  )
 
   const loadExpand = useCallback(
     async (railId: string, query: string) => {
@@ -361,30 +420,132 @@ export function AlphaView() {
             </p>
           )}
           <div className="grid gap-2 sm:grid-cols-2">
-            {stories.slice(0, 8).map((st) => (
-              <a
-                key={st.id}
-                href={st.url ?? '#'}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 transition hover:border-white/[0.12] hover:bg-white/[0.04]"
-              >
-                <div className="text-[12px] font-medium leading-snug text-[var(--color-text-primary)]">
-                  {st.name}
-                </div>
-                {(st.hook || st.summary) && (
-                  <p className="mt-1 line-clamp-3 text-[11px] text-[var(--color-text-secondary)]">
-                    {st.hook || st.summary}
-                  </p>
-                )}
-                <p className="mt-1.5 text-[10px] text-[var(--color-text-tertiary)]">
-                  {st.category ? `${st.category} · ` : ''}
-                  {st.clusterPostIds.length > 0
-                    ? `${st.clusterPostIds.length} posts in cluster`
-                    : 'X News'}
-                </p>
-              </a>
-            ))}
+            {stories.slice(0, 8).map((st) => {
+              const storyPinned = coldStories[st.id]?.pinned ?? false
+              const hydrated =
+                clusterPostsByStory[st.id] ??
+                Object.values(coldPosts).filter((p) => p.storyId === st.id)
+              const canHydrate = xConnected && st.clusterPostIds.length > 0
+              const hydrating = hydratingStoryId === st.id
+
+              return (
+                <article
+                  key={st.id}
+                  className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <a
+                      href={st.url ?? '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 flex-1 transition hover:opacity-90"
+                    >
+                      <div className="text-[12px] font-medium leading-snug text-[var(--color-text-primary)]">
+                        {st.name}
+                      </div>
+                      {(st.hook || st.summary) && (
+                        <p className="mt-1 line-clamp-3 text-[11px] text-[var(--color-text-secondary)]">
+                          {st.hook || st.summary}
+                        </p>
+                      )}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setColdPinned('story', st.id, !storyPinned)}
+                      className={cn(
+                        'shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                        storyPinned
+                          ? 'border-sky-400/40 text-sky-200/90'
+                          : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
+                      )}
+                      title={storyPinned ? 'Unpin story' : 'Pin story'}
+                    >
+                      {storyPinned ? 'Pinned' : 'Pin'}
+                    </button>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] text-[var(--color-text-tertiary)]">
+                      {st.category ? `${st.category} · ` : ''}
+                      {st.clusterPostIds.length > 0
+                        ? `${st.clusterPostIds.length} posts in cluster`
+                        : 'X News'}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!canHydrate || hydrating}
+                      onClick={() => void loadCluster(st)}
+                      className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
+                    >
+                      {hydrating ? 'Loading…' : 'Load cluster'}
+                    </button>
+                  </div>
+                  {(hydrating || hydrated.length > 0) && (
+                    <div className="mt-2 space-y-1.5 border-t border-white/[0.05] pt-2">
+                      {hydrating && hydrated.length === 0 && (
+                        <LoadingState label="Hydrating cluster posts…" />
+                      )}
+                      {hydrated.map((p) => {
+                        const postPinned = coldPosts[p.id]?.pinned ?? false
+                        return (
+                          <div
+                            key={p.id}
+                            className="rounded-md border border-white/[0.05] px-2 py-1.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="min-w-0 flex-1"
+                              >
+                                <p className="line-clamp-3 text-[11px] leading-snug text-[var(--color-text-secondary)]">
+                                  {p.text}
+                                </p>
+                                <p className="mt-0.5 text-[10px] text-[var(--color-text-tertiary)]">
+                                  {postEngagementLine(p)}
+                                </p>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setColdPinned('post', p.id, !postPinned)}
+                                className={cn(
+                                  'shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                                  postPinned
+                                    ? 'border-sky-400/40 text-sky-200/90'
+                                    : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
+                                )}
+                                title={postPinned ? 'Unpin post' : 'Pin post'}
+                              >
+                                {postPinned ? 'Pinned' : 'Pin'}
+                              </button>
+                            </div>
+                            <div className="mt-1 flex gap-2">
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-sky-300/80 hover:text-sky-200"
+                              >
+                                Open on X
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openComposeForPost(p.id, { username: p.authorUsername })
+                                }
+                                className="text-[10px] text-sky-300/80 hover:text-sky-200"
+                              >
+                                Reply
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
           </div>
         </section>
 
