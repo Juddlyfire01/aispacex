@@ -48,6 +48,14 @@ export interface AlphaStory {
   url?: string
 }
 
+/** Last Breaking-on-X-News multi-query scan (UI surface + TTL). */
+export interface AlphaNewsScanCache {
+  stories: AlphaStory[]
+  fetchedAt: number
+  /** Operator cost of the scan that produced this cache. */
+  cost?: number
+}
+
 export interface AlphaPostCard {
   id: string
   text: string

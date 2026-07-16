@@ -5,8 +5,9 @@ import { useXSelfStore } from '../../../stores/x-self-store'
 import { useModels } from '../../../hooks/use-models'
 import { MarkdownMessage } from '../../chat/markdown-message'
 import { LoadingState } from '../../ui/spinner'
+import { StarButton } from '../../ui/star-button'
 import { fmtCompact } from '../../../lib/venicestats/format'
-import { ALPHA_COUNTS_TTL_MS, ALPHA_MAX_RAILS } from '../../../lib/alpha/default-rails'
+import { ALPHA_COUNTS_TTL_MS, ALPHA_MAX_RAILS, ALPHA_NEWS_TTL_MS } from '../../../lib/alpha/default-rails'
 import { rankGraphHeat } from '../../../lib/alpha/graph-heat'
 import { formatVelocityPct } from '../../../lib/alpha/velocity'
 import { rankRailsByHeat } from '../../../lib/alpha/rail-heat'
@@ -126,9 +127,18 @@ export function AlphaView() {
   const keepPosts = useAlphaStore((s) => s.keepPosts)
   const keepBrief = useAlphaStore((s) => s.keepBrief)
   const setColdPinned = useAlphaStore((s) => s.setColdPinned)
+  const setNewsScan = useAlphaStore((s) => s.setNewsScan)
+  const newsScan = useAlphaStore((s) => s.newsScan)
   const coldStories = useAlphaStore((s) => s.stories)
   const coldPosts = useAlphaStore((s) => s.posts)
   const coldBriefs = useAlphaStore((s) => s.briefs)
+
+  const [storeHydrated, setStoreHydrated] = useState(() => useAlphaStore.persist.hasHydrated())
+  useEffect(() => {
+    const unsub = useAlphaStore.persist.onFinishHydration(() => setStoreHydrated(true))
+    if (useAlphaStore.persist.hasHydrated()) setStoreHydrated(true)
+    return unsub
+  }, [])
 
   const xConnected = useXSelfStore((s) => s.connected)
   const selfAccounts = useXSelfStore((s) => s.accounts)
@@ -145,13 +155,13 @@ export function AlphaView() {
   const [postsByRail, setPostsByRail] = useState<Record<string, AlphaPostCard[]>>({})
   const [loadingExpand, setLoadingExpand] = useState<string | null>(null)
 
-  const [stories, setStories] = useState<AlphaStory[]>([])
   const [newsLoading, setNewsLoading] = useState(false)
-  const [newsFetchedAt, setNewsFetchedAt] = useState<number | null>(null)
   const [clusterPostsByStory, setClusterPostsByStory] = useState<
     Record<string, AlphaPostCard[]>
   >({})
   const [hydratingStoryId, setHydratingStoryId] = useState<string | null>(null)
+  /** Which news story shows its cluster (accordion — one at a time). */
+  const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null)
 
   const [grokLoading, setGrokLoading] = useState(false)
   const [grokError, setGrokError] = useState<string | null>(null)
@@ -230,36 +240,44 @@ export function AlphaView() {
     [xConnected, rails, countsByRail, setCountsCache, addCost],
   )
 
-  const refreshNews = useCallback(async () => {
-    if (!xConnected) return
-    setNewsLoading(true)
-    setLiveError(null)
-    try {
-      const res = await fetchNewsScan()
-      setStories(res.stories)
-      setNewsFetchedAt(Date.now())
-      addCost(res.cost)
-      const fetchedAt = Date.now()
-      for (const st of res.stories) {
-        const prevPinned = useAlphaStore.getState().stories[st.id]?.pinned ?? false
-        keepStory({
-          id: st.id,
-          name: st.name,
-          hook: st.hook,
-          summary: st.summary,
-          category: st.category,
-          clusterPostIds: st.clusterPostIds,
-          url: st.url,
-          fetchedAt,
-          pinned: prevPinned,
-        })
+  const stories = newsScan?.stories ?? []
+  const newsFetchedAt = newsScan?.fetchedAt ?? null
+  const newsFresh =
+    newsScan != null && Date.now() - newsScan.fetchedAt < ALPHA_NEWS_TTL_MS
+
+  const refreshNews = useCallback(
+    async (force = false) => {
+      if (!xConnected) return
+      if (!force && newsFresh) return
+      setNewsLoading(true)
+      setLiveError(null)
+      try {
+        const res = await fetchNewsScan()
+        const fetchedAt = Date.now()
+        setNewsScan({ stories: res.stories, fetchedAt, cost: res.cost })
+        addCost(res.cost)
+        for (const st of res.stories) {
+          const prevPinned = useAlphaStore.getState().stories[st.id]?.pinned ?? false
+          keepStory({
+            id: st.id,
+            name: st.name,
+            hook: st.hook,
+            summary: st.summary,
+            category: st.category,
+            clusterPostIds: st.clusterPostIds,
+            url: st.url,
+            fetchedAt,
+            pinned: prevPinned,
+          })
+        }
+      } catch (err) {
+        setLiveError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setNewsLoading(false)
       }
-    } catch (err) {
-      setLiveError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setNewsLoading(false)
-    }
-  }, [xConnected, addCost, keepStory])
+    },
+    [xConnected, newsFresh, addCost, keepStory, setNewsScan],
+  )
 
   const runGrokBrief = useCallback(
     async (force = false) => {
@@ -380,16 +398,17 @@ export function AlphaView() {
   }, [])
 
   useEffect(() => {
-    if (!xConnected) return
+    if (!storeHydrated || !xConnected) return
     void refreshCounts(false)
-    void refreshNews()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open + connection; TTL handles re-fetch
-  }, [xConnected])
+    void refreshNews(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TTL via newsFresh; avoid counts loop
+  }, [storeHydrated, xConnected, newsFresh])
 
   const loadCluster = useCallback(
     async (st: AlphaStory) => {
       if (!xConnected || st.clusterPostIds.length === 0) return
       setHydratingStoryId(st.id)
+      setExpandedStoryId(st.id)
       setLiveError(null)
       try {
         const { posts, cost } = await fetchPostsByIds(
@@ -407,11 +426,31 @@ export function AlphaView() {
         setClusterPostsByStory((s) => ({ ...s, [st.id]: posts }))
       } catch (err) {
         setLiveError(err instanceof Error ? err.message : String(err))
+        setExpandedStoryId(null)
       } finally {
         setHydratingStoryId(null)
       }
     },
     [xConnected, keepPosts, addCost],
+  )
+
+  const toggleCluster = useCallback(
+    (st: AlphaStory) => {
+      if (expandedStoryId === st.id) {
+        setExpandedStoryId(null)
+        return
+      }
+      const cached =
+        clusterPostsByStory[st.id] ??
+        Object.values(useAlphaStore.getState().posts).filter((p) => p.storyId === st.id)
+      if (cached.length > 0) {
+        setClusterPostsByStory((s) => (s[st.id] ? s : { ...s, [st.id]: cached }))
+        setExpandedStoryId(st.id)
+        return
+      }
+      void loadCluster(st)
+    },
+    [expandedStoryId, clusterPostsByStory, loadCluster],
   )
 
   const loadExpand = useCallback(
@@ -465,8 +504,7 @@ export function AlphaView() {
               Alpha Radar
             </h1>
             <p className="mt-0.5 max-w-md text-[11px] text-[var(--color-text-tertiary)]">
-              Live X volume · velocity · News clusters · native Grok X search. Not a Signal buzz
-              mirror.
+              Live X volume · velocity · News clusters · native Grok X search.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -477,10 +515,10 @@ export function AlphaView() {
             )}
             <button
               type="button"
-              disabled={!xConnected || refreshing}
+              disabled={!xConnected || refreshing || newsLoading}
               onClick={() => {
                 void refreshCounts(true)
-                void refreshNews()
+                void refreshNews(true)
               }}
               className="rounded border border-white/[0.1] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-white/[0.04] disabled:opacity-40"
             >
@@ -543,21 +581,19 @@ export function AlphaView() {
                 >
                   Open in Composer
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
+                <StarButton
+                  starred={latestGlobalBrief.pinned}
+                  onToggle={() =>
                     setColdPinned('brief', latestGlobalBrief.id, !latestGlobalBrief.pinned)
                   }
-                  className={cn(
-                    'rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                  label="brief"
+                  size={12}
+                  title={
                     latestGlobalBrief.pinned
-                      ? 'border-sky-400/40 text-sky-200/90'
-                      : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
-                  )}
-                  title={latestGlobalBrief.pinned ? 'Unpin brief' : 'Pin brief'}
-                >
-                  {latestGlobalBrief.pinned ? 'Pinned' : 'Pin'}
-                </button>
+                      ? 'Remove bookmark (expires after 24h)'
+                      : 'Bookmark (keep past 24h)'
+                  }
+                />
               </div>
               <MarkdownMessage content={latestGlobalBrief.markdown} size="compact" />
               <p className="mt-2 text-[10px] text-[var(--color-text-tertiary)]">
@@ -582,24 +618,33 @@ export function AlphaView() {
             </h2>
             {newsFetchedAt && (
               <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                {new Date(newsFetchedAt).toLocaleTimeString()}
+                {newsLoading
+                  ? 'Updating…'
+                  : newsFresh
+                    ? new Date(newsFetchedAt).toLocaleTimeString()
+                    : `Cached · ${new Date(newsFetchedAt).toLocaleTimeString()}`}
               </span>
             )}
           </div>
-          {newsLoading && stories.length === 0 && (
+          {(!storeHydrated || newsLoading) && stories.length === 0 && (
             <LoadingState label="Loading X News clusters…" />
           )}
-          {!xConnected && (
+          {storeHydrated && !xConnected && stories.length === 0 && (
             <p className="text-[11px] text-[var(--color-text-tertiary)]">
               X News needs a connected X account (proxied API).
             </p>
           )}
-          {xConnected && !newsLoading && stories.length === 0 && (
+          {storeHydrated && !xConnected && stories.length > 0 && (
+            <p className="text-[11px] text-[var(--color-text-tertiary)]">
+              Showing last scan — connect X to refresh.
+            </p>
+          )}
+          {storeHydrated && xConnected && !newsLoading && stories.length === 0 && (
             <p className="text-[11px] text-[var(--color-text-tertiary)]">
               No clustered stories in the current window — try Refresh radar.
             </p>
           )}
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid items-start gap-2">
             {stories.slice(0, 8).map((st) => {
               const storyPinned = coldStories[st.id]?.pinned ?? false
               const hydrated =
@@ -607,11 +652,16 @@ export function AlphaView() {
                 Object.values(coldPosts).filter((p) => p.storyId === st.id)
               const canHydrate = xConnected && st.clusterPostIds.length > 0
               const hydrating = hydratingStoryId === st.id
+              const expanded = expandedStoryId === st.id
+              const hasClusterCache = hydrated.length > 0
 
               return (
                 <article
                   key={st.id}
-                  className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2.5"
+                  className={cn(
+                    'rounded-lg border bg-white/[0.025] px-3 py-2.5',
+                    expanded ? 'border-sky-400/25' : 'border-white/[0.07]',
+                  )}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <a
@@ -629,19 +679,17 @@ export function AlphaView() {
                         </p>
                       )}
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => setColdPinned('story', st.id, !storyPinned)}
-                      className={cn(
-                        'shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                    <StarButton
+                      starred={storyPinned}
+                      onToggle={() => setColdPinned('story', st.id, !storyPinned)}
+                      label="story"
+                      size={12}
+                      title={
                         storyPinned
-                          ? 'border-sky-400/40 text-sky-200/90'
-                          : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
-                      )}
-                      title={storyPinned ? 'Unpin story' : 'Pin story'}
-                    >
-                      {storyPinned ? 'Pinned' : 'Pin'}
-                    </button>
+                          ? 'Remove bookmark (expires after 24h)'
+                          : 'Bookmark (keep past 24h)'
+                      }
+                    />
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[10px] text-[var(--color-text-tertiary)]">
@@ -664,15 +712,21 @@ export function AlphaView() {
                       </button>
                       <button
                         type="button"
-                        disabled={!canHydrate || hydrating}
-                        onClick={() => void loadCluster(st)}
+                        disabled={(!canHydrate && !hasClusterCache) || hydrating}
+                        onClick={() => toggleCluster(st)}
                         className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
                       >
-                        {hydrating ? 'Loading…' : 'Load cluster'}
+                        {hydrating
+                          ? 'Loading…'
+                          : expanded
+                            ? 'Close cluster'
+                            : hasClusterCache
+                              ? 'Show cluster'
+                              : 'Load cluster'}
                       </button>
                     </div>
                   </div>
-                  {(hydrating || hydrated.length > 0) && (
+                  {expanded && (hydrating || hydrated.length > 0) && (
                     <div className="mt-2 space-y-1.5 border-t border-white/[0.05] pt-2">
                       {hydrating && hydrated.length === 0 && (
                         <LoadingState label="Hydrating cluster posts…" />
@@ -682,7 +736,7 @@ export function AlphaView() {
                         return (
                           <div
                             key={p.id}
-                            className="rounded-md border border-white/[0.05] px-2 py-1.5"
+                            className="rounded-md border border-white/[0.05] px-2.5 py-2"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <a
@@ -698,19 +752,17 @@ export function AlphaView() {
                                   {postEngagementLine(p)}
                                 </p>
                               </a>
-                              <button
-                                type="button"
-                                onClick={() => setColdPinned('post', p.id, !postPinned)}
-                                className={cn(
-                                  'shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                              <StarButton
+                                starred={postPinned}
+                                onToggle={() => setColdPinned('post', p.id, !postPinned)}
+                                label="post"
+                                size={12}
+                                title={
                                   postPinned
-                                    ? 'border-sky-400/40 text-sky-200/90'
-                                    : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
-                                )}
-                                title={postPinned ? 'Unpin post' : 'Pin post'}
-                              >
-                                {postPinned ? 'Pinned' : 'Pin'}
-                              </button>
+                                    ? 'Remove bookmark (expires after 24h)'
+                                    : 'Bookmark (keep past 24h)'
+                                }
+                              />
                             </div>
                             <div className="mt-1 flex gap-2">
                               <a
@@ -804,7 +856,7 @@ export function AlphaView() {
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="grid items-start gap-2 sm:grid-cols-2">
             {ranked.map(({ rail, hourPct, dayPct, totalTweetCount, lastHourCount }, rankIdx) => {
               const cache = countsByRail[rail.id]
               const expanded = expandedRailId === rail.id
@@ -816,72 +868,23 @@ export function AlphaView() {
               const isHottest = rankIdx === 0
               const recentRailBrief =
                 railBrief != null && Date.now() - railBrief.fetchedAt < ALPHA_COUNTS_TTL_MS
-              const showBriefNudge = isHottest && !recentRailBrief && !railBriefLoading
+              const shimmerBrief = isHottest && !recentRailBrief && !railBriefLoading
 
               return (
                 <article
                   key={rail.id}
-                  className="rounded-lg border border-white/[0.07] bg-white/[0.02]"
+                  className={cn(
+                    'rounded-lg border border-white/[0.07] bg-white/[0.02]',
+                    expanded && 'sm:col-span-2',
+                  )}
                 >
-                  <div className="flex flex-wrap items-start gap-3 px-3 py-2.5">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                          {rail.label}
-                        </h3>
-                        {showBriefNudge && (
-                          <button
-                            type="button"
-                            disabled={!grokModelId || railBriefLoading}
-                            onClick={() => void runRailBrief(rail)}
-                            className="text-[10px] text-[var(--color-text-tertiary)] hover:text-sky-300/80 disabled:opacity-40"
-                          >
-                            Brief this?
-                          </button>
-                        )}
-                        <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                          {rail.source}
-                        </span>
-                        {hourPct != null && (
-                          <span
-                            className={cn(
-                              'text-[12px] font-semibold tabular-nums',
-                              hourPct > 15
-                                ? 'text-emerald-400'
-                                : hourPct > 0
-                                  ? 'text-emerald-400/80'
-                                  : hourPct < 0
-                                    ? 'text-rose-300/80'
-                                    : 'text-[var(--color-text-tertiary)]',
-                            )}
-                            title="Hour-over-hour volume change"
-                          >
-                            {formatVelocityPct(hourPct)} 1h
-                          </span>
-                        )}
-                        {dayPct != null && (
-                          <span className="text-[11px] tabular-nums text-[var(--color-text-tertiary)]">
-                            {formatVelocityPct(dayPct)} 24h
-                          </span>
-                        )}
-                        {totalTweetCount > 0 && (
-                          <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                            {fmtCompact(totalTweetCount, 1)} / 7d
-                            {lastHourCount > 0 ? ` · ${lastHourCount}/h` : ''}
-                          </span>
-                        )}
-                      </div>
-                      <p className="truncate font-mono text-[10px] text-[var(--color-text-tertiary)]">
-                        {rail.query}
-                      </p>
-                      {cache && cache.buckets.length > 0 && (
-                        <div className="max-w-[240px] pt-1">
-                          <Sparkline buckets={cache.buckets.slice(-48)} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <label className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-tertiary)]">
+                  <div className="space-y-2 px-3 py-2.5">
+                    {/* Title */}
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="min-w-0 flex-1 text-[13px] font-medium leading-snug text-[var(--color-text-primary)]">
+                        {rail.label}
+                      </h3>
+                      <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-[var(--color-text-tertiary)]">
                         <input
                           type="checkbox"
                           checked={disabledRail?.enabled ?? true}
@@ -890,17 +893,79 @@ export function AlphaView() {
                         />
                         On
                       </label>
+                    </div>
+
+                    {/* Velocity + volume */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                        {rail.source}
+                      </span>
+                      {hourPct != null && (
+                        <span
+                          className={cn(
+                            'text-[12px] font-semibold tabular-nums',
+                            hourPct > 15
+                              ? 'text-emerald-400'
+                              : hourPct > 0
+                                ? 'text-emerald-400/80'
+                                : hourPct < 0
+                                  ? 'text-rose-300/80'
+                                  : 'text-[var(--color-text-tertiary)]',
+                          )}
+                          title="Hour-over-hour volume change"
+                        >
+                          {formatVelocityPct(hourPct)} 1h
+                        </span>
+                      )}
+                      {dayPct != null && (
+                        <span className="text-[11px] tabular-nums text-[var(--color-text-tertiary)]">
+                          {formatVelocityPct(dayPct)} 24h
+                        </span>
+                      )}
+                      {totalTweetCount > 0 && (
+                        <span className="text-[10px] text-[var(--color-text-tertiary)]">
+                          {fmtCompact(totalTweetCount, 1)} / 7d
+                          {lastHourCount > 0 ? ` · ${lastHourCount}/h` : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Query */}
+                    <p className="truncate font-mono text-[10px] text-[var(--color-text-tertiary)]">
+                      {rail.query}
+                    </p>
+
+                    {/* Sparkline */}
+                    {cache && cache.buckets.length > 0 && (
+                      <div className="max-w-[240px]">
+                        <Sparkline buckets={cache.buckets.slice(-48)} />
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
                       <button
                         type="button"
                         disabled={!grokModelId || railBriefLoading}
                         onClick={() => void runRailBrief(rail)}
-                        className="rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15 disabled:opacity-40"
+                        className={cn(
+                          'relative overflow-hidden rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15 disabled:opacity-40',
+                          shimmerBrief && 'border-sky-400/45 bg-sky-500/10',
+                        )}
                       >
-                        {railBriefLoading
-                          ? 'Briefing…'
-                          : railBrief
-                            ? 'Re-brief rail'
-                            : 'Brief this rail'}
+                        {shimmerBrief && (
+                          <span
+                            className="progress-track-shimmer pointer-events-none absolute inset-0 rounded"
+                            aria-hidden
+                          />
+                        )}
+                        <span className="relative">
+                          {railBriefLoading
+                            ? 'Briefing…'
+                            : railBrief
+                              ? 'Re-brief rail'
+                              : 'Brief this rail'}
+                        </span>
                       </button>
                       <button
                         type="button"
@@ -912,7 +977,7 @@ export function AlphaView() {
                             ),
                           )
                         }
-                        className="rounded border border-sky-400/25 px-2 py-1 text-[10px] font-medium text-sky-200/90 hover:bg-sky-500/15"
+                        className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05]"
                       >
                         Open in Composer
                       </button>
@@ -932,7 +997,7 @@ export function AlphaView() {
                         <button
                           type="button"
                           onClick={() => removeUserRail(rail.id)}
-                          className="text-[10px] text-red-300/70 hover:text-red-300"
+                          className="rounded px-2 py-1 text-[10px] text-red-300/70 hover:text-red-300"
                         >
                           Remove
                         </button>
@@ -960,21 +1025,19 @@ export function AlphaView() {
                             >
                               Open in Composer
                             </button>
-                            <button
-                              type="button"
-                              onClick={() =>
+                            <StarButton
+                              starred={railBrief.pinned}
+                              onToggle={() =>
                                 setColdPinned('brief', railBrief.id, !railBrief.pinned)
                               }
-                              className={cn(
-                                'rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
+                              label="rail brief"
+                              size={12}
+                              title={
                                 railBrief.pinned
-                                  ? 'border-sky-400/40 text-sky-200/90'
-                                  : 'border-white/[0.1] text-[var(--color-text-tertiary)] hover:bg-white/[0.04]',
-                              )}
-                              title={railBrief.pinned ? 'Unpin brief' : 'Pin brief'}
-                            >
-                              {railBrief.pinned ? 'Pinned' : 'Pin'}
-                            </button>
+                                  ? 'Remove bookmark (expires after 24h)'
+                                  : 'Bookmark (keep past 24h)'
+                              }
+                            />
                           </div>
                           <MarkdownMessage content={railBrief.markdown} size="compact" />
                           <p className="mt-1.5 text-[10px] text-[var(--color-text-tertiary)]">

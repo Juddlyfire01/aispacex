@@ -7,16 +7,23 @@ type StarButtonProps = {
   label?: string
   className?: string
   size?: number
+  /** Override default title tooltip. */
+  title?: string
 }
 
-/** Compact star toggle for history rows. */
+/** Compact bookmark toggle (history rows, Alpha cold keep). */
 export function StarButton({
   starred,
   onToggle,
-  label = 'chat',
+  label = 'item',
   className,
   size = 11,
+  title,
 }: StarButtonProps) {
+  const defaultTitle = starred
+    ? 'Remove bookmark (allows delete)'
+    : 'Bookmark (keeps at top, blocks delete)'
+
   return (
     <button
       type="button"
@@ -24,14 +31,14 @@ export function StarButton({
         e.stopPropagation()
         onToggle()
       }}
-      title={starred ? 'Unstar (allows delete)' : 'Star (pins to top, blocks delete)'}
-      aria-label={starred ? `Unstar ${label}` : `Star ${label}`}
+      title={title ?? defaultTitle}
+      aria-label={starred ? `Remove bookmark from ${label}` : `Bookmark ${label}`}
       aria-pressed={starred}
       className={cn(
         'p-1 rounded transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]',
         starred
-          ? 'text-amber-300/90 hover:text-amber-200'
-          : 'text-[var(--color-text-tertiary)] hover:text-amber-300/80',
+          ? 'text-[var(--color-accent)] hover:text-[var(--color-accent)]'
+          : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)]',
         className,
       )}
     >
@@ -46,7 +53,7 @@ export function StarButton({
         strokeLinejoin="round"
         aria-hidden
       >
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
       </svg>
     </button>
   )

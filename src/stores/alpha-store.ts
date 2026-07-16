@@ -17,6 +17,7 @@ import type {
   AlphaColdBrief,
   AlphaColdPost,
   AlphaColdStory,
+  AlphaNewsScanCache,
   AlphaRail,
   RailCountsCache,
 } from '../lib/alpha/types'
@@ -26,6 +27,8 @@ interface AlphaState {
   userRails: AlphaRail[]
   /** railId → last counts series (Band 1 cache). */
   countsByRail: Record<string, RailCountsCache>
+  /** Last Breaking X News scan (show while fresh; refetch when stale). */
+  newsScan: AlphaNewsScanCache | null
   expandedRailId: string | null
   sessionCost: number
   lifetimeCost: number
@@ -41,6 +44,7 @@ interface AlphaState {
   updateUserRail: (id: string, patch: Partial<Pick<AlphaRail, 'label' | 'query' | 'enabled'>>) => void
   resetSystemRails: () => void
   setCountsCache: (cache: RailCountsCache) => void
+  setNewsScan: (scan: AlphaNewsScanCache) => void
   setExpandedRailId: (id: string | null) => void
   addCost: (usd: number) => void
   keepBrief: (brief: AlphaColdBrief) => void
@@ -68,6 +72,7 @@ export const useAlphaStore = create<AlphaState>()(
       systemRails: buildDefaultSystemRails(),
       userRails: [],
       countsByRail: {},
+      newsScan: null,
       expandedRailId: null,
       sessionCost: 0,
       lifetimeCost: 0,
@@ -137,6 +142,8 @@ export const useAlphaStore = create<AlphaState>()(
           countsByRail: { ...s.countsByRail, [cache.railId]: cache },
         })),
 
+      setNewsScan: (scan) => set({ newsScan: scan }),
+
       setExpandedRailId: (id) => set({ expandedRailId: id }),
 
       addCost: (usd) => {
@@ -177,12 +184,13 @@ export const useAlphaStore = create<AlphaState>()(
     }),
     {
       name: 'venice-alpha',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => createEncryptedStorage()),
       partialize: (s) => ({
         systemRails: s.systemRails,
         userRails: s.userRails,
         countsByRail: s.countsByRail,
+        newsScan: s.newsScan,
         lifetimeCost: s.lifetimeCost,
         briefs: s.briefs,
         stories: s.stories,
@@ -206,6 +214,15 @@ export const useAlphaStore = create<AlphaState>()(
         if (p.briefs == null || typeof p.briefs !== 'object') p.briefs = {}
         if (p.stories == null || typeof p.stories !== 'object') p.stories = {}
         if (p.posts == null || typeof p.posts !== 'object') p.posts = {}
+        if (
+          p.newsScan != null &&
+          (typeof p.newsScan !== 'object' ||
+            !Array.isArray(p.newsScan.stories) ||
+            typeof p.newsScan.fetchedAt !== 'number')
+        ) {
+          p.newsScan = null
+        }
+        if (p.newsScan === undefined) p.newsScan = null
         const pruned = pruneAlphaArchive({
           briefs: p.briefs,
           stories: p.stories,

@@ -8,6 +8,7 @@ describe('useAlphaStore', () => {
       systemRails: buildDefaultSystemRails(),
       userRails: [],
       countsByRail: {},
+      newsScan: null,
       expandedRailId: null,
       sessionCost: 0,
       lifetimeCost: 0,
@@ -81,5 +82,20 @@ describe('useAlphaStore', () => {
     })
     useAlphaStore.getState().setColdPinned('story', 's1', true)
     expect(useAlphaStore.getState().stories['s1']?.pinned).toBe(true)
+  })
+
+  it('persists news scan cache', () => {
+    useAlphaStore.getState().setNewsScan({
+      stories: [
+        {
+          id: 'n1',
+          name: 'Breaking',
+          clusterPostIds: [],
+        },
+      ],
+      fetchedAt: 123,
+    })
+    expect(useAlphaStore.getState().newsScan?.stories[0]?.name).toBe('Breaking')
+    expect(useAlphaStore.getState().newsScan?.fetchedAt).toBe(123)
   })
 })
