@@ -34,7 +34,9 @@ import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
 import { mergeHotWithNewsBookmarks } from '../lib/compose/news-hot'
+import { mergeHotWithAlpha } from '../lib/compose/alpha-hot'
 import { useNewsStore } from '../stores/news-store'
+import { useAlphaStore } from '../stores/alpha-store'
 import { computeHotBudget } from '../lib/compose/token-estimate'
 import { runComposeAgent } from '../lib/compose/compose-agent'
 import {
@@ -250,7 +252,13 @@ export function useCompose() {
           now: new Date(),
         })
         const newsBookmarks = useNewsStore.getState().bookmarks
-        const { text: hotText } = mergeHotWithNewsBookmarks(pack.text, newsBookmarks)
+        const { text: withNews } = mergeHotWithNewsBookmarks(pack.text, newsBookmarks)
+        useAlphaStore.getState().pruneCold()
+        const { text: hotText } = mergeHotWithAlpha(withNews, {
+          briefs: useAlphaStore.getState().briefs,
+          stories: useAlphaStore.getState().stories,
+          posts: useAlphaStore.getState().posts,
+        })
 
         if (libraryMode === 'custom' && pack.overBudget) {
           store.setLastAssistantContent(

@@ -46,6 +46,8 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/VeniceStats/)
     expect(on).toMatch(/news_read/)
     expect(on).toMatch(/BOOKMARKED NEWS/)
+    expect(on).toMatch(/alpha_list|ALPHA RADAR|24h/)
+    expect(off).not.toMatch(/alpha_list/)
     // Drafting tool is always present once tools are enabled.
     expect(on).toMatch(/compose_write_draft/)
     expect(off).not.toMatch(/compose_write_draft/)

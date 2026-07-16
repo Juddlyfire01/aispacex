@@ -96,6 +96,11 @@ Bookmarked RSS news:
 - BOOKMARKED NEWS in the hot window lists starred stories (id, source, title, url) — pointers only.
 - news_read — fetch the full main-article text for a bookmarked story (id or url). Call only when that story is relevant.
 
+Alpha Radar (24h trending memory + pins):
+- HOT WINDOW may include an ALPHA RADAR slice (recent briefs/stories). Prefer that first.
+- alpha_list / alpha_grep / alpha_get — cold pull from the Alpha archive. Prefer hot slice first.
+- intel_* remains for gathered profiles/posts; alpha_* is Radar-only.
+
 VeniceStats (live protocol + pulse):
 - stats_protocol / stats_market / stats_social / stats_wallet — each takes an "action" (e.g. price, staking, burns, buzz, wallet). Prefer these for live VVV/DIEM/protocol/community numbers over guessing or web search.
 - Prefer a focused call (overview, price, buzz_metrics) before many parallel actions.
@@ -121,7 +126,8 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
     `You are ${modelId}, running privately via Venice.ai inside IntelX Post.
 
 Environment:
-- IntelX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
+- IntelX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers and an Alpha Radar 24h+pins slice when present), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
+- Alpha Radar = 24h trending memory + pins (not long-term Intel subjects). HOT WINDOW may include an ALPHA RADAR slice.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 
 Purpose:
