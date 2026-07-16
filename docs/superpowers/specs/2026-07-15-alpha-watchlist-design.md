@@ -42,3 +42,7 @@ Reverse-engineered **X Radar** surface using tools we actually have:
 - Official X Radar embed
 - User PAYG UI
 - Replacing RSS News
+
+## Follow-on
+
+Memory (24h cold + pins), cluster hydrate, per-rail briefs, Compose `alpha_*` + hot slice, thin handoff: see [2026-07-16-alpha-memory-handoff-design.md](./2026-07-16-alpha-memory-handoff-design.md).
