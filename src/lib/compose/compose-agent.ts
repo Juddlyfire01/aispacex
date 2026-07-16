@@ -10,6 +10,7 @@ import type {
 import type { ComposeScope, IntelSnapshot } from '../intel-library/types'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { HistorySnapshot } from './history-library'
+import { COMPOSE_ALPHA_TOOLS, executeAlphaTool } from './alpha-tools'
 import { COMPOSE_HISTORY_TOOLS, executeHistoryTool } from './history-tools'
 import { COMPOSE_INTEL_TOOLS, executeIntelTool } from './intel-tools'
 import { COMPOSE_STATS_TOOLS, executeStatsTool } from './stats-tools'
@@ -375,6 +376,7 @@ export async function runComposeAgent(
     ...COMPOSE_INTEL_TOOLS,
     ...COMPOSE_HISTORY_TOOLS,
     ...COMPOSE_STATS_TOOLS,
+    ...COMPOSE_ALPHA_TOOLS,
     ...getComposeNewsTools({ xNewsOn }),
     ...(draftToolEnabled ? [COMPOSE_WRITE_DRAFT_TOOL] : []),
   ]
@@ -492,6 +494,8 @@ export async function runComposeAgent(
           xNewsMaxAgeHours: opts.xNewsMaxAgeHours ?? 24,
           signal: opts.signal,
         })
+      } else if (name.startsWith('alpha_')) {
+        result = executeAlphaTool(name, args)
       } else {
         result = executeIntelTool(name, args, {
           snapshot: opts.snapshot,
