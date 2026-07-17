@@ -58,13 +58,37 @@ describe('formatRegisterInject', () => {
       },
       { customPrompt: 'keep under 280' },
     )
-    expect(text).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
+    expect(text).toMatch(/REGISTER — VOICE CONSTRAINT/)
     expect(text).toMatch(/Clinical/)
     expect(text).toMatch(/rankings/)
-    expect(text).toMatch(/--- ranking \[post:99\] ---/)
+    // Anchor header no longer dangles the post id (avoids exhibit reuse).
+    expect(text).toMatch(/--- ranking ---/)
+    expect(text).not.toMatch(/\[post:99\]/)
     expect(text).toMatch(/top 5:/)
     expect(text).toMatch(/keep under 280/)
     expect(text).toMatch(/Adherence checklist/)
+  })
+
+  it('marks anchors as style-only and honors live-ask precedence', () => {
+    const text = formatRegisterInject({
+      description: 'Clinical',
+      devices: ['rankings'],
+      fewShotExamples: [{ label: 'ranking', postId: '99', text: 'top 5:' }],
+    })
+    expect(text).toMatch(/NOT content/)
+    expect(text).toMatch(/RHYTHM SAMPLES ONLY/)
+    expect(text).toMatch(/PRECEDENCE/)
+  })
+
+  it('clamps long anchor text to a cadence sample', () => {
+    const long = 'x'.repeat(500)
+    const text = formatRegisterInject({
+      description: '',
+      devices: [],
+      fewShotExamples: [{ label: 'long', text: long }],
+    })
+    expect(text).toContain('…')
+    expect(text).not.toContain(long)
   })
 })
 

@@ -7,12 +7,19 @@ import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { ChatMessage, VeniceModel } from '../../types/venice'
 import type { DraftWriteBrief } from './draft-writer-tool'
 import { messageContentString } from './thread-meta'
+import { buildCraftInject } from './skills'
 
 export { parseArticleFromWriterText, splitArticleImagePrompt } from './article-parse'
 export type { ParsedWriterArticle } from './article-parse'
 
 /** Cap conversation payload so the writer stays within context. */
 export const WRITER_CONVERSATION_MAX_CHARS = 48_000
+
+const SPENT_WRITER_RULES = `SPENT / PRIOR ART — HARD FAIL:
+- If a ## SPENT / PRIOR ART section is present (user message or conversation), its openers, slogans, exhibit spines, status ids, and heavy $/@ stacks are forbidden to reuse.
+- Reusing spent opener/slogan/spine (including light paraphrase) = FAILED draft.
+- Thin novelty → shorter output; never pad with restated prior art.
+- Write the current delta only.`
 
 export interface RunDraftWriterOpts {
   modelId: string
@@ -24,6 +31,8 @@ export interface RunDraftWriterOpts {
    */
   conversation?: ChatMessage[] | null
   registerInject?: string | null
+  /** Engineered SPENT / PRIOR ART pack (always prefer this over conversation alone). */
+  spentText?: string | null
   signal?: AbortSignal
   onDelta?: (token: string) => void
 }
@@ -102,9 +111,13 @@ Rules:
 ${
   hasConversation
     ? `- You receive the research conversation history AND a writing brief. Use the conversation for full context (facts, angle, nuance, decisions). Treat the brief as the research model's writing instructions and priorities — do not discard conversation detail that the brief omitted.
-- Prefer concrete facts and numbers from the conversation and brief over invention.`
-    : `- Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.`
+- Prefer concrete facts and numbers from the conversation and brief over invention.
+- If the brief or a user instruction asks for a looser / more casual / more novel register, honor it — that overrides any default formal posture, including the REGISTER block's defaults.`
+    : `- Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.
+- If the brief asks for a looser / more casual / more novel register, honor it over any default formal posture.`
 }`,
+    SPENT_WRITER_RULES,
+    buildCraftInject(),
   ]
   if (registerInject?.trim()) {
     parts.push(registerInject.trim())
@@ -117,8 +130,12 @@ export function buildWriterUser(
   brief: DraftWriteBrief,
   hasRegister = false,
   conversationText = '',
+  spentText?: string | null,
 ): string {
   const lines: string[] = []
+  if (spentText?.trim()) {
+    lines.push(spentText.trim())
+  }
   if (conversationText.trim()) {
     lines.push(
       `Research conversation (full context — use this; do not rely on the brief alone):\n${conversationText.trim()}`,
@@ -179,6 +196,7 @@ export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> 
   const hasRegister = Boolean(opts.registerInject?.trim())
   const conversationText = packConversationForWriter(opts.conversation)
   const hasConversation = Boolean(conversationText)
+  const spentText = opts.spentText?.trim() || null
   const stream = await venice<ReadableStream<Uint8Array>>('/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
@@ -190,7 +208,7 @@ export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> 
         },
         {
           role: 'user',
-          content: buildWriterUser(opts.brief, hasRegister, conversationText),
+          content: buildWriterUser(opts.brief, hasRegister, conversationText, spentText),
         },
       ],
       stream: true,

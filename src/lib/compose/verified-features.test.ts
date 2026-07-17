@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   effectiveLongform,
+  resolveLongform,
   filterReplySettingOptions,
   isVerifiedProfile,
   prepareDraftForPost,
@@ -66,6 +67,27 @@ describe('effectiveLongform', () => {
   it('requires verification', () => {
     expect(effectiveLongform(true, true)).toBe(true)
     expect(effectiveLongform(true, false)).toBe(false)
+  })
+})
+
+describe('resolveLongform', () => {
+  it('enables long-form from the draft flag', () => {
+    expect(resolveLongform(true, 'auto', true)).toBe(true)
+  })
+
+  it('enables long-form from the preferred-format pill alone', () => {
+    expect(resolveLongform(false, 'longform', true)).toBe(true)
+  })
+
+  it('stays off for post/thread/article formats without the flag', () => {
+    expect(resolveLongform(false, 'post', true)).toBe(false)
+    expect(resolveLongform(false, 'thread', true)).toBe(false)
+    expect(resolveLongform(false, 'article', true)).toBe(false)
+  })
+
+  it('requires verification regardless of signal', () => {
+    expect(resolveLongform(true, 'longform', false)).toBe(false)
+    expect(resolveLongform(false, 'longform', false)).toBe(false)
   })
 })
 

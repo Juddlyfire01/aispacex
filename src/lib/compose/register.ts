@@ -95,26 +95,39 @@ export function isRegisterPackEmpty(pack: RegisterPack | null | undefined): bool
   return !pack.description.trim() && pack.devices.length === 0 && pack.fewShotExamples.length === 0
 }
 
+/** Cap anchor excerpts in the inject: enough for cadence, too short to lift wholesale. */
+export const REGISTER_ANCHOR_MAX_CHARS = 220
+
+/** Trim an anchor to a cadence sample without dangling a full reusable post. */
+export function clampAnchorText(text: string, max = REGISTER_ANCHOR_MAX_CHARS): string {
+  const t = text.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max).trimEnd()}…`
+}
+
 export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?: string }): string {
   const lines: string[] = [
-    'REGISTER — HARD STYLE CONSTRAINT (non-negotiable for all publishable copy):',
-    'Write as this voice. Mimic cadence, diction, metric density, punctuation habits, and rhetorical moves from the description, devices, and few-shot anchors below.',
-    'Do NOT default to a generic marketing / AI-assistant voice. If the anchors are terse, stay terse. If they stack metrics, stack metrics. If they use a signature pivot ("but here is the tension", rankings, NFA distance), reuse that move.',
+    'REGISTER — VOICE CONSTRAINT (applies to cadence and diction, NOT content):',
+    'Match this voice: sentence length, rhythm, punctuation habits, diction, and rhetorical moves from the description, devices, and anchors below. If the anchors are terse, stay terse; if they favor a signature pivot ("but here is the tension", rankings, NFA distance), that move is available to you.',
+    'HARD LIMITS on the anchors (this is style transfer, not content reuse):',
+    '- The anchors are RHYTHM SAMPLES ONLY. Never reuse their facts, exhibits, examples, post ids, permalinks, phrasings, or sentence structure. Lifting anchor wording or re-listing anchor exhibits is a FAILED draft.',
+    '- Content, facts, and receipts come ONLY from the current research/brief — never from the anchors. If the anchor and the task share a topic, treat the anchor as if the words were redacted and only the beat pattern remained.',
+    '- Metric density is a style trait, not a mandate: reflect the anchors\' quantitative texture only when the current material actually supports it. Do not manufacture or copy metrics to "sound like" the register.',
+    'PRECEDENCE: a live instruction in this turn (e.g. "be totally casual", "make it novel", "no metrics tables") OVERRIDES the register\'s default posture. Honor the current ask first, then apply the register within that ask. Following a live loosening instruction is correct, not a register failure.',
   ]
   if (pack.description.trim()) {
-    lines.push(`Description: ${pack.description.trim()}`)
+    lines.push(`Description (voice, not content): ${pack.description.trim()}`)
   }
   if (pack.devices.length > 0) {
-    lines.push(`Devices: ${pack.devices.join('; ')}`)
+    lines.push(`Devices (rhetorical moves available): ${pack.devices.join('; ')}`)
   }
   if (pack.fewShotExamples.length > 0) {
     lines.push(
-      'Few-shot style anchors (match rhythm and texture — do not copy verbatim unless asked):',
+      'Cadence anchors (rhythm/texture samples — do NOT copy wording, facts, or exhibits):',
     )
     for (const ex of pack.fewShotExamples.slice(0, 12)) {
-      const id = ex.postId ? ` [post:${ex.postId}]` : ''
-      lines.push(`--- ${ex.label}${id} ---`)
-      lines.push(ex.text.trim())
+      lines.push(`--- ${ex.label} ---`)
+      lines.push(clampAnchorText(ex.text))
     }
   }
   const custom = opts?.customPrompt?.trim()
@@ -125,9 +138,10 @@ export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?:
   lines.push(
     [
       'Adherence checklist before finalizing copy:',
-      '- Sentence length / line breaks match the anchors (not essay-smooth unless anchors are).',
-      '- Number density and unit style match ($, %, K/M, ~approx) when the topic is quantitative.',
-      '- Signature devices and pivots appear when they fit; inventing a softer tone is a failure.',
+      '- Cadence matches the anchors (sentence length / line breaks), but wording and facts are wholly your own from the current brief.',
+      '- No anchor phrasing, exhibits, or post ids reused verbatim; no re-listing the last edition\'s spine.',
+      '- Unit style ($, %, K/M, ~approx) matches the anchors ONLY where the current material is quantitative.',
+      '- A live "casual / novel / lighter" instruction was honored — that is success, not drift.',
       '- No fluff openers, no "As an AI", no hashtag spam, no corporate enthusiasm unless the register itself does that.',
     ].join('\n'),
   )

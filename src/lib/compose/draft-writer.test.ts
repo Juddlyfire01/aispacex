@@ -163,16 +163,29 @@ describe('buildWriterSystem', () => {
     expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
   })
 
-  it('adds no X-conventions / voice style guidance', () => {
+  it('always injects CRAFT craft guidance', () => {
     const sys = buildWriterSystem(null)
-    expect(sys).not.toMatch(/Match X conventions/)
-    expect(sys).not.toMatch(/hashtag spam/)
+    expect(sys).toMatch(/## CRAFT/)
+    expect(sys).toMatch(/Specificity beats cleverness/)
+    expect(sys).toMatch(/HOOK PATTERNS/)
+    expect(sys).toMatch(/ANTI-PATTERNS/)
+  })
+
+  it('always hard-fails on SPENT / PRIOR ART reuse', () => {
+    const sys = buildWriterSystem(null)
+    expect(sys).toMatch(/SPENT \/ PRIOR ART/)
+    expect(sys).toMatch(/FAILED draft/)
   })
 
   it('instructs writer to use conversation + brief when hasConversation', () => {
     const sys = buildWriterSystem(null, { hasConversation: true })
     expect(sys).toMatch(/conversation history AND a writing brief/i)
     expect(buildWriterSystem(null, { hasConversation: false })).toMatch(/Follow the brief tightly/)
+  })
+
+  it('keeps casual-register override when conversation is attached', () => {
+    const sys = buildWriterSystem(null, { hasConversation: true })
+    expect(sys).toMatch(/casual/i)
   })
 })
 
@@ -211,6 +224,18 @@ describe('buildWriterUser with conversation', () => {
     expect(u).toMatch(/Research conversation/)
     expect(u).toMatch(/Do Plan L/)
     expect(u).toMatch(/Brief:\nWrite the article/)
+  })
+
+  it('includes spentText as a dedicated section before conversation', () => {
+    const u = buildWriterUser(
+      { brief: 'Write the post' },
+      false,
+      'User:\nAngle',
+      '## SPENT / PRIOR ART\n- opener: Old line',
+    )
+    expect(u.indexOf('## SPENT / PRIOR ART')).toBeLessThan(u.indexOf('Research conversation'))
+    expect(u).toMatch(/Old line/)
+    expect(u).toMatch(/Brief:\nWrite the post/)
   })
 })
 

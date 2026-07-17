@@ -31,12 +31,14 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/^You are unknown-model,/m)
   })
 
-  it('toolsEnabled adds intel, history, VeniceStats, and news_read rules', () => {
+  it('toolsEnabled adds intel, history, VeniceStats, news_read, CRAFT, and SPENT rules', () => {
     const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: true })
     expect(off).not.toMatch(/intel_\*/)
     expect(off).not.toMatch(/stats_protocol/)
     expect(off).not.toMatch(/news_read/)
+    expect(off).not.toMatch(/## CRAFT/)
+    expect(off).not.toMatch(/SPENT \/ PRIOR ART/)
     expect(on).toMatch(/intel_\*/)
     expect(on).toMatch(/HOT WINDOW/i)
     expect(on).toMatch(/Never invent post ids/i)
@@ -47,6 +49,10 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/news_read/)
     expect(on).toMatch(/BOOKMARKED NEWS/)
     expect(on).toMatch(/alpha_list|ALPHA RADAR|24h/)
+    expect(on).toMatch(/## CRAFT/)
+    expect(on).toMatch(/Specificity beats cleverness/)
+    expect(on).toMatch(/SPENT \/ PRIOR ART/)
+    expect(on).toMatch(/FAILED draft/)
     expect(off).not.toMatch(/alpha_list/)
     // Drafting tool is always present once tools are enabled.
     expect(on).toMatch(/compose_write_draft/)
@@ -218,5 +224,17 @@ describe('buildHotUserPrefix', () => {
 
   it('non-empty joins with ---', () => {
     expect(buildHotUserPrefix('HOT DATA', 'Write a post')).toBe('HOT DATA\n\n---\nWrite a post')
+  })
+
+  it('includes spent block when present', () => {
+    expect(buildHotUserPrefix('HOT', 'Write', '## SPENT / PRIOR ART\n- x')).toBe(
+      'HOT\n\n## SPENT / PRIOR ART\n- x\n\n---\nWrite',
+    )
+  })
+
+  it('spent-only prefix works without hot', () => {
+    expect(buildHotUserPrefix('', 'Write', '## SPENT / PRIOR ART\n- x')).toBe(
+      '## SPENT / PRIOR ART\n- x\n\n---\nWrite',
+    )
   })
 })

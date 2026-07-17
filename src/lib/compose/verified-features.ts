@@ -28,6 +28,19 @@ export function effectiveLongform(draftLongform: boolean, isVerified: boolean): 
   return isVerified && draftLongform
 }
 
+/**
+ * Resolve whether the editor should use the long-form (25k) limit.
+ * Either the `longform` draft flag OR the `longform` preferred-format pill
+ * enables it, so the two controls stay in sync. Still gated by verification.
+ */
+export function resolveLongform(
+  draftLongform: boolean,
+  preferredFormat: string,
+  isVerified: boolean,
+): boolean {
+  return isVerified && (draftLongform || preferredFormat === 'longform')
+}
+
 export function syncDraftForVerification(
   draft: Partial<Pick<PostDraft, 'longform' | 'replySettings'>>,
   isVerified: boolean,

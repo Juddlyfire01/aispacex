@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useComposeStore } from '../../stores/compose-store'
 import { containsUrl } from '../../lib/compose/tweet-length'
 import {
-  effectiveLongform,
+  resolveLongform,
   filterReplySettingOptions,
   syncDraftForVerification,
 } from '../../lib/compose/verified-features'
@@ -110,7 +110,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
   const showArticle =
     preferredFormat === 'article' ||
     (preferredFormat === 'auto' && shell.hasArticleContent)
-  const longform = effectiveLongform(shell.longform, isVerified)
+  const longform = resolveLongform(shell.longform, preferredFormat, isVerified)
   const replyOptions = filterReplySettingOptions(isVerified)
 
   return (

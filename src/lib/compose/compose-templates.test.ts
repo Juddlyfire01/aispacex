@@ -1,16 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { COMPOSE_TEMPLATES, PRIMARY_TEMPLATE } from './compose-templates'
-import { SPHERE_REPORT_STARTER } from './sphere-report-workflow'
-import { SIGNAL_DOSSIER_STARTER } from './signal-dossier-workflow'
-import { BY_THE_NUMBERS_STARTER } from './by-the-numbers-workflow'
-import { REBUTTAL_BRIEF_STARTER } from './rebuttal-brief-workflow'
-import { BULL_THESIS_STARTER } from './bull-thesis-workflow'
+import { DISCOVER_STARTER } from './discover-workflow'
+import { fullToolsReminder, spentReminder, buildStagePrompt } from './skill-pipeline'
 
 describe('COMPOSE_TEMPLATES registry', () => {
-  it('contains the Sphere Report plus its four complements', () => {
+  it('contains five skill stages with Discover primary', () => {
     expect(COMPOSE_TEMPLATES).toHaveLength(5)
-    expect(COMPOSE_TEMPLATES[0]).toBe(SPHERE_REPORT_STARTER)
-    expect(PRIMARY_TEMPLATE).toBe(SPHERE_REPORT_STARTER)
+    expect(COMPOSE_TEMPLATES.map((t) => t.id)).toEqual([
+      'discover',
+      'angles',
+      'craft-post',
+      'craft-thread',
+      'polish',
+    ])
+    expect(COMPOSE_TEMPLATES[0]).toBe(DISCOVER_STARTER)
+    expect(PRIMARY_TEMPLATE).toBe(DISCOVER_STARTER)
+    expect(PRIMARY_TEMPLATE.id).toBe('discover')
   })
 
   it('has unique ids and labels', () => {
@@ -20,62 +25,78 @@ describe('COMPOSE_TEMPLATES registry', () => {
     expect(new Set(labels).size).toBe(labels.length)
   })
 
-  it('every template satisfies the shared UX contract', () => {
+  it('sets preferredFormat per stage and auto does not force format', () => {
+    const byId = Object.fromEntries(COMPOSE_TEMPLATES.map((t) => [t.id, t]))
+    expect(byId.discover?.preferredFormat).toBe('auto')
+    expect(byId.angles?.preferredFormat).toBe('auto')
+    expect(byId.polish?.preferredFormat).toBe('auto')
+    expect(byId['craft-post']?.preferredFormat).toBe('post')
+    expect(byId['craft-thread']?.preferredFormat).toBe('thread')
+  })
+
+  it('every stage prompt mentions tools, spent, and stage job', () => {
     for (const tpl of COMPOSE_TEMPLATES) {
-      // Metadata present.
       expect(tpl.id).toBeTruthy()
       expect(tpl.label).toBeTruthy()
       expect(tpl.hint).toBeTruthy()
       expect(tpl.blurb).toBeTruthy()
-      expect(tpl.preferredFormat).toBe('longform')
 
       const prompt = tpl.buildPrompt()
       const display = tpl.buildDisplayMessage()
 
-      // Same multi-phase / draft-handoff flow across all templates.
-      expect(prompt.length).toBeGreaterThan(500)
-      expect(prompt).toMatch(/Phase 0/i)
-      expect(prompt).toMatch(/Phase 4/i)
+      expect(prompt.length).toBeGreaterThan(200)
+      expect(prompt).toMatch(/intel_\*/)
+      expect(prompt).toMatch(/compose_history_/)
       expect(prompt).toMatch(/compose_write_draft/)
-      expect(prompt).toMatch(/do not exit early/i)
-      expect(prompt).toMatch(/Conclusion/i)
+      expect(prompt).toMatch(/SPENT/i)
+      expect(prompt).toMatch(/SKILL STAGE/i)
 
-      // Chat bubble is a short launch line, never the full prompt.
       expect(display.length).toBeLessThan(prompt.length / 2)
-      expect(display).not.toMatch(/compose_write_draft/)
       expect(display).not.toMatch(/CRITICAL/)
-      expect(display).toMatch(/^Generate /)
     }
+  })
+
+  it('craft stages require compose_write_draft; discover/angles discourage early draft', () => {
+    const discover = COMPOSE_TEMPLATES.find((t) => t.id === 'discover')!.buildPrompt()
+    const angles = COMPOSE_TEMPLATES.find((t) => t.id === 'angles')!.buildPrompt()
+    const craftPost = COMPOSE_TEMPLATES.find((t) => t.id === 'craft-post')!.buildPrompt()
+    const craftThread = COMPOSE_TEMPLATES.find((t) => t.id === 'craft-thread')!.buildPrompt()
+    const polish = COMPOSE_TEMPLATES.find((t) => t.id === 'polish')!.buildPrompt()
+
+    expect(discover).toMatch(/CHAT ONLY|discourage/i)
+    expect(angles).toMatch(/Tier|\[lever\]/i)
+    expect(craftPost).toMatch(/MUST call compose_write_draft/)
+    expect(craftThread).toMatch(/MUST call compose_write_draft/)
+    expect(craftThread).toMatch(/5-beat|Hook/i)
+    expect(polish).toMatch(/MUST call compose_write_draft/)
   })
 })
 
-describe('template distinctiveness — each has its signature gate', () => {
-  it('Signal Dossier is deep/single-subject with an evolution gate', () => {
-    const p = SIGNAL_DOSSIER_STARTER.buildPrompt()
-    expect(p).toMatch(/DEPTH HARD RULE/i)
-    expect(p).toMatch(/one subject|single node|single subject/i)
-    expect(p).toMatch(/then vs now|evolution|arc/i)
+describe('skill-pipeline scaffolding', () => {
+  it('fullToolsReminder lists the full tool surface', () => {
+    const t = fullToolsReminder()
+    expect(t).toMatch(/intel_\*/)
+    expect(t).toMatch(/stats_\*/)
+    expect(t).toMatch(/alpha_\*/)
+    expect(t).toMatch(/news_read/)
+    expect(t).toMatch(/compose_write_draft/)
   })
 
-  it('By the Numbers is metric-led with a sourcing gate', () => {
-    const p = BY_THE_NUMBERS_STARTER.buildPrompt()
-    expect(p).toMatch(/SOURCING HARD RULE/i)
-    expect(p).toMatch(/VeniceStats/)
-    expect(p).toMatch(/no price predictions|no price|no unsourced/i)
+  it('spentReminder trusts injected pack', () => {
+    expect(spentReminder()).toMatch(/SPENT \/ PRIOR ART/)
+    expect(spentReminder()).toMatch(/FAILED/)
   })
 
-  it('Rebuttal Brief steelmans before countering', () => {
-    const p = REBUTTAL_BRIEF_STARTER.buildPrompt()
-    expect(p).toMatch(/STEELMAN HARD RULE/i)
-    expect(p).toMatch(/strawman/i)
-    expect(p).toMatch(/concede/i)
-  })
-
-  it('Bull Thesis is fundamentals-only, no price calls', () => {
-    const p = BULL_THESIS_STARTER.buildPrompt()
-    expect(p).toMatch(/FUNDAMENTALS HARD RULE/i)
-    expect(p).toMatch(/no price/i)
-    expect(p).toMatch(/compounding/i)
-    expect(p).toMatch(/RISK FOOTNOTE/i)
+  it('buildStagePrompt assembles shared blocks', () => {
+    const p = buildStagePrompt({
+      stage: 'discover',
+      label: 'Discover',
+      jobBody: 'Do the brief.',
+    })
+    expect(p).toMatch(/SKILL STAGE: Discover/)
+    expect(p).toMatch(/Do the brief/)
+    expect(p).toMatch(/intel_\*/)
+    expect(p).toMatch(/SPENT/)
+    expect(p).toMatch(/HANDOFF CONTRACT/)
   })
 })

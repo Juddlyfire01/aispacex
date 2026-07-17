@@ -27,10 +27,14 @@ export async function resolveDemoUserId(bearer: string): Promise<string> {
 
 const BY_USERNAME = /^users\/by\/username\/AskVenice$/i
 const USER_TIMELINE = /^users\/(\d+)\/(tweets|mentions)$/
+// Affiliates roster for the demo org itself (gratis @AskVenice affiliates list).
+const USER_AFFILIATES = /^users\/(\d+)\/affiliates$/
 
 /** True when the X API sub-path is allowed for the hard-coded demo account. */
 export function isDemoPathAllowed(path: string, demoUserId: string): boolean {
   if (BY_USERNAME.test(path)) return true
-  const match = path.match(USER_TIMELINE)
-  return Boolean(match && match[1] === demoUserId)
+  const timeline = path.match(USER_TIMELINE)
+  if (timeline && timeline[1] === demoUserId) return true
+  const affiliates = path.match(USER_AFFILIATES)
+  return Boolean(affiliates && affiliates[1] === demoUserId)
 }

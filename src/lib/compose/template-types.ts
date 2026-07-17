@@ -1,19 +1,19 @@
 import type { PreferredFormat } from './format'
 
 /**
- * A one-click Compose research template (Sphere Report and its complements).
+ * A one-click Compose skill-stage starter (Discover → Angles → Craft → Polish).
  *
- * Every template shares the same UX contract:
+ * UX contract:
  *  - launched from the Templates menu / empty-state link
- *  - seeds a single hidden multi-phase prompt to the agent (`buildPrompt`)
+ *  - seeds a hidden stage prompt to the agent (`buildPrompt`)
  *  - shows a short launch line in the chat bubble (`buildDisplayMessage`)
- *  - forces a `preferredFormat` for the thread
- *  - researches in chat, then hands off a longform draft to the Draft drawer
+ *  - `preferredFormat: 'auto'` means launch does NOT call setPreferredFormat
+ *  - other formats force the thread preference on launch
  *
- * Templates differ only in the *shape* and *value* of the output, not the flow.
+ * All tools remain available every stage; stages differ only in job/output.
  */
 export interface ComposeTemplateStarter {
-  /** Stable id (also the workflow id). */
+  /** Stable id (also the stage id). */
   id: string
   /** Menu row title + empty-state link label. */
   label: string
@@ -21,9 +21,12 @@ export interface ComposeTemplateStarter {
   hint: string
   /** Short trailing blurb for the empty-state (" — {blurb}"). */
   blurb: string
-  /** Format forced on the thread when launched. */
+  /**
+   * Format preference when launched.
+   * `'auto'` = leave the thread format unchanged (do not call setPreferredFormat).
+   */
   preferredFormat: PreferredFormat
-  /** Full multi-phase instructions sent to the model (not shown in chat). */
+  /** Full stage instructions sent to the model (not shown in chat). */
   buildPrompt: () => string
   /** Short launch line shown in the user bubble. */
   buildDisplayMessage: () => string

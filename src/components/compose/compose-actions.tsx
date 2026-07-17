@@ -7,7 +7,7 @@ import { classifyPostability } from '../../lib/compose/postability'
 import { getActiveSelfIdentity, resolveReplySummoned } from '../../lib/compose/reply-eligibility'
 import { copyDraftToClipboard } from '../../lib/compose/serialize'
 import { tweetLength } from '../../lib/compose/tweet-length'
-import { effectiveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
+import { resolveLongform, prepareDraftForPost } from '../../lib/compose/verified-features'
 import { TWEET_LIMIT, LONGFORM_LIMIT } from '../../lib/compose/types'
 import { publishArticleDraft, XArticleError } from '../../lib/compose/x-article-client'
 import { XMediaError } from '../../lib/compose/x-media-client'
@@ -81,7 +81,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   })
   const isArticle =
     preferredFormat === 'article' || resolveDraftFormat(draft) === 'article'
-  const longform = effectiveLongform(draft.longform, isVerified)
+  const longform = resolveLongform(draft.longform, preferredFormat, isVerified)
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
   const overLimit = isArticle ? false : draft.segments.some((s) => tweetLength(s.text) > limit)
   const empty = isArticle

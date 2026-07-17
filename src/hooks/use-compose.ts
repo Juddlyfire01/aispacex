@@ -11,6 +11,7 @@ import { registerWipFlush } from '../lib/wip-guard'
 import { useXSelfStore } from '../stores/x-self-store'
 import { useXIntelStore } from '../stores/x-intel-store'
 import { buildComposeSystem, buildHotUserPrefix } from '../lib/compose/compose-prompt'
+import { buildSpentContentPack } from '../lib/compose/spent-content'
 import { parseDraftBlock } from '../lib/compose/draft-block'
 import { looksLikeDraftIntent } from '../lib/compose/article-handoff'
 import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
@@ -225,6 +226,28 @@ export function useCompose() {
         const reports = Object.values(useXIntelStore.getState().reports)
         const snapshot = buildIntelSnapshot({ selfAccounts, reports })
         const scope = useComposeStore.getState().threads[threadId]?.context ?? thread.context
+        const composeState = useComposeStore.getState()
+        const historySnapshot = buildHistorySnapshot(composeState.threads, composeState.threadOrder)
+        const liveDraft = composeState.threads[threadId]?.draft
+        const currentDraftText = liveDraft
+          ? [
+              ...(liveDraft.segments ?? []).map((s) => s.text.trim()).filter(Boolean),
+              liveDraft.article
+                ? [liveDraft.article.title, liveDraft.article.bodyMarkdown]
+                    .map((s) => s?.trim())
+                    .filter(Boolean)
+                    .join('\n\n')
+                : '',
+            ]
+              .filter(Boolean)
+              .join('\n---\n')
+          : ''
+        const spentPack = buildSpentContentPack({
+          snapshot,
+          history: historySnapshot,
+          currentDraftText: currentDraftText || null,
+        })
+        const spentText = spentPack.text
 
         const {
           libraryMode,
@@ -334,7 +357,7 @@ export function useCompose() {
             // displayContent is UI-only (template labels); never send it to the model.
             const { agentEvents: _ae, displayContent: _dc, ...rest } = m
             if (i === history.length - 1 && rest.role === 'user' && typeof rest.content === 'string') {
-              return { ...rest, content: buildHotUserPrefix(hotText, userMessage) }
+              return { ...rest, content: buildHotUserPrefix(hotText, userMessage, spentText) }
             }
             return rest
           })
@@ -692,6 +715,7 @@ export function useCompose() {
             brief: writerBrief,
             conversation: conversationForWriter,
             registerInject: registerResolved.inject,
+            spentText,
             signal: abortController.signal,
             onDelta: session.onDelta,
           })

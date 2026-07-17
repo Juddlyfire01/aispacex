@@ -230,9 +230,12 @@ export function ComposeChat({
   const launchTemplate = useCallback(
     (starter: ComposeTemplateStarter) => {
       if (isStreaming || sendBlocked) return
-      setPreferredFormat(threadId, starter.preferredFormat)
+      // `auto` means leave the thread format alone — do not force a preference.
+      if (starter.preferredFormat !== 'auto') {
+        setPreferredFormat(threadId, starter.preferredFormat)
+      }
       stickToBottomRef.current = true
-      // Full multi-phase brief goes to the model; chat shows the launch line only.
+      // Full stage brief goes to the model; chat shows the launch line only.
       void send(starter.buildPrompt(), {
         displayContent: starter.buildDisplayMessage(),
       })

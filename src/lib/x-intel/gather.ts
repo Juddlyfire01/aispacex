@@ -77,3 +77,48 @@ export async function resolveUser(userId: string, auth: GatherAuth): Promise<Gat
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? `User ${userId} not found`)
   return { data: normalizeProfile(resp.data, resp.includes), cost: estimateCost('users', 1) }
 }
+
+/** Max affiliate pages to walk in one refresh — a hard stop against runaway pagination. */
+const MAX_AFFILIATE_PAGES = 20
+
+/**
+ * List every account affiliated with an organization (X Verified Organization
+ * roster) via GET /users/{orgId}/affiliates, following pagination to completion.
+ * Org-keyed and fully generic: pass any org's user id. Each affiliate comes back
+ * as a full user object, normalized to a Profile. The gratis demo path only
+ * permits the demo org's id; any other org requires OAuth.
+ */
+export async function gatherAffiliates(
+  orgId: string,
+  auth: GatherAuth,
+  opts: { maxResults?: number } = {},
+): Promise<GatherResult<Profile[]>> {
+  const affiliates: Profile[] = []
+  let pageToken: string | undefined
+  let pages = 0
+
+  do {
+    const params: Record<string, string> = {
+      'user.fields': USER_FIELDS.join(','),
+      expansions: USER_EXPANSIONS.join(','),
+      max_results: String(opts.maxResults ?? 100),
+    }
+    if (pageToken) params.pagination_token = pageToken
+
+    const resp = await xapi<XPaginatedResponse<XUserRaw>>(
+      `/users/${encodeURIComponent(orgId)}/affiliates`,
+      params,
+      auth,
+    )
+    if (!resp.data && resp.errors?.length) {
+      throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
+    }
+    for (const raw of resp.data ?? []) {
+      affiliates.push(normalizeProfile(raw, resp.includes))
+    }
+    pageToken = resp.meta?.next_token
+    pages += 1
+  } while (pageToken && pages < MAX_AFFILIATE_PAGES)
+
+  return { data: affiliates, cost: estimateCost('users', affiliates.length) }
+}

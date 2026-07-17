@@ -9,6 +9,7 @@
 // the research agent turn). There is no ```postdraft path.
 
 import type { PreferredFormat } from './format'
+import { buildCraftInject } from './skills'
 
 export interface ComposeSystemOpts {
   /** Venice model id shown in settings (e.g. "grok-…", "llama-…"). */
@@ -28,6 +29,12 @@ export interface ComposeSystemOpts {
   /** Draft model = Same as main — copy streams in the next agent turn, not a separate writer. */
   sameModelDraft?: boolean
 }
+
+const SPENT_HARD_RULES = `SPENT / PRIOR ART — HARD RULES:
+- When a ## SPENT / PRIOR ART block is attached on the user turn, treat its openers, slogans, exhibit spines, status ids, and heavy $/@ stacks as already used.
+- Reusing a spent opener, slogan, or exhibit spine (even lightly reworded) = FAILED draft / FAILED stage output.
+- Thin novelty → write shorter and sharper; never pad with restated prior art.
+- Tools may extend the pack; they must not contradict or ignore it.`
 
 const FORMAT_SPEC = `Output formats (when drafting for X):
 - Post: single segment, longform false, ≤280 characters. One punchy take.
@@ -172,6 +179,8 @@ Style:
     parts.push(TOOLS_SPEC)
     if (opts.xNewsOn) parts.push(X_NEWS_TOOLS_SPEC)
     parts.push(DRAFT_TOOLS_EXTRA)
+    parts.push(buildCraftInject())
+    parts.push(SPENT_HARD_RULES)
   }
 
   if (opts.registerInject?.trim()) {
@@ -191,8 +200,18 @@ Style:
   return parts.join('\n\n')
 }
 
-/** Prefix the user message with a hot-window block when present. */
-export function buildHotUserPrefix(hotText: string, userMessage: string): string {
-  if (!hotText.trim()) return userMessage
-  return `${hotText}\n\n---\n${userMessage}`
+/**
+ * Prefix the user message with hot-window and optional SPENT / PRIOR ART blocks.
+ * Order: hot → spent → user message (spent stays near the request).
+ */
+export function buildHotUserPrefix(
+  hotText: string,
+  userMessage: string,
+  spentText?: string | null,
+): string {
+  const blocks: string[] = []
+  if (hotText.trim()) blocks.push(hotText.trim())
+  if (spentText?.trim()) blocks.push(spentText.trim())
+  if (blocks.length === 0) return userMessage
+  return `${blocks.join('\n\n')}\n\n---\n${userMessage}`
 }
