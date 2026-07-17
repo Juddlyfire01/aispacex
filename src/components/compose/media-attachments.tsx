@@ -1,48 +1,18 @@
-import { useRef } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
-import type { MediaItem, PostSegment } from '../../lib/compose/types'
+import type { PostSegment } from '../../lib/compose/types'
 
-// Attach images/video/gif to a segment (local preview via data URL) with an
-// alt-text field for accessibility parity with X. Native upload happens later;
-// for now media routes a draft to copy-out.
+// Attached media list + alt text. Add actions live on the segment / draft toolbar
+// (+ Media), not inline here.
 
 interface MediaAttachmentsProps {
   threadId: string
   segment: PostSegment
 }
 
-function kindForFile(type: string): MediaItem['kind'] {
-  if (type.startsWith('video/')) return 'video'
-  if (type === 'image/gif') return 'gif'
-  return 'image'
-}
-
 export function MediaAttachments({ threadId, segment }: MediaAttachmentsProps) {
   const patchSegment = useComposeStore((s) => s.patchSegment)
-  const inputRef = useRef<HTMLInputElement>(null)
 
-  const onFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    const readers = Array.from(files)
-      .slice(0, 4 - segment.media.length)
-      .map(
-        (file) =>
-          new Promise<MediaItem>((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () =>
-              resolve({
-                id: crypto.randomUUID(),
-                kind: kindForFile(file.type),
-                dataUrl: String(reader.result),
-                altText: '',
-              })
-            reader.readAsDataURL(file)
-          }),
-      )
-    void Promise.all(readers).then((items) => {
-      patchSegment(threadId, segment.id, { media: [...segment.media, ...items] })
-    })
-  }
+  if (segment.media.length === 0) return null
 
   const updateAlt = (id: string, altText: string) => {
     patchSegment(threadId, segment.id, {
@@ -76,24 +46,6 @@ export function MediaAttachments({ threadId, segment }: MediaAttachmentsProps) {
           </button>
         </div>
       ))}
-      {segment.media.length < 4 && (
-        <>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            className="hidden"
-            onChange={(e) => onFiles(e.target.files)}
-          />
-          <button
-            onClick={() => inputRef.current?.click()}
-            className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
-          >
-            + Add media
-          </button>
-        </>
-      )}
     </div>
   )
 }

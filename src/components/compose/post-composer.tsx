@@ -44,7 +44,6 @@ export function PostComposer({ threadId }: PostComposerProps) {
       }
     }),
   )
-  const addSegment = useComposeStore((s) => s.addSegment)
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
   const setLongformPreference = useComposeStore((s) => s.setLongformPreference)
   const longformPreference = useComposeStore((s) => s.longformPreference)
@@ -130,7 +129,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
         <>
           <TargetPicker threadId={threadId} target={shell.target} />
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {segments.map((seg, i) => (
               <SegmentEditor
                 key={seg.id}
@@ -142,13 +141,6 @@ export function PostComposer({ threadId }: PostComposerProps) {
               />
             ))}
           </div>
-
-          <button
-            onClick={() => addSegment(threadId)}
-            className="text-[11px] text-white/30 hover:text-white/60 transition-colors"
-          >
-            + Add to thread
-          </button>
 
           {shell.hasLink && (
             <p className="text-[10px] text-amber-400/70">

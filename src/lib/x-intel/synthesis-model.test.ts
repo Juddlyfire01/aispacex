@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { pickSynthesisModel, shouldUpgradeSynthesisModel, LEGACY_SYNTHESIS_DEFAULT } from './synthesis-model'
+import {
+  pickSynthesisModel,
+  shouldUpgradeSynthesisModel,
+  resolveSynthesisModelForDisplay,
+  LEGACY_SYNTHESIS_DEFAULT,
+} from './synthesis-model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
 
 function model(
@@ -52,7 +57,8 @@ describe('pickSynthesisModel', () => {
 describe('shouldUpgradeSynthesisModel', () => {
   const models = [model('grok-4-3'), model(LEGACY_SYNTHESIS_DEFAULT)]
 
-  it('upgrades legacy default', () => {
+  it('upgrades empty and legacy default', () => {
+    expect(shouldUpgradeSynthesisModel('', models)).toBe(true)
     expect(shouldUpgradeSynthesisModel(LEGACY_SYNTHESIS_DEFAULT, models)).toBe(true)
   })
 
@@ -62,5 +68,28 @@ describe('shouldUpgradeSynthesisModel', () => {
 
   it('keeps valid user selections', () => {
     expect(shouldUpgradeSynthesisModel('grok-4-3', models)).toBe(false)
+  })
+})
+
+describe('resolveSynthesisModelForDisplay', () => {
+  const models = [model('grok-4-3'), model(LEGACY_SYNTHESIS_DEFAULT)]
+
+  it('hides empty/legacy while catalog is loading', () => {
+    expect(resolveSynthesisModelForDisplay('', undefined)).toBe('')
+    expect(resolveSynthesisModelForDisplay(LEGACY_SYNTHESIS_DEFAULT, undefined)).toBe('')
+    expect(resolveSynthesisModelForDisplay(LEGACY_SYNTHESIS_DEFAULT, [])).toBe('')
+  })
+
+  it('keeps a real user pick while catalog is loading', () => {
+    expect(resolveSynthesisModelForDisplay('grok-4-3', undefined)).toBe('grok-4-3')
+  })
+
+  it('shows the live default immediately when stored value should upgrade', () => {
+    expect(resolveSynthesisModelForDisplay('', models)).toBe('grok-4-3')
+    expect(resolveSynthesisModelForDisplay(LEGACY_SYNTHESIS_DEFAULT, models)).toBe('grok-4-3')
+  })
+
+  it('keeps a valid stored selection once catalog is loaded', () => {
+    expect(resolveSynthesisModelForDisplay('grok-4-3', models)).toBe('grok-4-3')
   })
 })

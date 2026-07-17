@@ -123,7 +123,7 @@ export function upgradeLegacyContextCap(cap: number): number {
 export interface SynthesisSettings {
   contextCap: number    // default MAX_CONTEXT_CAP; fixed 10…postCount when user alters
   temperature: number   // default 0.3, user-adjustable 0.0–1.0
-  model: string         // resolved from live catalog; legacy default venice-uncensored-1-2
+  model: string         // empty until catalog load; legacy venice-uncensored-1-2 auto-upgrades
   /**
    * Ids of prior report snapshots to feed into the next synthesis as prior-
    * analysis context (narrative only). Empty = none. The Profile UI defaults
@@ -309,7 +309,10 @@ export interface IntelReportSnapshot {
 export const DEFAULT_SYNTHESIS_SETTINGS: SynthesisSettings = {
   contextCap: MAX_CONTEXT_CAP,
   temperature: 0.3,
-  model: 'venice-uncensored-1-2',
+  // Empty until the live catalog loads — pickSynthesisModel fills it.
+  // Do not seed LEGACY_SYNTHESIS_DEFAULT here; that caused a visible flash
+  // (uncensored → Grok) on every intel mount.
+  model: '',
   includedReportIds: [],
 }
 

@@ -22,4 +22,8 @@ describe('DEFAULT_SYNTHESIS_SETTINGS', () => {
   it('defaults post context cap to MAX', () => {
     expect(DEFAULT_SYNTHESIS_SETTINGS.contextCap).toBe(MAX_CONTEXT_CAP)
   })
+
+  it('does not seed a concrete model id (avoids legacy→default flash)', () => {
+    expect(DEFAULT_SYNTHESIS_SETTINGS.model).toBe('')
+  })
 })

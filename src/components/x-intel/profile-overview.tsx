@@ -13,6 +13,7 @@ import { partitionPosts } from '../../lib/x-intel/activity'
 import { buildReportMessages } from '../../lib/x-intel/synthesize'
 import { estimateMessagesTokens } from '../../lib/x-intel/token-estimate'
 import { resolveDefaultSynthesisModel, syncSynthesisModelGlobally } from '../../lib/x-intel/sync-synthesis-model'
+import { resolveSynthesisModelForDisplay } from '../../lib/x-intel/synthesis-model'
 import {
   MAX_CONTEXT_CAP,
   type Profile,
@@ -359,6 +360,8 @@ export function ProfileOverview({
     resolveDefaultSynthesisModel(models)
   }, [models])
 
+  const displayModel = resolveSynthesisModelForDisplay(synthesisSettings.model, models)
+
   const handleSynthesisChange = (patch: Partial<SynthesisSettings>) => {
     if (patch.model !== undefined) {
       syncSynthesisModelGlobally(patch.model)
@@ -585,15 +588,19 @@ export function ProfileOverview({
             <label className="block text-[11px] text-white/40">
               Model
               <select
-                value={synthesisSettings.model}
+                value={displayModel}
                 onChange={(e) => handleSynthesisChange({ model: e.target.value })}
-                className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
+                disabled={!displayModel && !models?.length}
+                className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none disabled:opacity-50"
               >
+                {!displayModel && (
+                  <option value="">Loading models…</option>
+                )}
                 {(models ?? []).map((m) => (
                   <option key={m.id} value={m.id}>{m.model_spec?.name || m.id}</option>
                 ))}
-                {!models?.some((m) => m.id === synthesisSettings.model) && (
-                  <option value={synthesisSettings.model}>{synthesisSettings.model}</option>
+                {displayModel && !models?.some((m) => m.id === displayModel) && (
+                  <option value={displayModel}>{displayModel}</option>
                 )}
               </select>
             </label>

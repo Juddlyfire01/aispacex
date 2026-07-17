@@ -1,9 +1,7 @@
 import { useComposeStore } from '../../stores/compose-store'
 import type { PostSegment } from '../../lib/compose/types'
 
-// Poll editor for a segment. X allows 2–4 options and a duration. Toggling the
-// poll off clears it; media and polls are mutually exclusive on X, so enabling a
-// poll is only offered when the segment has no media.
+// Poll body editor. Enable via + Poll on the segment / draft toolbar.
 
 interface PollEditorProps {
   threadId: string
@@ -20,18 +18,7 @@ const DURATIONS = [
 export function PollEditor({ threadId, segment }: PollEditorProps) {
   const patchSegment = useComposeStore((s) => s.patchSegment)
   const poll = segment.poll
-
-  if (!poll) {
-    if (segment.media.length > 0) return null
-    return (
-      <button
-        onClick={() => patchSegment(threadId, segment.id, { poll: { options: ['', ''], durationMinutes: 1440 } })}
-        className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
-      >
-        + Add poll
-      </button>
-    )
-  }
+  if (!poll) return null
 
   const setOption = (i: number, value: string) => {
     const options = poll.options.map((o, idx) => (idx === i ? value : o))

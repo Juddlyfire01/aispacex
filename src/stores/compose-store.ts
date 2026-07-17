@@ -134,7 +134,7 @@ interface ComposeState {
 
   applyDraftPatch: (threadId: string, patch: Partial<PostDraft>) => void
   setSegmentText: (threadId: string, segmentId: string, text: string) => void
-  addSegment: (threadId: string) => void
+  addSegment: (threadId: string, afterSegmentId?: string) => void
   removeSegment: (threadId: string, segmentId: string) => void
   moveSegment: (threadId: string, segmentId: string, dir: -1 | 1) => void
   setTarget: (threadId: string, target: PostTarget) => void
@@ -645,12 +645,24 @@ export const useComposeStore = create<ComposeState>()(
           return {}
         }),
 
-      addSegment: (threadId) =>
+      addSegment: (threadId, afterSegmentId) =>
         set((s) =>
-          mapDraft(s, threadId, (draft) => ({
-            ...draft,
-            segments: [...draft.segments, emptySegment()],
-          })),
+          mapDraft(s, threadId, (draft) => {
+            const next = emptySegment()
+            if (!afterSegmentId) {
+              return { ...draft, segments: [...draft.segments, next] }
+            }
+            const idx = draft.segments.findIndex((seg) => seg.id === afterSegmentId)
+            if (idx === -1) {
+              return { ...draft, segments: [...draft.segments, next] }
+            }
+            const segments = [
+              ...draft.segments.slice(0, idx + 1),
+              next,
+              ...draft.segments.slice(idx + 1),
+            ]
+            return { ...draft, segments }
+          }),
         ),
 
       removeSegment: (threadId, segmentId) =>

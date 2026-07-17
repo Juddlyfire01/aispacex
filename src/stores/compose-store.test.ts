@@ -175,6 +175,23 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().threads[id].draft.segments).toHaveLength(1)
   })
 
+  it('inserts a segment after the clicked bubble, not only at the end', () => {
+    const s = useComposeStore.getState()
+    const id = s.createThread()
+    const a = useComposeStore.getState().threads[id].draft.segments[0].id
+    s.setSegmentText(id, a, 'a')
+    s.addSegment(id)
+    s.addSegment(id)
+    let segs = useComposeStore.getState().threads[id].draft.segments
+    expect(segs).toHaveLength(3)
+    s.setSegmentText(id, segs[1].id, 'b')
+    s.setSegmentText(id, segs[2].id, 'c')
+    s.addSegment(id, segs[0].id) // after "a" → a, new, b, c
+    segs = useComposeStore.getState().threads[id].draft.segments
+    expect(segs).toHaveLength(4)
+    expect(segs.map((x) => x.text)).toEqual(['a', '', 'b', 'c'])
+  })
+
   it('never removes the last remaining segment', () => {
     const s = useComposeStore.getState()
     const id = s.createThread()

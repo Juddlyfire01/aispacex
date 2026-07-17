@@ -45,3 +45,21 @@ export function shouldUpgradeSynthesisModel(model: string, models: { id: string 
   if (model === LEGACY_SYNTHESIS_DEFAULT) return true
   return !models.some((m) => m.id === model)
 }
+
+/**
+ * Select value for the synthesis model picker.
+ * Avoids painting the legacy seed (or empty) before the catalog resolves —
+ * once models are available, show the live default immediately even if the
+ * store hasn't been upgraded yet.
+ */
+export function resolveSynthesisModelForDisplay(
+  stored: string,
+  models: VeniceModel[] | undefined,
+): string {
+  if (!models?.length) {
+    if (!stored || stored === LEGACY_SYNTHESIS_DEFAULT) return ''
+    return stored
+  }
+  if (shouldUpgradeSynthesisModel(stored, models)) return pickSynthesisModel(models)
+  return stored
+}
