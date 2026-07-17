@@ -131,7 +131,7 @@ export function App() {
 
   return (
     <>
-      <div className="ui-scale-shell flex h-[100dvh] w-full overflow-hidden">
+      <div className="ui-scale-shell flex overflow-hidden">
       {/* Mobile drawer overlay */}
       {mobileSidebarOpen && (
         <button

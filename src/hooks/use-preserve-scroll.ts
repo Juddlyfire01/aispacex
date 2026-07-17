@@ -10,18 +10,30 @@ import { useCallback, useLayoutEffect, useRef, type UIEvent } from 'react'
  *   user picked another snapshot) does NOT jump — it freezes the current scroll
  *   position and skips the stale-offset restore for that render, so a report
  *   finishing while the user reads mid-page never yanks the pane to the top.
+ *
+ * Under CSS `zoom` (interface scale 90%/125%), browsers snap scrollTop to
+ * fractional device pixels. Naively writing scrollTop every commit then fighting
+ * that snap causes an infinite layout loop (fan spin, frozen tab). We accept the
+ * post-write snapped value as truth, ignore programmatic scroll events, and use
+ * a 1px threshold so subpixel noise cannot re-trigger a write.
  */
 export function usePreserveScroll(resetKey?: string | null, anchorKey?: string | null) {
   const ref = useRef<HTMLDivElement>(null)
   const saved = useRef(0)
   // Skip one preserve pass after a deliberate reset / content swap.
   const skipPreserve = useRef(false)
+  // True while we assign scrollTop so onScroll does not clobber `saved`.
+  const restoring = useRef(false)
 
   // Switching subjects starts at the top.
   useLayoutEffect(() => {
     saved.current = 0
     skipPreserve.current = true
-    if (ref.current) ref.current.scrollTop = 0
+    const el = ref.current
+    if (!el) return
+    restoring.current = true
+    el.scrollTop = 0
+    restoring.current = false
   }, [resetKey])
 
   // A content swap (active report changed) must not jump: keep the user where
@@ -42,12 +54,19 @@ export function usePreserveScroll(resetKey?: string | null, anchorKey?: string |
       saved.current = el.scrollTop
       return
     }
-    if (Math.abs(el.scrollTop - saved.current) > 0.5) {
-      el.scrollTop = saved.current
-    }
+    const current = el.scrollTop
+    const target = saved.current
+    // 1px: zoom/subpixel noise is typically ≪1; fighting it loops forever.
+    if (Math.abs(current - target) < 1) return
+    restoring.current = true
+    el.scrollTop = target
+    // Accept the browser's snapped value so the next commit does not fight again.
+    saved.current = el.scrollTop
+    restoring.current = false
   })
 
   const onScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
+    if (restoring.current) return
     saved.current = e.currentTarget.scrollTop
   }, [])
 

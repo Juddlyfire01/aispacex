@@ -57,7 +57,7 @@
   /* Highlight — the "fancy blue" accent card (alpha brief, intel what-changed). Fixed sky, theme-tuned. */
   --color-highlight: #38bdf8;
   --color-highlight-border: rgba(56, 189, 248, 0.22);
-  --color-highlight-fill: rgba(56, 189, 248, 0.07);
+  --color-highlight-fill: color-mix(in srgb, #38bdf8 10%, var(--color-bg-card));
   --color-highlight-text: rgba(186, 230, 253, 0.92);
   --color-btn-primary-bg: #3c8fdd;
   --color-btn-primary-fg: #ffffff;
@@ -98,7 +98,7 @@
   --color-link-soft: rgba(29, 155, 240, 0.35);
   --color-highlight: #38bdf8;
   --color-highlight-border: rgba(56, 189, 248, 0.22);
-  --color-highlight-fill: rgba(56, 189, 248, 0.07);
+  --color-highlight-fill: color-mix(in srgb, #38bdf8 10%, var(--color-bg-card));
   --color-highlight-text: rgba(186, 230, 253, 0.92);
   --color-btn-primary-bg: #ffffff;
   --color-btn-primary-fg: #000000;
@@ -134,7 +134,7 @@
   --color-link-soft: rgba(29, 155, 240, 0.35);
   --color-highlight: #4aa3ff;
   --color-highlight-border: rgba(74, 163, 255, 0.24);
-  --color-highlight-fill: rgba(74, 163, 255, 0.08);
+  --color-highlight-fill: color-mix(in srgb, #4aa3ff 11%, var(--color-bg-card));
   --color-highlight-text: rgba(191, 219, 254, 0.92);
   --color-btn-primary-bg: #4aa3ff;
   --color-btn-primary-fg: #ffffff;
@@ -173,7 +173,7 @@
   /* Light: deeper blue so text/border read on near-white surfaces. */
   --color-highlight: #0284c7;
   --color-highlight-border: rgba(2, 132, 199, 0.28);
-  --color-highlight-fill: rgba(2, 132, 199, 0.06);
+  --color-highlight-fill: color-mix(in srgb, #0284c7 8%, var(--color-bg-card));
   --color-highlight-text: #0369a1;
   --color-btn-primary-bg: #0f9a84;
   --color-btn-primary-fg: #ffffff;

@@ -46,7 +46,11 @@ interface Props {
 }
 
 export function Header({ onOpenApiKey, onOpenMobileSidebar }: Props) {
-  const { activeTab, selectedModels, setSelectedModel } = useSettingsStore()
+  // Select only what we need — a bare useSettingsStore() re-renders on every
+  // theme/scale/density tweak and was amplifying Settings jank into a freeze.
+  const activeTab = useSettingsStore((s) => s.activeTab)
+  const selectedModels = useSettingsStore((s) => s.selectedModels)
+  const setSelectedModel = useSettingsStore((s) => s.setSelectedModel)
   const apiKey = useAuthStore((s) => s.apiKey)
   const xConnected = useXSelfStore((s) => s.connected)
   const xConnecting = useXSelfStore((s) => s.connecting)

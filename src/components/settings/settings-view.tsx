@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { useSettingsStore, type SettingsCategory } from '../../stores/settings-store'
 import { ProfileSection } from './profile-section'
@@ -15,15 +15,22 @@ const CATEGORIES: Array<{ id: Category; label: string; desc: string }> = [
 
 export function SettingsView() {
   const settingsFocus = useSettingsStore((s) => s.settingsFocus)
-  const [cat, setCat] = useState<Category>('display')
-
-  useEffect(() => {
-    if (!settingsFocus) return
-    setCat(settingsFocus)
-    useSettingsStore.setState({ settingsFocus: null })
-  }, [settingsFocus])
-
   const closeSettings = useSettingsStore((s) => s.closeSettings)
+  const [cat, setCat] = useState<Category>('display')
+  // React-recommended "adjust state when prop changes" — no effect/setState cascade.
+  const [seenFocus, setSeenFocus] = useState<SettingsCategory | null>(null)
+  if (settingsFocus !== seenFocus) {
+    setSeenFocus(settingsFocus)
+    if (settingsFocus) {
+      setCat(settingsFocus)
+      // Clear the one-shot focus outside the render commit.
+      queueMicrotask(() => {
+        if (useSettingsStore.getState().settingsFocus === settingsFocus) {
+          useSettingsStore.setState({ settingsFocus: null })
+        }
+      })
+    }
+  }
 
   return (
     <div className="flex h-full">
