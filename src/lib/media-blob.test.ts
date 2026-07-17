@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blobFromBase64, extensionForMime, mimeFromBase64, rawBase64 } from './media-blob'
+import { blobFromBase64, blobToDataUrl, extensionForMime, mimeFromBase64, rawBase64 } from './media-blob'
 
 describe('mimeFromBase64', () => {
   it('detects png/jpeg/webp prefixes and data URLs', () => {
@@ -24,6 +24,15 @@ describe('blobFromBase64', () => {
     const blob = blobFromBase64(b64)
     expect(blob.type).toBe('image/png')
     expect(blob.size).toBeGreaterThan(0)
+  })
+})
+
+describe('blobToDataUrl', () => {
+  it('round-trips a blob to a data URL', async () => {
+    const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const dataUrl = await blobToDataUrl(blobFromBase64(b64))
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+    expect(rawBase64(dataUrl)).toBe(b64)
   })
 })
 

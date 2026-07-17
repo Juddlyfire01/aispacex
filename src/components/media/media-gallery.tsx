@@ -1,8 +1,17 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { extensionForMime } from '../../lib/media-blob'
 import type { MediaKind } from '../../lib/media-gallery'
 import type { GalleryItemView } from '../../hooks/use-media-gallery'
 import { confirmDialog } from '../../stores/confirm-store'
+import { cn } from '../../lib/utils'
+
+export type ImageToolAction = 'edit' | 'upscale' | 'remove-bg'
+
+const TOOL_ACTIONS: { id: ImageToolAction; label: string }[] = [
+  { id: 'edit', label: 'Edit' },
+  { id: 'upscale', label: 'Upscale' },
+  { id: 'remove-bg', label: 'Remove BG' },
+]
 
 function formatRelative(ms: number): string {
   const sec = Math.round((Date.now() - ms) / 1000)
@@ -29,6 +38,8 @@ interface MediaGalleryProps {
   pendingCount?: number
   empty: ReactNode
   onUsePrompt?: (prompt: string, negativePrompt?: string) => void
+  /** Open Edit / Upscale / Remove BG with this image preloaded (any Image tab). */
+  onOpenInTools?: (item: GalleryItemView, tool: ImageToolAction) => void
   onRemove: (id: string) => void
   onClearAll: () => void
 }
@@ -39,10 +50,12 @@ export function MediaGallery({
   pendingCount = 0,
   empty,
   onUsePrompt,
+  onOpenInTools,
   onRemove,
   onClearAll,
 }: MediaGalleryProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [toolsMenuId, setToolsMenuId] = useState<string | null>(null)
   const selected = items.find((i) => i.id === selectedId) ?? null
 
   const handleClearAll = async () => {
@@ -56,6 +69,7 @@ export function MediaGallery({
     })
     if (!ok) return
     setSelectedId(null)
+    setToolsMenuId(null)
     onClearAll()
   }
 
@@ -96,6 +110,16 @@ export function MediaGallery({
                 {selected.prompt}
               </p>
               <div className="mt-2 flex flex-wrap gap-3">
+                {onOpenInTools && selected.kind === 'image' && TOOL_ACTIONS.map(({ id, label: toolLabel }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => { onOpenInTools(selected, id); setSelectedId(null) }}
+                    className="text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
+                  >
+                    {toolLabel}
+                  </button>
+                ))}
                 {onUsePrompt && (
                   <button
                     type="button"
@@ -191,7 +215,22 @@ export function MediaGallery({
                   <span className="text-[12px] text-white/45 line-clamp-3 w-full text-center">{item.prompt}</span>
                 </button>
               )}
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <div
+                className={cn(
+                  'absolute top-2 right-2 flex gap-1 transition-all',
+                  toolsMenuId === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                )}
+              >
+                {onOpenInTools && item.kind === 'image' && (
+                  <ToolsActionMenu
+                    open={toolsMenuId === item.id}
+                    onOpenChange={(open) => setToolsMenuId(open ? item.id : null)}
+                    onSelect={(tool) => {
+                      onOpenInTools(item, tool)
+                      setToolsMenuId(null)
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); downloadItem(item, i) }}
@@ -216,6 +255,72 @@ export function MediaGallery({
         </div>
       </div>
     </>
+  )
+}
+
+function ToolsActionMenu({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSelect: (tool: ImageToolAction) => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) onOpenChange(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, onOpenChange])
+
+  return (
+    <div ref={rootRef} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-label="Open in tools"
+        aria-expanded={open}
+        className="p-1.5 bg-black/60 hover:bg-black/85 rounded-lg text-white/70 hover:text-white backdrop-blur-sm"
+        title="Edit / Upscale / Remove BG"
+      >
+        <PencilIcon size={14} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-20 min-w-[8.5rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg">
+          {TOOL_ACTIONS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onSelect(id)}
+              className="w-full px-3 py-1.5 text-left text-[12.5px] text-white/70 hover:bg-white/[0.06] hover:text-white transition-colors"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PencilIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
   )
 }
 

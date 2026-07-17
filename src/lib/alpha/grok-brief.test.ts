@@ -10,12 +10,14 @@ import type { AlphaRail, RailCountsCache } from './types'
 function model(id: string, xSearch: boolean): VeniceModel {
   return {
     id,
-    type: 'text',
+    object: 'model',
+    created: 0,
+    owned_by: 'venice',
     model_spec: {
       name: id,
       capabilities: { supportsXSearch: xSearch },
     },
-  } as VeniceModel
+  }
 }
 
 describe('pickAlphaGrokModel', () => {

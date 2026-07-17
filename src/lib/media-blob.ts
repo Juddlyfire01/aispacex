@@ -1,3 +1,5 @@
+import { b64encode } from './base64'
+
 export function mimeFromBase64(b64: string): string {
   if (b64.startsWith('data:')) {
     const m = /^data:([^;]+);/.exec(b64)
@@ -41,4 +43,11 @@ export async function blobFromUrl(url: string): Promise<Blob> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch media (${res.status})`)
   return res.blob()
+}
+
+/** Convert a Blob to a `data:<mime>;base64,...` URL (for preview / FileReader parity). */
+export async function blobToDataUrl(blob: Blob): Promise<string> {
+  const mime = blob.type || 'application/octet-stream'
+  const b64 = b64encode(await blob.arrayBuffer())
+  return `data:${mime};base64,${b64}`
 }

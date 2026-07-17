@@ -9,13 +9,14 @@ import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, PillGroup, ErrorText, ExamplePrompts } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
-import { MediaGallery } from '../media/media-gallery'
+import { MediaGallery, type ImageToolAction } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
 import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
 import { VeniceAPIError } from '../../lib/venice-client'
 import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
+import type { GalleryItemView } from '../../hooks/use-media-gallery'
 
 const MIN_PROMPT_LENGTH = 10
 
@@ -36,7 +37,11 @@ const DEFAULT_SIZE_MAP = [
   { w: 512, h: 512 }, { w: 768, h: 768 }, { w: 1024, h: 1024 }, { w: 1280, h: 1280 },
 ]
 
-export function ImageView() {
+export function ImageView({
+  onOpenInTools,
+}: {
+  onOpenInTools?: (item: GalleryItemView, tool: ImageToolAction) => void
+} = {}) {
   const apiKey = useAuthStore((s) => s.apiKey)
   const selectedModel = useSettingsStore((s) => s.selectedModels.image)
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel)
@@ -286,6 +291,7 @@ export function ImageView() {
       pendingCount={pendingSlots}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
+      onOpenInTools={onOpenInTools}
       onUsePrompt={(p, neg) => {
         setPrompt(p)
         if (neg !== undefined) setNegativePrompt(neg)
