@@ -42,7 +42,7 @@ export function SubTabs<T extends string>({
 }
 
 /** In-form mode switcher — bordered group, raised surface on active (no white flash). */
-export function SegmentedControl<T extends string>({
+export function SegmentedControl<T extends string | number>({
   options,
   value,
   onChange,

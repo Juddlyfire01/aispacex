@@ -6,6 +6,7 @@ import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, ErrorText, EmptyState } from '../ui/shared'
 import { SegmentedControl } from '../ui/sub-tabs'
 import { cn } from '../../lib/utils'
+import { rawBase64 } from '../../lib/media-blob'
 import { toast } from '../../stores/toast-store'
 
 type Tool = 'edit' | 'upscale' | 'remove-bg'
@@ -35,11 +36,9 @@ export function ImageTools() {
   const [editPrompt, setEditPrompt] = useState('')
   const [editModel, setEditModel] = useState('qwen-edit')
 
-  // Upscale state
-  const [scale, setScale] = useState(2)
-  const [enhance, setEnhance] = useState(false)
-  const [enhanceCreativity, setEnhanceCreativity] = useState(0.5)
-  const [enhancePrompt, setEnhancePrompt] = useState('')
+  // Upscale state — UI creativity is 0–100; API expects 0–0.02
+  const [scale, setScale] = useState<2 | 4>(2)
+  const [creativity, setCreativity] = useState(50)
 
   const editMutation = useImageEdit()
   const upscaleMutation = useImageUpscale()
@@ -58,19 +57,19 @@ export function ImageTools() {
   const handleProcess = () => {
     if (!imageData) return
     resetResult()
+    // FileReader produces a data URL for preview; Venice image endpoints want
+    // plain base64 (esp. /image/upscale — data: prefix → "incomplete or corrupted").
+    const image = rawBase64(imageData)
     const opts = {
       onSuccess: (blob: Blob) => setResultBlob(blob),
       onError: (err: unknown) => toast.fromError(err, 'Image tool failed'),
     }
     if (tool === 'edit') {
-      editMutation.mutate({ image: imageData, prompt: editPrompt.trim(), modelId: editModel }, opts)
+      editMutation.mutate({ image, prompt: editPrompt.trim(), modelId: editModel }, opts)
     } else if (tool === 'upscale') {
-      upscaleMutation.mutate(
-        { image: imageData, scale, enhance, enhanceCreativity: enhance ? enhanceCreativity : undefined, enhancePrompt: enhance && enhancePrompt.trim() ? enhancePrompt.trim() : undefined },
-        opts,
-      )
+      upscaleMutation.mutate({ image, scale, creativity: creativity * 0.0002 }, opts)
     } else {
-      bgRemoveMutation.mutate(imageData, opts)
+      bgRemoveMutation.mutate(image, opts)
     }
   }
 
@@ -132,39 +131,29 @@ export function ImageTools() {
         {tool === 'upscale' && (
           <>
             <div>
+              <Label>Scale</Label>
+              <SegmentedControl
+                options={[[2, '2×'], [4, '4×']] as const}
+                value={scale}
+                onChange={setScale}
+              />
+            </div>
+            <div>
               <div className="flex items-center justify-between mb-1">
-                <Label>Scale</Label>
-                <span className="text-[13px] text-white/30 font-mono">{scale}x</span>
+                <Label>Creativity</Label>
+                <span className="text-[13px] text-white/30 font-mono">{creativity}</span>
               </div>
-              <input type="range" min={1} max={4} step={1} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="w-full" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={creativity}
+                onChange={(e) => setCreativity(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-[12px] text-white/20 mt-1">Higher adds more detail and texture.</p>
             </div>
-            <div className="flex items-center justify-between">
-              <Label>Enhance</Label>
-              <button
-                onClick={() => setEnhance(!enhance)}
-                className={cn(
-                  'w-8 h-[18px] rounded-full transition-colors relative',
-                  enhance ? 'bg-white' : 'bg-white/[0.08]',
-                )}
-              >
-                <div className={cn(
-                  'absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all',
-                  enhance ? 'left-[16px] bg-black' : 'left-[2px] bg-white/30',
-                )} />
-              </button>
-            </div>
-            {enhance && (
-              <>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <Label>Creativity</Label>
-                    <span className="text-[13px] text-white/30 font-mono">{enhanceCreativity.toFixed(2)}</span>
-                  </div>
-                  <input type="range" min={0} max={1} step={0.05} value={enhanceCreativity} onChange={(e) => setEnhanceCreativity(Number(e.target.value))} className="w-full" />
-                </div>
-                <div><Label>Enhance prompt</Label><TextArea value={enhancePrompt} onChange={setEnhancePrompt} placeholder="Make it more vibrant..." rows={2} /></div>
-              </>
-            )}
           </>
         )}
 

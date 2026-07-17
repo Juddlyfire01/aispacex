@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blobFromBase64, extensionForMime, mimeFromBase64 } from './media-blob'
+import { blobFromBase64, extensionForMime, mimeFromBase64, rawBase64 } from './media-blob'
 
 describe('mimeFromBase64', () => {
   it('detects png/jpeg/webp prefixes and data URLs', () => {
@@ -7,6 +7,14 @@ describe('mimeFromBase64', () => {
     expect(mimeFromBase64('/9j/')).toBe('image/jpeg')
     expect(mimeFromBase64('UklGR')).toBe('image/webp')
     expect(mimeFromBase64('data:image/png;base64,aaa')).toBe('image/png')
+  })
+})
+
+describe('rawBase64', () => {
+  it('strips data URL prefix and leaves plain base64 unchanged', () => {
+    expect(rawBase64('data:image/png;base64,iVBOR')).toBe('iVBOR')
+    expect(rawBase64('data:image/jpeg;base64,/9j/4AAQ')).toBe('/9j/4AAQ')
+    expect(rawBase64('iVBOR')).toBe('iVBOR')
   })
 })
 
