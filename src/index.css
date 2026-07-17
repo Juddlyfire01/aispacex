@@ -28,12 +28,17 @@
 [data-theme="venice"] {
   /* Sea Dark base (darkest) → Midnight steps up → Deep Blue for overlays only */
   --color-bg-base: #080f16;
-  --color-bg-raised: #0a121a;
+  /* @deprecated — alias of --color-bg-surface; prefer the ladder tokens / <Surface>. */
+  --color-bg-raised: var(--color-bg-surface);
   /* Quiet inset cards (default) vs stronger raised cards (Display → Raised). */
   --color-bg-card-quiet: color-mix(in srgb, #f7f5ed 1.5%, #080f16);
   --color-bg-card-strong: #0a121a;
   --color-bg-card: var(--color-bg-card-quiet);
   --color-bg-overlay: #0e2942;
+  /* Elevation ladder: L1 resting surface == intel card (bubbles/cards), L3 modal, accent-tinted user bubble. */
+  --color-bg-surface: var(--color-bg-card);
+  --color-bg-modal: #0e2942;
+  --color-bubble-user: color-mix(in srgb, #3c8fdd 12%, #0a121a);
   --color-bg-input: #0a121a;
   --color-border-faint: rgba(247, 245, 237, 0.05);
   --color-border-soft: rgba(247, 245, 237, 0.08);
@@ -49,6 +54,11 @@
   /* X-fidelity content/external links — same blue on every theme (not chrome accent). */
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
+  /* Highlight — the "fancy blue" accent card (alpha brief, intel what-changed). Fixed sky, theme-tuned. */
+  --color-highlight: #38bdf8;
+  --color-highlight-border: rgba(56, 189, 248, 0.22);
+  --color-highlight-fill: rgba(56, 189, 248, 0.07);
+  --color-highlight-text: rgba(186, 230, 253, 0.92);
   --color-btn-primary-bg: #3c8fdd;
   --color-btn-primary-fg: #ffffff;
   --color-border-input: rgba(247, 245, 237, 0.08);
@@ -62,12 +72,16 @@
 [data-theme="dark"] {
   /* X Lights Out — #000 canvas, #16181C surfaces, #2F3336 dividers */
   --color-bg-base: #000000;
-  --color-bg-raised: #16181c;
+  --color-bg-raised: var(--color-bg-surface);
   --color-bg-card-quiet: color-mix(in srgb, #ffffff 1.5%, #000000);
   --color-bg-card-strong: #16181c;
   --color-bg-card: var(--color-bg-card-quiet);
   --color-bg-overlay: #1e2732;
-  --color-bg-input: #000000;
+  --color-bg-surface: var(--color-bg-card);
+  --color-bg-modal: #1e2732;
+  --color-bubble-user: #1d2733;
+  /* Lifted off pure-black so resting fields/dropdowns read on the #000 canvas. */
+  --color-bg-input: #101215;
   --color-border-faint: rgba(47, 51, 54, 0.65);
   --color-border-soft: #2f3336;
   --color-border-strong: #536471;
@@ -82,6 +96,10 @@
   --color-accent-contrast: #000000;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
+  --color-highlight: #38bdf8;
+  --color-highlight-border: rgba(56, 189, 248, 0.22);
+  --color-highlight-fill: rgba(56, 189, 248, 0.07);
+  --color-highlight-text: rgba(186, 230, 253, 0.92);
   --color-btn-primary-bg: #ffffff;
   --color-btn-primary-fg: #000000;
   --color-border-input: #2f3336;
@@ -92,11 +110,14 @@
 
 [data-theme="grey"] {
   --color-bg-base: #181818;
-  --color-bg-raised: #1f1f1f;
+  --color-bg-raised: var(--color-bg-surface);
   --color-bg-card-quiet: color-mix(in srgb, #ffffff 1.5%, #181818);
   --color-bg-card-strong: #1f1f1f;
   --color-bg-card: var(--color-bg-card-quiet);
   --color-bg-overlay: #232323;
+  --color-bg-surface: var(--color-bg-card);
+  --color-bg-modal: #232323;
+  --color-bubble-user: color-mix(in srgb, #4aa3ff 10%, #1f1f1f);
   --color-bg-input: #141414;
   --color-border-faint: rgba(255, 255, 255, 0.06);
   --color-border-soft: #2b2b2b;
@@ -111,6 +132,10 @@
   --color-accent-contrast: #03121f;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
+  --color-highlight: #4aa3ff;
+  --color-highlight-border: rgba(74, 163, 255, 0.24);
+  --color-highlight-fill: rgba(74, 163, 255, 0.08);
+  --color-highlight-text: rgba(191, 219, 254, 0.92);
   --color-btn-primary-bg: #4aa3ff;
   --color-btn-primary-fg: #ffffff;
   --color-border-input: #2b2b2b;
@@ -121,11 +146,14 @@
 
 [data-theme="light"] {
   --color-bg-base: #f4f4f2;
-  --color-bg-raised: #fbfbfa;
+  --color-bg-raised: var(--color-bg-surface);
   --color-bg-card-quiet: #f7f7f5;
   --color-bg-card-strong: #fbfbfa;
   --color-bg-card: var(--color-bg-card-quiet);
   --color-bg-overlay: #ffffff;
+  --color-bg-surface: var(--color-bg-card);
+  --color-bg-modal: #ffffff;
+  --color-bubble-user: color-mix(in srgb, #0f9a84 8%, #fbfbfa);
   --color-bg-input: #ecebe8;
   --color-border-faint: rgba(0, 0, 0, 0.07);
   --color-border-soft: rgba(0, 0, 0, 0.13);
@@ -142,13 +170,26 @@
   --color-accent-contrast: #ffffff;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
+  /* Light: deeper blue so text/border read on near-white surfaces. */
+  --color-highlight: #0284c7;
+  --color-highlight-border: rgba(2, 132, 199, 0.28);
+  --color-highlight-fill: rgba(2, 132, 199, 0.06);
+  --color-highlight-text: #0369a1;
   --color-btn-primary-bg: #0f9a84;
   --color-btn-primary-fg: #ffffff;
   --color-surface-shadow: 0 2px 10px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.09);
   color-scheme: light;
 }
 
-/* Display → Raised cards: punchier inset panels (menus/tooltips still use --color-bg-raised). */
+/* ELEVATION LADDER (SOP) — pick a surface by ROLE, not by color. A floating element is
+   always exactly one rung above whatever it floats over:
+     L0 canvas          → --color-bg-base    (page background)
+     L1 resting surface → --color-bg-surface  (== --color-bg-card; cards, draft/user bubbles) [alias: --color-bg-raised]
+     L2 floating        → --color-bg-overlay  (menus, dropdown panels, popovers)
+     L3 modal           → --color-bg-modal    (dialogs)
+     axis: recessed     → --color-bg-input    (inputs/triggers — one step darker than parent)
+     accent: user msg   → --color-bubble-user (accent-tinted L1 for "your" messages)
+   Prefer the <Surface> primitive over hand-picking these. Display → Raised cards use bg-card-strong. */
 [data-surface="strong"] {
   --color-bg-card: var(--color-bg-card-strong);
 }

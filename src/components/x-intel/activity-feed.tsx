@@ -315,7 +315,7 @@ export function ActivityFeedInner({
               key={p.id}
               id={`post-${p.id}`}
               className={cn(
-                'border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] transition-[box-shadow,border-color] duration-500',
+                'border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] transition-[box-shadow,border-color] duration-500',
                 highlightId === p.id && 'border-[var(--color-accent)]/50 ring-2 ring-[var(--color-accent)]/20',
               )}
             >
@@ -376,6 +376,15 @@ export function ActivityFeed() {
 
   const canGather = canGatherTarget(activeTarget, connected)
 
+  // Hooks MUST run before any early return so the hook count stays constant when
+  // activeTarget/report flips between empty and selected. A changing hook count
+  // throws "Rendered more hooks than during the previous render" and unmounts
+  // the whole view — the crash seen when navigating in/out of tabs (e.g. opening
+  // and closing Settings).
+  const focusPostId = useXIntelStore((s) => s.feedFocusPostId)
+  const focusNonce = useXIntelStore((s) => s.feedFocusNonce)
+  const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
+
   if (!activeTarget || !report) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
@@ -383,9 +392,6 @@ export function ActivityFeed() {
   // Per-section refresh timestamp (bumps even on a zero-new-posts pull), falling
   // back to the newest post's gatheredAt for reports persisted before this field.
   const lastGathered = report.refreshedAt?.feed ?? report.posts[0]?.gatheredAt
-  const focusPostId = useXIntelStore((s) => s.feedFocusPostId)
-  const focusNonce = useXIntelStore((s) => s.feedFocusNonce)
-  const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   return (
     <ActivityFeedInner

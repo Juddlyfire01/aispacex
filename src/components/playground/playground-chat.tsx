@@ -208,8 +208,8 @@ export function PlaygroundChat() {
                   className={cn(
                     'max-w-[88%] px-3.5 py-2 rounded-xl text-[13.5px] leading-relaxed whitespace-pre-wrap',
                     m.role === 'user'
-                      ? 'bg-white/[0.09] text-white border border-white/[0.05]'
-                      : 'bg-white/[0.04] border border-white/[0.07] text-white/85',
+                      ? 'bg-[var(--color-bubble-user)] text-[var(--color-text-primary)] border border-[var(--color-border-soft)]'
+                      : 'bg-[var(--color-bg-surface)] border border-[var(--color-border-faint)] text-[var(--color-text-secondary)]',
                   )}
                 >
                   {m.pending && (!m.activity || m.activity.length === 0) ? (
@@ -267,7 +267,7 @@ export function PlaygroundChat() {
             placeholder={isThinking ? 'Agent is working…' : 'Describe a workflow or change…'}
             rows={2}
             disabled={isThinking}
-            className="flex-1 bg-[var(--color-bg-base)] border border-[var(--color-border-input)] rounded-lg px-3 py-2 text-[13.5px] text-[var(--color-text-primary)] outline-none resize-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-strong)] disabled:opacity-60"
+            className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg px-3 py-2 text-[13.5px] text-[var(--color-text-primary)] outline-none resize-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-strong)] disabled:opacity-60"
           />
           {isThinking ? (
             <button

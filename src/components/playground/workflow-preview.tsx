@@ -53,7 +53,7 @@ function Inner({ nodes: source, edges: sourceEdges }: { nodes: Node<VeniceNodeDa
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.03)" />
       <Controls
         showInteractive={false}
-        className="!bg-[var(--color-bg-raised)] !border-[var(--color-border-faint)] !shadow-xl [&>button]:!bg-[var(--color-bg-raised)] [&>button]:!border-[var(--color-border-faint)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-white/[0.06]"
+        className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-white/[0.06]"
       />
     </ReactFlow>
   )

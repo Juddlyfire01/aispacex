@@ -585,15 +585,15 @@ export function AlphaView() {
         )}
 
         {/* Grok X-search brief — highest signal */}
-        <section className="space-y-2 rounded-xl border border-sky-400/20 bg-gradient-to-b from-sky-500/[0.07] to-transparent p-3.5">
+        <section className="space-y-2 rounded-xl border border-[var(--color-highlight-border)] bg-gradient-to-b from-[var(--color-highlight-fill)] to-[var(--color-bg-card)] p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-sky-200/90">
+              <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--color-highlight-text)]">
                 Grok X brief
               </h2>
               <p className="text-[10px] text-[var(--color-text-tertiary)]">
                 Venice{' '}
-                <code className="text-[10px] text-sky-300/80">enable_x_search</code>
+                <code className="text-[10px] text-[var(--color-highlight-text)]">enable_x_search</code>
                 {grokModelId ? ` · ${grokModelId}` : ' · no X-search model'}
               </p>
             </div>
@@ -704,8 +704,8 @@ export function AlphaView() {
                 <article
                   key={st.id}
                   className={cn(
-                    'rounded-lg border bg-white/[0.025] px-3 py-2.5',
-                    expanded ? 'border-sky-400/25' : 'border-white/[0.07]',
+                    'rounded-lg border bg-[var(--color-bg-surface)] px-3 py-2.5',
+                    expanded ? 'border-[var(--color-highlight-border)]' : 'border-[var(--color-border-faint)]',
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -922,10 +922,10 @@ export function AlphaView() {
                   key={rail.id}
                   ref={isHero ? heroRailRef : undefined}
                   className={cn(
-                    'scroll-mt-4 rounded-lg border bg-white/[0.02] transition-colors',
+                    'scroll-mt-4 rounded-lg border bg-[var(--color-bg-surface)] transition-colors',
                     isHero
-                      ? 'border-sky-400/40 ring-1 ring-sky-400/20 sm:col-span-2'
-                      : 'border-white/[0.07]',
+                      ? 'border-[var(--color-highlight-border)] ring-1 ring-[var(--color-highlight-border)] sm:col-span-2'
+                      : 'border-[var(--color-border-faint)]',
                   )}
                 >
                   <div className="space-y-2 px-3 py-2.5">

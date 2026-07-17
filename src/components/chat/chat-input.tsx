@@ -46,7 +46,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
                 <button
                   onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
                   aria-label={`Remove attachment ${i + 1}`}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[var(--color-bg-overlay)] hover:bg-[var(--color-bg-raised)] border border-[var(--color-border-strong)] rounded-full flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[var(--color-bg-overlay)] hover:bg-[var(--color-bg-surface)] border border-[var(--color-border-strong)] rounded-full flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
                 >
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>

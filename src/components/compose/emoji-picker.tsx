@@ -127,7 +127,7 @@ export function EmojiPicker({ open, anchorRef, onClose, onPick }: EmojiPickerPro
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search emoji…"
           disabled={catalogLoading}
-          className="w-full bg-[var(--color-bg-raised)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/80 outline-none focus:border-[var(--color-border-strong)] placeholder:text-[var(--color-text-placeholder)] disabled:opacity-40"
+          className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/80 outline-none focus:border-[var(--color-border-strong)] placeholder:text-[var(--color-text-placeholder)] disabled:opacity-40"
           autoFocus
         />
       </div>

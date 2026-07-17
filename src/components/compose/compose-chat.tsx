@@ -297,7 +297,7 @@ export function ComposeChat({
               return (
                 <div
                   key={i}
-                  className="ml-auto max-w-[85%] bg-white/[0.06] rounded-lg px-3 py-2 text-[12.5px] text-white/85 whitespace-pre-wrap break-words"
+                  className="ml-auto max-w-[85%] bg-[var(--color-bubble-user)] border border-[var(--color-border-soft)] rounded-lg px-3 py-2 text-[12.5px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words"
                 >
                   {shown}
                 </div>
@@ -512,7 +512,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
           {templatesOpen && (
             <div
               role="menu"
-              className="absolute left-0 bottom-full mb-1 z-20 min-w-[13rem] max-w-[18rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg"
+              className="absolute left-0 bottom-full mb-1 z-20 min-w-[13rem] max-w-[18rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg"
             >
               {COMPOSE_TEMPLATES.map((tpl) => (
                 <button

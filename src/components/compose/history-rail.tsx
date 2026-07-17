@@ -137,7 +137,7 @@ function NewChatMenu() {
         <div
           role="listbox"
           aria-label="Chat context"
-          className="absolute z-50 left-0 right-0 mt-0.5 bg-[var(--color-bg-raised)] border border-[var(--color-border-soft)] rounded-md shadow-2xl shadow-black/50 overflow-hidden"
+          className="absolute z-50 left-0 right-0 mt-0.5 bg-[var(--color-bg-overlay)] border border-[var(--color-border-soft)] rounded-md shadow-2xl shadow-black/50 overflow-hidden"
         >
           <div className="max-h-60 overflow-y-auto p-0.5">
             {options.map((o) => {

@@ -66,7 +66,7 @@ export function SegmentedControl<T extends string | number>({
             'flex-1 font-medium rounded-md transition-colors duration-150',
             size === 'sm' ? 'text-[11px] px-2 py-1.5' : 'text-[13px] px-2.5 py-2',
             value === id
-              ? 'bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+              ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)]'
               : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
           )}
         >

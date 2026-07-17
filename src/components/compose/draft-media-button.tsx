@@ -235,7 +235,7 @@ export function DraftMediaButton({ threadId, segment, className }: DraftMediaBut
       />
 
       {panel === 'menu' && (
-        <div className="absolute left-0 bottom-full mb-1 z-30 min-w-[11rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg">
+        <div className="absolute left-0 bottom-full mb-1 z-30 min-w-[11rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
           <MenuItem
             label="Upload"
             onClick={() => fileRef.current?.click()}
@@ -266,7 +266,7 @@ export function DraftMediaButton({ threadId, segment, className }: DraftMediaBut
       )}
 
       {panel === 'generate' && (
-        <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,20rem)] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] p-2.5 shadow-lg space-y-2">
+        <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,20rem)] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] p-2.5 shadow-lg space-y-2">
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => setPanel('menu')} className="text-[10px] text-white/35 hover:text-white/60">
               ← Back
@@ -360,7 +360,7 @@ function GalleryPicker({
   }, [])
 
   return (
-    <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,18rem)] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] p-2.5 shadow-lg space-y-2">
+    <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,18rem)] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] p-2.5 shadow-lg space-y-2">
       <div className="flex items-center justify-between">
         <button type="button" onClick={onBack} className="text-[10px] text-white/35 hover:text-white/60">
           ← Back

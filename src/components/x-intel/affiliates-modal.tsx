@@ -27,7 +27,7 @@ function AffiliateRow({ member, onAdd }: { member: Profile; onAdd: (member: Prof
       {member.avatarUrl ? (
         <img src={member.avatarUrl} alt="" className="w-7 h-7 rounded-full shrink-0" draggable={false} />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-[var(--color-bg-raised)] shrink-0" />
+        <div className="w-7 h-7 rounded-full bg-[var(--color-bg-surface)] shrink-0" />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1 min-w-0">

@@ -14,6 +14,13 @@ export function SelfFeed() {
   const connected = useXSelfStore((s) => s.connected)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  // Hooks MUST run before any early return so the hook count stays constant when
+  // the active account flips between empty and selected. A changing hook count
+  // throws "Rendered more hooks than during the previous render" and tears down
+  // the view — the crash seen when navigating in/out of tabs (e.g. Settings).
+  const focusPostId = useXIntelStore((s) => s.feedFocusPostId)
+  const focusNonce = useXIntelStore((s) => s.feedFocusNonce)
+  const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   if (!activeAccountId || !account) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No account selected</div>
@@ -35,9 +42,6 @@ export function SelfFeed() {
   }
 
   const lastGathered = account.refreshedAt.posts ?? account.posts[0]?.gatheredAt
-  const focusPostId = useXIntelStore((s) => s.feedFocusPostId)
-  const focusNonce = useXIntelStore((s) => s.feedFocusNonce)
-  const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   return (
     <ActivityFeedInner

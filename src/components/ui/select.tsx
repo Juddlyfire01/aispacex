@@ -41,7 +41,7 @@ export function Select({ value, onChange, options, placeholder = 'Select...', se
         type="button"
         onClick={() => { const next = !open; setOpen(next); if (!next) setSearch('') }}
         className={cn(
-          'w-full flex items-center justify-between gap-2 bg-[var(--color-bg-base)] border border-[var(--color-border-soft)] rounded-md px-2.5 py-1.5 text-[15px] hover:border-[var(--color-border-strong)] transition-colors outline-none',
+          'w-full flex items-center justify-between gap-2 bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-md px-2.5 py-1.5 text-[15px] hover:border-[var(--color-border-strong)] transition-colors outline-none',
           open && 'border-[var(--color-border-strong)]',
         )}
       >
@@ -53,7 +53,7 @@ export function Select({ value, onChange, options, placeholder = 'Select...', se
       </button>
 
       {open && (
-        <div className="absolute z-50 w-full mt-0.5 bg-[var(--color-bg-raised)] border border-[var(--color-border-soft)] rounded-lg shadow-2xl shadow-black/50 animate-scale-in overflow-hidden">
+        <div className="absolute z-50 w-full mt-0.5 bg-[var(--color-bg-overlay)] border border-[var(--color-border-soft)] rounded-lg shadow-2xl shadow-black/50 animate-scale-in overflow-hidden">
           {searchable && (
             <div className="p-1 border-b border-[var(--color-border-faint)]">
               <input
@@ -61,7 +61,7 @@ export function Select({ value, onChange, options, placeholder = 'Select...', se
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search..."
-                className="w-full bg-[var(--color-bg-base)] rounded px-2 py-1 text-[15px] text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-placeholder)]"
+                className="w-full bg-[var(--color-bg-input)] rounded px-2 py-1 text-[15px] text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-placeholder)]"
               />
             </div>
           )}
@@ -77,7 +77,7 @@ export function Select({ value, onChange, options, placeholder = 'Select...', se
                   className={cn(
                     'w-full text-left px-3 py-[6px] text-[15px] rounded transition-colors',
                     o.value === value
-                      ? 'bg-[var(--color-bg-overlay)] text-[var(--color-text-primary)]'
+                      ? 'bg-[var(--color-accent-soft)] text-[var(--color-text-primary)]'
                       : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)]',
                   )}
                 >

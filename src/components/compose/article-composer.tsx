@@ -121,7 +121,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
 
   return (
     <div className="space-y-3">
-      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)]">
+      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)]">
         <input
           value={resolved.title}
           onChange={(e) => patchArticleText(e.target.value, resolved.bodyMarkdown)}

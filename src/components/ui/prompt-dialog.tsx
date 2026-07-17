@@ -73,7 +73,7 @@ export function PromptDialogHost() {
                 submit()
               }
             }}
-            className="w-full rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-base)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-strong)]"
+            className="w-full rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-input)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-strong)]"
           />
         </div>
         <div className="mt-2 flex h-[1.125rem] items-center justify-end gap-3">

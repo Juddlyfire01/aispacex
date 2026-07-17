@@ -127,7 +127,7 @@ export function SelfRail() {
                 {acc.profile?.avatarUrl ? (
                   <img src={acc.profile.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0 pointer-events-none" draggable={false} />
                 ) : (
-                  <div className="w-4 h-4 rounded-full bg-[var(--color-bg-raised)] shrink-0" />
+                  <div className="w-4 h-4 rounded-full bg-[var(--color-bg-surface)] shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1 min-w-0">

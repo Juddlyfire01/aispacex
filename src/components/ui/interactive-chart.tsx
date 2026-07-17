@@ -218,7 +218,7 @@ export function InteractiveChart({
                 transform: `translateX(${hoverPctX > 65 ? '-100%' : hoverPctX < 15 ? '0%' : '-50%'})`,
               }}
             >
-              <div className="rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] px-2 py-1 shadow-lg whitespace-nowrap">
+              <div className="rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] px-2 py-1 shadow-lg whitespace-nowrap">
                 <div className="text-[11px] font-mono font-semibold text-[var(--color-text-primary)] leading-tight">
                   {tooltipFmt(hover.v)}
                 </div>

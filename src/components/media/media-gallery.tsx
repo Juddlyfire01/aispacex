@@ -298,7 +298,7 @@ function ToolsActionMenu({
         <PencilIcon size={14} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 min-w-[8.5rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg">
+        <div className="absolute right-0 top-full mt-1 z-20 min-w-[8.5rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg">
           {TOOL_ACTIONS.map(({ id, label }) => (
             <button
               key={id}

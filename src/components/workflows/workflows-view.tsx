@@ -336,7 +336,7 @@ function WorkflowCanvas() {
           defaultEdgeOptions={{ animated: true, style: { stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 } }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.03)" />
-          <Controls className="!bg-[#111] !border-white/[0.06] !shadow-xl [&>button]:!bg-[#111] [&>button]:!border-white/[0.06] [&>button]:!text-white/30 [&>button:hover]:!bg-white/[0.06]" />
+          <Controls className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-white/[0.06]" />
           <MiniMap
             nodeColor="rgba(255,255,255,0.1)"
             maskColor="rgba(0,0,0,0.8)"

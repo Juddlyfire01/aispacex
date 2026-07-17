@@ -44,7 +44,7 @@ export function ReportExportButton({ snapshot, username, profile, posts, disable
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1 z-20 min-w-[7.5rem] rounded-md border border-white/10 bg-[var(--color-bg-raised)] py-1 shadow-lg"
+          className="absolute right-0 top-full mt-1 z-20 min-w-[7.5rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg"
         >
           <button
             type="button"

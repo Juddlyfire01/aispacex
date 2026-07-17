@@ -35,7 +35,7 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
   return (
     <div className="space-y-1.5">
       {/* Draft bubble — text + media thumbs only (no poll / action chrome) */}
-      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-2">
+      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2">
         {total > 1 && (
           <div className="flex items-center gap-2 text-[10px] text-white/25">
             <span className="font-mono">{index + 1}/{total}</span>

@@ -144,7 +144,7 @@ export function Tooltip({
             id={tipId}
             role="tooltip"
             style={{ top: position.top, left: position.left, maxWidth: PANEL_WIDTH }}
-            className="fixed z-[200] px-2.5 py-1.5 rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)] text-[11px] leading-snug text-[var(--color-text-primary)] pointer-events-none"
+            className="fixed z-[200] px-2.5 py-1.5 rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] text-[11px] leading-snug text-[var(--color-text-primary)] pointer-events-none"
           >
             {tip}
           </div>,

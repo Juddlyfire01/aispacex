@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { usePreserveScroll } from '../../hooks/use-preserve-scroll'
 import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from '../../lib/x-intel/report-gate'
 import { MarkdownMessage } from '../chat/markdown-message'
@@ -347,10 +346,10 @@ export function ChangeSummaryPanel({ change, canAddTarget = true }: { change: Ch
       ? `+${inboundAdded} mentions gathered`
       : `+${change.volumeAdded} authored`
   return (
-    <section className="rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/[0.04] p-3 space-y-2">
+    <section className="rounded-lg border border-[var(--color-highlight-border)] bg-gradient-to-b from-[var(--color-highlight-fill)] to-[var(--color-bg-card)] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <SectionTitle>What changed since last report</SectionTitle>
-        <span className="text-[10px] font-mono text-[var(--color-accent)]/80">{volumeLabel}</span>
+        <span className="text-[10px] font-mono text-[var(--color-highlight-text)]">{volumeLabel}</span>
       </div>
       {change.narrative && <Prose canAddTarget={canAddTarget}>{change.narrative}</Prose>}
       {shifts.length > 0 && (
@@ -565,7 +564,7 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
             <button
               onClick={(ev) => { ev.stopPropagation(); onDelete(r.id) }}
               title="Delete report"
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--color-bg-raised)] border border-white/10 text-white/30 hover:text-red-400/80 text-[10px] leading-none opacity-0 group-hover/report:opacity-100 transition-opacity"
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--color-bg-overlay)] border border-[var(--color-border-soft)] text-white/30 hover:text-red-400/80 text-[10px] leading-none opacity-0 group-hover/report:opacity-100 transition-opacity"
             >×</button>
           </div>
         )
@@ -607,6 +606,17 @@ export function ProfileReport() {
     addTargetWithToast(username)
   }
 
+  // Anchor on active report so a finished generate (or timeline pick) lands at
+  // top. MUST be called before any early return so hook order stays stable when
+  // the active target flips between empty and selected (a changing hook count
+  // throws "Rendered more hooks than during the previous render" and tears down
+  // the view — the crash seen when navigating in/out of tabs like Settings).
+  const activeReportKey =
+    report?.reportHistory.find((r) => r.id === report.activeReportId)?.id ??
+    report?.reportHistory[0]?.id ??
+    null
+  const { ref: scrollRef, onScroll } = usePreserveScroll(activeTarget, activeReportKey)
+
   if (!activeTarget || !report) {
     return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
   }
@@ -637,9 +647,6 @@ export function ProfileReport() {
       : needsRefresh
         ? GENERATE_NEEDS_REFRESH_HINT
         : `Analyzes ${posts.length} stored posts (Venice tokens)`
-
-  // Anchor on active report so a finished generate (or timeline pick) lands at top.
-  const { ref: scrollRef, onScroll } = usePreserveScroll(activeTarget, active?.id ?? null)
 
   return (
     <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-6 py-4 space-y-4">

@@ -32,7 +32,7 @@ export function Modal({
       />
       <div
         className={cn(
-          'relative bg-[var(--color-bg-raised)] border border-[var(--color-border-soft)] rounded-xl p-6 w-full max-w-sm mx-4 animate-scale-in shadow-[var(--color-surface-shadow)]',
+          'relative bg-[var(--color-bg-modal)] border border-[var(--color-border-soft)] rounded-xl p-6 w-full max-w-sm mx-4 animate-scale-in shadow-[var(--color-surface-shadow)]',
           className,
         )}
         onClick={(e) => e.stopPropagation()}
@@ -44,7 +44,7 @@ export function Modal({
 }
 
 export const modalInputClass =
-  'w-full bg-[var(--color-bg-base)] border border-[var(--color-border-soft)] rounded-lg px-3.5 py-2.5 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors placeholder:text-[var(--color-text-placeholder)]'
+  'w-full bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-lg px-3.5 py-2.5 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors placeholder:text-[var(--color-text-placeholder)]'
 
 export const modalGhostBtnClass =
   'px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors'

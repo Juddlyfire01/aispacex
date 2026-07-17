@@ -205,7 +205,7 @@ export function PeriodPicker<T extends string>({
           className={cn(
             'text-[10px] font-medium px-2 py-1 rounded-md transition-colors',
             value === id
-              ? 'bg-[var(--color-bg-raised)] text-[var(--color-accent)] border border-[var(--color-accent)]/30'
+              ? 'bg-[var(--color-bg-surface)] text-[var(--color-accent)] border border-[var(--color-accent)]/30'
               : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
           )}
         >

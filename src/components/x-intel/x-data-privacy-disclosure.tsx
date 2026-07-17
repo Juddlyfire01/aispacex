@@ -34,7 +34,7 @@ export function XDataPrivacyDisclosure({ className }: { className?: string }) {
           </svg>
         </span>
       </summary>
-      <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] px-3 py-2.5">
+      <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] px-3 py-2.5 shadow-lg">
         <p className="text-[11px] text-white/45 leading-relaxed">{LEAD}</p>
         <ul className="mt-2.5 space-y-1.5 text-[11px] text-white/40 leading-relaxed">
           {BULLETS.map((line) => (

@@ -83,8 +83,8 @@ export function ThreadExportButton({
           role="menu"
           className={
             isLabel
-              ? 'absolute left-0 bottom-full mb-1 z-20 min-w-[12rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg'
-              : 'absolute right-0 top-full mt-0.5 z-20 min-w-[7.5rem] rounded-md border border-[var(--color-border-faint)] bg-[var(--color-bg-raised)] py-1 shadow-lg'
+              ? 'absolute left-0 bottom-full mb-1 z-20 min-w-[12rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg'
+              : 'absolute right-0 top-full mt-0.5 z-20 min-w-[7.5rem] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] py-1 shadow-lg'
           }
           onClick={(e) => e.stopPropagation()}
         >

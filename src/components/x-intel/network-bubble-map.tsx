@@ -383,7 +383,7 @@ function AccountBubble({ laid, node, lit, hovered, onHover, onClick }: AccountBu
 
 function Tooltip({ node }: { node: GraphNode }) {
   return (
-    <div className="absolute top-3 left-3 z-10 pointer-events-none rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-raised)]/95 px-3 py-2 shadow-lg max-w-[260px]">
+    <div className="absolute top-3 left-3 z-10 pointer-events-none rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)]/95 px-3 py-2 shadow-lg max-w-[260px]">
       <div className="text-[12px] font-semibold text-[var(--color-text-primary)]">@{node.username}</div>
       <div className="text-[11px] mt-0.5" style={{ color: kindTint(node.dominantKind) }}>
         {formatBreakdown(node)}

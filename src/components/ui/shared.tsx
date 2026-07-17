@@ -1,5 +1,6 @@
 import { cn } from '../../lib/utils'
 import { Spinner } from './spinner'
+import { Surface } from './surface'
 
 export function Label({
   children,
@@ -45,7 +46,7 @@ export function TextArea({ value, onChange, placeholder, rows = 3, ariaLabel, ma
       aria-label={ariaLabel ?? placeholder}
       maxLength={maxLength}
       autoFocus={autoFocus}
-      className="w-full bg-[var(--color-bg-base)] border border-[var(--color-border-soft)] rounded-lg px-3 py-2.5 text-[15px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors resize-none placeholder:text-[var(--color-text-placeholder)] leading-relaxed"
+      className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-soft)] rounded-lg px-3 py-2.5 text-[15px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors resize-none placeholder:text-[var(--color-text-placeholder)] leading-relaxed"
     />
   )
 }
@@ -131,7 +132,7 @@ export function PillGroup({ options, value, onChange, ariaLabel, disabled }: {
             'text-[13px] font-medium px-2.5 py-1 rounded-md border transition-all duration-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]',
             'disabled:cursor-not-allowed disabled:hover:text-[var(--color-text-secondary)] disabled:hover:border-[var(--color-border-soft)]',
             o.value === value
-              ? 'border-[var(--color-border-strong)] bg-[var(--color-bg-raised)] text-[var(--color-text-primary)]'
+              ? 'border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] text-[var(--color-text-primary)]'
               : 'border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]',
           )}
         >
@@ -171,7 +172,7 @@ export function ExamplePrompts({ items, onPick, title = 'Try one of these' }: {
             key={text}
             type="button"
             onClick={() => onPick(text)}
-            className="group text-left px-3.5 py-3 rounded-xl border border-[var(--color-border-faint)] bg-[var(--color-bg-base)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-raised)] transition-all text-[13.5px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
+            className="group text-left px-3.5 py-3 rounded-xl border border-[var(--color-border-faint)] bg-[var(--color-bg-base)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-surface)] transition-all text-[13.5px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
           >
             <span className="flex items-start gap-2">
               <span className="text-[var(--color-text-quaternary)] group-hover:text-[var(--color-accent)] transition-colors mt-px">→</span>
@@ -186,9 +187,9 @@ export function ExamplePrompts({ items, onPick, title = 'Try one of these' }: {
 
 export function Card({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('bg-[var(--color-bg-raised)] border border-[var(--color-border-faint)] rounded-xl', className)}>
+    <Surface level="card" className={cn('rounded-xl', className)}>
       {children}
-    </div>
+    </Surface>
   )
 }
 

@@ -202,7 +202,7 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
   }
 
   return (
-    <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-raised)] space-y-2">
+    <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2">
       {!streaming && <ArticleFormatToolbar editorRef={editorRef} onEdited={emitFromDom} />}
       {streaming && (
         <div className="flex items-center gap-2 text-[10px] text-white/35">

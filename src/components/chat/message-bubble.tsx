@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import type { ChatMessage, ContentPart } from '../../types/venice'
 import { MarkdownMessage } from './markdown-message'
+import { Bubble } from '../ui/surface'
 import { cn } from '../../lib/utils'
 
 // Extract text and images from multimodal content
@@ -63,18 +64,18 @@ function MessageBubbleImpl({ message, onCopy, onDelete, onRegenerate }: MessageB
       <div className="flex justify-end" onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
         <div className="flex items-end gap-1.5 max-w-[78%]">
           {actions}
-          <div className="bg-white/[0.07] border border-white/[0.05] rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm">
+          <Bubble me className="rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm">
             {images.length > 0 && (
               <div className="flex gap-1.5 mb-2">
                 {images.map((img, i) => (
-                  <img key={i} src={img} alt={`Attachment ${i + 1}`} className="h-24 rounded-lg border border-white/[0.06]" />
+                  <img key={i} src={img} alt={`Attachment ${i + 1}`} className="h-24 rounded-lg border border-[var(--color-border-faint)]" />
                 ))}
               </div>
             )}
-            <div className="text-white/95 text-[15.5px] leading-relaxed whitespace-pre-wrap break-words">
+            <div className="text-[var(--color-text-primary)] text-[15.5px] leading-relaxed whitespace-pre-wrap break-words">
               {content}
             </div>
-          </div>
+          </Bubble>
         </div>
       </div>
     )

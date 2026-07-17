@@ -91,8 +91,6 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
     })
   }, [targets, reports])
 
-  if (!thread) return null
-
   const patchRegister = (next: DraftRegister) => {
     applyDraftPatch(threadId, { register: next })
   }
@@ -121,6 +119,11 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
     setPackText(packEditorValue(displayedPack))
     setPackError(null)
   }, [draftReg.mode, draftReg.otherUsername, youLive, otherLive]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional narrow sync
+
+  // Guard AFTER all hooks so the hook count never changes between renders (a
+  // conditional hook throws "Rendered more hooks than during the previous
+  // render" and tears down the tree).
+  if (!thread) return null
 
   const showPackEditor =
     draftReg.mode === 'you' ||
