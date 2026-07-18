@@ -8,7 +8,7 @@ import {
   describeDraftWriteLabels,
   DRAFT_MODEL_SAME,
 } from './draft-writer-tool'
-import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText, packConversationForWriter } from './draft-writer'
+import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText, packConversationForWriter, isToolCallShapedDraft } from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
 
@@ -207,7 +207,9 @@ describe('buildWriterSystem', () => {
 
   it('instructs writer to use conversation + brief when hasConversation', () => {
     const sys = buildWriterSystem(null, { hasConversation: true })
-    expect(sys).toMatch(/conversation history AND a writing brief/i)
+    expect(sys).toMatch(/research conversation context AND a writing brief/i)
+    expect(sys).toMatch(/NO tools/i)
+    expect(sys).toMatch(/compose_write_draft/)
     expect(buildWriterSystem(null, { hasConversation: false })).toMatch(/Follow the brief tightly/)
   })
 
@@ -231,6 +233,19 @@ describe('packConversationForWriter', () => {
     expect(packed).not.toMatch(/ok/)
   })
 
+  it('scrubs compose_write_draft ritual from research turns', () => {
+    const packed = packConversationForWriter([
+      {
+        role: 'assistant',
+        content:
+          'Calling compose_write_draft({ "brief": "write about DIEM", "format": "post" }) now.',
+      },
+      { role: 'user', content: 'Craft a post about DIEM mint window' },
+    ])
+    expect(packed).not.toMatch(/compose_write_draft/)
+    expect(packed).toMatch(/Craft a post about DIEM/)
+  })
+
   it('keeps recent turns when over maxChars', () => {
     const packed = packConversationForWriter(
       [
@@ -246,10 +261,36 @@ describe('packConversationForWriter', () => {
   })
 })
 
+describe('isToolCallShapedDraft', () => {
+  it('detects compose_write_draft echo', () => {
+    expect(
+      isToolCallShapedDraft(
+        'compose_write_draft({\n  "format": "post",\n  "voice": "dense"\n})',
+      ),
+    ).toBe(true)
+  })
+
+  it('detects planning JSON without prose', () => {
+    expect(
+      isToolCallShapedDraft(
+        '{"format":"post","hook":"lead with number","must_include":"336"}',
+      ),
+    ).toBe(true)
+  })
+
+  it('allows normal post copy', () => {
+    expect(
+      isToolCallShapedDraft(
+        '~336 DIEM left. Credits burns + owned GPU margins. Own the $1/day claim?',
+      ),
+    ).toBe(false)
+  })
+})
+
 describe('buildWriterUser with conversation', () => {
   it('prepends research conversation before the brief', () => {
     const u = buildWriterUser({ brief: 'Write the article' }, false, 'User:\nDo Plan L')
-    expect(u).toMatch(/Research conversation/)
+    expect(u).toMatch(/Research context/)
     expect(u).toMatch(/Do Plan L/)
     expect(u).toMatch(/Brief:\nWrite the article/)
   })
@@ -261,7 +302,7 @@ describe('buildWriterUser with conversation', () => {
       'User:\nAngle',
       '## SPENT / PRIOR ART\n- opener: Old line',
     )
-    expect(u.indexOf('## SPENT / PRIOR ART')).toBeLessThan(u.indexOf('Research conversation'))
+    expect(u.indexOf('## SPENT / PRIOR ART')).toBeLessThan(u.indexOf('Research context'))
     expect(u).toMatch(/Old line/)
     expect(u).toMatch(/Brief:\nWrite the post/)
   })

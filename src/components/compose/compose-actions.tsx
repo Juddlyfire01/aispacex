@@ -201,7 +201,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
           disabled={empty}
           className="px-3 py-1.5 text-[11px] font-medium bg-[var(--color-border-faint)] text-[var(--color-text-primary)] rounded-md hover:bg-[var(--color-border-faint)] transition-colors disabled:opacity-30"
         >
-          {copied ? 'Copied ✓' : 'Copy to X'}
+          {copied ? 'Copied ✓' : 'Copy'}
         </button>
       </div>
     </div>

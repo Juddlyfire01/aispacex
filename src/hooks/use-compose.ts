@@ -32,7 +32,13 @@ import {
   type DraftWriteBrief,
   type DraftWriteFormat,
 } from '../lib/compose/draft-writer-tool'
-import { runDraftWriter, splitWriterSegments, parseArticleFromWriterText } from '../lib/compose/draft-writer'
+import {
+  runDraftWriter,
+  splitWriterSegments,
+  parseArticleFromWriterText,
+  isToolCallShapedDraft,
+  MIN_DRAFT_CHARS,
+} from '../lib/compose/draft-writer'
 import { emptyArticleDraft, emptySegment, type PostDraft } from '../lib/compose/types'
 import type { PreferredFormat } from '../lib/compose/format'
 import { getActiveAccountVerified } from './use-compose-verified'
@@ -73,6 +79,13 @@ import { yieldForPaint } from '../lib/yield-for-paint'
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
+  /**
+   * Separate from research abort — research turn completion must not kill the
+   * draft writer mid-stream (that produced truncated "load" / "s" drafts).
+   */
+  const draftWriterAbortRef = useRef<AbortController | null>(null)
+  /** Live timeline event id for the in-flight writer (survives research teardown). */
+  const draftWriterEventIdRef = useRef<string | null>(null)
   /** SSE tokens wait here; dripped to the store for a rapid-typing feel. */
   const pendingDeltaRef = useRef('')
   const dripRafRef = useRef<number | null>(null)
@@ -105,8 +118,12 @@ export function useCompose() {
     const threadId = activeStreamThreadRef.current ?? s.activeThreadId
     if (threadId) flushPendingDelta(threadId)
     draftWriterFlushRef.current?.()
+    const writerEventId = draftWriterEventIdRef.current
     for (const e of s.agentEvents) {
-      if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
+      // Leave the draft writer event running — it owns its own lifecycle.
+      if (e.status === 'running' && e.id !== writerEventId) {
+        s.updateAgentEvent(e.id, { status: 'done' })
+      }
     }
     const finalEvents = useComposeStore.getState().agentEvents
     if (threadId && finalEvents.length > 0) {
@@ -186,6 +203,11 @@ export function useCompose() {
         dripRafRef.current = null
       }
       activeStreamThreadRef.current = threadId
+
+      // New research turn: cancel a leftover writer from a prior send.
+      draftWriterAbortRef.current?.abort()
+      draftWriterAbortRef.current = null
+      draftWriterEventIdRef.current = null
 
       const abortController = new AbortController()
       abortRef.current = abortController
@@ -480,6 +502,20 @@ export function useCompose() {
           finishError: (err: unknown) => void
         }
 
+        /** Append a visible error to the chat when the fire-and-forget writer fails. */
+        const reportDraftWriterError = (message: string) => {
+          const s = useComposeStore.getState()
+          const current = s.threads[threadId]?.messages ?? []
+          const lastAssistant = [...current].reverse().find((m) => m.role === 'assistant')
+          const suffix = `\n\n[Draft writer error: ${message}]`
+          if (lastAssistant) {
+            const existing = typeof lastAssistant.content === 'string' ? lastAssistant.content : ''
+            s.setLastAssistantContent(threadId, existing + suffix)
+          } else {
+            s.addMessage(threadId, { role: 'assistant', content: suffix.trim() })
+          }
+        }
+
         let draftStreamSession: DraftStreamSession | null = null
         let draftContinuationCompleted = false
 
@@ -539,6 +575,7 @@ export function useCompose() {
               article: sendWantsArticle,
             })
             writerEventId = newAgentEventId()
+            draftWriterEventIdRef.current = writerEventId
             useComposeStore.getState().pushAgentEvent({
               id: writerEventId,
               label: writerLabels.label,
@@ -628,28 +665,90 @@ export function useCompose() {
           const finishWriter = (status: 'done' | 'error' | 'cancelled', detail: string) => {
             flushDraftDrip()
             draftWriterFlushRef.current = null
+            const eventId = writerEventId ?? draftWriterEventIdRef.current
+            if (eventId && draftWriterEventIdRef.current === eventId) {
+              draftWriterEventIdRef.current = null
+            }
             useComposeStore.getState().setDraftWriterStreaming(false)
-            if (writerEventId) {
-              useComposeStore.getState().updateAgentEvent(writerEventId, {
-                status: status === 'cancelled' ? 'done' : status,
+            // Research turn may already have finished; release pagehide anchor.
+            const researchDone = !abortRef.current
+            if (eventId) {
+              const patch = {
+                status: (status === 'cancelled' ? 'done' : status) as 'done' | 'error',
                 detail,
-              })
+              }
+              const store = useComposeStore.getState()
+              store.updateAgentEvent(eventId, patch)
+              // Research teardown may have cleared live events and pinned them
+              // onto the assistant message — patch that copy too.
+              const msgs = store.threads[threadId]?.messages ?? []
+              const last = msgs[msgs.length - 1]
+              if (last?.role === 'assistant' && last.agentEvents?.some((e) => e.id === eventId)) {
+                store.setLastAssistantAgentEvents(
+                  threadId,
+                  last.agentEvents.map((e) => (e.id === eventId ? { ...e, ...patch } : e)),
+                )
+              } else if (researchDone) {
+                // Writer finished after research pinned a snapshot without this
+                // event yet — merge into the message timeline.
+                const pinned = last?.role === 'assistant' ? (last.agentEvents ?? []) : []
+                const live = store.agentEvents
+                const merged = (pinned.length ? pinned : live).map((e) =>
+                  e.id === eventId ? { ...e, ...patch } : e,
+                )
+                if (merged.some((e) => e.id === eventId) && last?.role === 'assistant') {
+                  store.setLastAssistantAgentEvents(threadId, merged)
+                }
+              }
+            }
+            if (researchDone) {
+              activeStreamThreadRef.current = null
+              useComposeStore.getState().clearAgentEvents()
             }
           }
 
           draftWriterFlushRef.current = flushDraftDrip
 
+          const clearBadDraft = () => {
+            useComposeStore.getState().applyDraftPatch(threadId, {
+              segments: [emptySegment()],
+              ...(sendWantsArticle ? { article: emptyArticleDraft() } : { article: undefined }),
+            })
+          }
+
           const finalizeText = (text: string) => {
             flushDraftDrip()
+            const trimmed = text.trim()
+            if (!trimmed) {
+              const detail = `${writerModelId} returned empty content`
+              clearBadDraft()
+              finishWriter('error', detail)
+              reportDraftWriterError(detail)
+              return
+            }
+            if (isToolCallShapedDraft(trimmed)) {
+              const detail = `${writerModelId} echoed a tool call / brief JSON instead of post copy`
+              clearBadDraft()
+              finishWriter('error', detail)
+              reportDraftWriterError(detail)
+              return
+            }
+            if (trimmed.length < MIN_DRAFT_CHARS) {
+              const detail = `${writerModelId} returned only ${trimmed.length} chars — likely truncated`
+              clearBadDraft()
+              finishWriter('error', detail)
+              reportDraftWriterError(detail)
+              return
+            }
             const store = useComposeStore.getState()
             const pref = livePrefFormat()
             const wantsArticle =
               pref === 'article' || (pref === 'auto' && resolvedFormat === 'article')
             const allowArticleHeuristic = pref === 'auto' || pref === 'article'
             const looksLikeArticle =
-              allowArticleHeuristic && /^#\s+\S/.test(text.trim())
+              allowArticleHeuristic && /^#\s+\S/.test(trimmed)
             if (wantsArticle || looksLikeArticle) {
-              const parsed = parseArticleFromWriterText(text)
+              const parsed = parseArticleFromWriterText(trimmed)
               const current = store.threads[threadId]?.draft.article
               store.applyDraftPatch(threadId, {
                 article: {
@@ -669,7 +768,7 @@ export function useCompose() {
               finishWriter('done', 'article ready')
               return
             }
-            const texts = splitWriterSegments(text)
+            const texts = splitWriterSegments(trimmed)
             const segments =
               texts.length > 0
                 ? texts.map((segText, i) => ({
@@ -677,7 +776,7 @@ export function useCompose() {
                     text: segText,
                     media: [],
                   }))
-                : [{ ...seg, text }]
+                : [{ ...seg, text: trimmed }]
             const isVerified = getActiveAccountVerified()
             const longformPref = store.longformPreference
             const patch: Partial<PostDraft> = {
@@ -715,8 +814,10 @@ export function useCompose() {
                 finishWriter('cancelled', 'cancelled')
                 return
               }
+              clearBadDraft()
               const message = err instanceof Error ? err.message : 'Draft writer failed'
               finishWriter('error', message)
+              reportDraftWriterError(message)
             },
           }
         }
@@ -756,6 +857,11 @@ export function useCompose() {
               return rest
             })
 
+          // Own abort signal — research turn end must not truncate the writer.
+          draftWriterAbortRef.current?.abort()
+          const writerAbort = new AbortController()
+          draftWriterAbortRef.current = writerAbort
+
           void runDraftWriter({
             modelId: writerModelId,
             modelSpec: draftModelSpec,
@@ -763,11 +869,16 @@ export function useCompose() {
             conversation: conversationForWriter,
             registerInject: registerResolved.inject,
             spentText,
-            signal: abortController.signal,
+            signal: writerAbort.signal,
             onDelta: session.onDelta,
           })
             .then((finalText) => session.finishFromText(finalText))
             .catch((err) => session.finishError(err))
+            .finally(() => {
+              if (draftWriterAbortRef.current === writerAbort) {
+                draftWriterAbortRef.current = null
+              }
+            })
         }
 
         const ensureToolEvent = (
@@ -1011,9 +1122,13 @@ export function useCompose() {
           useComposeStore.getState().setDraftWriterStreaming(false)
         }
         const s = useComposeStore.getState()
-        // Settle interrupted steps, then pin the full timeline onto this turn.
+        const writerEventId = draftWriterEventIdRef.current
+        const writerStillRunning = Boolean(draftWriterFlushRef.current && writerEventId)
+        // Settle interrupted research steps; leave the draft writer event alone.
         for (const e of s.agentEvents) {
-          if (e.status === 'running') s.updateAgentEvent(e.id, { status: 'done' })
+          if (e.status === 'running' && e.id !== writerEventId) {
+            s.updateAgentEvent(e.id, { status: 'done' })
+          }
         }
         const finalEvents = useComposeStore.getState().agentEvents
         if (finalEvents.length > 0) {
@@ -1021,10 +1136,19 @@ export function useCompose() {
         }
         s.setStreaming(false)
         s.setAgentPhase(null)
-        // Live strip is cleared; history lives on the assistant message.
-        s.clearAgentEvents()
+        // Keep the writer event in live strip until it finishes; otherwise clear.
+        if (writerStillRunning && writerEventId) {
+          const writerEv = useComposeStore.getState().agentEvents.find((e) => e.id === writerEventId)
+          s.clearAgentEvents()
+          if (writerEv) s.pushAgentEvent(writerEv)
+        } else {
+          s.clearAgentEvents()
+        }
         abortRef.current = null
-        activeStreamThreadRef.current = null
+        // Keep activeStreamThreadRef while writer streams so pagehide can flush.
+        if (!writerStillRunning) {
+          activeStreamThreadRef.current = null
+        }
         // Resume encrypt+IDB and force the settled snapshot to disk.
         resumeEncryptedPersist()
         void flushEncryptedStorage('venice-compose')
@@ -1036,6 +1160,9 @@ export function useCompose() {
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
+    draftWriterAbortRef.current?.abort()
+    draftWriterAbortRef.current = null
+    draftWriterEventIdRef.current = null
     settleWip()
     const s = useComposeStore.getState()
     s.setStreaming(false)

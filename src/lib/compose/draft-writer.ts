@@ -15,6 +15,9 @@ export type { ParsedWriterArticle } from './article-parse'
 /** Cap conversation payload so the writer stays within context. */
 export const WRITER_CONVERSATION_MAX_CHARS = 48_000
 
+/** Below this, treat the stream as truncated / non-draft. */
+export const MIN_DRAFT_CHARS = 10
+
 const SPENT_WRITER_RULES = `SPENT / PRIOR ART — HARD FAIL:
 - If a ## SPENT / PRIOR ART section is present (user message or conversation), its openers, slogans, exhibit spines, status ids, and heavy $/@ stacks are forbidden to reuse.
 - Reusing spent opener/slogan/spine (including light paraphrase) = FAILED draft.
@@ -42,8 +45,43 @@ function contentAsText(content: ChatMessage['content']): string {
 }
 
 /**
+ * True when the model echoed a tool call / brief JSON instead of publishable copy.
+ * GLM and other tool-trained writers do this when research context mentions
+ * compose_write_draft.
+ */
+export function isToolCallShapedDraft(text: string): boolean {
+  const t = text.trim()
+  if (!t) return false
+  if (/compose_write_draft\s*\(/i.test(t)) return true
+  if (/^\s*```(?:json|ts|typescript|js|javascript)?\s*\n?\s*compose_write_draft/i.test(t)) {
+    return true
+  }
+  // Structured brief echo: JSON object dominated by planning keys, not prose.
+  if (t.startsWith('{') && t.endsWith('}')) {
+    const planningKeys =
+      (t.match(
+        /"(?:brief|format|notes|voice|angle|hook|must_include|structure|lever|end|constraints)"\s*:/g,
+      ) ?? []).length
+    if (planningKeys >= 2) return true
+  }
+  return false
+}
+
+/** Strip research-agent tool ritual so the writer does not mimic it. */
+export function scrubWriterTurnText(text: string): string {
+  return text
+    .replace(/```postdraft[\s\S]*?```/gi, '')
+    .replace(/compose_write_draft\s*\(\s*\{[\s\S]*?\}\s*\)/gi, '')
+    .replace(/compose_write_draft\s*\([^)]*\)/gi, '')
+    .replace(/\bcompose_write_draft\b/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
  * Pack research chat into a transcript for the draft writer.
- * Keeps user/assistant prose; drops system, tool results, and empty turns.
+ * Keeps user/assistant prose; drops system, tool results, empty turns, and
+ * tool-call ritual that causes writers to echo compose_write_draft(...).
  * Prefer recent turns when over maxChars.
  */
 export function packConversationForWriter(
@@ -58,12 +96,10 @@ export function packConversationForWriter(
     if (m.role === 'assistant' && m.tool_calls?.length && !contentAsText(m.content)) continue
     const text = contentAsText(m.content)
     if (!text) continue
-    // Strip leaked postdraft fences if any.
-    const cleaned = text
-      .replace(/```postdraft[\s\S]*?```/gi, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
+    const cleaned = scrubWriterTurnText(text)
     if (!cleaned) continue
+    // Skip turns that are only handoff chatter after scrubbing.
+    if (/^handed off to draft/i.test(cleaned) && cleaned.length < 80) continue
     const label = m.role === 'user' ? 'User' : 'Research model'
     turns.push(`${label}:\n${cleaned}`)
   }
@@ -100,6 +136,7 @@ export function buildWriterSystem(
 
 Rules:
 - Output ONLY the publishable text — plain UTF-8 (or Markdown for articles).
+- You have NO tools. Never emit function calls, tool JSON, compose_write_draft(...), or a structured brief object. The brief below is instructions FOR YOU — write the post, do not echo the brief.
 - No preamble, no "here's a draft", no markdown fences, no JSON, no \`\`\`postdraft.
 - For post/thread/long-form: no Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
 - Thread: separate posts with a line containing only ---
@@ -110,7 +147,7 @@ Rules:
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).
 ${
   hasConversation
-    ? `- You receive the research conversation history AND a writing brief. Use the conversation for full context (facts, angle, nuance, decisions). Treat the brief as the research model's writing instructions and priorities — do not discard conversation detail that the brief omitted.
+    ? `- You receive research conversation context AND a writing brief. Use both for facts, angle, and constraints. Treat the brief as writing instructions — do not discard conversation detail the brief omitted.
 - Prefer concrete facts and numbers from the conversation and brief over invention.
 - If the brief or a user instruction asks for a looser / more casual / more novel register, honor it — that overrides any default formal posture, including the REGISTER block's defaults.
 - When a REGISTER block is present: match voice identity (diction/stance/rhetoric), but ALWAYS scale length and paragraphing to the requested format. Articles and long-form must read as coherent prose, not a stack of short posts.`
@@ -140,7 +177,7 @@ export function buildWriterUser(
   }
   if (conversationText.trim()) {
     lines.push(
-      `Research conversation (full context — use this; do not rely on the brief alone):\n${conversationText.trim()}`,
+      `Research context (facts and decisions — write the post; do not call tools):\n${conversationText.trim()}`,
     )
   }
   lines.push(`Brief:\n${brief.brief}`)
@@ -200,6 +237,7 @@ export function splitWriterSegments(text: string): string[] {
 /**
  * Stream draft copy from the writer model. Returns full accumulated text.
  * Caller applies tokens to the draft drawer via onDelta.
+ * Throws on abort, truncated streams, empty/tool-call-shaped output.
  */
 export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> {
   const isArticle = opts.brief.preferredFormat === 'article'
@@ -226,21 +264,60 @@ export async function runDraftWriter(opts: RunDraftWriterOpts): Promise<string> 
       temperature: 0.7,
       // Articles need room for long markdown; posts/threads stay smaller.
       max_tokens: isArticle ? 8192 : 2048,
+      venice_parameters: {
+        // Writer needs full control — Venice's default system prompt confuses
+        // tool-trained models into emitting compose_write_draft echoes.
+        include_venice_system_prompt: false,
+      },
     }),
     stream: true,
     signal: opts.signal,
   })
 
   let content = ''
+  let finishReason: string | null = null
   let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined
   for await (const chunk of parseSSEStream(stream, { signal: opts.signal })) {
+    if (opts.signal?.aborted) break
     if (chunk.usage) usage = chunk.usage
-    const delta = chunk.choices[0]?.delta?.content
+    const choice = chunk.choices[0]
+    if (choice?.finish_reason) finishReason = choice.finish_reason
+    const delta = choice?.delta?.content
     if (delta) {
       content += delta
       opts.onDelta?.(delta)
     }
   }
   useVeniceCostStore.getState().addUsage(opts.modelSpec, usage)
-  return content.trim()
+
+  if (opts.signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError')
+  }
+
+  const trimmed = content.trim()
+  if (!trimmed) {
+    throw new Error(`${opts.modelId} returned empty content`)
+  }
+  if (isToolCallShapedDraft(trimmed)) {
+    throw new Error(
+      `${opts.modelId} echoed a tool call / brief JSON instead of post copy`,
+    )
+  }
+  if (trimmed.length < MIN_DRAFT_CHARS) {
+    throw new Error(
+      `${opts.modelId} returned only ${trimmed.length} chars — likely truncated`,
+    )
+  }
+  if (finishReason && finishReason !== 'stop') {
+    throw new Error(
+      `${opts.modelId} stream ended with finish_reason="${finishReason}" after ${trimmed.length} chars`,
+    )
+  }
+  // Stream died without a normal stop and without enough body — treat as cut off.
+  if (!finishReason && trimmed.length < 40) {
+    throw new Error(
+      `${opts.modelId} stream ended early after ${trimmed.length} chars (no finish_reason)`,
+    )
+  }
+  return trimmed
 }
