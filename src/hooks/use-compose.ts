@@ -12,9 +12,8 @@ import { useXSelfStore } from '../stores/x-self-store'
 import { useXIntelStore } from '../stores/x-intel-store'
 import { buildComposeSystem, buildHotUserPrefix } from '../lib/compose/compose-prompt'
 import { buildSpentContentPack } from '../lib/compose/spent-content'
-import { parseDraftBlock } from '../lib/compose/draft-block'
 import { looksLikeDraftIntent } from '../lib/compose/article-handoff'
-import { syncDraftForVerification, applyLongformPreference } from '../lib/compose/verified-features'
+import { syncDraftForVerification } from '../lib/compose/verified-features'
 import {
   isRegisterPackEmpty,
   packFromReportRegister,
@@ -25,8 +24,6 @@ import {
   COMPOSE_WRITE_DRAFT_TOOL_NAME,
   DRAFT_WRITE_FORMATS,
   describeDraftWriteLabels,
-  isDraftHandoffEnabled,
-  isSeparateDraftModel,
   resolveDraftWriteFormat,
   resolveDraftWriterModelId,
   type DraftWriteBrief,
@@ -72,10 +69,8 @@ import { yieldForPaint } from '../lib/yield-for-paint'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
 // data, may call intel_* / compose_history_* / compose_write_draft tools (tool
-// rounds stream activity; draft copy streams into the Draft drawer — Same-as-main
-// continues the research agent turn, a distinct Draft model uses a separate
-// writer fetch; final chat answer streams tokens). Any leaked ```postdraft fence
-// is still stripped into the drawer as a defensive fallback.
+// rounds stream activity; compose_write_draft always starts a separate draft
+// stage that continues the agent transcript into the Draft drawer).
 
 export function useCompose() {
   const abortRef = useRef<AbortController | null>(null)
@@ -357,8 +352,6 @@ export function useCompose() {
           otherPack,
         })
 
-        const sameDraftModel = !isSeparateDraftModel(draftModel)
-        const draftHandoff = isDraftHandoffEnabled(draftModel)
         const writerModelId = resolveDraftWriterModelId(draftModel, model)
         const system = buildComposeSystem({
           modelId: model,
@@ -366,10 +359,8 @@ export function useCompose() {
           webSearchOn: webSearch !== 'off',
           xNewsOn,
           toolsEnabled: true,
-          registerInject: registerResolved.inject,
           preferredFormat,
           premiumCapable,
-          sameModelDraft: sameDraftModel,
         })
 
         // Transcript minus the trailing empty assistant placeholder.
@@ -517,7 +508,6 @@ export function useCompose() {
         }
 
         let draftStreamSession: DraftStreamSession | null = null
-        let draftContinuationCompleted = false
 
         const createDraftStreamSession = (
           brief: DraftWriteBrief,
@@ -571,7 +561,6 @@ export function useCompose() {
           let writerEventId: string | null = null
           if (opts?.showWriterEvent) {
             const writerLabels = describeDraftWriteLabels({
-              sameModel: sameDraftModel,
               article: sendWantsArticle,
             })
             writerEventId = newAgentEventId()
@@ -579,11 +568,9 @@ export function useCompose() {
             useComposeStore.getState().pushAgentEvent({
               id: writerEventId,
               label: writerLabels.label,
-              progressLabel: sameDraftModel
-                ? writerLabels.progressLabel
-                : sendWantsArticle
-                  ? `Article writer streaming (${writerModelId})`
-                  : `Draft writer streaming (${writerModelId})`,
+              progressLabel: sendWantsArticle
+                ? `Article writer streaming (${writerModelId})`
+                : `Draft writer streaming (${writerModelId})`,
               status: 'running',
               startedAt: Date.now(),
             })
@@ -822,11 +809,10 @@ export function useCompose() {
           }
         }
 
-        const startDraftContinuation = (brief: DraftWriteBrief) => {
-          draftStreamSession = createDraftStreamSession(brief)
-        }
-
-        const startDraftWriter = (brief: DraftWriteBrief) => {
+        const startDraftWriter = (
+          brief: DraftWriteBrief,
+          agentMessages: ChatMessage[],
+        ) => {
           const session = createDraftStreamSession(brief, { showWriterEvent: true })
           draftStreamSession = session
           const sendPref =
@@ -848,14 +834,6 @@ export function useCompose() {
                 ? { longform: true }
                 : {}),
           }
-          const conversationForWriter = (
-            useComposeStore.getState().threads[threadId]?.messages ?? []
-          )
-            .filter((m) => m.role === 'user' || m.role === 'assistant')
-            .map((m) => {
-              const { agentEvents: _ae, displayContent: _dc, ...rest } = m
-              return rest
-            })
 
           // Own abort signal — research turn end must not truncate the writer.
           draftWriterAbortRef.current?.abort()
@@ -866,9 +844,8 @@ export function useCompose() {
             modelId: writerModelId,
             modelSpec: draftModelSpec,
             brief: writerBrief,
-            conversation: conversationForWriter,
+            messages: agentMessages,
             registerInject: registerResolved.inject,
-            spentText,
             signal: writerAbort.signal,
             onDelta: session.onDelta,
           })
@@ -890,7 +867,6 @@ export function useCompose() {
           const draftLabels =
             name === 'compose_write_draft'
               ? describeDraftWriteLabels({
-                  sameModel: sameDraftModel,
                   article:
                     resolveDraftWriteFormat(
                       preferredFormat,
@@ -943,25 +919,7 @@ export function useCompose() {
             xNewsMaxAgeHours,
             newsBookmarks,
             signal: abortController.signal,
-            onDraftHandoff: draftHandoff ? startDraftWriter : undefined,
-            sameModelDraftContinuation: sameDraftModel,
-            onDraftContinuationStart: sameDraftModel ? startDraftContinuation : undefined,
-            onDraftDelta: sameDraftModel
-              ? (token) => {
-                  if (!clearedToolActivity) {
-                    clearedToolActivity = true
-                    useComposeStore.getState().setAgentPhase('Writing')
-                  }
-                  draftStreamSession?.onDelta(token)
-                }
-              : undefined,
-            onDraftContinuationEnd: sameDraftModel
-              ? (text) => {
-                  draftContinuationCompleted = true
-                  draftStreamSession?.finishFromText(text)
-                  draftStreamSession = null
-                }
-              : undefined,
+            onDraftHandoff: startDraftWriter,
             forceDraftHandoff:
               preferredFormat === 'article' && looksLikeDraftIntent(userMessage),
             onWebSearch: ({ resultCount }) => {
@@ -1007,7 +965,6 @@ export function useCompose() {
               // + the second /chat/completions request still pending), open the
               // pane and flip on the "Writing…" affordance so it isn't blank.
               if (
-                (draftHandoff || sameDraftModel) &&
                 !draftSkeletonShown &&
                 name === COMPOSE_WRITE_DRAFT_TOOL_NAME
               ) {
@@ -1083,26 +1040,10 @@ export function useCompose() {
 
         flushPendingDelta(threadId)
 
-        // Finalize: strip ```postdraft into the draft drawer; keep clean prose in chat.
+        // Chat status only — draft copy always comes from the draft stage.
         const finishedStore = useComposeStore.getState()
         if (content) {
-          const { draft, visibleText } = parseDraftBlock(content)
-          if (draft) {
-            const isVerified = getActiveAccountVerified()
-            const pref = finishedStore.longformPreference
-            const withPref = applyLongformPreference(draft, pref)
-            const gated = syncDraftForVerification(withPref, isVerified, pref)
-            finishedStore.applyDraftPatch(threadId, gated ? { ...withPref, ...gated } : withPref)
-            finishedStore.setDraftDrawerOpen(true)
-            finishedStore.setLastAssistantContent(threadId, visibleText || 'Draft updated.')
-          } else {
-            finishedStore.setLastAssistantContent(threadId, content)
-          }
-        } else {
-          finishedStore.setLastAssistantContent(
-            threadId,
-            draftContinuationCompleted ? 'Draft updated.' : '',
-          )
+          finishedStore.setLastAssistantContent(threadId, content)
         }
       } catch (err) {
         flushPendingDelta(threadId)

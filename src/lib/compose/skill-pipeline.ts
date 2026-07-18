@@ -52,13 +52,13 @@ export function handoffContract(stage: SkillStageId): string {
     )
   } else if (stage === 'craft-post' || stage === 'craft-thread') {
     lines.push(
-      '- Prefer an in-thread brief (from Discover/Angles or this conversation) over inventing a new thesis.',
-      '- MUST call compose_write_draft — the Draft drawer owns the copy. Never paste the full draft into chat.',
+      '- Prefer in-thread research (Discover/Angles or this conversation) — the draft stage continues this transcript.',
+      '- MUST call compose_write_draft with format + optional one-line intent (not a dense knowledge brief). Draft drawer owns the copy.',
     )
   } else {
     lines.push(
       '- Revise the CURRENT draft (drawer / SPENT currentDraft) against the checklist + SPENT.',
-      '- MUST call compose_write_draft with a revision brief. Prefer in-thread context; never recycle SPENT as new.',
+      '- MUST call compose_write_draft with format + optional one-line revision intent. Prefer in-thread context; never recycle SPENT as new.',
     )
   }
   return lines.join('\n')

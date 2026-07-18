@@ -13,11 +13,11 @@ export const CRAFT_POST_STARTER: ComposeTemplateStarter = {
       label: 'Craft post',
       jobBody: `JOB — Craft a single publishable post:
 
-MUST call compose_write_draft. Pass a dense brief (facts, angle, handles, constraints, [lever]/[end]). Never paste the full post into chat.
+MUST call compose_write_draft with format:"post" and optional one-line intent (e.g. lever/end). Do not pass a dense knowledge brief — research stays in this thread for the draft stage. Never paste the full post into chat.
 
-Apply CRAFT: hooks, levers (dwell→reply→profile), anti-bait checklist. Respect SPENT — new opener/slogan/spine or FAILED draft.
+Respect SPENT — new opener/slogan/spine or FAILED draft.
 
-Prefer format: post (≤280 unless longform is required). After the tool: short status in chat only.`,
+After the tool: short status in chat only.`,
     }),
   buildDisplayMessage: () => 'Craft a post — write it into the Draft drawer.',
 }

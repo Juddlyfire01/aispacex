@@ -11,13 +11,9 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/^You are venice-uncensored,/m)
     expect(system).not.toMatch(/ghostwriter/i)
     expect(system).toMatch(/research partner and analyst/i)
-    // Drafting always goes through the write-draft tool; the old postdraft JSON
-    // template must be gone (postdraft may still appear as a forbidden term).
     expect(system).toMatch(/compose_write_draft/)
     expect(system).not.toMatch(/```postdraft\n\{/)
-    expect(system).not.toMatch(/"segments":\s*\[\{\s*"text"/)
     expect(system).toMatch(/Do not offer to draft/i)
-    // Ids must be emitted as bare digits so the UI can auto-link them.
     expect(system).toMatch(/bare digits/i)
     expect(system).toMatch(/no thousands separators/i)
   })
@@ -31,7 +27,7 @@ describe('buildComposeSystem', () => {
     expect(system).toMatch(/^You are unknown-model,/m)
   })
 
-  it('toolsEnabled adds intel, history, VeniceStats, news_read, CRAFT, and SPENT rules', () => {
+  it('toolsEnabled adds intel, history, VeniceStats, news_read, and SPENT — not CRAFT/REGISTER', () => {
     const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
     const on = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: true })
     expect(off).not.toMatch(/intel_\*/)
@@ -49,15 +45,13 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/news_read/)
     expect(on).toMatch(/BOOKMARKED NEWS/)
     expect(on).toMatch(/alpha_list|ALPHA RADAR|24h/)
-    expect(on).toMatch(/## CRAFT/)
-    expect(on).toMatch(/Specificity beats cleverness/)
+    expect(on).not.toMatch(/## CRAFT/)
     expect(on).toMatch(/SPENT \/ PRIOR ART/)
-    expect(on).toMatch(/FAILED draft/)
     expect(off).not.toMatch(/alpha_list/)
-    // Drafting tool is always present once tools are enabled.
     expect(on).toMatch(/compose_write_draft/)
     expect(off).not.toMatch(/compose_write_draft/)
     expect(on).not.toMatch(/x_news_search/)
+    expect(on).not.toMatch(/REGISTER —/)
   })
 
   it('xNewsOn adds X News tool rules', () => {
@@ -92,65 +86,30 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/Live web search is available/i)
   })
 
-  it('includes register inject when provided', () => {
-    const system = buildComposeSystem({
-      modelId: 'm',
-      xSearchOn: false,
-      toolsEnabled: false,
-      registerInject:
-        'REGISTER — HARD STYLE CONSTRAINT (non-negotiable for all publishable copy):\nDescription: terse',
-    })
-    expect(system).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
-    expect(system).toMatch(/Description: terse/)
-    expect(system).toMatch(/REGISTER ADHERENCE/)
-  })
-
-  it('register inject is shared with the writer (chat + writer both see it)', () => {
+  it('does not embed register inject in research system', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: true,
-      registerInject: 'REGISTER — HARD STYLE CONSTRAINT\nDescription: metric stack',
     })
-    expect(system).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
-    expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/register-critical style cues/i)
+    expect(system).not.toMatch(/REGISTER ADHERENCE/)
+    expect(system).not.toMatch(/register-critical style cues/i)
   })
 
-  it('drafting always uses compose_write_draft, never a postdraft fence', () => {
+  it('drafting always uses compose_write_draft metadata; draft stage continues the thread', () => {
     const system = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
       toolsEnabled: true,
     })
     expect(system).toMatch(/compose_write_draft/)
-    // The legacy JSON draft template is gone (no fence example to fill in).
+    expect(system).toMatch(/metadata only/i)
+    expect(system).toMatch(/draft stage/i)
+    expect(system).toMatch(/continues THIS conversation/i)
     expect(system).not.toMatch(/```postdraft\n\{/)
-    expect(system).toMatch(/streams? .*into the Draft drawer/i)
-  })
-
-  it('draft spec forwards conversation history to a separate writer', () => {
-    const system = buildComposeSystem({
-      modelId: 'm',
-      xSearchOn: false,
-      toolsEnabled: true,
-    })
-    expect(system).toMatch(/compose_write_draft/)
-    expect(system).toMatch(/conversation history/i)
+    expect(system).not.toMatch(/status write_now/i)
+    expect(system).not.toMatch(/dense brief/i)
     expect(system).toMatch(/Do not announce a \"handoff\"/i)
-    expect(system).not.toMatch(/```postdraft\n/)
-  })
-
-  it('same-as-main spec continues the research turn instead of a separate writer', () => {
-    const system = buildComposeSystem({
-      modelId: 'm',
-      xSearchOn: false,
-      toolsEnabled: true,
-      sameModelDraft: true,
-    })
-    expect(system).toMatch(/status write_now/i)
-    expect(system).toMatch(/very next response/i)
-    expect(system).not.toMatch(/distinct writer model receives/i)
   })
 
   it('adds article mode rules when preferredFormat is article', () => {
@@ -173,6 +132,7 @@ describe('buildComposeSystem', () => {
     expect(system).not.toMatch(/postdraft/)
     expect(system).not.toMatch(/compose_write_draft/)
   })
+
   it('does not embed corpus or target dumps', () => {
     const system = buildComposeSystem({
       modelId: 'm',
@@ -190,7 +150,7 @@ describe('buildComposeSystem', () => {
       toolsEnabled: false,
       preferredFormat: 'article',
     })
-    expect(s).toMatch(/User prefers format: article/)
+    expect(s).toMatch(/User prefers draft format: article/)
   })
 
   it('documents format modes in auto', () => {
@@ -202,7 +162,6 @@ describe('buildComposeSystem', () => {
     })
     expect(s).toMatch(/Article/i)
     expect(s).toMatch(/thread/i)
-    expect(s).toMatch(/When Preferred format is Auto, also pass format/)
     expect(s).toMatch(/format: "post" \| "thread" \| "longform" \| "article"/)
   })
 

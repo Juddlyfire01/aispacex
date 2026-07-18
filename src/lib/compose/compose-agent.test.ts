@@ -422,38 +422,30 @@ describe('runComposeAgent', () => {
     expect(onWebSearch).not.toHaveBeenCalled()
   })
 
-  it('same-as-main compose_write_draft continues the agent loop instead of handoff', async () => {
-    veniceMock
-      .mockResolvedValueOnce(
-        sseStreamFromChunks([
-          chunk({
-            tool_calls: [
-              {
-                index: 0,
-                id: 'call_draft',
-                type: 'function',
-                function: {
-                  name: 'compose_write_draft',
-                  arguments: JSON.stringify({ brief: 'Write about VVV burns' }),
-                },
+  it('compose_write_draft always starts draft stage with agent transcript', async () => {
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_draft',
+              type: 'function',
+              function: {
+                name: 'compose_write_draft',
+                arguments: JSON.stringify({ intent: '≤280', format: 'post' }),
               },
-            ],
-            finish_reason: 'tool_calls',
-          }),
-        ]),
-      )
-      .mockResolvedValueOnce(
-        sseStreamFromChunks([
-          chunk({ content: 'VVV burns are ' }),
-          chunk({ content: 'deflationary.', finish_reason: 'stop' }),
-        ]),
-      )
+            },
+          ],
+          finish_reason: 'tool_calls',
+        }),
+      ]),
+    )
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([chunk({ content: 'Draft is in the drawer.', finish_reason: 'stop' })]),
+    )
 
     const onDraftHandoff = vi.fn()
-    const onDraftContinuationStart = vi.fn()
-    const draftDeltas: string[] = []
-    const onDraftContinuationEnd = vi.fn()
-    const chatDeltas: string[] = []
 
     const result = await runComposeAgent({
       model: 'test-model',
@@ -462,22 +454,19 @@ describe('runComposeAgent', () => {
       historySnapshot: { threads: [] },
       scope: { type: 'all' },
       xSearchOn: false,
-      sameModelDraftContinuation: true,
-      onDraftContinuationStart,
-      onDraftDelta: (t) => draftDeltas.push(t),
-      onDraftContinuationEnd,
       onDraftHandoff,
-      onDelta: (t) => chatDeltas.push(t),
+      onDelta: () => {},
     })
 
-    expect(onDraftHandoff).not.toHaveBeenCalled()
-    expect(onDraftContinuationStart).toHaveBeenCalledWith(
-      expect.objectContaining({ brief: 'Write about VVV burns' }),
+    expect(onDraftHandoff).toHaveBeenCalledTimes(1)
+    expect(onDraftHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: '≤280', format: 'post' }),
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'user' }),
+        expect.objectContaining({ role: 'assistant', tool_calls: expect.any(Array) }),
+      ]),
     )
-    expect(draftDeltas.join('')).toBe('VVV burns are deflationary.')
-    expect(chatDeltas).toEqual([])
-    expect(onDraftContinuationEnd).toHaveBeenCalledWith('VVV burns are deflationary.')
-    expect(result.content).toBe('')
+    expect(result.content).toMatch(/Draft is in the drawer/)
     expect(veniceMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -75,7 +75,7 @@ export function ComposeSettings({
         <div>
           <Label
             htmlFor="compose-model"
-            title="Researches and chats; Draft Model streams the post into the drawer."
+            title="Stage 1: tools + chat. Researches, analyzes, then calls compose_write_draft to start the draft stage."
           >
             Research Model
           </Label>
@@ -103,7 +103,7 @@ export function ComposeSettings({
         <div>
           <Label
             htmlFor="compose-draft-model"
-            title="Same as main: continues the research turn to stream copy into the drawer. Separate model: distinct writer fetch with brief + history."
+            title="Stage 2: always a separate write completion that continues the research transcript. Same as research = same model id, still a separate draft stage."
           >
             Draft Model
           </Label>
@@ -113,7 +113,7 @@ export function ComposeSettings({
             onChange={(e) => setDraftModel(e.target.value)}
             className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full"
           >
-            <option value={DRAFT_MODEL_SAME}>Same as main</option>
+            <option value={DRAFT_MODEL_SAME}>Same as research</option>
             {writerModels.map((m) => {
               const name = m.model_spec?.name || m.id
               const isPinned =

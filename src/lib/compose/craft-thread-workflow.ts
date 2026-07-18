@@ -13,14 +13,14 @@ export const CRAFT_THREAD_STARTER: ComposeTemplateStarter = {
       label: 'Craft thread',
       jobBody: `JOB — Craft a publishable thread:
 
-MUST call compose_write_draft. Structure as the 5-beat skeleton:
+MUST call compose_write_draft with format:"thread" and optional one-line intent. Do not pass a dense knowledge brief — research stays in this thread. Structure the draft stage should follow:
 1 Hook — strongest claim
 2 Setup — why care
 3 Meat — best insight
 4 Elaboration — receipts / implications
 5 Close — principle + reply prompt
 
-Apply CRAFT hooks/levers/anti-bait. Respect SPENT. Prefer format: thread (segments separated by --- in the writer). Never paste the full thread into chat.`,
+Respect SPENT. Never paste the full thread into chat.`,
     }),
   buildDisplayMessage: () => 'Craft a thread — write it into the Draft drawer.',
 }

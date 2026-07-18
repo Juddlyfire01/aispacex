@@ -13,7 +13,7 @@ export const POLISH_STARTER: ComposeTemplateStarter = {
       label: 'Polish',
       jobBody: `JOB — Polish the CURRENT draft:
 
-Read the draft drawer text (also mirrored in SPENT when present) and the conversation brief. MUST call compose_write_draft with a revision brief.
+Read the draft drawer text (also mirrored in SPENT when present). MUST call compose_write_draft with optional one-line revision intent (not a dense re-brief). The draft stage continues this transcript.
 
 Revise against:
 - Pre-publish checklist (hook, specificity, reply prompt, screenshot independence, anti-bait, length sweet spot, cadence)

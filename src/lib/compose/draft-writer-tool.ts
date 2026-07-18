@@ -1,14 +1,12 @@
-// Draft writer: ALL drafting goes through compose_write_draft. The research
-// agent calls the tool with a brief; a distinct draft model streams copy into
-// the Draft drawer with brief + conversation history attached. Same as main
-// continues the research agent turn — no separate writer fetch.
-// There is no ```postdraft path — drafting always streams via the tool.
+// Draft stage signal: research calls compose_write_draft with metadata only.
+// A separate draft-stage completion continues the agent transcript (model may
+// match research or differ). Same-as-main = same model id, still draft stage.
 
 import type { ToolDefinition } from '../../types/venice'
 import type { PreferredFormat, ResolvedFormat } from './format'
 import type { PostTarget } from './types'
 
-/** Persisted sentinel — draft writer uses the research/main model id. */
+/** Persisted sentinel — draft stage uses the research/main model id. */
 export const DRAFT_MODEL_SAME = 'same' as const
 export type DraftModelSetting = typeof DRAFT_MODEL_SAME | (string & {})
 
@@ -24,11 +22,12 @@ export const DRAFT_WRITE_FORMATS: DraftWriteFormat[] = [
   'article',
 ]
 
+/** Metadata signal for the draft stage — not a knowledge brief. */
 export interface DraftWriteBrief {
-  brief: string
+  /** Optional one-line directive (legacy `brief` / `notes` map here). */
+  intent?: string
   target?: PostTarget
   longform?: boolean
-  notes?: string
   /**
    * Format the research model chose for this write (especially when preference
    * is Auto). Locked user preferences still win via resolveDraftWriteFormat.
@@ -43,20 +42,25 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Write publishable X copy into the Draft drawer. This is the ONLY way to produce a draft — the copy streams live into the Draft drawer. The research conversation history is attached automatically, so pass a dense brief of priorities and must-include/must-avoid (not the full manuscript or full chat). Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Never paste the draft copy into chat yourself. When Preferred format is Auto, pass format (post|thread|longform|article) for the shape you chose. For Articles use format:"article"; do not set longform true.',
+      'Start the draft stage: publishable X copy streams into the Draft drawer. The draft stage continues this conversation transcript automatically — pass metadata only (format, target, optional one-line intent). Do NOT pass a dense knowledge brief or the manuscript. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Never paste the draft copy into chat yourself. When Preferred format is Auto, pass format (post|thread|longform|article). For Articles use format:"article"; do not set longform true.',
     parameters: {
       type: 'object',
       properties: {
+        intent: {
+          type: 'string',
+          description:
+            'Optional one-line directive only (e.g. "reply lever on the end", "≤280"). Facts stay in the conversation — do not re-tell research.',
+        },
         brief: {
           type: 'string',
           description:
-            'Dense writing brief: intent, key facts/metrics, @handles, must-include / must-avoid. Include short voice cues when a register is active (cadence, devices, metric density) — the writer also receives the full REGISTER block. For articles include section outline. Do not include image/cover prompts here — those stay in chat.',
+            'Deprecated alias for intent. Prefer intent. If provided, treated as a one-line directive only.',
         },
         format: {
           type: 'string',
           enum: ['post', 'thread', 'longform', 'article'],
           description:
-            'Draft shape. Required when Preferred format is Auto — choose from the request (post / thread / longform / article). When the user locked a preference, omit or match that preference. Use article for X Articles (titled structured piece); use longform only for a Premium long-form tweet.',
+            'Draft shape. Required when Preferred format is Auto. Use article for X Articles; longform only for a Premium long-form tweet.',
         },
         target: {
           type: 'object',
@@ -72,15 +76,14 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         longform: {
           type: 'boolean',
           description:
-            'Allow Premium long-form tweet (>280). Prefer format:"longform" instead. Do NOT set true for X Articles — use format:"article".',
+            'Allow Premium long-form tweet (>280). Prefer format:"longform". Do NOT set true for X Articles — use format:"article".',
         },
         notes: {
           type: 'string',
           description:
-            'Hard constraints e.g. keep under 280, include NFA, ranking format, register reminders (terse, metric-stack, no hype).',
+            'Deprecated. Optional one-line constraint; merged into intent if intent is empty.',
         },
       },
-      required: ['brief'],
       additionalProperties: false,
     },
   },
@@ -93,8 +96,13 @@ function parseDraftWriteFormat(raw: unknown): DraftWriteFormat | undefined {
 }
 
 export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteBrief {
-  const brief = typeof args.brief === 'string' ? args.brief.trim() : ''
-  const notes = typeof args.notes === 'string' ? args.notes.trim() : undefined
+  const intentRaw =
+    (typeof args.intent === 'string' && args.intent.trim()) ||
+    (typeof args.brief === 'string' && args.brief.trim()) ||
+    (typeof args.notes === 'string' && args.notes.trim()) ||
+    ''
+  // Cap legacy dense briefs so they cannot replace the transcript as knowledge.
+  const intent = intentRaw.length > 280 ? `${intentRaw.slice(0, 277)}…` : intentRaw || undefined
   const longform = typeof args.longform === 'boolean' ? args.longform : undefined
   const format = parseDraftWriteFormat(args.format)
   let target: PostTarget | undefined
@@ -109,7 +117,7 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
       target = { kind: 'original' }
     }
   }
-  return { brief, target, longform, notes, ...(format ? { format } : {}) }
+  return { ...(intent ? { intent } : {}), target, longform, ...(format ? { format } : {}) }
 }
 
 /**
@@ -129,20 +137,21 @@ export function resolveDraftWriteFormat(
 
 /**
  * True when Draft model is a distinct Venice id (not "Same as main").
+ * Does not change lifecycle — draft stage is always separate.
  */
 export function isSeparateDraftModel(draftModel: string | undefined | null): boolean {
   return Boolean(draftModel && draftModel !== DRAFT_MODEL_SAME)
 }
 
 /**
- * True when compose_write_draft should spawn a separate writer fetch.
- * Same-as-main continues the research agent loop instead.
+ * Draft stage always runs as a separate completion when drafting is enabled.
+ * @deprecated Prefer always wiring onDraftHandoff; kept for call-site clarity.
  */
-export function isDraftHandoffEnabled(draftModel?: string | null): boolean {
-  return isSeparateDraftModel(draftModel)
+export function isDraftHandoffEnabled(_draftModel?: string | null): boolean {
+  return true
 }
 
-/** Resolve the Venice model id the draft writer should call. */
+/** Resolve the Venice model id the draft stage should call. */
 export function resolveDraftWriterModelId(
   draftModel: string | undefined | null,
   mainModel: string,
@@ -151,16 +160,10 @@ export function resolveDraftWriterModelId(
   return draftModel
 }
 
-/** Timeline labels for compose_write_draft / writer streaming. */
+/** Timeline labels for compose_write_draft / draft-stage streaming. */
 export function describeDraftWriteLabels(opts: {
-  sameModel: boolean
   article: boolean
 }): { progressLabel: string; label: string } {
-  if (opts.sameModel) {
-    return opts.article
-      ? { progressLabel: 'Writing article…', label: 'Wrote article' }
-      : { progressLabel: 'Writing draft…', label: 'Wrote draft' }
-  }
   return opts.article
     ? {
         progressLabel: 'Handing off to article writer',

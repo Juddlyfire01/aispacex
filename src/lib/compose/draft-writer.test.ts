@@ -8,7 +8,16 @@ import {
   describeDraftWriteLabels,
   DRAFT_MODEL_SAME,
 } from './draft-writer-tool'
-import { splitWriterSegments, buildWriterUser, buildWriterSystem, parseArticleFromWriterText, packConversationForWriter, isToolCallShapedDraft } from './draft-writer'
+import {
+  splitWriterSegments,
+  buildWriterUser,
+  buildWriterSystem,
+  buildDraftStageSystem,
+  buildDraftStageWriteNow,
+  buildDraftStageMessages,
+  parseArticleFromWriterText,
+  isToolCallShapedDraft,
+} from './draft-writer'
 import { sortDraftWriterModels, pickDefaultDraftModel } from './model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
 
@@ -27,27 +36,30 @@ function model(id: string, opts?: { name?: string; traits?: ModelTrait[] }): Ven
 }
 
 describe('parseDraftWriteBrief', () => {
-  it('parses brief and reply target', () => {
+  it('parses intent and reply target', () => {
     const b = parseDraftWriteBrief({
-      brief: 'Write about VVV',
+      intent: '≤280',
       longform: false,
       target: { kind: 'reply', toPostId: '1', toUsername: 'bob' },
-      notes: 'under 280',
     })
-    expect(b.brief).toBe('Write about VVV')
+    expect(b.intent).toBe('≤280')
     expect(b.longform).toBe(false)
-    expect(b.notes).toBe('under 280')
     expect(b.target).toEqual({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
   })
 
-  it('parses format when valid', () => {
-    expect(parseDraftWriteBrief({ brief: 'x', format: 'article' }).format).toBe('article')
-    expect(parseDraftWriteBrief({ brief: 'x', format: 'thread' }).format).toBe('thread')
-    expect(parseDraftWriteBrief({ brief: 'x', format: 'nope' }).format).toBeUndefined()
+  it('maps legacy brief/notes to intent', () => {
+    expect(parseDraftWriteBrief({ brief: 'Write about VVV' }).intent).toBe('Write about VVV')
+    expect(parseDraftWriteBrief({ notes: 'under 280' }).intent).toBe('under 280')
   })
 
-  it('tolerates missing brief', () => {
-    expect(parseDraftWriteBrief({}).brief).toBe('')
+  it('parses format when valid', () => {
+    expect(parseDraftWriteBrief({ format: 'article' }).format).toBe('article')
+    expect(parseDraftWriteBrief({ format: 'thread' }).format).toBe('thread')
+    expect(parseDraftWriteBrief({ format: 'nope' }).format).toBeUndefined()
+  })
+
+  it('allows empty metadata', () => {
+    expect(parseDraftWriteBrief({})).toEqual({})
   })
 })
 
@@ -71,16 +83,16 @@ describe('resolveDraftWriteFormat', () => {
 })
 
 describe('isDraftHandoffEnabled', () => {
-  it('is enabled only for a distinct draft model', () => {
-    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(false)
-    expect(isDraftHandoffEnabled('')).toBe(false)
-    expect(isDraftHandoffEnabled(null)).toBe(false)
+  it('is always true — draft stage is always separate', () => {
+    expect(isDraftHandoffEnabled(DRAFT_MODEL_SAME)).toBe(true)
+    expect(isDraftHandoffEnabled('')).toBe(true)
+    expect(isDraftHandoffEnabled(null)).toBe(true)
     expect(isDraftHandoffEnabled('venice-uncensored-1-2')).toBe(true)
   })
 })
 
 describe('isSeparateDraftModel / resolveDraftWriterModelId', () => {
-  it('treats same / empty as main model', () => {
+  it('treats same / empty as main model id', () => {
     expect(isSeparateDraftModel(DRAFT_MODEL_SAME)).toBe(false)
     expect(isSeparateDraftModel('')).toBe(false)
     expect(isSeparateDraftModel(null)).toBe(false)
@@ -96,20 +108,12 @@ describe('isSeparateDraftModel / resolveDraftWriterModelId', () => {
 })
 
 describe('describeDraftWriteLabels', () => {
-  it('uses Writing draft labels for same model', () => {
-    expect(describeDraftWriteLabels({ sameModel: true, article: false })).toEqual({
-      progressLabel: 'Writing draft…',
-      label: 'Wrote draft',
+  it('uses handoff labels for draft stage', () => {
+    expect(describeDraftWriteLabels({ article: false })).toEqual({
+      progressLabel: 'Handing off to draft writer',
+      label: 'Handed off to draft writer',
     })
-    expect(describeDraftWriteLabels({ sameModel: true, article: true })).toEqual({
-      progressLabel: 'Writing article…',
-      label: 'Wrote article',
-    })
-  })
-  it('uses handoff labels for a separate writer model', () => {
-    expect(describeDraftWriteLabels({ sameModel: false, article: false }).progressLabel).toMatch(
-      /Handing off/,
-    )
+    expect(describeDraftWriteLabels({ article: true }).label).toMatch(/article writer/)
   })
 })
 
@@ -161,103 +165,62 @@ describe('parseArticleFromWriterText', () => {
   })
 })
 
-describe('buildWriterUser', () => {
+describe('buildDraftStageWriteNow / buildWriterUser', () => {
   it('appends preferred format rules', () => {
-    const u = buildWriterUser({
-      brief: 'Cover VVV burns',
+    const u = buildDraftStageWriteNow({
       preferredFormat: 'article',
     })
-    expect(u).toMatch(/Preferred format: article/)
+    expect(u).toMatch(/DRAFT STAGE/)
+    expect(u).toMatch(/Format: article/)
     expect(u).toMatch(/# Title/)
-    expect(u).toMatch(/no image prompts/i)
     expect(u).not.toMatch(/IMAGE_PROMPT/)
-    expect(u).not.toMatch(/Long-form allowed/)
   })
 
-  it('reminds writer to apply REGISTER when hasRegister', () => {
-    const u = buildWriterUser({ brief: 'Cover VVV burns', preferredFormat: 'article' }, true)
-    expect(u).toMatch(/Apply the REGISTER voice/)
-    expect(u).toMatch(/FORMAT=article/)
-    expect(buildWriterUser({ brief: 'x' }, false)).not.toMatch(/REGISTER voice/)
+  it('includes optional intent', () => {
+    const u = buildWriterUser({ intent: 'reply lever', preferredFormat: 'post' })
+    expect(u).toMatch(/Intent: reply lever/)
   })
 })
 
-describe('buildWriterSystem', () => {
-  it('appends the register inject and reminds format scaling', () => {
-    const sys = buildWriterSystem('REGISTER — HARD STYLE CONSTRAINT\nDescription: terse')
+describe('buildDraftStageSystem / buildWriterSystem', () => {
+  it('appends the register inject and writing policy', () => {
+    const sys = buildDraftStageSystem('REGISTER — HARD STYLE CONSTRAINT\nDescription: terse')
     expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
     expect(sys).toMatch(/scale length and paragraphing/)
-    expect(sys).not.toMatch(/REGISTER OVERRIDE/)
-    expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
+    expect(sys).toMatch(/NO tools/)
+    expect(sys).toMatch(/## CRAFT/)
+    expect(sys).toMatch(/SPENT \/ PRIOR ART/)
+    expect(buildWriterSystem(null)).toMatch(/draft stage/)
   })
 
   it('always injects CRAFT craft guidance', () => {
-    const sys = buildWriterSystem(null)
+    const sys = buildDraftStageSystem(null)
     expect(sys).toMatch(/## CRAFT/)
     expect(sys).toMatch(/Specificity beats cleverness/)
     expect(sys).toMatch(/HOOK PATTERNS/)
     expect(sys).toMatch(/ANTI-PATTERNS/)
   })
-
-  it('always hard-fails on SPENT / PRIOR ART reuse', () => {
-    const sys = buildWriterSystem(null)
-    expect(sys).toMatch(/SPENT \/ PRIOR ART/)
-    expect(sys).toMatch(/FAILED draft/)
-  })
-
-  it('instructs writer to use conversation + brief when hasConversation', () => {
-    const sys = buildWriterSystem(null, { hasConversation: true })
-    expect(sys).toMatch(/research conversation context AND a writing brief/i)
-    expect(sys).toMatch(/NO tools/i)
-    expect(sys).toMatch(/compose_write_draft/)
-    expect(buildWriterSystem(null, { hasConversation: false })).toMatch(/Follow the brief tightly/)
-  })
-
-  it('keeps casual-register override when conversation is attached', () => {
-    const sys = buildWriterSystem(null, { hasConversation: true })
-    expect(sys).toMatch(/casual/i)
-  })
 })
 
-describe('packConversationForWriter', () => {
-  it('packs user/assistant turns and drops system/tool', () => {
-    const packed = packConversationForWriter([
-      { role: 'system', content: 'sys' },
-      { role: 'user', content: 'Research Oregon and SpaceX' },
-      { role: 'assistant', content: 'Oregon + orbital compute angle.' },
-      { role: 'tool', content: '{"ok":true}', tool_call_id: 't1' },
-    ])
-    expect(packed).toMatch(/User:\nResearch Oregon/)
-    expect(packed).toMatch(/Research model:\nOregon/)
-    expect(packed).not.toMatch(/sys/)
-    expect(packed).not.toMatch(/ok/)
-  })
-
-  it('scrubs compose_write_draft ritual from research turns', () => {
-    const packed = packConversationForWriter([
-      {
-        role: 'assistant',
-        content:
-          'Calling compose_write_draft({ "brief": "write about DIEM", "format": "post" }) now.',
-      },
-      { role: 'user', content: 'Craft a post about DIEM mint window' },
-    ])
-    expect(packed).not.toMatch(/compose_write_draft/)
-    expect(packed).toMatch(/Craft a post about DIEM/)
-  })
-
-  it('keeps recent turns when over maxChars', () => {
-    const packed = packConversationForWriter(
+describe('buildDraftStageMessages', () => {
+  it('replaces research system and appends write-now', () => {
+    const msgs = buildDraftStageMessages(
       [
-        { role: 'user', content: 'AAAA' },
-        { role: 'assistant', content: 'BBBB' },
-        { role: 'user', content: 'CCCC' },
+        { role: 'system', content: 'research system' },
+        { role: 'user', content: 'Craft a post' },
+        { role: 'assistant', content: 'Facts about DIEM' },
+        { role: 'tool', content: '{"ok":true}', tool_call_id: 't1' },
       ],
-      40,
+      { preferredFormat: 'post', intent: '≤280' },
+      'REGISTER inject',
     )
-    expect(packed).toMatch(/CCCC/)
-    expect(packed).toMatch(/omitted for length/)
-    expect(packed).not.toMatch(/AAAA/)
+    expect(msgs[0]?.role).toBe('system')
+    expect(String(msgs[0]?.content)).toMatch(/draft stage/)
+    expect(String(msgs[0]?.content)).toMatch(/REGISTER inject/)
+    expect(msgs.some((m) => m.role === 'tool')).toBe(true)
+    expect(msgs[msgs.length - 1]?.role).toBe('user')
+    expect(String(msgs[msgs.length - 1]?.content)).toMatch(/DRAFT STAGE/)
+    expect(msgs.every((m) => m.content !== 'research system')).toBe(true)
   })
 })
 
@@ -284,27 +247,6 @@ describe('isToolCallShapedDraft', () => {
         '~336 DIEM left. Credits burns + owned GPU margins. Own the $1/day claim?',
       ),
     ).toBe(false)
-  })
-})
-
-describe('buildWriterUser with conversation', () => {
-  it('prepends research conversation before the brief', () => {
-    const u = buildWriterUser({ brief: 'Write the article' }, false, 'User:\nDo Plan L')
-    expect(u).toMatch(/Research context/)
-    expect(u).toMatch(/Do Plan L/)
-    expect(u).toMatch(/Brief:\nWrite the article/)
-  })
-
-  it('includes spentText as a dedicated section before conversation', () => {
-    const u = buildWriterUser(
-      { brief: 'Write the post' },
-      false,
-      'User:\nAngle',
-      '## SPENT / PRIOR ART\n- opener: Old line',
-    )
-    expect(u.indexOf('## SPENT / PRIOR ART')).toBeLessThan(u.indexOf('Research context'))
-    expect(u).toMatch(/Old line/)
-    expect(u).toMatch(/Brief:\nWrite the post/)
   })
 })
 

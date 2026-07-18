@@ -85,8 +85,9 @@ export function ComposeWorkspace() {
     }
   }, [model, models, setModel])
 
-  // Draft writer: default Same as main. Only auto-upgrade when user picked a
-  // specific Venice Uncensored SKU that Venice retagged.
+  // Draft stage model: default Same as research (same id, still a separate
+  // draft-stage completion). Only auto-upgrade when user picked a specific
+  // Venice Uncensored SKU that Venice retagged.
   useEffect(() => {
     if (!models || models.length === 0) return
     if (!draftModel) {

@@ -54,7 +54,7 @@ export function describeToolProgress(name: string, args: Record<string, unknown>
     case 'compose_history_get':
       return 'Reading a past post chat'
     case 'compose_write_draft':
-      return 'Writing draft…'
+      return 'Handing off to draft writer'
     case 'news_read':
       return 'Reading bookmarked article'
     case 'x_news_search':
@@ -98,7 +98,7 @@ export function describeToolCall(name: string, args: Record<string, unknown>): s
     case 'compose_history_get':
       return 'Read a past post chat'
     case 'compose_write_draft':
-      return 'Wrote draft'
+      return 'Handed off to draft writer'
     case 'news_read':
       return 'Read bookmarked article'
     case 'x_news_search':
@@ -137,7 +137,6 @@ export function describeToolResult(name: string, result: unknown): string | unde
       return `${arr.length} ${noun}${arr.length === 1 ? '' : 's'}`
     }
     if (name === 'compose_write_draft' && obj.status === 'started') return 'streaming'
-    if (name === 'compose_write_draft' && obj.status === 'write_now') return 'ready'
   }
   return undefined
 }
