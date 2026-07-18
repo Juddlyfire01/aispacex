@@ -14,6 +14,17 @@ export const config = { api: { bodyParser: false } }
 
 const VENICE_API_BASE = 'https://api.venice.ai/api/v1'
 
+// Domains the download relay is allowed to fetch. Venice returns fully-qualified
+// signed download_url / video_url / audio_url links for VPS-backed jobs; the
+// browser can't fetch them cross-origin (no CORS), so we relay same-origin.
+// Restrict to Venice-owned hosts so the relay can't be used as an open proxy.
+const RELAY_HOSTS = /(^|\.)(venice\.ai|veniceai\.com)$|^cdn\.venice\./i
+
+function isRelayAllowed(url: URL): boolean {
+  if (url.protocol !== 'https:') return false
+  return RELAY_HOSTS.test(url.hostname)
+}
+
 // Only forward headers Venice needs. Copying the browser bag (accept-encoding,
 // origin, sec-fetch-*, transfer-encoding, …) breaks Node fetch / SSE under the
 // in-process Vite API and is unnecessary on Vercel too.
@@ -37,6 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const segments = req.query.path
   const path = (Array.isArray(segments) ? segments.join('/') : String(segments ?? '')).replace(/^\/+/, '')
   if (!path) return res.status(400).json({ error: 'missing_path' })
+
+  // Download relay: GET /api/venice/proxy/download?url=<encoded signed URL>.
+  // VPS-backed video/audio return a storage download_url the browser can't fetch
+  // cross-origin (no CORS). We fetch it server-side and stream bytes back so the
+  // client can GET it same-origin. Reserved segment: no Venice API path is "download".
+  if (path === 'download') {
+    return relayDownload(req, res)
+  }
 
   const url = new URL(`${VENICE_API_BASE}/${path}`)
   for (const [k, v] of Object.entries(req.query)) {
@@ -91,8 +110,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!upstream.body) return res.end()
+  return streamBody(res, upstream.body)
+}
 
-  const reader = upstream.body.getReader()
+/** Forward an upstream byte stream to the client with backpressure. */
+async function streamBody(res: VercelResponse, body: ReadableStream<Uint8Array>) {
+  const reader = body.getReader()
   try {
     for (;;) {
       const { done, value } = await reader.read()
@@ -117,4 +140,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } finally {
     if (!res.writableEnded) res.end()
   }
+}
+
+/**
+ * Relay a signed VPS download URL (video_url / audio_url / download_url) so the
+ * browser can fetch it same-origin. No auth header is attached — the URL's own
+ * signature is the credential — but the target host is allow-listed to Venice
+ * domains so the relay can't proxy arbitrary URLs.
+ */
+async function relayDownload(req: VercelRequest, res: VercelResponse) {
+  const raw = req.query.url
+  const target = Array.isArray(raw) ? raw[0] : raw
+  if (!target) return res.status(400).json({ error: 'missing_url' })
+
+  let url: URL
+  try {
+    url = new URL(target)
+  } catch {
+    return res.status(400).json({ error: 'invalid_url' })
+  }
+  if (!isRelayAllowed(url)) {
+    return res.status(403).json({ error: 'relay_host_not_allowed', host: url.hostname })
+  }
+
+  let upstream: Response
+  try {
+    upstream = await fetch(url.toString(), { headers: { 'accept-encoding': 'identity' } })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return res.status(502).json({ error: 'relay_upstream_unreachable', message })
+  }
+  if (!upstream.ok) {
+    try { await upstream.arrayBuffer() } catch { /* drain */ }
+    return res.status(upstream.status).json({ error: 'relay_upstream_error', status: upstream.status })
+  }
+
+  res.status(upstream.status)
+  const ct = upstream.headers.get('content-type')
+  if (ct) res.setHeader('content-type', ct)
+  const len = upstream.headers.get('content-length')
+  if (len) res.setHeader('content-length', len)
+
+  if (!upstream.body) return res.end()
+  return streamBody(res, upstream.body)
 }

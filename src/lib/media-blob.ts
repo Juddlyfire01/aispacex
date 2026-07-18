@@ -45,6 +45,23 @@ export async function blobFromUrl(url: string): Promise<Blob> {
   return res.blob()
 }
 
+/**
+ * Fetch a Venice VPS download/media URL through the same-origin download relay
+ * (api/venice/proxy.ts) instead of directly. Venice storage hosts don't send CORS
+ * headers, so a direct cross-origin fetch fails with "Failed to fetch"; the relay
+ * fetches server-side and streams the bytes back. Same-origin URLs are returned
+ * unchanged (already fetchable).
+ */
+export function relayMediaUrl(url: string): string {
+  // Already same-origin (relative) — no relay needed.
+  if (!/^https?:\/\//i.test(url)) return url
+  return `/api/venice/proxy/download?url=${encodeURIComponent(url)}`
+}
+
+export async function blobFromVeniceUrl(url: string): Promise<Blob> {
+  return blobFromUrl(relayMediaUrl(url))
+}
+
 /** Convert a Blob to a `data:<mime>;base64,...` URL (for preview / FileReader parity). */
 export async function blobToDataUrl(blob: Blob): Promise<string> {
   const mime = blob.type || 'application/octet-stream'

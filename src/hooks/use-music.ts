@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { blobFromUrl } from '../lib/media-blob'
+import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import type { MusicQueueRequest, MusicQueueResponse, MusicRetrieveResponse } from '../types/venice'
@@ -133,7 +133,7 @@ export function useMusic() {
         }
         if (s === 'completed' && result.audio_url) {
           try {
-            const blob = await blobFromUrl(result.audio_url)
+            const blob = await blobFromVeniceUrl(result.audio_url)
             if (runtime.cancelled) return
             stopJobTimers(jobId)
             patchJob(jobId, {

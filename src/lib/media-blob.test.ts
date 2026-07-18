@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blobFromBase64, blobToDataUrl, extensionForMime, mimeFromBase64, rawBase64 } from './media-blob'
+import { blobFromBase64, blobToDataUrl, extensionForMime, mimeFromBase64, rawBase64, relayMediaUrl } from './media-blob'
 
 describe('mimeFromBase64', () => {
   it('detects png/jpeg/webp prefixes and data URLs', () => {
@@ -41,5 +41,18 @@ describe('extensionForMime', () => {
     expect(extensionForMime('image/png')).toBe('png')
     expect(extensionForMime('image/jpeg')).toBe('jpg')
     expect(extensionForMime('video/mp4')).toBe('mp4')
+  })
+})
+
+describe('relayMediaUrl', () => {
+  it('routes absolute http(s) media URLs through the same-origin relay', () => {
+    const url = 'https://cdn.venice.ai/storage/abc.mp4?sig=xyz&exp=123'
+    expect(relayMediaUrl(url)).toBe(`/api/venice/proxy/download?url=${encodeURIComponent(url)}`)
+  })
+
+  it('leaves relative (same-origin) URLs unchanged', () => {
+    expect(relayMediaUrl('/api/venice/proxy/video/retrieve')).toBe('/api/venice/proxy/video/retrieve')
+    expect(relayMediaUrl('blob:https://app.local/abc')).toBe('blob:https://app.local/abc')
+    expect(relayMediaUrl('data:video/mp4;base64,AAAA')).toBe('data:video/mp4;base64,AAAA')
   })
 })

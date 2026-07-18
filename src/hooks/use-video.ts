@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { blobFromUrl } from '../lib/media-blob'
+import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import type { VideoQueueRequest, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
@@ -44,6 +44,20 @@ interface JobRuntime {
 
 function isActive(status: VideoJobStatus) {
   return status === 'queueing' || status === 'queued' || status === 'processing'
+}
+
+/** Finalize a completed job: tells Venice to delete the now-downloaded media.
+ * Best-effort — media is already in hand, so a failure here is harmless. */
+async function finalize(job: VideoJob) {
+  if (!job.queueId) return
+  try {
+    await veniceFetch('/video/complete', {
+      method: 'POST',
+      body: JSON.stringify({ model: job.model, queue_id: job.queueId }),
+    })
+  } catch {
+    /* media already downloaded; deletion is best-effort */
+  }
 }
 
 export function useVideo() {
@@ -115,7 +129,9 @@ export function useVideo() {
           body: JSON.stringify({
             model: job.model,
             queue_id: job.queueId,
-            delete_media_on_completion: true,
+            // Do NOT delete on completion: a completed VPS job still needs its
+            // media downloaded. We finalize (delete) via /video/complete only
+            // after a successful download, so a failed download can be retried.
           }),
         })
         if (runtime.cancelled) return
@@ -126,6 +142,7 @@ export function useVideo() {
           if (runtime.cancelled) return
           stopJobTimers(jobId)
           patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
+          void finalize(job)
           return
         }
 
@@ -144,7 +161,7 @@ export function useVideo() {
             return
           }
           try {
-            const blob = await blobFromUrl(url)
+            const blob = await blobFromVeniceUrl(url)
             if (runtime.cancelled) return
             stopJobTimers(jobId)
             patchJob(jobId, {
@@ -152,6 +169,7 @@ export function useVideo() {
               blob: blob.type ? blob : new Blob([blob], { type: 'video/mp4' }),
               elapsedMs: Date.now() - job.startedAt,
             })
+            void finalize(job)
           } catch (fetchErr) {
             stopJobTimers(jobId)
             patchJob(jobId, {
