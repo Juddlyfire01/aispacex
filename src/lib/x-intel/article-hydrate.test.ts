@@ -17,7 +17,7 @@ vi.mock('../../stores/x-intel-store', () => ({
   },
 }))
 
-import { findArticleStubIds, discoverArticleStubIds, hydrateArticlePosts } from './article-hydrate'
+import { findArticleStubIds, hydrateArticlePosts } from './article-hydrate'
 
 function rawArticle(id: string, over: Partial<XPostRaw> = {}): XPostRaw {
   return {
