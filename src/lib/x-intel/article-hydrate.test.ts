@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Post, XPostRaw, XPaginatedResponse } from './types'
+import type { Post, XPostRaw } from './types'
 
 // Mock the X client so discovery/hydrate can be driven deterministically.
 const xapiMock = vi.fn()
@@ -28,10 +28,6 @@ function rawArticle(id: string, over: Partial<XPostRaw> = {}): XPostRaw {
     article: { title: 'Toward Unrestricted Intelligence' },
     ...over,
   }
-}
-
-function page(rows: XPostRaw[], nextToken?: string): XPaginatedResponse<XPostRaw> {
-  return { data: rows, meta: { result_count: rows.length, next_token: nextToken } }
 }
 
 function post(over: Partial<Post> & Pick<Post, 'id'>): Post {
@@ -110,59 +106,28 @@ describe('findArticleStubIds', () => {
   })
 })
 
-describe('discoverArticleStubIds', () => {
+describe('hydrateArticlePosts (store-only, no timeline scan)', () => {
   beforeEach(() => xapiMock.mockReset())
 
-  it('finds Article posts on the timeline even when they carry only a title', async () => {
-    // Timeline returns the Article post as { article: { title } } — no body/url.
-    xapiMock.mockResolvedValueOnce(page([
-      rawArticle('2072326370206581037'),
-      { id: '2', text: 'a normal post', author_id: '42', created_at: '2026-07-10T00:00:00Z' },
-    ]))
-    const { ids } = await discoverArticleStubIds('42', 'oauth', new Set())
-    expect(ids).toEqual(['2072326370206581037'])
-  })
-
-  it('paginates until it runs out of pages or hits the cap', async () => {
-    xapiMock
-      .mockResolvedValueOnce(page([{ id: 'a', text: 'x', author_id: '42' }], 'tok1'))
-      .mockResolvedValueOnce(page([rawArticle('b')], 'tok2'))
-      .mockResolvedValueOnce(page([{ id: 'c', text: 'y', author_id: '42' }])) // no next_token → stop
-    const { ids } = await discoverArticleStubIds('42', 'oauth', new Set())
-    expect(ids).toEqual(['b'])
-    expect(xapiMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('skips ids already known to the store', async () => {
-    xapiMock.mockResolvedValueOnce(page([rawArticle('known'), rawArticle('fresh')]))
-    const { ids } = await discoverArticleStubIds('42', 'oauth', new Set(['known']))
-    expect(ids).toEqual(['fresh'])
-  })
-
-  it('is resilient to a page fetch failure', async () => {
-    xapiMock.mockRejectedValueOnce(new Error('rate limit'))
-    const { ids, cost } = await discoverArticleStubIds('42', 'oauth', new Set())
-    expect(ids).toEqual([])
-    expect(cost).toBe(0)
-  })
-})
-
-describe('hydrateArticlePosts discovery integration', () => {
-  beforeEach(() => xapiMock.mockReset())
-
-  it('discovers an out-of-window Article and hydrates its full body', async () => {
+  it('hydrates a title-only Article stub already in the gathered window', async () => {
     const body = 'Series A body '.repeat(40) // > HYDRATED_MIN_CHARS
-    xapiMock
-      // 1) discovery timeline page finds the title-only Article
-      .mockResolvedValueOnce(page([rawArticle('2072326370206581037')]))
-      // 2) GET /tweets?ids=… returns the full article payload
-      .mockResolvedValueOnce({
-        data: [rawArticle('2072326370206581037', {
-          article: { title: 'Series A', plain_text: body },
-        })],
-      })
+    // A stub already in the store: format=article but only the title as text.
+    const stub = post({
+      id: '2072326370206581037',
+      format: 'article',
+      articleTitle: 'Series A',
+      text: 'Series A',
+      urls: [{ expanded: 'http://x.com/i/article/1', display: 'x.com/i/article/1' }],
+    })
+    // Single GET /tweets?ids=… returns the full body — the ONLY network call.
+    xapiMock.mockResolvedValueOnce({
+      data: [rawArticle('2072326370206581037', {
+        article: { title: 'Series A', plain_text: body },
+      })],
+    })
 
-    const result = await hydrateArticlePosts('42', [], 'oauth')
+    const result = await hydrateArticlePosts('42', [stub], 'oauth')
+    expect(xapiMock).toHaveBeenCalledTimes(1) // no scanning — one hydrate call
     expect(result.updated).toBe(true)
     expect(result.hydratedIds).toEqual(['2072326370206581037'])
     const article = result.posts.find((p) => p.id === '2072326370206581037')
@@ -170,7 +135,15 @@ describe('hydrateArticlePosts discovery integration', () => {
     expect((article?.text.length ?? 0)).toBeGreaterThan(400)
   })
 
-  it('skips discovery when the store already holds a hydrated Article', async () => {
+  it('makes NO network call when the window holds no Article stubs', async () => {
+    const normal = post({ id: '1', text: 'just a regular post' })
+    const result = await hydrateArticlePosts('42', [normal], 'oauth')
+    expect(xapiMock).not.toHaveBeenCalled()
+    expect(result.updated).toBe(false)
+    expect(result.stubIds).toEqual([])
+  })
+
+  it('does not re-fetch an already-hydrated Article', async () => {
     const hydrated = post({
       id: '1',
       format: 'article',
@@ -178,7 +151,7 @@ describe('hydrateArticlePosts discovery integration', () => {
       text: `Series A\n\n${'A'.repeat(500)}`,
     })
     const result = await hydrateArticlePosts('42', [hydrated], 'oauth')
-    expect(result.updated).toBe(false)
     expect(xapiMock).not.toHaveBeenCalled()
+    expect(result.updated).toBe(false)
   })
 })
