@@ -23,7 +23,7 @@ export function SelfFeed() {
   const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   if (!activeAccountId || !account) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No account selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">No account selected</div>
   }
 
   const runRefresh = async () => {

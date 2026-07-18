@@ -32,7 +32,7 @@ const DAY_OPTIONS: { label: string; value: number | null }[] = [
 ]
 
 function selectClass() {
-  return 'bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-1.5 py-0.5 text-[11px] text-white/70 outline-none'
+  return 'bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-1.5 py-0.5 text-[11px] text-[var(--color-text-secondary)] outline-none'
 }
 
 export function LibraryMeter({
@@ -53,8 +53,8 @@ export function LibraryMeter({
 
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/40">
-        <div className="flex rounded-md overflow-hidden border border-white/[0.05]">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-text-tertiary)]">
+        <div className="flex rounded-md overflow-hidden border border-[var(--color-border-faint)]">
           {(['auto', 'custom'] as const).map((mode) => (
             <button
               key={mode}
@@ -63,7 +63,7 @@ export function LibraryMeter({
               className={`px-2 py-0.5 text-[10px] capitalize transition-colors ${
                 libraryMode === mode
                   ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]'
-                  : 'text-white/50 hover:text-white/80'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
               }`}
             >
               {mode === 'auto' ? 'Auto' : 'Custom'}
@@ -107,14 +107,14 @@ export function LibraryMeter({
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] tabular-nums min-w-0">
         <div className="min-w-0">
-          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Hot</div>
-          <div className="text-white/55 truncate">~{formatTokens(pack.estimatedTokens)}</div>
+          <div className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-[0.04em]">Hot</div>
+          <div className="text-[var(--color-text-secondary)] truncate">~{formatTokens(pack.estimatedTokens)}</div>
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Budget</div>
-          <div className="text-white/55 truncate" title={`${pctLabel}% of ${formatTokens(contextLimit)}${limitAssumed ? ' (assumed)' : ''}`}>
+          <div className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-[0.04em]">Budget</div>
+          <div className="text-[var(--color-text-secondary)] truncate" title={`${pctLabel}% of ${formatTokens(contextLimit)}${limitAssumed ? ' (assumed)' : ''}`}>
             {formatTokens(budget)}
-            <span className="text-white/30">
+            <span className="text-[var(--color-text-quaternary)]">
               {' '}
               ({pctLabel}% of {formatTokens(contextLimit)}
               {limitAssumed ? '†' : ''})
@@ -122,12 +122,12 @@ export function LibraryMeter({
           </div>
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Headroom</div>
-          <div className="text-white/55 truncate">{formatTokens(headroom)}</div>
+          <div className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-[0.04em]">Headroom</div>
+          <div className="text-[var(--color-text-secondary)] truncate">{formatTokens(headroom)}</div>
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] text-white/25 uppercase tracking-[0.04em]">Corpus</div>
-          <div className="text-white/55 truncate">
+          <div className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-[0.04em]">Corpus</div>
+          <div className="text-[var(--color-text-secondary)] truncate">
             {counts.posts} posts · {counts.reports} reports
           </div>
         </div>
@@ -140,7 +140,7 @@ export function LibraryMeter({
         </div>
       )}
 
-      <div className="text-[10px] text-white/20">X · News soon · Signal soon · Stats soon</div>
+      <div className="text-[10px] text-[var(--color-text-quaternary)]">X · News soon · Signal soon · Stats soon</div>
     </div>
   )
 }

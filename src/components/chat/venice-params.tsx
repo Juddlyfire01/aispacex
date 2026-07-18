@@ -28,7 +28,9 @@ export function VeniceParams() {
             onClick={() => setShowSettings(!showSettings)}
             className={cn(
               'flex items-center gap-1 text-[13px] font-medium px-2 py-[2px] rounded-full transition-colors duration-100',
-              showSettings ? 'bg-white/90 text-black' : 'bg-white/[0.03] text-white/18 hover:text-white/35 hover:bg-white/[0.05]',
+              showSettings
+                ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]'
+                : 'bg-[var(--color-border-faint)] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] hover:bg-[var(--color-border-faint)]',
             )}
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -42,13 +44,13 @@ export function VeniceParams() {
       {showSettings && (
         <div className="mt-2.5 pb-1 flex flex-col gap-2.5">
           <div>
-            <label className="text-[13px] text-white/15 font-medium mb-1 block uppercase tracking-[0.08em]">System Prompt</label>
+            <label className="text-[13px] text-[var(--color-text-quaternary)] font-medium mb-1 block uppercase tracking-[0.08em]">System Prompt</label>
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="You are a helpful assistant..."
               rows={2}
-              className="w-full bg-white/[0.02] border border-white/[0.05] rounded-lg px-3 py-2 text-[15px] text-white/50 outline-none resize-none placeholder:text-white/8 focus:border-white/[0.1] transition-colors"
+              className="w-full bg-[var(--color-border-faint)] border border-[var(--color-border-faint)] rounded-lg px-3 py-2 text-[15px] text-[var(--color-text-tertiary)] outline-none resize-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-soft)] transition-colors"
             />
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -75,8 +77,8 @@ function ParamSlider({ label, value, onChange, min, max, step, format }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-0.5">
-        <label className="text-[12px] text-white/15 font-medium uppercase tracking-[0.08em]">{label}</label>
-        <span className="text-[12px] text-white/25 font-mono">{display}</span>
+        <label className="text-[12px] text-[var(--color-text-quaternary)] font-medium uppercase tracking-[0.08em]">{label}</label>
+        <span className="text-[12px] text-[var(--color-text-quaternary)] font-mono">{display}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" />
     </div>
@@ -90,8 +92,8 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
       className={cn(
         'text-[13px] font-medium px-2 py-[2px] rounded-full transition-colors duration-100',
         active
-          ? 'bg-white/90 text-black'
-          : 'bg-white/[0.03] text-white/18 hover:text-white/35 hover:bg-white/[0.05]',
+          ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]'
+          : 'bg-[var(--color-border-faint)] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] hover:bg-[var(--color-border-faint)]',
       )}
     >
       {label}
@@ -114,8 +116,8 @@ function SearchPill({ value, onChange }: { value: string; onChange: (v: SearchMo
       className={cn(
         'text-[13px] font-medium px-2 py-[2px] rounded-full transition-colors duration-100',
         active
-          ? 'bg-white/90 text-black'
-          : 'bg-white/[0.03] text-white/18 hover:text-white/35 hover:bg-white/[0.05]',
+          ? 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)]'
+          : 'bg-[var(--color-border-faint)] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] hover:bg-[var(--color-border-faint)]',
       )}
     >
       {label}
@@ -127,15 +129,15 @@ function Toggle({ label, active, onChange }: { label: string; active: boolean; o
   return (
     <button
       onClick={() => onChange(!active)}
-      className="flex items-center gap-2 text-[14px] text-white/30 hover:text-white/50 transition-colors"
+      className="flex items-center gap-2 text-[14px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors"
     >
       <div className={cn(
         'w-6 h-3.5 rounded-full transition-colors duration-150 relative',
-        active ? 'bg-white/80' : 'bg-white/[0.08]',
+        active ? 'bg-[var(--color-btn-primary-bg)]' : 'bg-[var(--color-border-faint)]',
       )}>
         <div className={cn(
           'absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-150',
-          active ? 'left-3 bg-black' : 'left-0.5 bg-white/30',
+          active ? 'left-3 bg-[var(--color-btn-primary-fg)]' : 'left-0.5 bg-[var(--color-text-quaternary)]',
         )} />
       </div>
       {label}

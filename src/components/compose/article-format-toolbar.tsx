@@ -6,7 +6,7 @@ interface ArticleFormatToolbarProps {
 }
 
 const btn =
-  'px-1.5 py-0.5 text-[11px] rounded text-white/45 hover:text-white/80 hover:bg-white/[0.06] transition-colors'
+  'px-1.5 py-0.5 text-[11px] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)] transition-colors'
 
 function run(cmd: string, value?: string) {
   // Article formatting mirrors X DraftJS capabilities only.
@@ -49,7 +49,7 @@ export function ArticleFormatToolbar({ editorRef, onEdited }: ArticleFormatToolb
         >
           S
         </button>
-        <span className="w-px h-3 bg-white/10 mx-0.5" />
+        <span className="w-px h-3 bg-[var(--color-border-faint)] mx-0.5" />
         <button type="button" className={btn} title="Heading 1" onClick={() => block('h1')}>
           H1
         </button>
@@ -62,7 +62,7 @@ export function ArticleFormatToolbar({ editorRef, onEdited }: ArticleFormatToolb
         <button type="button" className={btn} title="Paragraph" onClick={() => block('p')}>
           ¶
         </button>
-        <span className="w-px h-3 bg-white/10 mx-0.5" />
+        <span className="w-px h-3 bg-[var(--color-border-faint)] mx-0.5" />
         <button type="button" className={btn} title="Bullet list" onClick={() => focusAnd(() => run('insertUnorderedList'))}>
           •
         </button>
@@ -76,7 +76,7 @@ export function ArticleFormatToolbar({ editorRef, onEdited }: ArticleFormatToolb
           Link
         </button>
       </div>
-      <p className="text-[10px] text-white/25 leading-relaxed">
+      <p className="text-[10px] text-[var(--color-text-quaternary)] leading-relaxed">
         X Article formats only — headings, lists, quotes, bold/italic/strike, links. No markdown syntax.
       </p>
     </div>

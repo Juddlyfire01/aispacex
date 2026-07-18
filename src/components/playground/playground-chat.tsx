@@ -183,14 +183,14 @@ export function PlaygroundChat() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col gap-3 pt-8">
-            <div className="text-[15px] text-white/85 font-semibold mb-1">What should I build?</div>
-            <div className="text-[13px] text-white/45 mb-4">Describe a workflow in plain language. I&apos;ll assemble it on the canvas in real time.</div>
+            <div className="text-[15px] text-[var(--color-text-primary)] font-semibold mb-1">What should I build?</div>
+            <div className="text-[13px] text-[var(--color-text-tertiary)] mb-4">Describe a workflow in plain language. I&apos;ll assemble it on the canvas in real time.</div>
             <div className="flex flex-col gap-2">
               {STARTER_PROMPTS.map((p) => (
                 <button
                   key={p}
                   onClick={() => send(p)}
-                  className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04] transition-all text-[13px] text-white/65 hover:text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
+                  className="text-left px-3 py-2.5 rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-border-faint)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] transition-all text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
                 >
                   {p}
                 </button>
@@ -213,27 +213,27 @@ export function PlaygroundChat() {
                   )}
                 >
                   {m.pending && (!m.activity || m.activity.length === 0) ? (
-                    <span className="text-white/45 inline-flex items-center gap-1.5">
+                    <span className="text-[var(--color-text-tertiary)] inline-flex items-center gap-1.5">
                       <Spinner size="xs" />
                       Thinking…
                     </span>
                   ) : m.error ? (
                     <span className="text-red-300/95">{m.error}</span>
                   ) : (
-                    m.content || <span className="text-white/35 italic">(no message)</span>
+                    m.content || <span className="text-[var(--color-text-quaternary)] italic">(no message)</span>
                   )}
                 </div>
 
                 {m.activity && m.activity.length > 0 && (
-                  <div className="max-w-[88%] flex flex-col gap-px text-[11.5px] font-mono text-white/45 px-1">
+                  <div className="max-w-[88%] flex flex-col gap-px text-[11.5px] font-mono text-[var(--color-text-tertiary)] px-1">
                     {m.activity.map((a, i) => (
                       <div key={i} className={cn('flex items-center gap-1.5', !a.ok && 'text-rose-300/85')}>
-                        <span className="text-white/30">·</span>
+                        <span className="text-[var(--color-text-quaternary)]">·</span>
                         <span>{a.summary}</span>
                       </div>
                     ))}
                     {m.pending && (
-                      <div className="flex items-center gap-1.5 text-white/35">
+                      <div className="flex items-center gap-1.5 text-[var(--color-text-quaternary)]">
                         <Spinner size="xs" />
                         <span>Working…</span>
                       </div>
@@ -242,7 +242,7 @@ export function PlaygroundChat() {
                 )}
 
                 {m.patches && m.patches.length > 0 && !m.activity?.length && (
-                  <div className="max-w-[88%] px-3 py-1 text-[11px] text-white/40 font-mono tracking-wide">
+                  <div className="max-w-[88%] px-3 py-1 text-[11px] text-[var(--color-text-tertiary)] font-mono tracking-wide">
                     {m.patches.length} patch{m.patches.length === 1 ? '' : 'es'} applied
                   </div>
                 )}

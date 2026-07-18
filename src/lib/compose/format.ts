@@ -1,4 +1,9 @@
-import type { PostDraft } from './types'
+import { parseArticleFromWriterText } from './article-parse'
+import {
+  emptyArticleDraft,
+  emptySegment,
+  type PostDraft,
+} from './types'
 
 export type PreferredFormat = 'auto' | 'post' | 'thread' | 'longform' | 'article'
 export type ResolvedFormat = Exclude<PreferredFormat, 'auto'>
@@ -28,4 +33,48 @@ export function clearArticleIfStale<T extends Partial<PostDraft>>(
     return { ...patch, article: undefined }
   }
   return patch
+}
+
+/**
+ * When the user picks Article preference, promote any segment copy into the
+ * article fields instead of wiping it for an empty shell.
+ * Returns null when the draft already has article content (or an empty shell
+ * with no segment text to migrate).
+ */
+export function promoteDraftToArticle(draft: PostDraft): Partial<PostDraft> | null {
+  const existing = draft.article
+  const hasArticleContent = Boolean(
+    existing && (existing.title.trim() || existing.bodyMarkdown.trim()),
+  )
+  if (hasArticleContent) return null
+
+  const segmentText = draft.segments
+    .map((s) => s.text)
+    .filter((t) => t.trim())
+    .join('\n\n---\n\n')
+    .trim()
+
+  if (segmentText) {
+    const parsed = parseArticleFromWriterText(segmentText)
+    return {
+      article: {
+        title: parsed.title,
+        bodyMarkdown: parsed.bodyMarkdown,
+        cover: existing?.cover,
+        inlineMedia: existing?.inlineMedia ?? [],
+        contentState: existing?.contentState,
+      },
+      longform: false,
+      target: { kind: 'original' },
+      segments: [emptySegment()],
+    }
+  }
+
+  if (existing) return null
+
+  return {
+    article: emptyArticleDraft(),
+    longform: false,
+    segments: [emptySegment()],
+  }
 }

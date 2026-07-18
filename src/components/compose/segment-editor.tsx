@@ -37,20 +37,20 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
       {/* Draft bubble — text + media thumbs only (no poll / action chrome) */}
       <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2">
         {total > 1 && (
-          <div className="flex items-center gap-2 text-[10px] text-white/25">
+          <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-quaternary)]">
             <span className="font-mono">{index + 1}/{total}</span>
             <div className="flex-1" />
             <button
               onClick={() => moveSegment(threadId, segment.id, -1)}
               disabled={index === 0}
-              className="hover:text-white/60 transition-colors disabled:opacity-20"
+              className="hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-20"
             >
               ↑
             </button>
             <button
               onClick={() => moveSegment(threadId, segment.id, 1)}
               disabled={index === total - 1}
-              className="hover:text-white/60 transition-colors disabled:opacity-20"
+              className="hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-20"
             >
               ↓
             </button>
@@ -84,7 +84,7 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
           }}
           rows={Math.max(6, Math.ceil((text.length || 1) / 60))}
           placeholder={index === 0 ? 'What do you want to post?' : 'Continue the thread…'}
-          className="w-full bg-transparent text-[13px] text-white/85 font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] min-h-[7.5rem]"
+          className="w-full bg-transparent text-[13px] text-[var(--color-text-primary)] font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] min-h-[7.5rem]"
         />
 
         <MediaAttachments threadId={threadId} segment={liveSegment} />

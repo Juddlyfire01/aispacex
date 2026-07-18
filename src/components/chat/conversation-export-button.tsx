@@ -48,7 +48,7 @@ export function ConversationExportButton({
         className={
           compact
             ? 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1 rounded focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]'
-            : 'px-2.5 py-1 text-[11px] font-medium border border-white/10 text-white/70 rounded-md hover:border-white/20 hover:text-white/90 transition-colors'
+            : 'px-2.5 py-1 text-[11px] font-medium border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] rounded-md hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)] transition-colors'
         }
       >
         {compact ? (
@@ -79,7 +79,7 @@ export function ConversationExportButton({
             type="button"
             role="menuitem"
             onClick={() => exportAs('md')}
-            className="block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] hover:text-[var(--color-text-primary)] transition-colors"
+            className="block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             Markdown
           </button>
@@ -87,7 +87,7 @@ export function ConversationExportButton({
             type="button"
             role="menuitem"
             onClick={() => exportAs('json')}
-            className="block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] hover:text-[var(--color-text-primary)] transition-colors"
+            className="block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             JSON
           </button>

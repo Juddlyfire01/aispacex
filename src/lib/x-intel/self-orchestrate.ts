@@ -28,6 +28,7 @@ import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
+import { hydrateArticlePosts } from './article-hydrate'
 import { beginReportProgress } from './report-progress'
 import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from './report-gate'
 import { flushEncryptedStorage } from '../encrypted-storage'
@@ -417,7 +418,7 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
 
   // Snapshot inputs so unmount / account switch cannot mid-flight the job.
   const profile = account.profile
-  const posts = account.posts
+  let posts = account.posts
   const edges = account.edges
   const settings = { ...account.synthesisSettings }
   const reportHistory = account.reportHistory
@@ -432,7 +433,20 @@ export async function generateSelfReport(): Promise<IntelReportSnapshot> {
   await progress.markPrepare()
 
   try {
-    const analytics = computeAnalytics(profile, posts, edges)
+    const hydrated = await hydrateArticlePosts(profile.id, posts, 'oauth')
+    let edgesForReport = edges
+    if (hydrated.updated) {
+      posts = hydrated.posts
+      edgesForReport = deriveEdges(profile.id, posts)
+      const self = useXSelfStore.getState()
+      self.setPosts(accountId, posts)
+      self.setEdges(accountId, edgesForReport)
+    }
+    if (hydrated.error) {
+      console.warn('[generateSelfReport] article hydrate:', hydrated.error)
+    }
+
+    const analytics = computeAnalytics(profile, posts, edgesForReport)
 
     let computedDelta: Omit<ChangeSummary, 'narrative'> | null = null
     if (prevSnapshot) {

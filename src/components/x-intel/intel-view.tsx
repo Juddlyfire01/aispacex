@@ -53,7 +53,7 @@ function ProfileSplit({
 }) {
   return (
     <div className="flex flex-col lg:flex-row h-full min-h-0">
-      <aside className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] flex flex-col max-h-[55vh] lg:max-h-none min-h-0">
+      <aside className="lg:w-[340px] lg:shrink-0 lg:border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] lg:max-h-none min-h-0">
         {rail}
       </aside>
       <div className="flex-1 min-w-0 min-h-0 overflow-hidden">

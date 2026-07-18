@@ -12,6 +12,7 @@ import type {
   CadenceVariance,
 } from './types'
 import { partitionPosts } from './activity'
+import { computeStyleFeaturesReport } from './style-features'
 
 const POST_KINDS: PostKind[] = ['original', 'reply', 'quote', 'retweet']
 const DAY_MS = 86_400_000
@@ -251,6 +252,7 @@ export function computeAnalytics(profile: Profile, posts: Post[], edges: Edge[])
       ownPosts: own.length,
       inboundMentions: inbound.length,
     },
+    styleFeatures: computeStyleFeaturesReport(own),
     computedAt: new Date().toISOString(),
   }
 }

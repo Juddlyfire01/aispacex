@@ -212,22 +212,22 @@ export function VideoView() {
             <Label>Reference image</Label>
             {imageUrl ? (
               <div className="relative group">
-                <img src={imageUrl} alt="Reference" className="w-full rounded-lg border border-white/[0.06]" />
+                <img src={imageUrl} alt="Reference" className="w-full rounded-lg border border-[var(--color-border-faint)]" />
                 <button
                   onClick={() => { setImageUrl(null); setImageName('') }}
-                  className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-md text-white/50 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                  className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
-                <span className="text-[16px] text-white/15 mt-1 block truncate">{imageName}</span>
+                <span className="text-[16px] text-[var(--color-text-quaternary)] mt-1 block truncate">{imageName}</span>
               </div>
             ) : (
               <div
                 onClick={() => fileRef.current?.click()}
-                className="border border-dashed border-white/[0.08] hover:border-white/[0.15] rounded-lg py-5 text-center cursor-pointer transition-colors"
+                className="border border-dashed border-[var(--color-border-soft)] hover:border-[var(--color-border-strong)] rounded-lg py-5 text-center cursor-pointer transition-colors"
               >
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleImageUpload(e.target.files[0]) }} />
-                <p className="text-[14px] text-white/15">Click to add image</p>
+                <p className="text-[14px] text-[var(--color-text-quaternary)]">Click to add image</p>
               </div>
             )}
           </div>
@@ -273,12 +273,12 @@ export function VideoView() {
               onClick={() => setAudioEnabled(!audioEnabled)}
               className={cn(
                 'w-8 h-[18px] rounded-full transition-colors relative',
-                audioEnabled ? 'bg-white' : 'bg-white/[0.08]',
+                audioEnabled ? 'bg-[var(--color-btn-primary-bg)]' : 'bg-[var(--color-border-faint)]',
               )}
             >
               <div className={cn(
                 'absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all',
-                audioEnabled ? 'left-[16px] bg-black' : 'left-[2px] bg-white/30',
+                audioEnabled ? 'left-[16px] bg-[var(--color-btn-primary-fg)]' : 'left-[2px] bg-[var(--color-text-quaternary)]',
               )} />
             </button>
           </div>
@@ -288,7 +288,7 @@ export function VideoView() {
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {tags.map((t) => (
-              <span key={t} className="text-[16px] text-white/20 bg-white/[0.03] border border-white/[0.04] rounded px-1.5 py-0.5">{t}</span>
+              <span key={t} className="text-[16px] text-[var(--color-text-quaternary)] bg-[var(--color-border-faint)] border border-[var(--color-border-faint)] rounded px-1.5 py-0.5">{t}</span>
             ))}
           </div>
         )}
@@ -304,7 +304,7 @@ export function VideoView() {
           <button
             type="button"
             onClick={cancelAll}
-            className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors self-start"
+            className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors self-start"
           >
             Cancel all ({activeCount})
           </button>
@@ -318,7 +318,7 @@ export function VideoView() {
                 const failed = jobs.find((j) => j.status === 'failed')
                 if (failed) dismissJob(failed.id)
               }}
-              className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+              className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 shrink-0 transition-colors"
             >
               Dismiss
             </button>
@@ -329,9 +329,9 @@ export function VideoView() {
             </ul>
           )}
           {suggestedPrompt && (
-            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
-              <p className="text-[13.5px] text-white/70 leading-relaxed">{suggestedPrompt}</p>
+            <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
+              <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{suggestedPrompt}</p>
               <button
                 onClick={() => { setPrompt(suggestedPrompt) }}
                 className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
@@ -357,17 +357,17 @@ export function VideoView() {
         if (neg !== undefined) setNegativePrompt(neg)
       }}
       empty={
-        <div className="flex items-center justify-center flex-1 h-full text-white/30 text-[15px]">
+        <div className="flex items-center justify-center flex-1 h-full text-[var(--color-text-quaternary)] text-[15px]">
           {activeCount > 0 ? (
             <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
               <Spinner size="lg" />
-              <span className="text-white/55 text-center">
+              <span className="text-[var(--color-text-secondary)] text-center">
                 Generating {activeCount} video{activeCount === 1 ? '' : 's'}…
-                <span className="block text-[12px] text-white/30 mt-1">typically 30s–2min each</span>
+                <span className="block text-[12px] text-[var(--color-text-quaternary)] mt-1">typically 30s–2min each</span>
               </span>
               <button
                 onClick={cancelAll}
-                className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
+                className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors"
               >
                 Cancel all
               </button>
@@ -375,7 +375,7 @@ export function VideoView() {
           ) : (
             <div className="flex flex-col items-center gap-2">
               <span>Generated videos appear here</span>
-              <span className="text-[12px] text-white/35">Run up to {maxConcurrent} in parallel</span>
+              <span className="text-[12px] text-[var(--color-text-quaternary)]">Run up to {maxConcurrent} in parallel</span>
             </div>
           )}
         </div>
@@ -392,8 +392,8 @@ function DurationSlider({ options, value, onChange }: { options: string[]; value
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[16px] text-white/30 font-mono">{options[currentIdx]}</span>
-        <span className="text-[16px] text-white/15">{options[0]} — {options[options.length - 1]}</span>
+        <span className="text-[16px] text-[var(--color-text-quaternary)] font-mono">{options[currentIdx]}</span>
+        <span className="text-[16px] text-[var(--color-text-quaternary)]">{options[0]} — {options[options.length - 1]}</span>
       </div>
       <input
         type="range"

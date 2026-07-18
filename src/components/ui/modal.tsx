@@ -49,5 +49,9 @@ export const modalInputClass =
 export const modalGhostBtnClass =
   'px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors'
 
+/** Compact outline secondary — Refresh / Look up / Add target style chrome. */
+export const modalSecondaryBtnClass =
+  'rounded-md border border-[var(--color-border-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] transition-colors disabled:opacity-40 disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2'
+
 export const modalPrimaryBtnClass =
   'px-4 py-1.5 font-medium bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] rounded-md hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2'

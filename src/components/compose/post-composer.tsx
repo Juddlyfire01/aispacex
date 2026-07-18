@@ -8,8 +8,8 @@ import {
   syncDraftForVerification,
 } from '../../lib/compose/verified-features'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
-import { clearArticleIfStale } from '../../lib/compose/format'
-import { emptyArticleDraft, emptySegment, type ReplySettings } from '../../lib/compose/types'
+import { clearArticleIfStale, promoteDraftToArticle } from '../../lib/compose/format'
+import { emptySegment, type ReplySettings } from '../../lib/compose/types'
 import { CheckboxField } from '../ui/checkbox'
 import { SegmentEditor } from './segment-editor'
 import { TargetPicker } from './target-picker'
@@ -61,16 +61,14 @@ export function PostComposer({ threadId }: PostComposerProps) {
     if (patch) applyDraftPatch(threadId, patch)
   }, [isVerified, longformPreference, threadId, applyDraftPatch])
 
-  // Seed empty article when user picks Article preference.
+  // Seed / migrate into article when user picks Article preference.
+  // Prefer promoting segment copy over wiping it for an empty shell.
   useEffect(() => {
     if (preferredFormat !== 'article') return
     const current = useComposeStore.getState().threads[threadId]
-    if (!current || current.draft.article) return
-    applyDraftPatch(threadId, {
-      article: emptyArticleDraft(),
-      longform: false,
-      segments: [emptySegment()],
-    })
+    if (!current) return
+    const patch = promoteDraftToArticle(current.draft)
+    if (patch) applyDraftPatch(threadId, patch)
   }, [preferredFormat, threadId, applyDraftPatch])
 
   // Clear stale article on explicit non-article shapes. Auto keeps article when
@@ -102,7 +100,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
   }, [shell?.segmentIdsKey])
 
   if (!shell) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">Start composing</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">Start composing</div>
   }
 
   // Prefer explicit format preference; only probe article presence for auto.
@@ -115,8 +113,8 @@ export function PostComposer({ threadId }: PostComposerProps) {
   return (
     <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-white/25 uppercase tracking-[0.08em]">Draft</span>
-        <button onClick={() => resetDraft(threadId)} className="text-[10px] text-white/25 hover:text-white/50 transition-colors">
+        <span className="text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em]">Draft</span>
+        <button onClick={() => resetDraft(threadId)} className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors">
           Clear
         </button>
       </div>
@@ -150,7 +148,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
         </>
       )}
 
-      <div className="pt-2 border-t border-white/[0.05] space-y-2">
+      <div className="pt-2 border-t border-[var(--color-border-faint)] space-y-2">
         {!showArticle && (
           isVerified ? (
             <CheckboxField
@@ -160,10 +158,10 @@ export function PostComposer({ threadId }: PostComposerProps) {
                 setLongformPreference(nextLongform)
                 applyDraftPatch(threadId, { longform: nextLongform })
               }}
-              className="text-[11px] text-white/50 gap-2"
+              className="text-[11px] text-[var(--color-text-tertiary)] gap-2"
             />
           ) : (
-            <p className="text-[10px] text-white/30 leading-snug">
+            <p className="text-[10px] text-[var(--color-text-quaternary)] leading-snug">
               {!connected
                 ? 'Connect your X account to post. Verified accounts unlock long-form posts and verified-only reply settings.'
                 : 'Long-form posts and verified-only reply settings require a verified X account.'}
@@ -174,15 +172,15 @@ export function PostComposer({ threadId }: PostComposerProps) {
           label="Label as AI-generated (made_with_ai)"
           checked={shell.madeWithAi}
           onChange={(madeWithAi) => applyDraftPatch(threadId, { madeWithAi })}
-          className="text-[11px] text-white/50 gap-2"
+          className="text-[11px] text-[var(--color-text-tertiary)] gap-2"
         />
         {!showArticle && (
-          <label className="block text-[11px] text-white/40">
+          <label className="block text-[11px] text-[var(--color-text-tertiary)]">
             Who can reply
             <select
               value={shell.replySettings ?? 'everyone'}
               onChange={(e) => applyDraftPatch(threadId, { replySettings: e.target.value as ReplySettings })}
-              className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none"
+              className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
             >
               {replyOptions.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>

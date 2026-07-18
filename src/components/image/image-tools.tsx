@@ -165,24 +165,24 @@ export function ImageTools({
         <Label>Source image</Label>
         {imageData ? (
           <div className="relative group">
-            <img src={imageData} alt="Source" className="w-full rounded-lg border border-white/[0.06]" />
+            <img src={imageData} alt="Source" className="w-full rounded-lg border border-[var(--color-border-faint)]" />
             <button
               onClick={() => { setImageData(null); setImageName('') }}
               aria-label="Remove image"
-              className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-md text-white/60 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
+              className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-md text-white/70 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
-            <span className="text-[13px] text-white/15 mt-1 block truncate">{imageName}</span>
+            <span className="text-[13px] text-[var(--color-text-quaternary)] mt-1 block truncate">{imageName}</span>
           </div>
         ) : (
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-full border border-dashed border-white/[0.08] hover:border-white/[0.15] rounded-lg py-8 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/30 focus-visible:outline-offset-2"
+            className="w-full border border-dashed border-[var(--color-border-soft)] hover:border-[var(--color-border-strong)] rounded-lg py-8 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
           >
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileSelect(e.target.files[0]) }} />
-            <p className="text-[14px] text-white/40">Click to upload image</p>
+            <p className="text-[14px] text-[var(--color-text-tertiary)]">Click to upload image</p>
           </button>
         )}
       </div>
@@ -207,7 +207,7 @@ export function ImageTools({
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label>Creativity</Label>
-              <span className="text-[13px] text-white/30 font-mono">{creativity}</span>
+              <span className="text-[13px] text-[var(--color-text-quaternary)] font-mono">{creativity}</span>
             </div>
             <input
               type="range"
@@ -218,7 +218,7 @@ export function ImageTools({
               onChange={(e) => setCreativity(Number(e.target.value))}
               className="w-full"
             />
-            <p className="text-[12px] text-white/20 mt-1">Higher adds more detail and texture.</p>
+            <p className="text-[12px] text-[var(--color-text-quaternary)] mt-1">Higher adds more detail and texture.</p>
           </div>
         </>
       )}

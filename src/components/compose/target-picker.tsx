@@ -38,7 +38,7 @@ export function TargetPicker({ threadId, target }: TargetPickerProps) {
       <select
         value={target.kind}
         onChange={(e) => onKind(e.target.value as PostTarget['kind'])}
-        className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/70 outline-none"
+        className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none"
       >
         <option value="original">Original post</option>
         <option value="reply">Reply</option>
@@ -47,13 +47,13 @@ export function TargetPicker({ threadId, target }: TargetPickerProps) {
 
       {target.kind !== 'original' && (
         <>
-          <span className="text-[11px] text-white/30">@</span>
+          <span className="text-[11px] text-[var(--color-text-quaternary)]">@</span>
           <input
             list="compose-target-usernames"
             value={username}
             onChange={(e) => setUsername(e.target.value.replace(/^@/, ''))}
             placeholder="handle"
-            className="w-28 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+            className="w-28 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
           />
           <datalist id="compose-target-usernames">
             {targets.map((t) => (
@@ -64,7 +64,7 @@ export function TargetPicker({ threadId, target }: TargetPickerProps) {
             value={postId}
             onChange={(e) => setPostId(e.target.value)}
             placeholder="post id"
-            className="w-32 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+            className="w-32 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
           />
         </>
       )}

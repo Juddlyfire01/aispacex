@@ -27,11 +27,11 @@ function relTime(ms: number | null): string {
 
 /** Green <24h, amber <7d, grey older/unknown — a quick recency read. */
 function dotClass(ms: number | null): string {
-  if (ms == null) return 'bg-white/20'
+  if (ms == null) return 'bg-[var(--color-border-faint)]'
   const h = (Date.now() - ms) / 3_600_000
   if (h < 24) return 'bg-green-400/70'
   if (h < 24 * 7) return 'bg-amber-400/70'
-  return 'bg-white/25'
+  return 'bg-[var(--color-border-faint)]'
 }
 
 function gapLabel(hours: number): string {
@@ -52,20 +52,20 @@ export function ActivityGlance({ activity }: { activity: ActivitySummary | null 
   if (!hasSignal) return null
 
   return (
-    <div className="pt-3 border-t border-white/[0.04] space-y-1.5">
-      <span className="text-[10px] font-medium text-white/15 uppercase tracking-[0.08em]">Activity</span>
+    <div className="pt-3 border-t border-[var(--color-border-faint)] space-y-1.5">
+      <span className="text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em]">Activity</span>
 
       {/* Last active (last public post — not presence) */}
       <div className="flex items-center gap-1.5" title="Last public post/reply/repost — X has no true 'last online'">
         <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotClass(a.lastActiveMs))} />
-        <span className="text-[11px] text-white/55">
-          {a.lastActiveMs != null ? <>Last active <b className="text-white/75 font-medium">{relTime(a.lastActiveMs)}</b></> : 'No posts on record'}
+        <span className="text-[11px] text-[var(--color-text-secondary)]">
+          {a.lastActiveMs != null ? <>Last active <b className="text-[var(--color-text-secondary)] font-medium">{relTime(a.lastActiveMs)}</b></> : 'No posts on record'}
         </span>
       </div>
 
       {/* Volume (how MUCH they post) */}
       {a.postsLast30d > 0 && (
-        <p className="text-[11px] text-white/40 font-mono">
+        <p className="text-[11px] text-[var(--color-text-tertiary)] font-mono">
           {a.postsLast7d} post{a.postsLast7d === 1 ? '' : 's'}/7d · {a.activeDaysLast7}/7 active days
         </p>
       )}
@@ -75,13 +75,13 @@ export function ActivityGlance({ activity }: { activity: ActivitySummary | null 
         <p className="text-[10px] font-mono" title="Recent posting pace vs this account's own baseline">
           {a.tempo === 'up' && <span className="text-amber-300/80">↑ Busier than usual</span>}
           {a.tempo === 'down' && <span className="text-amber-300/80">↓ Quieter than usual</span>}
-          {a.tempo === 'steady' && <span className="text-white/40">— Stable activity</span>}
+          {a.tempo === 'steady' && <span className="text-[var(--color-text-tertiary)]">— Stable activity</span>}
         </p>
       )}
 
       {/* Rhythm (how CONSISTENTLY, and when, they post) */}
       {a.postsLast30d > 0 && (
-        <p className="text-[10px] text-white/30 font-mono">
+        <p className="text-[10px] text-[var(--color-text-quaternary)] font-mono">
           {a.pattern === 'burst' ? 'bursty' : 'steady'} rhythm
           {a.peakHourUtc != null && <> · peak {String(a.peakHourUtc).padStart(2, '0')}:00 UTC</>}
           {a.busiestWeekday != null && <> · busiest {WEEKDAYS[a.busiestWeekday]}</>}
@@ -91,14 +91,14 @@ export function ActivityGlance({ activity }: { activity: ActivitySummary | null 
 
       {/* Style — how posting breaks down: originals vs replies vs reposts */}
       {a.postsLast30d > 0 && (
-        <p className="text-[10px] text-white/30 font-mono" title="Share of gathered posts that are originals, replies, or reposts/quotes">
-          <span className="text-white/45">{STYLE_LABEL[a.style]}</span> · {a.composition.original}% orig · {a.composition.reply}% reply · {a.composition.reposts}% reposts
+        <p className="text-[10px] text-[var(--color-text-quaternary)] font-mono" title="Share of gathered posts that are originals, replies, or reposts/quotes">
+          <span className="text-[var(--color-text-tertiary)]">{STYLE_LABEL[a.style]}</span> · {a.composition.original}% orig · {a.composition.reply}% reply · {a.composition.reposts}% reposts
         </p>
       )}
 
       {/* Inbound mentions (targets — self gathers none today) */}
       {a.hasInbound && (
-        <p className="text-[10px] text-white/30 font-mono">
+        <p className="text-[10px] text-[var(--color-text-quaternary)] font-mono">
           {a.mentionsLast7d} mention{a.mentionsLast7d === 1 ? '' : 's'} received/7d
           {a.lastMentionMs != null && <> · last {relTime(a.lastMentionMs)}</>}
         </p>

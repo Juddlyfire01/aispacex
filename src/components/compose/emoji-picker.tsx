@@ -120,21 +120,21 @@ export function EmojiPicker({ open, anchorRef, onClose, onPick }: EmojiPickerPro
       style={{ top: position.top, left: position.left, width: EMOJI_PICKER_WIDTH }}
       className="fixed z-[200] max-h-[min(20rem,calc(100vh-1rem))] flex flex-col rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-bg-input)] shadow-2xl overflow-hidden"
     >
-      <div className="p-2 border-b border-white/[0.06] shrink-0">
+      <div className="p-2 border-b border-[var(--color-border-faint)] shrink-0">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search emoji…"
           disabled={catalogLoading}
-          className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-white/80 outline-none focus:border-[var(--color-border-strong)] placeholder:text-[var(--color-text-placeholder)] disabled:opacity-40"
+          className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] placeholder:text-[var(--color-text-placeholder)] disabled:opacity-40"
           autoFocus
         />
       </div>
 
       <div className="flex flex-1 min-h-0">
         {!query.trim() && catalog && (
-          <div className="flex flex-col gap-0.5 p-1 border-r border-white/[0.06] bg-black/10 overflow-y-auto shrink-0">
+          <div className="flex flex-col gap-0.5 p-1 border-r border-[var(--color-border-faint)] bg-black/10 overflow-y-auto shrink-0">
             {catalog.categories.map((cat) => (
               <CategoryTab
                 key={cat.id}
@@ -148,8 +148,8 @@ export function EmojiPicker({ open, anchorRef, onClose, onPick }: EmojiPickerPro
 
         <div className="flex-1 min-h-0 overflow-y-auto p-1.5">
           {showRecent && (
-            <div className="mb-2 pb-2 border-b border-white/[0.06]">
-              <p className="px-1 pb-1 text-[10px] font-medium text-white/30 uppercase tracking-wide">Recent</p>
+            <div className="mb-2 pb-2 border-b border-[var(--color-border-faint)]">
+              <p className="px-1 pb-1 text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-wide">Recent</p>
               <div className="grid grid-cols-8 gap-0.5">
                 {recentEntries.map((entry) => (
                   <EmojiCell key={entry.key} entry={entry} onPick={handlePick} />
@@ -163,15 +163,15 @@ export function EmojiPicker({ open, anchorRef, onClose, onPick }: EmojiPickerPro
               className="min-h-[12rem]"
               label="Loading emojis…"
               size="md"
-              labelClassName="text-[11px] text-white/30"
+              labelClassName="text-[11px] text-[var(--color-text-quaternary)]"
             />
           ) : (
             <>
               {!query.trim() && visibleEntries.length === 0 && (
-                <p className="text-[11px] text-white/30 px-1 py-2">No matches</p>
+                <p className="text-[11px] text-[var(--color-text-quaternary)] px-1 py-2">No matches</p>
               )}
               {!query.trim() && visibleEntries.length > 0 && (
-                <p className="px-1 pb-1 text-[10px] font-medium text-white/30 uppercase tracking-wide">
+                <p className="px-1 pb-1 text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-wide">
                   {activeCategory?.label ?? 'Emoji'}
                 </p>
               )}
@@ -186,7 +186,7 @@ export function EmojiPicker({ open, anchorRef, onClose, onPick }: EmojiPickerPro
       </div>
 
       {catalog && !catalogLoading && (
-        <div className="px-2 py-1 border-t border-white/[0.06] text-[9px] text-white/20 font-mono shrink-0">
+        <div className="px-2 py-1 border-t border-[var(--color-border-faint)] text-[9px] text-[var(--color-text-quaternary)] font-mono shrink-0">
           {query.trim()
             ? `${visibleEntries.length} results`
             : `${activeCategory?.entries.length ?? 0} in ${activeCategory?.label ?? ''} · ${catalog.allEntries.length} total`}
@@ -208,7 +208,7 @@ function EmojiCell({
     <button
       type="button"
       title={entry.name}
-      className="flex items-center justify-center w-8 h-8 rounded hover:bg-white/10 transition-colors"
+      className="flex items-center justify-center w-8 h-8 rounded hover:bg-[var(--color-border-faint)] transition-colors"
       onClick={() => onPick(entry)}
     >
       <img
@@ -242,7 +242,7 @@ function CategoryTab({
       title={category.label}
       onClick={onSelect}
       className={`w-8 h-8 flex items-center justify-center rounded text-base font-emoji transition-colors ${
-        active ? 'bg-white/15' : 'hover:bg-white/10'
+        active ? 'bg-[var(--color-border-faint)]' : 'hover:bg-[var(--color-border-faint)]'
       }`}
     >
       {category.icon}

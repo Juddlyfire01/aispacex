@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { Modal } from '../ui/modal'
+import { Modal, modalInputClass, modalSecondaryBtnClass } from '../ui/modal'
 import { useXAffiliatesStore, VENICE_ORG, orgKey, type AffiliateRoster } from '../../stores/x-affiliates-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
@@ -44,10 +44,8 @@ function AffiliateRow({ member, onAdd }: { member: Profile; onAdd: (member: Prof
         onClick={() => onAdd(member)}
         disabled={inRail}
         className={cn(
-          'shrink-0 rounded-md border px-2 py-1 text-[10.5px] font-medium transition-colors',
-          inRail
-            ? 'border-transparent text-[var(--color-text-quaternary)] cursor-default'
-            : 'border-white/[0.12] text-white/60 hover:text-white/90 hover:border-white/25',
+          modalSecondaryBtnClass,
+          inRail && 'border-transparent text-[var(--color-text-quaternary)] hover:border-transparent hover:bg-transparent hover:text-[var(--color-text-quaternary)] cursor-default',
         )}
       >
         {inRail ? 'Added' : 'Add target'}
@@ -159,7 +157,7 @@ export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () 
           type="button"
           onClick={() => run(org)}
           disabled={busy}
-          className="rounded-md border border-white/[0.12] px-2.5 py-1 text-[11px] font-medium text-white/60 hover:text-white/90 hover:border-white/25 transition-colors disabled:opacity-40"
+          className={modalSecondaryBtnClass}
         >
           {busy ? 'Refreshing…' : 'Refresh'}
         </button>
@@ -179,7 +177,7 @@ export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () 
             onClick={addAll}
             disabled={busy || notAddedCount === 0}
             title={notAddedCount === 0 ? 'All affiliates are already targets' : `Add all ${notAddedCount} to the rail`}
-            className="shrink-0 rounded-md border border-white/[0.12] px-2.5 py-1 text-[11px] font-medium text-white/60 hover:text-white/90 hover:border-white/25 transition-colors disabled:opacity-40 disabled:cursor-default"
+            className={modalSecondaryBtnClass}
           >
             {notAddedCount === 0 ? 'All added' : `Add all${notAddedCount < members.length ? ` (${notAddedCount})` : ''}`}
           </button>
@@ -216,13 +214,13 @@ export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () 
               onChange={(e) => setLookup(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleLookup() } }}
               placeholder="Look up another org, e.g. Stripe"
-              className="flex-1 rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-base)] px-2.5 py-1.5 text-[12px] text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-placeholder)] focus:border-[var(--color-border-strong)]"
+              className={cn(modalInputClass, 'flex-1 rounded-md px-2.5 py-1.5 text-[12px]')}
             />
             <button
               type="button"
               onClick={handleLookup}
               disabled={busy || !lookup.trim()}
-              className="shrink-0 rounded-md border border-white/[0.12] px-3 py-1.5 text-[11px] font-medium text-white/60 hover:text-white/90 hover:border-white/25 transition-colors disabled:opacity-40"
+              className={cn(modalSecondaryBtnClass, 'px-3 py-1.5')}
             >
               Look up
             </button>

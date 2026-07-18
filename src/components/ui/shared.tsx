@@ -84,11 +84,15 @@ export function PrimaryButton({ onClick, disabled, loading, children, ariaLabel,
       )}
     >
       {loading ? (
-        <span className="flex items-center justify-center gap-2"><Spinner size="sm" className="text-white/45" /> Working…</span>
+        <span className="flex items-center justify-center gap-2"><Spinner size="sm" className="text-[var(--color-btn-primary-fg)]/45" /> Working…</span>
       ) : children}
     </button>
   )
 }
+
+/** Outline secondary control — theme tokens on every appearance (not pure white opacity). */
+export const ghostBtnOutlineClass =
+  'border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2'
 
 export function GhostButton({ onClick, children, disabled, ariaLabel }: { onClick: () => void; children: React.ReactNode; disabled?: boolean; ariaLabel?: string }) {
   return (
@@ -97,9 +101,7 @@ export function GhostButton({ onClick, children, disabled, ariaLabel }: { onClic
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
-      className={cn(
-        'px-3 py-1.5 text-[13px] font-medium rounded-lg border border-white/[0.1] text-white/70 hover:text-white hover:border-white/[0.2] hover:bg-white/[0.03] transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
-      )}
+      className={cn('px-3 py-1.5 text-[13px] font-medium rounded-lg', ghostBtnOutlineClass)}
     >
       {children}
     </button>
@@ -208,7 +210,7 @@ const TONE: Record<string, string> = {
   violet: 'bg-violet-400/15 text-violet-300 border-violet-400/20',
   amber: 'bg-amber-400/15 text-amber-300 border-amber-400/20',
   pink: 'bg-pink-400/15 text-pink-300 border-pink-400/20',
-  slate: 'bg-white/[0.05] text-white/60 border-white/10',
+  slate: 'bg-[var(--color-border-faint)] text-[var(--color-text-secondary)] border-[var(--color-border-soft)]',
   rose: 'bg-rose-400/15 text-rose-300 border-rose-400/20',
   teal: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/30',
 }
@@ -226,7 +228,7 @@ export function StatusDot({ tone = 'slate', pulsing }: { tone?: 'emerald' | 'amb
     : tone === 'amber' ? 'bg-amber-400'
     : tone === 'rose' ? 'bg-rose-400'
     : tone === 'teal' ? 'bg-[var(--color-accent)]'
-    : 'bg-white/30'
+    : 'bg-[var(--color-text-quaternary)]'
   return (
     <span className={cn('inline-block w-1.5 h-1.5 rounded-full', color, pulsing && 'animate-pulse-dot')} />
   )

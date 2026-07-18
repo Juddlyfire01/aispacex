@@ -12,14 +12,14 @@ const COLORS: Record<string, string> = {
   tts: 'border-green-500/30',
   music: 'border-yellow-500/30',
   video: 'border-orange-500/30',
-  output: 'border-white/20',
+  output: 'border-[var(--color-border-strong)]',
 }
 
 type PreviewNode = Node<VeniceNodeData>
 
 function PreviewNodeComponent({ id, data }: NodeProps<PreviewNode>) {
   const schema = NODE_SCHEMAS[data.nodeType]
-  const border = COLORS[data.nodeType] ?? 'border-white/20'
+  const border = COLORS[data.nodeType] ?? 'border-[var(--color-border-strong)]'
   const hasInput = schema?.input !== 'none'
   const hasOutput = schema?.output !== 'none'
   const result = usePlaygroundStore((s) => s.runResults[id])
@@ -42,7 +42,7 @@ function PreviewNodeComponent({ id, data }: NodeProps<PreviewNode>) {
   if (data.nodeType === 'tts' && data.voice) meta.push(data.voice)
 
   const statusRing =
-    result?.status === 'running' ? 'ring-2 ring-white/20 animate-pulse'
+    result?.status === 'running' ? 'ring-2 ring-[var(--color-border-strong)] animate-pulse'
     : result?.status === 'done' ? 'ring-2 ring-green-500/30'
     : result?.status === 'error' ? 'ring-2 ring-red-500/30'
     : ''
@@ -63,21 +63,21 @@ function PreviewNodeComponent({ id, data }: NodeProps<PreviewNode>) {
 
   return (
     <div className={cn('rounded-xl border-2 bg-[var(--color-bg-surface)] shadow-xl min-w-[240px] max-w-[280px]', border, statusRing)}>
-      {hasInput && <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-white/30 !border-2 !border-[var(--color-bg-raised)]" />}
+      {hasInput && <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-[var(--color-text-quaternary)] !border-2 !border-[var(--color-bg-raised)]" />}
 
-      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-white/[0.06]">
-        <span className="text-[13.5px] font-medium text-white/60">{schema?.label ?? data.nodeType}</span>
-        {result?.status === 'running' && <span className="ml-auto text-[11px] text-white/30">Running…</span>}
+      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-[var(--color-border-faint)]">
+        <span className="text-[13.5px] font-medium text-[var(--color-text-secondary)]">{schema?.label ?? data.nodeType}</span>
+        {result?.status === 'running' && <span className="ml-auto text-[11px] text-[var(--color-text-quaternary)]">Running…</span>}
         {result?.status === 'done' && <span className="ml-auto text-[11px] text-green-400/50">Done</span>}
         {result?.status === 'error' && <span className="ml-auto text-[11px] text-red-400/60">Error</span>}
         {!result?.status && meta.length > 0 && (
-          <span className="ml-auto text-[11px] text-white/25 truncate max-w-[140px]" title={meta.join(' · ')}>{meta.join(' · ')}</span>
+          <span className="ml-auto text-[11px] text-[var(--color-text-quaternary)] truncate max-w-[140px]" title={meta.join(' · ')}>{meta.join(' · ')}</span>
         )}
       </div>
 
       {summary && !result?.status && (
         <div className="px-3.5 py-2.5">
-          <p className="text-[12.5px] text-white/50 leading-relaxed line-clamp-3 whitespace-pre-wrap">{summary}</p>
+          <p className="text-[12.5px] text-[var(--color-text-tertiary)] leading-relaxed line-clamp-3 whitespace-pre-wrap">{summary}</p>
         </div>
       )}
 
@@ -90,18 +90,18 @@ function PreviewNodeComponent({ id, data }: NodeProps<PreviewNode>) {
       {result?.status === 'done' && strippedOutput && (
         <div className="px-3.5 py-2.5">
           {isImage ? (
-            <img src={strippedOutput} alt="" className="w-full rounded border border-white/[0.06]" />
+            <img src={strippedOutput} alt="" className="w-full rounded border border-[var(--color-border-faint)]" />
           ) : isAudio ? (
             <audio src={strippedOutput} controls className="w-full h-8" />
           ) : isVideo ? (
-            <video src={strippedOutput} controls className="w-full rounded border border-white/[0.06]" />
+            <video src={strippedOutput} controls className="w-full rounded border border-[var(--color-border-faint)]" />
           ) : (
-            <p className="text-[12.5px] text-white/55 leading-relaxed line-clamp-6 whitespace-pre-wrap">{strippedOutput}</p>
+            <p className="text-[12.5px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-6 whitespace-pre-wrap">{strippedOutput}</p>
           )}
         </div>
       )}
 
-      {hasOutput && <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-white/30 !border-2 !border-[var(--color-bg-raised)]" />}
+      {hasOutput && <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-[var(--color-text-quaternary)] !border-2 !border-[var(--color-bg-raised)]" />}
     </div>
   )
 }

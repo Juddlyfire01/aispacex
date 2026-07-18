@@ -7,40 +7,61 @@ import {
   resolveRegisterPack,
   draftRegisterFromDefault,
   DEFAULT_REGISTER_DEFAULT,
+  EMPTY_SECTIONS,
 } from './register'
+
+const samplePack = {
+  summary: 'Terse metric voice',
+  sections: {
+    ...EMPTY_SECTIONS,
+    cadence: 'Short punches',
+    rhetoric: 'Rankings and tension pivots',
+  },
+  devices: ['ranking', 'tension'],
+}
 
 describe('normalizeRegisterPack', () => {
   it('returns null for empty', () => {
     expect(normalizeRegisterPack({})).toBeNull()
-    expect(normalizeRegisterPack({ description: '', devices: [], fewShotExamples: [] })).toBeNull()
+    expect(
+      normalizeRegisterPack({
+        summary: '',
+        devices: [],
+        sections: { ...EMPTY_SECTIONS },
+      }),
+    ).toBeNull()
   })
 
-  it('keeps description devices and few-shots', () => {
+  it('migrates legacy description and drops few-shots', () => {
     const pack = normalizeRegisterPack({
       description: 'Terse',
       devices: ['metrics', ''],
-      fewShotExamples: [
-        { label: 'tension', postId: '1', text: 'but here is the tension' },
-        { label: 'bad', text: '  ' },
-      ],
-    })
-    expect(pack).toEqual({
-      description: 'Terse',
-      devices: ['metrics'],
       fewShotExamples: [{ label: 'tension', postId: '1', text: 'but here is the tension' }],
     })
+    expect(pack).toEqual({
+      summary: 'Terse',
+      devices: ['metrics'],
+      sections: { ...EMPTY_SECTIONS },
+    })
+  })
+
+  it('keeps summary and sections', () => {
+    const pack = normalizeRegisterPack(samplePack)
+    expect(pack?.summary).toBe('Terse metric voice')
+    expect(pack?.sections.cadence).toBe('Short punches')
+    expect(pack?.devices).toEqual(['ranking', 'tension'])
   })
 })
 
 describe('parseRegisterUpload', () => {
   it('parses bare pack', () => {
-    const pack = parseRegisterUpload(JSON.stringify({ description: 'x', devices: ['a'] }))
-    expect(pack.description).toBe('x')
+    const pack = parseRegisterUpload(JSON.stringify({ summary: 'x', devices: ['a'] }))
+    expect(pack.summary).toBe('x')
   })
 
-  it('parses wrapped register', () => {
+  it('parses wrapped register and legacy description', () => {
     const pack = parseRegisterUpload(JSON.stringify({ register: { description: 'y', devices: [] } }))
-    expect(pack.description).toBe('y')
+    expect(pack.summary).toBe('y')
   })
 
   it('throws on invalid json', () => {
@@ -49,59 +70,38 @@ describe('parseRegisterUpload', () => {
 })
 
 describe('formatRegisterInject', () => {
-  it('includes description devices few-shots and custom', () => {
-    const text = formatRegisterInject(
-      {
-        description: 'Clinical',
-        devices: ['rankings'],
-        fewShotExamples: [{ label: 'ranking', postId: '99', text: 'top 5:' }],
-      },
-      { customPrompt: 'keep under 280' },
-    )
+  it('includes summary sections devices and custom — no few-shots', () => {
+    const text = formatRegisterInject(samplePack, { customPrompt: 'keep under 280' })
     expect(text).toMatch(/REGISTER — VOICE CONSTRAINT/)
-    expect(text).toMatch(/Clinical/)
-    expect(text).toMatch(/rankings/)
-    // Anchor header no longer dangles the post id (avoids exhibit reuse).
-    expect(text).toMatch(/--- ranking ---/)
-    expect(text).not.toMatch(/\[post:99\]/)
-    expect(text).toMatch(/top 5:/)
+    expect(text).toMatch(/Terse metric voice/)
+    expect(text).toMatch(/Cadence: Short punches/)
+    expect(text).toMatch(/Rhetoric: Rankings/)
+    expect(text).toMatch(/ranking/)
     expect(text).toMatch(/keep under 280/)
     expect(text).toMatch(/Adherence checklist/)
+    expect(text).toMatch(/FORMAT WINS LENGTH/)
+    expect(text).toMatch(/hard caps/)
+    expect(text).not.toMatch(/few.?shot/i)
+    expect(text).not.toMatch(/RHYTHM SAMPLES/)
   })
 
-  it('marks anchors as style-only and honors live-ask precedence', () => {
-    const text = formatRegisterInject({
-      description: 'Clinical',
-      devices: ['rankings'],
-      fewShotExamples: [{ label: 'ranking', postId: '99', text: 'top 5:' }],
-    })
+  it('honors live-ask precedence', () => {
+    const text = formatRegisterInject(samplePack)
     expect(text).toMatch(/NOT content/)
-    expect(text).toMatch(/RHYTHM SAMPLES ONLY/)
     expect(text).toMatch(/PRECEDENCE/)
-  })
-
-  it('clamps long anchor text to a cadence sample', () => {
-    const long = 'x'.repeat(500)
-    const text = formatRegisterInject({
-      description: '',
-      devices: [],
-      fewShotExamples: [{ label: 'long', text: long }],
-    })
-    expect(text).toContain('…')
-    expect(text).not.toContain(long)
   })
 })
 
 describe('resolveRegisterPack', () => {
   const youPack = {
-    description: 'me voice',
+    summary: 'me voice',
     devices: ['short'],
-    fewShotExamples: [] as { label: string; text: string }[],
+    sections: { ...EMPTY_SECTIONS, cadence: 'clipped' },
   }
   const otherPack = {
-    description: 'aixbt',
+    summary: 'aixbt',
     devices: ['metrics'],
-    fewShotExamples: [{ label: 'tension', text: 'but here is the tension' }],
+    sections: { ...EMPTY_SECTIONS, texture: 'dense numbers' },
   }
 
   it('none returns null inject', () => {
@@ -121,13 +121,14 @@ describe('resolveRegisterPack', () => {
       otherPack,
     })
     expect(r.inject).toMatch(/me voice/)
+    expect(r.inject).toMatch(/clipped/)
   })
 
   it('you prefers localPack', () => {
     const r = resolveRegisterPack({
       draft: {
         mode: 'you',
-        localPack: { description: 'edited', devices: [], fewShotExamples: [] },
+        localPack: { summary: 'edited', devices: [], sections: { ...EMPTY_SECTIONS } },
       },
       youPack,
       otherPack,
@@ -153,7 +154,7 @@ describe('resolveRegisterPack', () => {
       otherPack,
     })
     expect(r.inject).toMatch(/aixbt/)
-    expect(r.inject).toMatch(/tension/)
+    expect(r.inject).toMatch(/dense numbers/)
   })
 
   it('custom uses prompt', () => {
@@ -178,6 +179,10 @@ describe('draftRegisterFromDefault', () => {
 
 describe('emptyRegisterPack', () => {
   it('is empty shape', () => {
-    expect(emptyRegisterPack()).toEqual({ description: '', devices: [], fewShotExamples: [] })
+    expect(emptyRegisterPack()).toEqual({
+      summary: '',
+      devices: [],
+      sections: { ...EMPTY_SECTIONS },
+    })
   })
 })

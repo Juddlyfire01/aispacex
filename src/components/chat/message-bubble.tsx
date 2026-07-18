@@ -92,7 +92,7 @@ function MessageBubbleImpl({ message, onCopy, onDelete, onRegenerate }: MessageB
           <div className="mb-2">
             <button
               onClick={() => setReasoningOpen(!reasoningOpen)}
-              className="flex items-center gap-1.5 text-[14px] text-white/20 hover:text-white/35 transition-colors mb-1"
+              className="flex items-center gap-1.5 text-[14px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors mb-1"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
                 className={cn('transition-transform duration-150', reasoningOpen && 'rotate-90')}>
@@ -101,7 +101,7 @@ function MessageBubbleImpl({ message, onCopy, onDelete, onRegenerate }: MessageB
               Thinking
             </button>
             {reasoningOpen && (
-              <div className="bg-white/[0.02] border border-white/[0.04] rounded-lg px-3 py-2 text-[15px] text-white/30 leading-relaxed whitespace-pre-wrap animate-fade-in max-h-60 overflow-y-auto">
+              <div className="bg-[var(--color-border-faint)] border border-[var(--color-border-faint)] rounded-lg px-3 py-2 text-[15px] text-[var(--color-text-quaternary)] leading-relaxed whitespace-pre-wrap animate-fade-in max-h-60 overflow-y-auto">
                 {message.reasoning_content}
               </div>
             )}
@@ -109,12 +109,12 @@ function MessageBubbleImpl({ message, onCopy, onDelete, onRegenerate }: MessageB
         )}
 
         {content ? (
-          <MarkdownMessage content={content} className="text-[15.5px] leading-relaxed text-white/85" />
+          <MarkdownMessage content={content} className="text-[15.5px] leading-relaxed text-[var(--color-text-primary)]" />
         ) : (
           <span className="inline-flex gap-1.5 py-1.5">
-            <span className="w-1 h-1 rounded-full bg-white/25 animate-pulse-dot" />
-            <span className="w-1 h-1 rounded-full bg-white/25 animate-pulse-dot" style={{ animationDelay: '0.2s' }} />
-            <span className="w-1 h-1 rounded-full bg-white/25 animate-pulse-dot" style={{ animationDelay: '0.4s' }} />
+            <span className="w-1 h-1 rounded-full bg-[var(--color-border-faint)] animate-pulse-dot" />
+            <span className="w-1 h-1 rounded-full bg-[var(--color-border-faint)] animate-pulse-dot" style={{ animationDelay: '0.2s' }} />
+            <span className="w-1 h-1 rounded-full bg-[var(--color-border-faint)] animate-pulse-dot" style={{ animationDelay: '0.4s' }} />
           </span>
         )}
         <div className="mt-0.5">{actions}</div>
@@ -144,7 +144,7 @@ function ActionBtn({ label, onClick, children }: { label: string; onClick: () =>
     <button
       onClick={onClick}
       title={label}
-      className="p-1 text-white/15 hover:text-white/40 transition-colors rounded-md hover:bg-white/[0.04]"
+      className="p-1 text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors rounded-md hover:bg-[var(--color-border-faint)]"
     >
       {children}
     </button>

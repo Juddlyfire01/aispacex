@@ -50,17 +50,17 @@ function MediaPreview({
         <img
           src={item.dataUrl}
           alt=""
-          className="w-12 h-12 rounded object-cover border border-white/10"
+          className="w-12 h-12 rounded object-cover border border-[var(--color-border-soft)]"
         />
       ) : (
-        <div className="w-12 h-12 rounded border border-white/10 flex items-center justify-center text-[9px] text-white/30 uppercase">
+        <div className="w-12 h-12 rounded border border-[var(--color-border-soft)] flex items-center justify-center text-[9px] text-[var(--color-text-quaternary)] uppercase">
           {item.kind}
         </div>
       )}
       <button
         type="button"
         onClick={onRemove}
-        className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors mt-1"
+        className="text-[10px] text-[var(--color-text-quaternary)] hover:text-red-400/70 transition-colors mt-1"
       >
         Remove
       </button>
@@ -127,7 +127,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
           onChange={(e) => patchArticleText(e.target.value, resolved.bodyMarkdown)}
           placeholder="Article title"
           readOnly={streaming}
-          className="w-full bg-transparent text-[17px] font-semibold text-white/90 outline-none placeholder:text-white/25 placeholder:font-normal read-only:cursor-default"
+          className="w-full bg-transparent text-[17px] font-semibold text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-quaternary)] placeholder:font-normal read-only:cursor-default"
         />
       </div>
 
@@ -142,7 +142,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
       />
 
       <div className="space-y-2">
-        <div className="text-[11px] text-white/40">Cover image</div>
+        <div className="text-[11px] text-[var(--color-text-tertiary)]">Cover image</div>
         {resolved.cover ? (
           <MediaPreview
             item={resolved.cover}
@@ -160,7 +160,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
             <button
               type="button"
               onClick={() => coverInputRef.current?.click()}
-              className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+              className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
             >
               + Add cover
             </button>
@@ -169,7 +169,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
       </div>
 
       <div className="space-y-2">
-        <div className="text-[11px] text-white/40">Inline images</div>
+        <div className="text-[11px] text-[var(--color-text-tertiary)]">Inline images</div>
         {resolved.inlineMedia.map((m) => (
           <MediaPreview
             key={m.id}
@@ -195,7 +195,7 @@ export function ArticleComposer({ threadId }: ArticleComposerProps) {
             <button
               type="button"
               onClick={() => inlineInputRef.current?.click()}
-              className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+              className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
             >
               + Add inline images
             </button>

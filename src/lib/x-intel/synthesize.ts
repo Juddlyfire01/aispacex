@@ -15,9 +15,11 @@ import type {
   ReportNarrative,
   ChangeSummary,
   IntelReportSnapshot,
+  RegisterSections,
 } from './types'
 import type { ChatCompletionResponse } from '../../types/venice'
-import { enrichRegisterFewShots } from './register-few-shots'
+import { EMPTY_SECTIONS } from '../compose/register'
+import { packPostsForContext, formatTranscriptLine } from './context-pack'
 
 let textModelsCache: VeniceModel[] | null = null
 
@@ -106,10 +108,7 @@ export async function synthesizeProfile(
   posts: Post[],
   settings: SynthesisSettings,
 ): Promise<CharacterProfile> {
-  const transcript = posts
-    .slice(0, settings.contextCap)
-    .map((p) => `[${p.createdAt}] (${p.kind}, ${p.metrics.likes}L/${p.metrics.reposts}R, id:${p.id}) ${p.text}`)
-    .join('\n')
+  const transcript = packPostsForContext(posts, settings.contextCap).map(formatTranscriptLine).join('\n')
 
   const resp = await venice<ChatCompletionResponse>('/chat/completions', {
     method: 'POST',
@@ -143,7 +142,20 @@ CRITICAL RULES:
 - For themes and narrativeArcs, cite EVERY post that supports the point — list all relevant post ids, not just one. Include as many as genuinely apply (some themes will have one, others several); never artificially limit the count.
 - No speculation beyond what the data supports. Distinguish observation from inference.
 - For notablePosts, return only the post id and why it matters — do not fabricate post text.
-- For register.fewShotExamples, pick 6–10 real posts that best embody the register (prefer notable / high-density). Set label (e.g. tension_framing, ranking, comparison, short_risk, brand_protection) and postId. Leave text empty — it will be filled from the real post body. Never invent post text.
+- COMPUTED STYLE FEATURES (analytics.styleFeatures) inform the register.
+  - Use overall + byFormat. Prefer byFormat.post for short-form cadence; byFormat.article / byFormat.longform when those formatCounts are > 0.
+  - NEVER paste averages, character counts, word counts, or per-100-token rates into register prose.
+- Fill register as an ABSTRACT style sheet for drafting (how they write), NOT a psychological profile and NOT a quote bank.
+- REGISTER EXTRACTION RULES (critical — creative freedom):
+  - Pure extraction of habits: rhythm class, diction class, stance, rhetorical moves, texture preferences, format flex, anti-patterns.
+  - FORBIDDEN in every register field: quoted post text, paraphrased one-liners, sample sentences, amplified-quote recipes, product names as exemplars, slogan fragments, concrete exhibits from the transcript.
+  - FORBIDDEN: hard length quotas ("under 10 words", "~170 characters"). Describe relative tendencies only.
+  - devices must be ABSTRACT rhetorical moves (contrast_frame, tension_pivot, numbered_howto, soft_cta, ranking_stack) — never topic labels (privacy_pitch, token_math, quote_amplify).
+  - Each section should be DEEP: 2–5 sentences of actionable guidance.
+  - formatFlex is required. When the transcript includes lines tagged (article/…) or (longform/…), ground formatFlex in those observed samples (still abstract — no quotes). When formatCounts.article is 0, say article flex is inferred from short-form habits only.
+  - constraints = voice anti-patterns only (not format bans).
+- Transcript lines are tagged as (post|longform|article)/(kind, …). Articles were priority-packed into this window — treat them as the primary evidence for long-form voice when present.
+- If postCount is very low, keep the style sheet cautious rather than overconfident.
 - Prose string fields may use light Markdown (bold, italics, lists) but must NOT begin with a label like "markdown:" — write the actual content directly.
 - The shape below is a schema. Replace every placeholder with real content; do not echo placeholder words like "string" or "markdown".
 
@@ -154,9 +166,17 @@ Respond with ONLY a fenced json block matching exactly this shape:
   "strategicAssessment": "a paragraph on what this account appears to be trying to accomplish",
   "themes": [{ "name": "theme name", "evidence": "short reason plus every supporting post id (e.g. post:123, post:456, …) — cite all that apply, not just one", "weight": 0.0 }],
   "register": {
-    "description": "tone/style",
-    "devices": ["rhetorical device"],
-    "fewShotExamples": [{ "label": "short_label_like_tension_framing_or_ranking", "postId": "real post id from transcript", "text": "" }]
+    "summary": "2-3 sentence abstract voice summary — no quotes, no product exhibits, no length quotas",
+    "sections": {
+      "cadence": "2-5 sentences: rhythm / punctuation / punch-vs-sprawl tendencies WITHOUT character or word-count caps",
+      "diction": "2-5 sentences: word-choice class and register mixing — name CATEGORIES of lexicon, not slogan fragments to reuse",
+      "stance": "2-5 sentences: certainty, hedging, agency, address (I/we/you) as habits",
+      "rhetoric": "2-5 sentences: abstract moves available (tension, contrast, ranking, howto, CTA) with no sample lines",
+      "texture": "2-5 sentences: when metrics/receipts/lists appear as texture — qualitative, not quotas",
+      "formatFlex": "2-5 sentences: how this voice scales for post vs thread vs article/long-form (same identity, different length/paragraphing)",
+      "constraints": "2-5 sentences: anti-patterns of the voice (not format bans)"
+    },
+    "devices": ["abstract_rhetorical_tag"]
   },
   "narrativeArcs": [{ "arc": "arc description", "trend": "rising|falling|stable", "evidence": "supporting detail plus every relevant post id (e.g. post:123, post:456, …)" }],
   "audienceRead": "who this content targets and why",
@@ -190,10 +210,7 @@ Respond with ONLY a fenced json block matching exactly this shape:
 \`\`\``
 
 function buildTranscript(posts: Post[], cap: number): string {
-  return posts
-    .slice(0, cap)
-    .map((p) => `[${p.createdAt}] (${p.kind}, ${p.metrics.likes}L/${p.metrics.reposts}R/${p.metrics.bookmarks}B, id:${p.id}) ${p.text}`)
-    .join('\n')
+  return packPostsForContext(posts, cap).map(formatTranscriptLine).join('\n')
 }
 
 /**
@@ -243,11 +260,15 @@ export function buildReportMessages(args: {
   const priorContext = includedReports.length > 0
     ? `\n\nPRIOR ANALYSIS (narrative context from ${includedReports.length} earlier report${includedReports.length === 1 ? '' : 's'} — build on this; note continuity and shifts, do not simply repeat it):\n${includedReports.map(condensePriorReport).join('\n\n')}`
     : ''
+  const fc = analytics.styleFeatures?.formatCounts
+  const formatNote = fc
+    ? `\n\nFORMAT COUNTS (ground truth for register.formatFlex): post=${fc.post}, longform=${fc.longform}, article=${fc.article}. If article>0, transcript lines tagged (article/…) are the observed long-form samples — do NOT claim no articles exist.`
+    : ''
   return [
     { role: 'system', content: REPORT_SYSTEM },
     {
       role: 'user',
-      content: `Profile: ${JSON.stringify(profile)}\n\nCOMPUTED ANALYTICS (ground truth — own posts only; ${inboundCount} inbound mentions excluded from metrics):\n${JSON.stringify(analytics)}${priorContext}\n\nTarget's own posts:\n${transcript}`,
+      content: `Profile: ${JSON.stringify(profile)}\n\nCOMPUTED ANALYTICS (ground truth — own posts only; ${inboundCount} inbound mentions excluded from metrics):\n${JSON.stringify(analytics)}${priorContext}${formatNote}\n\nTarget's own posts:\n${transcript}`,
     },
   ]
 }
@@ -346,26 +367,36 @@ export function humanizeComputedDelta(
   }
 }
 
+function parseRegisterSections(raw: unknown): RegisterSections {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const out: RegisterSections = { ...EMPTY_SECTIONS }
+  for (const key of Object.keys(EMPTY_SECTIONS) as (keyof RegisterSections)[]) {
+    const v = o[key]
+    out[key] = typeof v === 'string' ? v : ''
+  }
+  return out
+}
+
 function parseRegister(raw: unknown): ReportNarrative['register'] {
-  if (!raw || typeof raw !== 'object') return { description: '', devices: [], fewShotExamples: [] }
+  if (!raw || typeof raw !== 'object') {
+    return { summary: '', sections: { ...EMPTY_SECTIONS }, devices: [] }
+  }
   const o = raw as {
+    summary?: string
     description?: string
     devices?: string[]
-    fewShotExamples?: { label?: string; postId?: string; text?: string }[]
+    sections?: unknown
   }
-  const fewShotExamples = Array.isArray(o.fewShotExamples)
-    ? o.fewShotExamples
-        .filter((f) => f && (typeof f.postId === 'string' || typeof f.text === 'string'))
-        .map((f) => ({
-          label: typeof f.label === 'string' && f.label.trim() ? f.label.trim() : 'example',
-          postId: typeof f.postId === 'string' && f.postId.trim() ? f.postId.trim() : undefined,
-          text: typeof f.text === 'string' ? f.text : '',
-        }))
-    : []
+  const summary =
+    typeof o.summary === 'string' && o.summary.trim()
+      ? o.summary
+      : typeof o.description === 'string'
+        ? o.description
+        : ''
   return {
-    description: typeof o.description === 'string' ? o.description : '',
+    summary,
+    sections: parseRegisterSections(o.sections),
     devices: Array.isArray(o.devices) ? o.devices.filter((d): d is string => typeof d === 'string') : [],
-    fewShotExamples,
   }
 }
 
@@ -517,18 +548,7 @@ export async function synthesizeReport(
   if (!narrativeStream.content.trim()) {
     throw new Error('Venice report synthesis returned no content — the model may have refused or filtered the request')
   }
-  const parsed = parseReport(narrativeStream.content)
-  const narrative: ReportNarrative = {
-    ...parsed,
-    register: {
-      ...parsed.register,
-      fewShotExamples: enrichRegisterFewShots({
-        fewShotExamples: parsed.register.fewShotExamples,
-        notablePosts: parsed.notablePosts,
-        ownPosts: own,
-      }),
-    },
-  }
+  const narrative = parseReport(narrativeStream.content)
 
   const narrPrompt = narrativeStream.usage?.prompt_tokens ?? estimatedPrompt
   const narrCompletion = narrativeStream.usage?.completion_tokens ?? estimateTextTokens(narrativeStream.content)

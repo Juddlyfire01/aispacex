@@ -12,7 +12,7 @@ function recencyDotClass(iso: string): string {
   const h = (Date.now() - new Date(iso).getTime()) / 3_600_000
   if (h < 24) return 'bg-green-400/70'
   if (h < 24 * 7) return 'bg-amber-400/70'
-  return 'bg-white/25'
+  return 'bg-[var(--color-border-faint)]'
 }
 
 function timeAgo(iso: string): string {
@@ -64,18 +64,18 @@ export function NetworkRankedList({
   )
 
   const headline = direction === 'inbound'
-    ? <>Who engages <b className="text-white/75 font-medium">@{model.center.username}</b></>
-    : <>Who <b className="text-white/75 font-medium">@{model.center.username}</b> engages</>
+    ? <>Who engages <b className="text-[var(--color-text-secondary)] font-medium">@{model.center.username}</b></>
+    : <>Who <b className="text-[var(--color-text-secondary)] font-medium">@{model.center.username}</b> engages</>
 
   return (
     <div className="h-full overflow-y-auto px-4 py-2">
       {/* Header: direction headline + legend */}
-      <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/[0.06]">
-        <span className="text-[11px] text-white/45">{headline}</span>
+      <div className="flex items-center gap-2 pb-2 mb-1 border-b border-[var(--color-border-faint)]">
+        <span className="text-[11px] text-[var(--color-text-tertiary)]">{headline}</span>
         <div className="flex-1" />
         <div className="flex items-center gap-2.5">
           {KIND_ORDER.map((k) => (
-            <span key={k} className="flex items-center gap-1 text-[9px] text-white/40 uppercase tracking-wide">
+            <span key={k} className="flex items-center gap-1 text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide">
               <span className="w-2 h-2 rounded-[2px]" style={{ background: kindTint(k) }} />
               {k}
             </span>
@@ -97,7 +97,7 @@ export function NetworkRankedList({
       </ul>
 
       {(model.longTailCount > 0 || model.unresolvedCount > 0) && (
-        <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-white/30 font-mono">
+        <div className="mt-2 pt-2 border-t border-[var(--color-border-faint)] text-[10px] text-[var(--color-text-quaternary)] font-mono">
           {model.longTailCount > 0 && (
             <span>+{model.longTailCount} more accounts ({model.longTailWeight} interactions) below the cap</span>
           )}
@@ -124,7 +124,7 @@ function AccountRow({ node, maxWeight, posts, onJumpToPost, onClick }: AccountRo
   const sources = node.sourcePostIds ?? []
 
   return (
-    <li className="rounded-md px-1.5 py-1 hover:bg-white/[0.02]">
+    <li className="rounded-md px-1.5 py-1 hover:bg-[var(--color-border-faint)]">
       <button
         type="button"
         disabled={!clickable}
@@ -142,12 +142,12 @@ function AccountRow({ node, maxWeight, posts, onJumpToPost, onClick }: AccountRo
               <img
                 src={node.avatarUrl}
                 alt=""
-                className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10"
+                className="w-7 h-7 rounded-full object-cover ring-1 ring-[var(--color-border-soft)]"
               />
             )
             : (
               <span
-                className="w-7 h-7 rounded-full grid place-items-center text-[11px] font-semibold ring-1 ring-white/10"
+                className="w-7 h-7 rounded-full grid place-items-center text-[11px] font-semibold ring-1 ring-[var(--color-border-soft)]"
                 style={{ background: `hsl(${hue} 40% 22%)`, color: `hsl(${hue} 70% 78%)` }}
               >
                 {(node.username[0] ?? '?').toUpperCase()}
@@ -162,8 +162,8 @@ function AccountRow({ node, maxWeight, posts, onJumpToPost, onClick }: AccountRo
         {/* Handle + bar */}
         <span className="flex-1 min-w-0">
           <span className="flex items-center gap-1.5">
-            <span className="text-[12px] text-white/80 truncate group-hover:text-white/95">@{node.username}</span>
-            <span className="text-[9px] text-white/25 font-mono shrink-0">{timeAgo(node.lastSeen)}</span>
+            <span className="text-[12px] text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-text-primary)]">@{node.username}</span>
+            <span className="text-[9px] text-[var(--color-text-quaternary)] font-mono shrink-0">{timeAgo(node.lastSeen)}</span>
           </span>
           <span className="mt-0.5 flex h-2 w-full items-center gap-px">
             <StackedBar node={node} widthPct={barPct} />
@@ -172,8 +172,8 @@ function AccountRow({ node, maxWeight, posts, onJumpToPost, onClick }: AccountRo
 
         {/* Total weight + per-kind counts on hover */}
         <span className="shrink-0 w-14 text-right">
-          <span className="block text-[12px] tabular-nums text-white/70 font-medium">{node.totalWeight}</span>
-          <span className="block text-[9px] text-white/25 font-mono truncate opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="block text-[12px] tabular-nums text-[var(--color-text-secondary)] font-medium">{node.totalWeight}</span>
+          <span className="block text-[9px] text-[var(--color-text-quaternary)] font-mono truncate opacity-0 group-hover:opacity-100 transition-opacity">
             {breakdownShort(node)}
           </span>
         </span>

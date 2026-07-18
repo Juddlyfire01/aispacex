@@ -58,11 +58,11 @@ function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'
   return (
     <div className="relative group/code">
       {lang && (
-        <div className="absolute top-0 left-0 px-3 py-1.5 text-[13px] text-white/15 font-mono uppercase tracking-wider select-none">{lang}</div>
+        <div className="absolute top-0 left-0 px-3 py-1.5 text-[13px] text-[var(--color-text-quaternary)] font-mono uppercase tracking-wider select-none">{lang}</div>
       )}
       <button
         onClick={() => { navigator.clipboard.writeText(codeStr); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500) }}
-        className="absolute top-1.5 right-1.5 px-2 py-1 text-[13px] font-medium text-white/15 hover:text-white/40 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all opacity-0 group-hover/code:opacity-100"
+        className="absolute top-1.5 right-1.5 px-2 py-1 text-[13px] font-medium text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] bg-[var(--color-border-faint)] hover:bg-[var(--color-border-faint)] rounded-md transition-all opacity-0 group-hover/code:opacity-100"
       >
         {codeCopied ? 'Copied' : 'Copy'}
       </button>

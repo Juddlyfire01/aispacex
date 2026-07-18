@@ -55,7 +55,7 @@ export function Checkbox({
           BOX_SIZE[size],
           'shrink-0 rounded-sm border border-[var(--color-border-strong)] bg-[var(--color-bg-input)]',
           'flex items-center justify-center',
-          'peer-checked:border-white/20 peer-checked:bg-white/[0.08]',
+          'peer-checked:border-[var(--color-border-strong)] peer-checked:bg-[var(--color-border-faint)]',
           'peer-focus-visible:outline-2 peer-focus-visible:outline-[var(--color-accent-soft)] peer-focus-visible:outline-offset-1',
           'peer-disabled:opacity-40',
           'peer-checked:[&_svg]:opacity-100',
@@ -68,7 +68,7 @@ export function Checkbox({
           className={cn(
             ICON_SIZE[size],
             'opacity-0',
-            tick === 'accent' ? 'text-[var(--color-accent)]' : 'text-white/55',
+            tick === 'accent' ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]',
           )}
         >
           <path

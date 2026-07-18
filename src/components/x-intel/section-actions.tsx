@@ -29,7 +29,7 @@ const RefreshIcon = ({ spinning }: { spinning?: boolean }) => (
  */
 /** Compact bordered action button — shared by section refresh controls and profile disconnect. */
 export const sectionActionBtnCls =
-  'flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-md border border-white/[0.08] text-white/55 hover:text-white/85 hover:border-white/[0.2] transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2 shrink-0'
+  'flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-md border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2 shrink-0'
 
 const refreshBtnCls = sectionActionBtnCls
 
@@ -69,7 +69,7 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
       <div className="flex items-center justify-between gap-3 w-full">
         {error
           ? <span className="text-[10px] text-red-400/70 min-w-0">{error}</span>
-          : <span className="text-[10px] text-white/25 font-mono truncate">{statusText}</span>}
+          : <span className="text-[10px] text-[var(--color-text-quaternary)] font-mono truncate">{statusText}</span>}
         {btn}
       </div>
     )
@@ -79,7 +79,7 @@ export function SectionRefresh({ onClick, busy, disabled, lastGatheredIso, error
     <div className="flex items-center gap-2 shrink-0">
       {error
         ? <span className="text-[9px] text-red-400/70">{error}</span>
-        : <span className="text-[9px] text-white/20 font-mono">{statusTextCompact}</span>}
+        : <span className="text-[9px] text-[var(--color-text-quaternary)] font-mono">{statusTextCompact}</span>}
       {btn}
     </div>
   )
@@ -104,8 +104,8 @@ export function SectionEmpty({ title, hint, actionLabel, onAction, busy, disable
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
       <div className="space-y-1">
-        <p className="text-[13px] text-white/45 font-medium">{title}</p>
-        {hint && <p className="text-[11px] text-white/25 max-w-xs">{hint}</p>}
+        <p className="text-[13px] text-[var(--color-text-tertiary)] font-medium">{title}</p>
+        {hint && <p className="text-[11px] text-[var(--color-text-quaternary)] max-w-xs">{hint}</p>}
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -120,7 +120,7 @@ export function SectionEmpty({ title, hint, actionLabel, onAction, busy, disable
           <button
             onClick={onSecondary}
             disabled={secondaryBusy || disabled}
-            className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-white/[0.1] text-white/70 hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {secondaryBusy ? 'Gathering…' : secondaryLabel}
           </button>

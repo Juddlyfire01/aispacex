@@ -205,10 +205,10 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
     <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2">
       {!streaming && <ArticleFormatToolbar editorRef={editorRef} onEdited={emitFromDom} />}
       {streaming && (
-        <div className="flex items-center gap-2 text-[10px] text-white/35">
+        <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-quaternary)]">
           <span className="inline-block size-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
           Writing article…
-          <span className="text-white/20">scroll up to unpin</span>
+          <span className="text-[var(--color-text-quaternary)]">scroll up to unpin</span>
         </div>
       )}
       <div
@@ -223,7 +223,7 @@ export function ArticleBodyEditor({ value, onChange, streaming = false }: Articl
         onInput={emitFromDom}
         onBlur={emitFromDom}
         onScroll={onScroll}
-        className="article-body-editor min-h-[200px] max-h-[min(60vh,520px)] overflow-y-auto outline-none text-[14px] text-white/85 leading-relaxed font-with-emoji empty:before:content-[attr(data-placeholder)] empty:before:text-white/20"
+        className="article-body-editor min-h-[200px] max-h-[min(60vh,520px)] overflow-y-auto outline-none text-[14px] text-[var(--color-text-primary)] leading-relaxed font-with-emoji empty:before:content-[attr(data-placeholder)] empty:before:text-[var(--color-text-quaternary)]"
       />
       <style>{`
         .article-body-editor h1 {

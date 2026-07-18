@@ -81,7 +81,7 @@ export function InlinePopover({
   }, [open])
 
   const itemCls =
-    'flex items-center justify-between gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-[13px] text-white/75 no-underline hover:bg-white/[0.06] hover:text-white transition-colors'
+    'flex items-center justify-between gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-[13px] text-[var(--color-text-secondary)] no-underline hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors'
 
   return (
     <>

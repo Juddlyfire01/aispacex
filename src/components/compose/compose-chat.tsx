@@ -254,7 +254,7 @@ export function ComposeChat({
         }`}
       >
         {messages.length === 0 ? (
-          <div className="text-[12px] text-white/20 leading-relaxed space-y-3">
+          <div className="text-[12px] text-[var(--color-text-quaternary)] leading-relaxed space-y-3">
             <div className="space-y-2">
               <p>
                 Describe the post you want. Your local intel library (Me, All, or a target) is packed
@@ -267,18 +267,18 @@ export function ComposeChat({
                 panel.
               </p>
             </div>
-            <p className="text-[11px] text-white/30">
+            <p className="text-[11px] text-[var(--color-text-quaternary)]">
               Or try{' '}
               <button
                 type="button"
                 onClick={() => launchTemplate(PRIMARY_TEMPLATE)}
                 disabled={Boolean(sendBlocked) || isStreaming}
                 title={PRIMARY_TEMPLATE.hint}
-                className="text-white/50 underline decoration-white/20 underline-offset-2 hover:text-white/75 hover:decoration-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="text-[var(--color-text-tertiary)] underline decoration-[var(--color-border-soft)] underline-offset-2 hover:text-[var(--color-text-secondary)] hover:decoration-[var(--color-border-strong)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {PRIMARY_TEMPLATE.label}
               </button>
-              <span className="text-white/25">
+              <span className="text-[var(--color-text-quaternary)]">
                 {' '}
                 — {PRIMARY_TEMPLATE.blurb} Or open Templates for more.
               </span>
@@ -336,12 +336,12 @@ export function ComposeChat({
                     <MarkdownMessage
                       content={content}
                       size="compact"
-                      className="text-[12.5px] text-white/70"
+                      className="text-[12.5px] text-[var(--color-text-secondary)]"
                       streaming={active}
                     />
                     {active && (
                       <span
-                        className="inline-block w-[1.5px] h-[0.95em] align-[-0.12em] ml-0.5 bg-white/45 animate-pulse"
+                        className="inline-block w-[1.5px] h-[0.95em] align-[-0.12em] ml-0.5 bg-[var(--color-border-soft)] animate-pulse"
                         aria-hidden
                       />
                     )}
@@ -456,7 +456,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
   }
 
   return (
-    <div className="px-4 py-3 border-t border-white/[0.05] shrink-0">
+    <div className="px-4 py-3 border-t border-[var(--color-border-faint)] shrink-0">
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
@@ -468,7 +468,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
         }}
         rows={2}
         placeholder="Message… (Enter to send, Shift+Enter for newline)"
-        className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-3 py-2 text-[12.5px] text-white/85 outline-none focus:border-[var(--color-border-strong)] resize-none placeholder:text-[var(--color-text-placeholder)]"
+        className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-3 py-2 text-[12.5px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] resize-none placeholder:text-[var(--color-text-placeholder)]"
       />
       <div className="flex items-center gap-2 mt-2">
         {isStreaming ? (
@@ -476,7 +476,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
             type="button"
             onClick={onStop}
             aria-busy="true"
-            className="px-3 py-1.5 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--color-border-faint)] text-[var(--color-text-primary)] rounded-md hover:bg-[var(--color-border-faint)] transition-colors"
           >
             {agentPhase === 'Thinking' && liveEventCount === 0 ? 'Sending…' : 'Stop'}
           </button>
@@ -493,7 +493,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
         <button
           type="button"
           onClick={onOpenDraft}
-          className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/70 rounded-md hover:text-white/90 hover:border-[var(--color-border-strong)] transition-colors"
+          className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-[var(--color-text-secondary)] rounded-md hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors"
         >
           Draft
         </button>
@@ -505,7 +505,7 @@ const ComposeChatInput = memo(function ComposeChatInput({
             aria-haspopup="menu"
             aria-expanded={templatesOpen}
             title="Insert a research template"
-            className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/55 rounded-md hover:text-white/85 hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-[var(--color-text-secondary)] rounded-md hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Templates
           </button>
@@ -523,12 +523,12 @@ const ComposeChatInput = memo(function ComposeChatInput({
                     setTemplatesOpen(false)
                     onLaunchTemplate(tpl)
                   }}
-                  className="block w-full px-3 py-2 text-left hover:bg-white/[0.05] transition-colors"
+                  className="block w-full px-3 py-2 text-left hover:bg-[var(--color-border-faint)] transition-colors"
                 >
-                  <div className="text-[11px] font-medium text-white/85">
+                  <div className="text-[11px] font-medium text-[var(--color-text-primary)]">
                     {tpl.label}
                   </div>
-                  <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
+                  <div className="text-[10px] text-[var(--color-text-quaternary)] mt-0.5 leading-snug">
                     {tpl.hint}
                   </div>
                 </button>

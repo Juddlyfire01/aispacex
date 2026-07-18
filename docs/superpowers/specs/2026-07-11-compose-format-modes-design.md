@@ -125,7 +125,7 @@ Flow:
 3. `POST https://api.x.com/2/articles/draft` with `title`, `content_state`, optional `cover_media`  
 4. `POST https://api.x.com/2/articles/{article_id}/publish` → seed `post_id` / URL for “View on X”
 
-Auth: user OAuth with `tweet.read`, `tweet.write`, `users.read` (per X Articles docs).
+Auth: user OAuth with `tweet.read`, `tweet.write`, `media.write`, `users.read` (media.write required for cover/inline image upload).
 
 Shared media upload helper should also unlock flipping `mediaNativeSupported` for ordinary posts/threads once proven (same upload pipeline).
 

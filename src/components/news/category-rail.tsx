@@ -34,8 +34,8 @@ export function CategoryRail({ counts, bookmarkCount }: {
     cn(
       'flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-[13px] transition-colors text-left',
       active
-        ? 'bg-white/[0.05] text-[var(--color-text-primary)]'
-        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03]',
+        ? 'bg-[var(--color-border-faint)] text-[var(--color-text-primary)]'
+        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
     )
 
   const catRow = (id: NewsCategoryFilter, label: string, count?: number) => (
@@ -76,7 +76,7 @@ export function CategoryRail({ counts, bookmarkCount }: {
               return (
                 <label
                   key={feed.id}
-                  className="flex items-center gap-2 px-2.5 py-1 rounded-md text-[12px] text-[var(--color-text-secondary)] hover:bg-white/[0.03] cursor-pointer"
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-md text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] cursor-pointer"
                 >
                   <Checkbox checked={on} onChange={() => toggleFeed(feed.id)} />
                   <span className="flex-1 min-w-0 truncate">{feed.name}</span>

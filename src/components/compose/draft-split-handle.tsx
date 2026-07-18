@@ -56,10 +56,10 @@ export function DraftSplitHandle() {
       aria-valuemax={75}
       aria-label="Resize draft pane"
       onPointerDown={beginDrag}
-      className="group relative w-1.5 shrink-0 cursor-col-resize bg-[var(--color-border-faint)] hover:bg-white/20 active:bg-white/30 transition-colors"
+      className="group relative w-1.5 shrink-0 cursor-col-resize bg-[var(--color-border-faint)] hover:bg-[var(--color-border-faint)] active:bg-[var(--color-text-quaternary)] transition-colors"
     >
       <div className="absolute inset-y-0 -left-1 -right-1" />
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-0.5 rounded-full bg-white/25 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-0.5 rounded-full bg-[var(--color-border-faint)] opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
   )
 }

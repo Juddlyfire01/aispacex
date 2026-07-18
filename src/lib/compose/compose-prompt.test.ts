@@ -197,11 +197,13 @@ describe('buildComposeSystem', () => {
     const s = buildComposeSystem({
       modelId: 'm',
       xSearchOn: false,
-      toolsEnabled: false,
+      toolsEnabled: true,
       preferredFormat: 'auto',
     })
     expect(s).toMatch(/Article/i)
     expect(s).toMatch(/thread/i)
+    expect(s).toMatch(/When Preferred format is Auto, also pass format/)
+    expect(s).toMatch(/format: "post" \| "thread" \| "longform" \| "article"/)
   })
 
   it('notes non-premium auto preference', () => {

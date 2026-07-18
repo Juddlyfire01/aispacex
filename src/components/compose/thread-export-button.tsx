@@ -56,7 +56,7 @@ export function ThreadExportButton({
         aria-label="Export chat and draft"
         className={
           isLabel
-            ? 'px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-white/55 rounded-md hover:text-white/85 hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
+            ? 'px-3 py-1.5 text-[11px] font-medium border border-[var(--color-border-faint)] text-[var(--color-text-secondary)] rounded-md hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
             : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-0.5 rounded disabled:opacity-30'
         }
       >
@@ -92,11 +92,11 @@ export function ThreadExportButton({
             type="button"
             role="menuitem"
             onClick={() => exportAs('md')}
-            className="block w-full px-3 py-1.5 text-left text-[var(--color-text-secondary)] hover:bg-white/[0.05] hover:text-[var(--color-text-primary)] transition-colors"
+            className="block w-full px-3 py-1.5 text-left text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             <div className="text-[11px]">Markdown</div>
             {isLabel && (
-              <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
+              <div className="text-[10px] text-[var(--color-text-quaternary)] mt-0.5 leading-snug">
                 Chat + draft, readable
               </div>
             )}
@@ -105,11 +105,11 @@ export function ThreadExportButton({
             type="button"
             role="menuitem"
             onClick={() => exportAs('json')}
-            className="block w-full px-3 py-1.5 text-left text-[var(--color-text-secondary)] hover:bg-white/[0.05] hover:text-[var(--color-text-primary)] transition-colors"
+            className="block w-full px-3 py-1.5 text-left text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             <div className="text-[11px]">JSON</div>
             {isLabel && (
-              <div className="text-[10px] text-white/35 mt-0.5 leading-snug">
+              <div className="text-[10px] text-[var(--color-text-quaternary)] mt-0.5 leading-snug">
                 Full thread backup
               </div>
             )}

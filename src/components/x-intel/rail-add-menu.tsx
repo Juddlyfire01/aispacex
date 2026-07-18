@@ -48,7 +48,7 @@ export function RailAddMenu({
   }
 
   const itemCls =
-    'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-white/70 hover:bg-white/[0.06] hover:text-white/90 transition-colors'
+    'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors'
 
   return (
     <div ref={rootRef} className="relative">

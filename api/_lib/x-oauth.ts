@@ -10,11 +10,13 @@ export const X_API_BASE = 'https://api.x.com/2'
 // Scopes we request. offline.access is required to receive a refresh_token so
 // the 2-hour access token can be renewed without bouncing the user through
 // consent again. tweet.write enables the Compose tab to publish posts/threads;
+// media.write is required for POST /2/media/upload (article covers, attachments).
 // the rest are read scopes for the Profile/Targets tabs. Adding a scope forces
 // existing users to re-consent once on their next connect.
 export const X_SCOPES = [
   'tweet.read',
   'tweet.write',
+  'media.write',
   'users.read',
   'bookmark.read',
   'like.read',

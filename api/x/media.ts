@@ -91,15 +91,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (json.media_id != null ? String(json.media_id) : undefined)
 
   if (!xRes.ok || !mediaId) {
-    const detail =
-      json.errors?.[0]?.detail ||
-      json.detail ||
-      json.title ||
-      json.message ||
-      `X API error (${xRes.status})`
+    const needsReconnect = xRes.status === 403
+    const detail = needsReconnect
+      ? 'Missing media upload permission — reconnect X to grant media.write.'
+      : json.errors?.[0]?.detail ||
+        json.detail ||
+        json.title ||
+        json.message ||
+        `X API error (${xRes.status})`
     return res.status(xRes.status === 200 ? 502 : xRes.status).json({
       error: detail,
-      needsReconnect: xRes.status === 403,
+      needsReconnect,
     })
   }
 

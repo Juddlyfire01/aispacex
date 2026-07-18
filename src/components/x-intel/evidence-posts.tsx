@@ -39,7 +39,7 @@ export function EvidencePosts({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 text-[10px] font-mono text-white/30 hover:text-white/55 transition-colors"
+        className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
       >
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className={cn('transition-transform', open && 'rotate-90')}>
           <polyline points="9 18 15 12 9 6" />
@@ -49,7 +49,7 @@ export function EvidencePosts({
       {open && (
         <div
           className={cn(
-            'mt-1 space-y-1 pl-3 border-l border-white/[0.06]',
+            'mt-1 space-y-1 pl-3 border-l border-[var(--color-border-faint)]',
             ids.length > EVIDENCE_VISIBLE && 'max-h-[15rem] overflow-y-auto pr-1',
           )}
         >
@@ -61,11 +61,11 @@ export function EvidencePosts({
                   <button
                     type="button"
                     onClick={() => onJumpToPost(id)}
-                    className="text-left flex-1 min-w-0 text-white/50 hover:text-white/75 transition-colors"
+                    className="text-left flex-1 min-w-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
                     title="View in Feed"
                   >
                     {post.text.slice(0, 120)}{post.text.length > 120 ? '…' : ''}
-                    <span className="font-mono text-[9px] text-white/20"> · {formatTokens(post.metrics.likes)}L</span>
+                    <span className="font-mono text-[9px] text-[var(--color-text-quaternary)]"> · {formatTokens(post.metrics.likes)}L</span>
                   </button>
                 ) : (
                   <span className="flex-1 min-w-0 font-mono text-[10px]">

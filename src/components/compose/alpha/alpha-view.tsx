@@ -63,7 +63,7 @@ function railVelocityLine(hourPct: number | null, dayPct: number | null): string
 function Sparkline({ buckets }: { buckets: { tweet_count: number }[] }) {
   const vals = buckets.map((b) => b.tweet_count)
   if (vals.length < 2) {
-    return <div className="h-8 w-full rounded bg-white/[0.03]" />
+    return <div className="h-8 w-full rounded bg-[var(--color-border-faint)]" />
   }
   const max = Math.max(...vals, 1)
   const w = 160
@@ -565,7 +565,7 @@ export function AlphaView() {
                 void refreshCounts(true)
                 void refreshNews(true)
               }}
-              className="rounded border border-white/[0.1] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-white/[0.04] disabled:opacity-40"
+              className="rounded border border-[var(--color-border-soft)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] disabled:opacity-40"
             >
               {refreshing || newsLoading ? 'Scanning…' : 'Refresh radar'}
             </button>
@@ -615,7 +615,7 @@ export function AlphaView() {
           )}
           {grokLoading && !latestGlobalBrief && <LoadingState label="Grok scanning live X…" />}
           {latestGlobalBrief && (
-            <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[13px] leading-relaxed">
+            <div className="rounded-lg border border-[var(--color-border-faint)] bg-black/20 px-3 py-2 text-[13px] leading-relaxed">
               <div className="mb-1.5 flex justify-end gap-1.5">
                 <button
                   type="button"
@@ -759,7 +759,7 @@ export function AlphaView() {
                         type="button"
                         disabled={(!canHydrate && !hasClusterCache) || hydrating}
                         onClick={() => toggleCluster(st)}
-                        className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
+                        className="rounded border border-[var(--color-border-soft)] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] disabled:opacity-40"
                       >
                         {hydrating
                           ? 'Loading…'
@@ -772,7 +772,7 @@ export function AlphaView() {
                     </div>
                   </div>
                   {expanded && (hydrating || hydrated.length > 0) && (
-                    <div className="mt-2 space-y-1.5 border-t border-white/[0.05] pt-2">
+                    <div className="mt-2 space-y-1.5 border-t border-[var(--color-border-faint)] pt-2">
                       {hydrating && hydrated.length === 0 && (
                         <LoadingState label="Hydrating cluster posts…" />
                       )}
@@ -781,7 +781,7 @@ export function AlphaView() {
                         return (
                           <div
                             key={p.id}
-                            className="rounded-md border border-white/[0.05] px-2.5 py-2"
+                            className="rounded-md border border-[var(--color-border-faint)] px-2.5 py-2"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <a
@@ -861,32 +861,32 @@ export function AlphaView() {
               type="button"
               disabled={rails.length >= ALPHA_MAX_RAILS}
               onClick={() => setShowAdd((v) => !v)}
-              className="rounded border border-white/[0.08] px-2 py-1 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.04] disabled:opacity-40"
+              className="rounded border border-[var(--color-border-soft)] px-2 py-1 text-[10px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] disabled:opacity-40"
             >
               + Add rail
             </button>
           </div>
 
           {showAdd && (
-            <div className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+            <div className="space-y-2 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
               <input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="Label"
-                className="w-full rounded border border-white/[0.08] bg-transparent px-2 py-1.5 text-[12px] text-[var(--color-text-primary)] outline-none focus:border-white/20"
+                className="w-full rounded border border-[var(--color-border-soft)] bg-transparent px-2 py-1.5 text-[12px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)]"
               />
               <textarea
                 value={newQuery}
                 onChange={(e) => setNewQuery(e.target.value)}
                 placeholder='X query e.g. ($VVV OR VeniceAI) -is:retweet lang:en'
                 rows={2}
-                className="w-full rounded border border-white/[0.08] bg-transparent px-2 py-1.5 font-mono text-[12px] text-[var(--color-text-primary)] outline-none focus:border-white/20"
+                className="w-full rounded border border-[var(--color-border-soft)] bg-transparent px-2 py-1.5 font-mono text-[12px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)]"
               />
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={onAddRail}
-                  className="rounded bg-white/10 px-3 py-1 text-[11px] text-white hover:bg-white/15"
+                  className="rounded bg-[var(--color-border-faint)] px-3 py-1 text-[11px] text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]"
                 >
                   Save rail
                 </button>
@@ -947,7 +947,7 @@ export function AlphaView() {
 
                     {/* Velocity + volume */}
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                      <span className="rounded bg-[var(--color-border-faint)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
                         {rail.source}
                       </span>
                       {hourPct != null && (
@@ -1039,7 +1039,7 @@ export function AlphaView() {
                             ),
                           )
                         }
-                        className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05]"
+                        className="rounded border border-[var(--color-border-soft)] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)]"
                       >
                         Open in Composer
                       </button>
@@ -1047,7 +1047,7 @@ export function AlphaView() {
                         type="button"
                         disabled={!xConnected && !expanded}
                         onClick={() => onToggleExpand(rail.id, rail.query)}
-                        className="rounded border border-white/[0.1] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-white/[0.05] disabled:opacity-40"
+                        className="rounded border border-[var(--color-border-soft)] px-2 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] disabled:opacity-40"
                       >
                         {expanded
                           ? 'Collapse'
@@ -1068,7 +1068,7 @@ export function AlphaView() {
                   </div>
 
                   {briefOpen && (railBriefLoading || railBriefError || railBrief) && (
-                    <div className="space-y-2 border-t border-white/[0.05] px-3 py-3">
+                    <div className="space-y-2 border-t border-[var(--color-border-faint)] px-3 py-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
                           Rail brief
@@ -1076,7 +1076,7 @@ export function AlphaView() {
                         <button
                           type="button"
                           onClick={() => setOpenBriefRailId(null)}
-                          className="rounded border border-white/[0.1] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-white/[0.05]"
+                          className="rounded border border-[var(--color-border-soft)] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)]"
                         >
                           Hide brief
                         </button>
@@ -1088,7 +1088,7 @@ export function AlphaView() {
                         <LoadingState label="Grok briefing this rail…" />
                       )}
                       {railBrief && (
-                        <div className="rounded-md border border-white/[0.06] bg-black/15 px-2.5 py-2 text-[12px] leading-relaxed">
+                        <div className="rounded-md border border-[var(--color-border-faint)] bg-black/15 px-2.5 py-2 text-[12px] leading-relaxed">
                           <div className="mb-1 flex justify-end gap-1.5">
                             <button
                               type="button"
@@ -1124,7 +1124,7 @@ export function AlphaView() {
                   )}
 
                   {expanded && (
-                    <div className="space-y-2 border-t border-white/[0.05] px-3 py-3">
+                    <div className="space-y-2 border-t border-[var(--color-border-faint)] px-3 py-3">
                       {loadingExpand === rail.id && (
                         <LoadingState label="Pulling search/recent…" />
                       )}
@@ -1134,7 +1134,7 @@ export function AlphaView() {
                           href={p.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block rounded-md border border-white/[0.05] px-2.5 py-2 hover:bg-white/[0.03]"
+                          className="block rounded-md border border-[var(--color-border-faint)] px-2.5 py-2 hover:bg-[var(--color-border-faint)]"
                         >
                           <p className="line-clamp-4 text-[12px] leading-snug text-[var(--color-text-secondary)]">
                             {p.text}
@@ -1161,7 +1161,7 @@ export function AlphaView() {
               .map((rail) => (
                 <article
                   key={rail.id}
-                  className="flex items-center justify-between rounded-lg border border-white/[0.04] px-3 py-2 opacity-50"
+                  className="flex items-center justify-between rounded-lg border border-[var(--color-border-faint)] px-3 py-2 opacity-50"
                 >
                   <span className="text-[12px] text-[var(--color-text-tertiary)]">{rail.label}</span>
                   <button
@@ -1178,7 +1178,7 @@ export function AlphaView() {
 
         {/* Optional local graph — free, not the hero */}
         {graphHeat.length > 0 && (
-          <section className="space-y-2 border-t border-white/[0.04] pt-4">
+          <section className="space-y-2 border-t border-[var(--color-border-faint)] pt-4">
             <button
               type="button"
               onClick={() => setShowLocalGraph((v) => !v)}
@@ -1192,14 +1192,14 @@ export function AlphaView() {
               </span>
             </button>
             {showLocalGraph && (
-              <ul className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.05]">
+              <ul className="divide-y divide-white/[0.04] rounded-lg border border-[var(--color-border-faint)]">
                 {graphHeat.map((item) => (
                   <li key={item.id}>
                     <a
                       href={item.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="block px-3 py-2 text-[12px] text-[var(--color-text-secondary)] hover:bg-white/[0.03]"
+                      className="block px-3 py-2 text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)]"
                     >
                       <span className="line-clamp-2">{item.text}</span>
                       <span className="mt-0.5 block text-[10px] text-[var(--color-text-tertiary)]">

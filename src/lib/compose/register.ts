@@ -1,18 +1,23 @@
 // Shared register pack for intel reports + compose draft style transfer.
-// See docs/superpowers/specs/2026-07-10-compose-register-design.md
+// Style sheet (summary + sections + devices). No few-shot anchors.
 
 export type RegisterMode = 'none' | 'you' | 'other' | 'custom' | 'upload'
 
-export interface RegisterFewShot {
-  label: string
-  postId?: string
-  text: string
+export interface RegisterSections {
+  cadence: string
+  diction: string
+  stance: string
+  rhetoric: string
+  texture: string
+  /** How the same voice flexes across post / thread / article — never length quotas. */
+  formatFlex: string
+  constraints: string
 }
 
 export interface RegisterPack {
-  description: string
+  summary: string
+  sections: RegisterSections
   devices: string[]
-  fewShotExamples: RegisterFewShot[]
 }
 
 /** Persisted on PostDraft — selection + optional local override. */
@@ -33,31 +38,57 @@ export interface RegisterDefault {
 
 export const DEFAULT_REGISTER_DEFAULT: RegisterDefault = { mode: 'you' }
 
+export const EMPTY_SECTIONS: RegisterSections = {
+  cadence: '',
+  diction: '',
+  stance: '',
+  rhetoric: '',
+  texture: '',
+  formatFlex: '',
+  constraints: '',
+}
+
+const SECTION_KEYS: (keyof RegisterSections)[] = [
+  'cadence',
+  'diction',
+  'stance',
+  'rhetoric',
+  'texture',
+  'formatFlex',
+  'constraints',
+]
+
 export function emptyRegisterPack(): RegisterPack {
-  return { description: '', devices: [], fewShotExamples: [] }
+  return { summary: '', sections: { ...EMPTY_SECTIONS }, devices: [] }
+}
+
+function normalizeSections(raw: unknown): RegisterSections {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const out = { ...EMPTY_SECTIONS }
+  for (const key of SECTION_KEYS) {
+    const v = o[key]
+    out[key] = typeof v === 'string' ? v : ''
+  }
+  return out
+}
+
+function sectionsHaveContent(sections: RegisterSections): boolean {
+  return SECTION_KEYS.some((k) => sections[k].trim().length > 0)
 }
 
 export function normalizeRegisterPack(raw: unknown): RegisterPack | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
-  const description = typeof o.description === 'string' ? o.description : ''
+  const summaryFromSummary = typeof o.summary === 'string' ? o.summary : ''
+  const summaryFromDescription = typeof o.description === 'string' ? o.description : ''
+  const summary = summaryFromSummary.trim() ? summaryFromSummary : summaryFromDescription
   const devices = Array.isArray(o.devices)
     ? o.devices.filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
     : []
-  const fewShotExamples: RegisterFewShot[] = []
-  if (Array.isArray(o.fewShotExamples)) {
-    for (const item of o.fewShotExamples) {
-      if (!item || typeof item !== 'object') continue
-      const f = item as Record<string, unknown>
-      const text = typeof f.text === 'string' ? f.text.trim() : ''
-      if (!text) continue
-      const label = typeof f.label === 'string' && f.label.trim() ? f.label.trim() : 'example'
-      const postId = typeof f.postId === 'string' && f.postId.trim() ? f.postId.trim() : undefined
-      fewShotExamples.push({ label, postId, text })
-    }
-  }
-  if (!description && devices.length === 0 && fewShotExamples.length === 0) return null
-  return { description, devices, fewShotExamples }
+  const sections = normalizeSections(o.sections)
+  // Ignore legacy fewShotExamples entirely (repetition risk).
+  if (!summary.trim() && devices.length === 0 && !sectionsHaveContent(sections)) return null
+  return { summary, sections, devices }
 }
 
 /** Parse uploaded JSON: either a bare RegisterPack or `{ register: RegisterPack }`. */
@@ -74,61 +105,66 @@ export function parseRegisterUpload(text: string): RegisterPack {
     return pack
   }
   const pack = normalizeRegisterPack(parsed)
-  if (!pack) throw new Error('Upload must be a register pack with description, devices, and/or fewShotExamples')
+  if (!pack) {
+    throw new Error(
+      'Upload must be a register pack with summary, sections, and/or devices',
+    )
+  }
   return pack
 }
 
 export function packFromReportRegister(register: {
-  description: string
+  summary?: string
+  description?: string
   devices: string[]
-  fewShotExamples?: RegisterFewShot[]
+  sections?: Partial<RegisterSections> | RegisterSections
 }): RegisterPack {
+  const summary =
+    (typeof register.summary === 'string' && register.summary.trim()
+      ? register.summary
+      : typeof register.description === 'string'
+        ? register.description
+        : '') ?? ''
   return {
-    description: register.description ?? '',
+    summary,
+    sections: normalizeSections(register.sections),
     devices: Array.isArray(register.devices) ? register.devices : [],
-    fewShotExamples: Array.isArray(register.fewShotExamples) ? register.fewShotExamples : [],
   }
 }
 
 export function isRegisterPackEmpty(pack: RegisterPack | null | undefined): boolean {
   if (!pack) return true
-  return !pack.description.trim() && pack.devices.length === 0 && pack.fewShotExamples.length === 0
-}
-
-/** Cap anchor excerpts in the inject: enough for cadence, too short to lift wholesale. */
-export const REGISTER_ANCHOR_MAX_CHARS = 220
-
-/** Trim an anchor to a cadence sample without dangling a full reusable post. */
-export function clampAnchorText(text: string, max = REGISTER_ANCHOR_MAX_CHARS): string {
-  const t = text.trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max).trimEnd()}…`
+  return (
+    !pack.summary.trim() &&
+    pack.devices.length === 0 &&
+    !sectionsHaveContent(pack.sections)
+  )
 }
 
 export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?: string }): string {
   const lines: string[] = [
-    'REGISTER — VOICE CONSTRAINT (applies to cadence and diction, NOT content):',
-    'Match this voice: sentence length, rhythm, punctuation habits, diction, and rhetorical moves from the description, devices, and anchors below. If the anchors are terse, stay terse; if they favor a signature pivot ("but here is the tension", rankings, NFA distance), that move is available to you.',
-    'HARD LIMITS on the anchors (this is style transfer, not content reuse):',
-    '- The anchors are RHYTHM SAMPLES ONLY. Never reuse their facts, exhibits, examples, post ids, permalinks, phrasings, or sentence structure. Lifting anchor wording or re-listing anchor exhibits is a FAILED draft.',
-    '- Content, facts, and receipts come ONLY from the current research/brief — never from the anchors. If the anchor and the task share a topic, treat the anchor as if the words were redacted and only the beat pattern remained.',
-    '- Metric density is a style trait, not a mandate: reflect the anchors\' quantitative texture only when the current material actually supports it. Do not manufacture or copy metrics to "sound like" the register.',
-    'PRECEDENCE: a live instruction in this turn (e.g. "be totally casual", "make it novel", "no metrics tables") OVERRIDES the register\'s default posture. Honor the current ask first, then apply the register within that ask. Following a live loosening instruction is correct, not a register failure.',
+    'REGISTER — VOICE CONSTRAINT (identity of voice, NOT content, NOT length quotas):',
+    'Match this voice abstractly: rhythm habits, diction class, stance, and rhetorical moves. Invent fresh wording for the current task.',
+    'HARD LIMITS:',
+    '- Content, facts, and receipts come ONLY from the current research/brief — never invent exhibits to "sound like" the register.',
+    '- Do NOT treat any character/word/sentence averages in the sheet as hard caps. Those describe the source corpus (mostly short posts); they must NOT force tweet-length prose into threads or articles.',
+    '- FORMAT WINS LENGTH: post → compact; thread → short beats that still cohere across posts; article/long-form → full paragraphs, transitions, and article structure. Keep the SAME voice (diction/stance/rhetoric) while scaling sentence length and paragraphing to the format.',
+    '- Metric density is a style trait, not a mandate: use quantitative texture only when the current material supports it.',
+    '- Topical nouns in the sheet (products, causes, slogans) are NOT required content — reuse only the move (contrast, certainty, list), never the exhibit.',
+    'PRECEDENCE: a live instruction in this turn (e.g. "be totally casual", "make it novel", "no metrics tables") OVERRIDES the register\'s default posture. Honor the current ask first, then apply the register within that ask.',
   ]
-  if (pack.description.trim()) {
-    lines.push(`Description (voice, not content): ${pack.description.trim()}`)
+  if (pack.summary.trim()) {
+    lines.push(`Summary: ${pack.summary.trim()}`)
+  }
+  for (const key of SECTION_KEYS) {
+    const body = pack.sections[key]?.trim()
+    if (!body) continue
+    const label =
+      key === 'formatFlex' ? 'FormatFlex' : key.charAt(0).toUpperCase() + key.slice(1)
+    lines.push(`${label}: ${body}`)
   }
   if (pack.devices.length > 0) {
-    lines.push(`Devices (rhetorical moves available): ${pack.devices.join('; ')}`)
-  }
-  if (pack.fewShotExamples.length > 0) {
-    lines.push(
-      'Cadence anchors (rhythm/texture samples — do NOT copy wording, facts, or exhibits):',
-    )
-    for (const ex of pack.fewShotExamples.slice(0, 12)) {
-      lines.push(`--- ${ex.label} ---`)
-      lines.push(clampAnchorText(ex.text))
-    }
+    lines.push(`Devices (abstract rhetorical moves — not content topics): ${pack.devices.join('; ')}`)
   }
   const custom = opts?.customPrompt?.trim()
   if (custom) {
@@ -138,9 +174,9 @@ export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?:
   lines.push(
     [
       'Adherence checklist before finalizing copy:',
-      '- Cadence matches the anchors (sentence length / line breaks), but wording and facts are wholly your own from the current brief.',
-      '- No anchor phrasing, exhibits, or post ids reused verbatim; no re-listing the last edition\'s spine.',
-      '- Unit style ($, %, K/M, ~approx) matches the anchors ONLY where the current material is quantitative.',
+      '- Voice (diction/stance/rhetoric) matches the sheet; wording and facts are wholly your own from the current brief.',
+      '- Length and paragraphing match the REQUESTED FORMAT, not the corpus averages in Cadence.',
+      '- Unit style ($, %, K/M, ~approx) matches the sheet ONLY where the current material is quantitative.',
       '- A live "casual / novel / lighter" instruction was honored — that is success, not drift.',
       '- No fluff openers, no "As an AI", no hashtag spam, no corporate enthusiasm unless the register itself does that.',
     ].join('\n'),

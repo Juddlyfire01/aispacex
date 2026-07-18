@@ -235,12 +235,12 @@ export function ImageView({
           aria-label="Toggle safe mode"
           className={cn(
             'w-8 h-[18px] rounded-full transition-colors relative',
-            safeMode ? 'bg-white' : 'bg-white/[0.08]',
+            safeMode ? 'bg-[var(--color-btn-primary-bg)]' : 'bg-[var(--color-border-faint)]',
           )}
         >
           <div className={cn(
             'absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all',
-            safeMode ? 'left-[16px] bg-black' : 'left-[2px] bg-white/30',
+            safeMode ? 'left-[16px] bg-[var(--color-btn-primary-fg)]' : 'left-[2px] bg-[var(--color-text-quaternary)]',
           )} />
         </button>
       </div>
@@ -267,9 +267,9 @@ export function ImageView({
               </ul>
             )}
             {sug && (
-              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-                <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
-                <p className="text-[13.5px] text-white/70 leading-relaxed">{sug}</p>
+              <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
+                <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{sug}</p>
                 <button
                   onClick={() => { setPrompt(sug); }}
                   className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"

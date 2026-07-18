@@ -70,16 +70,17 @@
 }
 
 [data-theme="dark"] {
-  /* X Lights Out — #000 canvas, #16181C surfaces, #2F3336 dividers */
+  /* X Lights Out — #000 canvas, #16181C surfaces, #2F3336 dividers.
+     Overlay/modal stay in that neutral family — never Dim navy (#1e2732). */
   --color-bg-base: #000000;
   --color-bg-raised: var(--color-bg-surface);
   --color-bg-card-quiet: color-mix(in srgb, #ffffff 1.5%, #000000);
   --color-bg-card-strong: #16181c;
   --color-bg-card: var(--color-bg-card-quiet);
-  --color-bg-overlay: #1e2732;
+  --color-bg-overlay: #16181c;
   --color-bg-surface: var(--color-bg-card);
-  --color-bg-modal: #1e2732;
-  --color-bubble-user: #1d2733;
+  --color-bg-modal: #16181c;
+  --color-bubble-user: color-mix(in srgb, #ffffff 6%, #16181c);
   /* Lifted off pure-black so resting fields/dropdowns read on the #000 canvas. */
   --color-bg-input: #101215;
   --color-border-faint: rgba(47, 51, 54, 0.65);

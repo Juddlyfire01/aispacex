@@ -23,14 +23,18 @@ import {
 import { findReportKey } from '../stores/x-intel-store'
 import {
   COMPOSE_WRITE_DRAFT_TOOL_NAME,
+  DRAFT_WRITE_FORMATS,
   describeDraftWriteLabels,
   isDraftHandoffEnabled,
   isSeparateDraftModel,
+  resolveDraftWriteFormat,
   resolveDraftWriterModelId,
   type DraftWriteBrief,
+  type DraftWriteFormat,
 } from '../lib/compose/draft-writer-tool'
 import { runDraftWriter, splitWriterSegments, parseArticleFromWriterText } from '../lib/compose/draft-writer'
 import { emptyArticleDraft, emptySegment, type PostDraft } from '../lib/compose/types'
+import type { PreferredFormat } from '../lib/compose/format'
 import { getActiveAccountVerified } from './use-compose-verified'
 import { buildIntelSnapshot } from '../lib/intel-library/from-stores'
 import { packHotWindowCached } from '../lib/compose/hot-window'
@@ -483,24 +487,38 @@ export function useCompose() {
           brief: DraftWriteBrief,
           opts?: { showWriterEvent?: boolean },
         ): DraftStreamSession => {
+          const sendPref =
+            brief.preferredFormat ??
+            useComposeStore.getState().threads[threadId]?.preferredFormat ??
+            preferredFormat
+          const resolvedFormat = resolveDraftWriteFormat(
+            sendPref,
+            brief.format,
+            brief.longform,
+          )
+          // Auto → concrete: switch the thread pill so the drawer matches.
+          if (sendPref === 'auto') {
+            useComposeStore.getState().setPreferredFormat(threadId, resolvedFormat)
+          }
           const writerBrief: DraftWriteBrief = {
             ...brief,
-            preferredFormat: brief.preferredFormat ?? preferredFormat,
-            ...((brief.preferredFormat ?? preferredFormat) === 'article'
+            preferredFormat: resolvedFormat,
+            format: resolvedFormat,
+            ...(resolvedFormat === 'article'
               ? { longform: false }
-              : {}),
+              : resolvedFormat === 'longform'
+                ? { longform: true }
+                : {}),
           }
-          const prefFormat = writerBrief.preferredFormat ?? preferredFormat
-          const wantsArticle = prefFormat === 'article'
-          const allowArticleHeuristic = prefFormat === 'auto' || prefFormat === 'article'
+          const sendWantsArticle = resolvedFormat === 'article'
           const s0 = useComposeStore.getState()
           s0.setDraftDrawerOpen(true)
           s0.setDraftWriterStreaming(true)
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
-            ...(writerBrief.target && !wantsArticle ? { target: writerBrief.target } : {}),
-            ...(wantsArticle
+            ...(writerBrief.target && !sendWantsArticle ? { target: writerBrief.target } : {}),
+            ...(sendWantsArticle
               ? { article: emptyArticleDraft(), longform: false, target: { kind: 'original' } }
               : {
                   article: undefined,
@@ -518,7 +536,7 @@ export function useCompose() {
           if (opts?.showWriterEvent) {
             const writerLabels = describeDraftWriteLabels({
               sameModel: sameDraftModel,
-              article: wantsArticle,
+              article: sendWantsArticle,
             })
             writerEventId = newAgentEventId()
             useComposeStore.getState().pushAgentEvent({
@@ -526,7 +544,7 @@ export function useCompose() {
               label: writerLabels.label,
               progressLabel: sameDraftModel
                 ? writerLabels.progressLabel
-                : wantsArticle
+                : sendWantsArticle
                   ? `Article writer streaming (${writerModelId})`
                   : `Draft writer streaming (${writerModelId})`,
               status: 'running',
@@ -534,8 +552,18 @@ export function useCompose() {
             })
           }
 
+          const livePrefFormat = (): PreferredFormat =>
+            useComposeStore.getState().threads[threadId]?.preferredFormat ?? resolvedFormat
+
+          const liveWantsArticle = (): boolean => {
+            const live = livePrefFormat()
+            if (live === 'article') return true
+            if (live === 'auto') return resolvedFormat === 'article'
+            return false
+          }
+
           const applyDisplayed = (text: string) => {
-            if (wantsArticle) {
+            if (liveWantsArticle()) {
               const parsed = parseArticleFromWriterText(text)
               useComposeStore.getState().patchArticleStream(threadId, {
                 title: parsed.title,
@@ -614,6 +642,10 @@ export function useCompose() {
           const finalizeText = (text: string) => {
             flushDraftDrip()
             const store = useComposeStore.getState()
+            const pref = livePrefFormat()
+            const wantsArticle =
+              pref === 'article' || (pref === 'auto' && resolvedFormat === 'article')
+            const allowArticleHeuristic = pref === 'auto' || pref === 'article'
             const looksLikeArticle =
               allowArticleHeuristic && /^#\s+\S/.test(text.trim())
             if (wantsArticle || looksLikeArticle) {
@@ -631,6 +663,9 @@ export function useCompose() {
                 target: { kind: 'original' },
                 segments: [emptySegment()],
               })
+              if (pref === 'auto' && looksLikeArticle && resolvedFormat !== 'article') {
+                store.setPreferredFormat(threadId, 'article')
+              }
               finishWriter('done', 'article ready')
               return
             }
@@ -644,7 +679,7 @@ export function useCompose() {
                   }))
                 : [{ ...seg, text }]
             const isVerified = getActiveAccountVerified()
-            const pref = store.longformPreference
+            const longformPref = store.longformPreference
             const patch: Partial<PostDraft> = {
               segments,
               article: undefined,
@@ -656,7 +691,7 @@ export function useCompose() {
             const gated = syncDraftForVerification(
               { ...store.threads[threadId]!.draft, ...patch },
               isVerified,
-              pref,
+              longformPref,
             )
             store.applyDraftPatch(threadId, gated ? { ...patch, ...gated } : patch)
             finishWriter(
@@ -693,12 +728,24 @@ export function useCompose() {
         const startDraftWriter = (brief: DraftWriteBrief) => {
           const session = createDraftStreamSession(brief, { showWriterEvent: true })
           draftStreamSession = session
+          const sendPref =
+            brief.preferredFormat ??
+            useComposeStore.getState().threads[threadId]?.preferredFormat ??
+            preferredFormat
+          const resolvedFormat = resolveDraftWriteFormat(
+            sendPref,
+            brief.format,
+            brief.longform,
+          )
           const writerBrief: DraftWriteBrief = {
             ...brief,
-            preferredFormat: brief.preferredFormat ?? preferredFormat,
-            ...((brief.preferredFormat ?? preferredFormat) === 'article'
+            preferredFormat: resolvedFormat,
+            format: resolvedFormat,
+            ...(resolvedFormat === 'article'
               ? { longform: false }
-              : {}),
+              : resolvedFormat === 'longform'
+                ? { longform: true }
+                : {}),
           }
           const conversationForWriter = (
             useComposeStore.getState().threads[threadId]?.messages ?? []
@@ -733,7 +780,15 @@ export function useCompose() {
             name === 'compose_write_draft'
               ? describeDraftWriteLabels({
                   sameModel: sameDraftModel,
-                  article: preferredFormat === 'article',
+                  article:
+                    resolveDraftWriteFormat(
+                      preferredFormat,
+                      typeof args.format === 'string' &&
+                        (DRAFT_WRITE_FORMATS as string[]).includes(args.format)
+                        ? (args.format as DraftWriteFormat)
+                        : undefined,
+                      typeof args.longform === 'boolean' ? args.longform : undefined,
+                    ) === 'article',
                 })
               : null
           const label = draftLabels?.label ?? describeToolCall(name, args)

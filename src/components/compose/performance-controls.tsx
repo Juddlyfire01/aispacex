@@ -27,7 +27,7 @@ const MODES: { value: PerformanceRankMode; label: string }[] = [
 ]
 
 const dateInputClass =
-  'bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-1.5 py-1 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]'
+  'bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-1.5 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]'
 
 export function PerformanceControls({
   window,

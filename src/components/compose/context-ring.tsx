@@ -28,7 +28,7 @@ export function ContextRing({ pct, title, onClick, buttonRef, expanded }: Contex
     ? 'text-red-400'
     : warn
       ? 'text-amber-400/80'
-      : 'text-white/35'
+      : 'text-[var(--color-text-quaternary)]'
 
   const label = title ?? `${display}% of model context — click for breakdown`
 
@@ -60,7 +60,7 @@ export function ContextRing({ pct, title, onClick, buttonRef, expanded }: Contex
         title={label}
         aria-label={label}
         aria-expanded={expanded}
-        className="inline-flex items-center gap-1.5 shrink-0 rounded-md px-1 py-0.5 -mr-1 hover:bg-white/[0.04] transition-colors"
+        className="inline-flex items-center gap-1.5 shrink-0 rounded-md px-1 py-0.5 -mr-1 hover:bg-[var(--color-border-faint)] transition-colors"
       >
         {inner}
       </button>

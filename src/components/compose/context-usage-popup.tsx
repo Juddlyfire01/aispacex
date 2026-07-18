@@ -72,15 +72,15 @@ export function ContextUsagePopup({
       ref={panelRef}
       role="dialog"
       aria-label="Context usage"
-      className="absolute bottom-full right-0 mb-2 w-[320px] z-50 rounded-lg border border-white/[0.08] bg-[#1a1a1c] shadow-xl shadow-black/40 overflow-hidden"
+      className="absolute bottom-full right-0 mb-2 w-[320px] z-50 rounded-lg border border-[var(--color-border-soft)] bg-[#1a1a1c] shadow-xl shadow-black/40 overflow-hidden"
     >
       <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
-        <h3 className="text-[12px] font-medium text-white/90">Context Usage</h3>
+        <h3 className="text-[12px] font-medium text-[var(--color-text-primary)]">Context Usage</h3>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => void copyReport()}
-            className="text-[11px] text-white/45 hover:text-white/75 transition-colors"
+            className="text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             Copy report
           </button>
@@ -88,7 +88,7 @@ export function ContextUsagePopup({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-white/40 hover:text-white/70 p-0.5 transition-colors"
+            className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] p-0.5 transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M3 3l6 6M9 3L3 9" strokeLinecap="round" />
@@ -101,18 +101,18 @@ export function ContextUsagePopup({
         <div className="flex items-baseline justify-between gap-3">
           <span
             className={`text-[15px] font-semibold tabular-nums ${
-              nearCompress ? 'text-red-400' : displayPct >= 85 ? 'text-amber-400' : 'text-white/90'
+              nearCompress ? 'text-red-400' : displayPct >= 85 ? 'text-amber-400' : 'text-[var(--color-text-primary)]'
             }`}
           >
             {displayPct}% Full
           </span>
-          <span className="text-[11px] font-mono tabular-nums text-white/40">
+          <span className="text-[11px] font-mono tabular-nums text-[var(--color-text-tertiary)]">
             {formatUsageTokens(usedTokens)} / {formatTokens(contextLimit)} Tokens
           </span>
         </div>
 
         {/* Segmented usage bar — filled width = % of context; colors = share of used. */}
-        <div className="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
+        <div className="h-2 w-full rounded-full bg-[var(--color-border-faint)] overflow-hidden">
           <div
             className="h-full flex min-w-0"
             style={{ width: `${Math.min(Math.max(pct, 0), 1) * 100}%` }}
@@ -140,8 +140,8 @@ export function ContextUsagePopup({
                 style={{ backgroundColor: s.color }}
                 aria-hidden
               />
-              <span className="text-white/55 flex-1 min-w-0 truncate">{s.label}</span>
-              <span className="font-mono tabular-nums text-white/70 shrink-0">
+              <span className="text-[var(--color-text-secondary)] flex-1 min-w-0 truncate">{s.label}</span>
+              <span className="font-mono tabular-nums text-[var(--color-text-secondary)] shrink-0">
                 {formatUsageTokens(s.tokens)}
               </span>
             </li>
@@ -149,7 +149,7 @@ export function ContextUsagePopup({
         </ul>
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-t border-white/[0.06] text-[10px] text-white/35">
+      <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-t border-[var(--color-border-faint)] text-[10px] text-[var(--color-text-quaternary)]">
         <span>
           {messageCount} message{messageCount === 1 ? '' : 's'}
           {coldArchiveCount > 0

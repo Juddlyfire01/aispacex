@@ -11,7 +11,7 @@ const LIVE_STEP_CAP = 5
 function StepIcon({ status }: { status: AgentEvent['status'] }) {
   if (status === 'running') {
     return (
-      <span className="inline-block w-2.5 h-2.5 rounded-full border border-white/25 border-t-white/70 animate-spin shrink-0" />
+      <span className="inline-block w-2.5 h-2.5 rounded-full border border-[var(--color-border-strong)] border-t-white/70 animate-spin shrink-0" />
     )
   }
   if (status === 'error') {
@@ -22,7 +22,7 @@ function StepIcon({ status }: { status: AgentEvent['status'] }) {
     )
   }
   return (
-    <svg viewBox="0 0 10 10" className="w-2.5 h-2.5 shrink-0 text-white/35" fill="none">
+    <svg viewBox="0 0 10 10" className="w-2.5 h-2.5 shrink-0 text-[var(--color-text-quaternary)]" fill="none">
       <path d="M2 5.2 4.2 7.4 8 2.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
@@ -37,13 +37,13 @@ function StepRow({ event }: { event: AgentEvent }) {
       <StepIcon status={event.status} />
       <span
         className={`text-[11.5px] truncate ${
-          event.status === 'running' ? 'text-white/70' : 'text-white/40'
+          event.status === 'running' ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-tertiary)]'
         }`}
       >
         {text}
       </span>
       {event.detail && (
-        <span className="text-[10.5px] text-white/25 shrink-0">· {event.detail}</span>
+        <span className="text-[10.5px] text-[var(--color-text-quaternary)] shrink-0">· {event.detail}</span>
       )}
     </div>
   )
@@ -113,7 +113,7 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
         {!active && (
           <svg
             viewBox="0 0 10 10"
-            className={`w-2 h-2 text-white/30 transition-transform shrink-0 ${showList ? 'rotate-90' : ''}`}
+            className={`w-2 h-2 text-[var(--color-text-quaternary)] transition-transform shrink-0 ${showList ? 'rotate-90' : ''}`}
             fill="none"
           >
             <path
@@ -129,12 +129,12 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
           <span className="text-[12px] font-medium shimmer-text">
             {headerPrimary}
             {headerSuffix ? (
-              <span className="text-white/35 font-normal">{headerSuffix}</span>
+              <span className="text-[var(--color-text-quaternary)] font-normal">{headerSuffix}</span>
             ) : null}
             …
           </span>
         ) : (
-          <span className="text-[11px] text-white/30">
+          <span className="text-[11px] text-[var(--color-text-quaternary)]">
             {events.length === 0
               ? headerPrimary
               : `Worked through ${events.length} step${events.length === 1 ? '' : 's'}`}
@@ -143,12 +143,12 @@ export function AgentActivity({ events, active, phase = null }: AgentActivityPro
       </button>
 
       {showList && events.length > 0 && (
-        <div className="mt-1.5 ml-0.5 pl-2.5 border-l border-white/[0.07]">
+        <div className="mt-1.5 ml-0.5 pl-2.5 border-l border-[var(--color-border-faint)]">
           {hiddenCount > 0 && (
             <button
               type="button"
               onClick={() => setShowAllLive(true)}
-              className="block py-[3px] text-[10.5px] text-white/25 hover:text-white/45 transition-colors"
+              className="block py-[3px] text-[10.5px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors"
             >
               {hiddenCount} earlier
             </button>

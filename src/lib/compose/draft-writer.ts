@@ -112,9 +112,11 @@ ${
   hasConversation
     ? `- You receive the research conversation history AND a writing brief. Use the conversation for full context (facts, angle, nuance, decisions). Treat the brief as the research model's writing instructions and priorities — do not discard conversation detail that the brief omitted.
 - Prefer concrete facts and numbers from the conversation and brief over invention.
-- If the brief or a user instruction asks for a looser / more casual / more novel register, honor it — that overrides any default formal posture, including the REGISTER block's defaults.`
+- If the brief or a user instruction asks for a looser / more casual / more novel register, honor it — that overrides any default formal posture, including the REGISTER block's defaults.
+- When a REGISTER block is present: match voice identity (diction/stance/rhetoric), but ALWAYS scale length and paragraphing to the requested format. Articles and long-form must read as coherent prose, not a stack of short posts.`
     : `- Follow the brief tightly. Prefer concrete facts and numbers from the brief over invention.
-- If the brief asks for a looser / more casual / more novel register, honor it over any default formal posture.`
+- If the brief asks for a looser / more casual / more novel register, honor it over any default formal posture.
+- When a REGISTER block is present: match voice identity (diction/stance/rhetoric), but ALWAYS scale length and paragraphing to the requested format. Articles and long-form must read as coherent prose, not a stack of short posts.`
 }`,
     SPENT_WRITER_RULES,
     buildCraftInject(),
@@ -160,10 +162,18 @@ export function buildWriterUser(
     lines.push(rules)
   }
   if (hasRegister) {
+    const formatNote =
+      brief.preferredFormat === 'article' || brief.preferredFormat === 'longform'
+        ? ' FORMAT=article/long-form: use full paragraphs and transitions; do NOT collapse into tweet-length punches even if Cadence describes a short-form corpus.'
+        : brief.preferredFormat === 'thread'
+          ? ' FORMAT=thread: each beat may be short, but the thread must cohere; do not imitate character-count averages from the register.'
+          : brief.preferredFormat === 'post'
+            ? ' FORMAT=post: compact is fine; still invent fresh wording.'
+            : ' Scale sentence length and paragraphing to whatever format you are writing; register averages are not caps.'
     lines.push(
       conversationText.trim()
-        ? 'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from conversation + brief; style from REGISTER.'
-        : 'Apply the REGISTER voice from the system prompt to every sentence of the output. Content from the brief; style from REGISTER.',
+        ? `Apply the REGISTER voice from the system prompt (diction, stance, rhetoric) to every sentence. Content from conversation + brief; style from REGISTER.${formatNote}`
+        : `Apply the REGISTER voice from the system prompt (diction, stance, rhetoric) to every sentence. Content from the brief; style from REGISTER.${formatNote}`,
     )
   }
   if (brief.preferredFormat === 'article') {

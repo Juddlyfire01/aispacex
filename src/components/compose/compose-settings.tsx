@@ -83,7 +83,7 @@ export function ComposeSettings({
             id="compose-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)] max-w-full"
+            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full"
           >
             {toolModels.map((m) => {
               const name = m.model_spec?.name || m.id
@@ -111,7 +111,7 @@ export function ComposeSettings({
             id="compose-draft-model"
             value={draftModel || DRAFT_MODEL_SAME}
             onChange={(e) => setDraftModel(e.target.value)}
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)] max-w-full"
+            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full"
           >
             <option value={DRAFT_MODEL_SAME}>Same as main</option>
             {writerModels.map((m) => {
@@ -173,7 +173,7 @@ export function ComposeSettings({
                 id="compose-x-news-age"
                 value={String(xNewsMaxAgeHours)}
                 onChange={(e) => setXNewsMaxAgeHours(Number(e.target.value))}
-                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
               >
                 <option value="6">6 hours</option>
                 <option value="12">12 hours</option>

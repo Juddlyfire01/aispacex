@@ -200,7 +200,7 @@ export function MusicView() {
               onChange={(e) => setDuration(Number(e.target.value))}
               className="w-full"
             />
-            <div className="flex justify-between text-[11px] text-white/30 mt-1">
+            <div className="flex justify-between text-[11px] text-[var(--color-text-quaternary)] mt-1">
               <span>{caps.minDuration}s</span>
               <span>{caps.maxDuration}s</span>
             </div>
@@ -224,7 +224,7 @@ export function MusicView() {
         <button
           type="button"
           onClick={cancelAll}
-          className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors self-start"
+          className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors self-start"
         >
           Cancel all ({activeCount})
         </button>
@@ -238,7 +238,7 @@ export function MusicView() {
                 const failed = jobs.find((j) => j.status === 'failed')
                 if (failed) dismissJob(failed.id)
               }}
-              className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+              className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 shrink-0 transition-colors"
             >
               Dismiss
             </button>
@@ -249,9 +249,9 @@ export function MusicView() {
             </ul>
           )}
           {suggestedPrompt && (
-            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
-              <p className="text-[13.5px] text-white/70 leading-relaxed">{suggestedPrompt}</p>
+            <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
+              <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{suggestedPrompt}</p>
               <button
                 onClick={() => setPrompt(suggestedPrompt)}
                 className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
@@ -274,30 +274,30 @@ export function MusicView() {
       onClearAll={gallery.clearAll}
       onUsePrompt={(p) => setPrompt(p)}
       empty={
-        <div className="flex items-center justify-center flex-1 h-full text-white/30 text-[15px]">
+        <div className="flex items-center justify-center flex-1 h-full text-[var(--color-text-quaternary)] text-[15px]">
           {activeCount > 0 ? (
             <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
               <Spinner size="lg" />
-              <span className="text-white/55 text-center">
+              <span className="text-[var(--color-text-secondary)] text-center">
                 Composing {activeCount} track{activeCount === 1 ? '' : 's'}…
-                <span className="block text-[12px] text-white/30 mt-1">typically 20s–90s each</span>
+                <span className="block text-[12px] text-[var(--color-text-quaternary)] mt-1">typically 20s–90s each</span>
               </span>
               <button
                 onClick={cancelAll}
-                className="text-[13px] text-white/35 hover:text-white/65 underline underline-offset-2 transition-colors"
+                className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors"
               >
                 Cancel all
               </button>
             </div>
           ) : !prompt ? (
             <div className="max-w-md w-full flex flex-col gap-2">
-              <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
+              <div className="text-[12px] uppercase tracking-[0.08em] text-[var(--color-text-quaternary)] font-medium text-left">Try one of these</div>
               {MUSIC_EXAMPLES.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPrompt(p)}
-                  className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
+                  className="text-left px-3 py-2.5 rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-border-faint)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] transition-all text-[14px] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
                 >
                   {p}
                 </button>
@@ -329,9 +329,9 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
         onClick={() => onChange(!value)}
         aria-pressed={value}
         aria-label={label}
-        className={cn('w-9 h-5 rounded-full transition-colors relative', value ? 'bg-[var(--color-accent)]' : 'bg-white/[0.1]')}
+        className={cn('w-9 h-5 rounded-full transition-colors relative', value ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border-faint)]')}
       >
-        <div className={cn('absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white transition-all', value ? 'left-[20px]' : 'left-[2px]')} />
+        <div className={cn('absolute top-[2px] w-[16px] h-[16px] rounded-full transition-all', value ? 'left-[20px] bg-[var(--color-accent-contrast)]' : 'left-[2px] bg-[var(--color-text-secondary)]')} />
       </button>
     </div>
   )

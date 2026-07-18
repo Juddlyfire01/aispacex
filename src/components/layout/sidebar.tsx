@@ -103,7 +103,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
             <button
               onClick={onMobileClose}
               aria-label="Close menu"
-              className="md:hidden shrink-0 p-1 text-white/45 hover:text-white/80 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              className="md:hidden shrink-0 p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
@@ -120,7 +120,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
             <button
               onClick={onMobileClose}
               aria-label="Close menu"
-              className="md:hidden ml-auto shrink-0 p-1 text-white/45 hover:text-white/80 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              className="md:hidden ml-auto shrink-0 p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
@@ -151,7 +151,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
                         expanded ? 'px-2.5 py-2' : 'md:px-0 md:py-2 md:justify-center px-2.5 py-2',
                         isActive
                           ? 'text-[var(--color-text-primary)]'
-                          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03]',
+                          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
                       )}
                     >
                       {isActive && (
@@ -189,7 +189,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
             expanded ? 'gap-2.5 w-full' : 'md:justify-center w-full',
             activeTab === 'settings'
               ? 'text-[var(--color-text-primary)]'
-              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.03]',
+              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)]',
           )}
         >
           {activeTab === 'settings' && (

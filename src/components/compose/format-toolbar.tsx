@@ -73,7 +73,7 @@ export function FormatToolbar({ value, onChange, textareaRef }: FormatToolbarPro
   }
 
   const btn =
-    'px-1.5 py-0.5 text-[11px] rounded text-white/45 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-25'
+    'px-1.5 py-0.5 text-[11px] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border-faint)] transition-colors disabled:opacity-25'
 
   return (
     <div className="space-y-1.5">
@@ -87,7 +87,7 @@ export function FormatToolbar({ value, onChange, textareaRef }: FormatToolbarPro
         <button type="button" className={btn} title="Plain ASCII" onClick={plainSelection}>
           Aa
         </button>
-        <span className="w-px h-3 bg-white/10 mx-0.5" />
+        <span className="w-px h-3 bg-[var(--color-border-faint)] mx-0.5" />
         <button type="button" className={btn} title="Mention" onClick={() => insertToken('@')}>
           @
         </button>
@@ -97,7 +97,7 @@ export function FormatToolbar({ value, onChange, textareaRef }: FormatToolbarPro
         <button type="button" className={btn} title="Cashtag" onClick={() => insertToken('$')}>
           $
         </button>
-        <span className="w-px h-3 bg-white/10 mx-0.5" />
+        <span className="w-px h-3 bg-[var(--color-border-faint)] mx-0.5" />
         <button type="button" className={btn} title="Line break" onClick={insertNewline}>
           ↵
         </button>
@@ -126,7 +126,7 @@ export function FormatToolbar({ value, onChange, textareaRef }: FormatToolbarPro
         <div className="flex-1" />
         <button
           type="button"
-          className="text-[10px] text-white/25 hover:text-white/50 transition-colors"
+          className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors"
           onClick={() => {
             setShowGuide((v) => !v)
             setShowEmoji(false)
@@ -137,7 +137,7 @@ export function FormatToolbar({ value, onChange, textareaRef }: FormatToolbarPro
       </div>
 
       {showGuide && (
-        <p className="text-[10px] text-white/30 leading-relaxed">
+        <p className="text-[10px] text-[var(--color-text-quaternary)] leading-relaxed">
           Standard posts are plain UTF-8 — no Markdown. Bold/italic use Unicode styled letters. @ # $ and URLs become
           entities. Emojis and most non-Latin chars count double toward 280.
         </p>

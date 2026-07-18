@@ -49,6 +49,20 @@ function makePost(over: Partial<Post> = {}): Post {
 }
 
 describe('computeAnalytics', () => {
+  it('attaches styleFeatures over own posts', () => {
+    const posts = [
+      makePost({ id: 'a', text: 'I think you maybe win at $2M?' }),
+      makePost({ id: 'b', text: 'Clearly we always ship.' }),
+    ]
+    const a = computeAnalytics(makeProfile(), posts, [])
+    expect(a.styleFeatures.overall.postCount).toBe(2)
+    expect(a.styleFeatures.overall.tokenCount).toBeGreaterThan(0)
+    expect(a.styleFeatures.overall.youRate).toBeGreaterThan(0)
+    expect(a.styleFeatures.overall.iRate).toBeGreaterThan(0)
+    expect(a.styleFeatures.formatCounts.post).toBe(2)
+    expect(a.styleFeatures.byFormat.post.postCount).toBe(2)
+  })
+
   it('computes composition percentages exactly', () => {
     const posts = [
       makePost({ id: 'a', kind: 'original' }),

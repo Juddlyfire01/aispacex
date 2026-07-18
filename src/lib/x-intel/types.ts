@@ -1,3 +1,7 @@
+import type { StyleFeatures, StyleFeaturesReport } from './style-features'
+
+export type { StyleFeatures, StyleFeaturesReport }
+
 /**
  * X affiliation badge — the small org logo X renders beside a member's name
  * when their account is an affiliated member of a Verified Organization
@@ -71,6 +75,14 @@ export interface Post {
   createdAt: string
   metrics: { impressions: number; likes: number; reposts: number; replies: number; quotes: number; bookmarks: number }
   kind: 'original' | 'reply' | 'quote' | 'retweet'
+  /**
+   * Writing format for register / transcript packing.
+   * `article` = X Article; `longform` = Premium note_tweet; `post` = standard.
+   * Absent on legacy rows — treat as `post`.
+   */
+  format?: 'post' | 'longform' | 'article'
+  /** Article title when format is article. */
+  articleTitle?: string
   /** X `in_reply_to_user_id` — who this reply is directed at (when kind is reply). */
   inReplyToUserId?: string | null
   /**
@@ -86,6 +98,8 @@ export interface Post {
   contextAnnotations: { domain: string; entity: string }[]
   gatheredAt: string
 }
+
+export type PostFormat = NonNullable<Post['format']>
 
 export interface Edge {
   source: string   // target user id
@@ -223,7 +237,24 @@ export interface ReportAnalytics {
     ownPosts: number
     inboundMentions: number
   }
+  /**
+   * LIWC-ish style rates. `overall` mixes formats; `byFormat` keeps articles
+   * from warping short-post averages. Never injected raw into Compose.
+   */
+  styleFeatures: StyleFeaturesReport
   computedAt: string  // ISO
+}
+
+/** Fixed register style-sheet slots (no few-shot exemplars). */
+export interface RegisterSections {
+  cadence: string
+  diction: string
+  stance: string
+  rhetoric: string
+  texture: string
+  /** How voice flexes across post / thread / article. */
+  formatFlex: string
+  constraints: string
 }
 
 /** LLM interpretation, grounded in ReportAnalytics. */
@@ -232,10 +263,12 @@ export interface ReportNarrative {
   strategicAssessment: string
   themes: { name: string; evidence: string; weight: number }[]
   register: {
-    description: string
+    /** One-line voice summary. Legacy reports may only have `description`. */
+    summary: string
+    sections: RegisterSections
     devices: string[]
-    /** Labeled real-post exemplars for high-fidelity style transfer. */
-    fewShotExamples?: { label: string; postId?: string; text: string }[]
+    /** @deprecated Legacy field — migrated into `summary` on read. */
+    description?: string
   }
   narrativeArcs: { arc: string; trend: string; evidence: string }[]
   audienceRead: string
@@ -393,6 +426,19 @@ export interface XPostRaw {
   entities?: XPostEntities
   /** Full text + entities for long-form posts (>280 chars). Root `text` is truncated. */
   note_tweet?: { text?: string; entities?: XPostEntities }
+  /**
+   * X Article payload when this post announces/embeds an Article.
+   * Shape is lightly documented — we accept several text carriers defensively.
+   */
+  article?: {
+    title?: string
+    plain_text?: string
+    text?: string
+    preview_text?: string
+    description?: string
+    content_state?: { blocks?: { text?: string; type?: string }[] }
+    entities?: XPostEntities
+  }
   attachments?: { media_keys?: string[] }
   context_annotations?: { domain: { name: string }; entity: { name: string } }[]
 }

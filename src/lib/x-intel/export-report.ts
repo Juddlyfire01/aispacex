@@ -136,11 +136,27 @@ export function reportToMarkdown(snapshot: IntelReportSnapshot, ctx: ReportExpor
     }
   }
 
-  if (n.register.description || n.register.devices.length > 0) {
+  const registerSummary = n.register.summary || n.register.description || ''
+  const registerSections = n.register.sections
+  const hasRegisterSections =
+    registerSections && Object.values(registerSections).some((s) => Boolean(s?.trim()))
+  if (registerSummary || n.register.devices.length > 0 || hasRegisterSections) {
     lines.push('## Register', '')
-    if (n.register.description) lines.push(stripMarkdownLabel(n.register.description))
-    if (n.register.devices.length > 0) lines.push('', `Devices: ${n.register.devices.join(', ')}`)
-    lines.push('')
+    if (registerSummary) lines.push(stripMarkdownLabel(registerSummary), '')
+    const sectionEntries: [string, string | undefined][] = [
+      ['Cadence', registerSections?.cadence],
+      ['Diction', registerSections?.diction],
+      ['Stance', registerSections?.stance],
+      ['Rhetoric', registerSections?.rhetoric],
+      ['Texture', registerSections?.texture],
+      ['Format flex', registerSections?.formatFlex],
+      ['Constraints', registerSections?.constraints],
+    ]
+    for (const [label, body] of sectionEntries) {
+      if (!body?.trim()) continue
+      lines.push(`### ${label}`, '', stripMarkdownLabel(body), '')
+    }
+    if (n.register.devices.length > 0) lines.push(`Devices: ${n.register.devices.join(', ')}`, '')
   }
 
   if (n.narrativeArcs.length > 0) {

@@ -21,7 +21,7 @@ import type { Profile } from '../../lib/x-intel/types'
 function SelfBio({ text, bioUrls }: { text: string; bioUrls?: { url: string; expanded: string; display: string }[] }) {
   const linkCls = 'entity-link'
   return (
-    <p className="text-[12px] text-white/50 mt-1.5 break-words">
+    <p className="text-[12px] text-[var(--color-text-tertiary)] mt-1.5 break-words">
       {linkify(text, bioUrls).map((tok, i) => {
         if (tok.type === 'url' || tok.type === 'hashtag') {
           const href = tok.type === 'url' ? tok.href : `https://x.com/hashtag/${encodeURIComponent(tok.tag)}`
@@ -48,7 +48,7 @@ function ConnectCta() {
         <SignInWithXButton onClick={beginSelfLogin} />
         <div className="absolute bottom-full left-1/2 mb-5 flex w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 flex-col items-center gap-5 text-center">
           <img src={xLogoHrefForTheme(theme)} alt="" className="h-7 w-auto opacity-90" aria-hidden />
-          <h2 className="text-[16px] font-semibold text-white/90">Analyze Your Profile</h2>
+          <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)]">Analyze Your Profile</h2>
         </div>
         <div className="absolute top-full left-1/2 z-10 mt-2 w-80 max-w-[calc(100vw-3rem)] -translate-x-1/2">
           <XDataPrivacyDisclosure />
@@ -65,8 +65,8 @@ function ConnectCta() {
 function NoActiveAccount() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center gap-2 px-6">
-      <p className="text-[13px] text-white/50 font-medium">No account selected</p>
-      <p className="text-[11px] text-white/30 max-w-xs">Pick an account from the rail, or connect a new one.</p>
+      <p className="text-[13px] text-[var(--color-text-tertiary)] font-medium">No account selected</p>
+      <p className="text-[11px] text-[var(--color-text-quaternary)] max-w-xs">Pick an account from the rail, or connect a new one.</p>
     </div>
   )
 }
@@ -172,7 +172,7 @@ export function SelfProfileView() {
   // ProfileOverview pins its action footer via flex (scroll body + shrink-0 footer).
   return (
     <div className="flex flex-col lg:flex-row h-full min-h-0">
-      <aside className="lg:w-[340px] lg:shrink-0 lg:border-r border-white/[0.05] flex flex-col max-h-[55vh] lg:max-h-none min-h-0">
+      <aside className="lg:w-[340px] lg:shrink-0 lg:border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] lg:max-h-none min-h-0">
         <ProfileOverview
           profile={profile}
           connected={connected}

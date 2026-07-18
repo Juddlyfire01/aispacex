@@ -24,7 +24,7 @@ import { labelForSchemaField, stripMarkdownLabel } from '../../lib/x-intel/synth
 function Prose({ children, canAddTarget = true }: { children: string; canAddTarget?: boolean }) {
   const clean = stripMarkdownLabel(children ?? '')
   if (!clean) return null
-  return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-white/70" canAddTarget={canAddTarget} />
+  return <MarkdownMessage content={clean} size="compact" className="text-[12.5px] text-[var(--color-text-secondary)]" canAddTarget={canAddTarget} />
 }
 
 /**
@@ -60,7 +60,7 @@ function InlineText({ text, canAddTarget = true }: { text: string; canAddTarget?
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-[10px] font-medium text-white/25 uppercase tracking-[0.08em] mb-1.5">{children}</h3>
+  return <h3 className="text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em] mb-1.5">{children}</h3>
 }
 
 function pct(n: number): string {
@@ -84,12 +84,12 @@ function LinkIcon({ className }: { className?: string }) {
 /** A small labeled stat cell. */
 function Stat({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
   return (
-    <div className="rounded-lg border border-white/[0.05] bg-[var(--color-bg-card)] px-2.5 py-2">
-      <div className="text-[9px] uppercase tracking-wide text-white/25">
+    <div className="rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-bg-card)] px-2.5 py-2">
+      <div className="text-[9px] uppercase tracking-wide text-[var(--color-text-quaternary)]">
         <Tooltip tip={tip}>{label}</Tooltip>
       </div>
-      <div className="text-[13px] font-mono text-white/80 mt-0.5">{value}</div>
-      {sub && <div className="text-[9px] text-white/25 font-mono">{sub}</div>}
+      <div className="text-[13px] font-mono text-[var(--color-text-primary)] mt-0.5">{value}</div>
+      {sub && <div className="text-[9px] text-[var(--color-text-quaternary)] font-mono">{sub}</div>}
     </div>
   )
 }
@@ -111,10 +111,10 @@ function RankBar({ count, max }: { count: number; max: number }) {
   const w = max > 0 ? Math.max(4, (count / max) * 100) : 0
   return (
     <>
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-        <div className="h-full rounded-full bg-white/25" style={{ width: `${w}%` }} />
+      <div className="flex-1 h-1.5 rounded-full bg-[var(--color-border-faint)] overflow-hidden">
+        <div className="h-full rounded-full bg-[var(--color-border-faint)]" style={{ width: `${w}%` }} />
       </div>
-      <span className="text-[10px] font-mono text-white/30 w-6 text-right">{count}</span>
+      <span className="text-[10px] font-mono text-[var(--color-text-quaternary)] w-6 text-right">{count}</span>
     </>
   )
 }
@@ -137,7 +137,7 @@ function BarRow({ label, count, max }: { label: string; count: number; max: numb
           />
         </span>
       ) : (
-        <span className="text-[11px] text-white/55 truncate w-28 shrink-0">{ref.value}</span>
+        <span className="text-[11px] text-[var(--color-text-secondary)] truncate w-28 shrink-0">{ref.value}</span>
       )}
       <RankBar count={count} max={max} />
     </div>
@@ -159,7 +159,7 @@ function UsernameRow({ username, count, max, onAdd }: {
       <button
         onClick={() => onAdd(username)}
         title={`Add @${username} as a profile`}
-        className="text-[11px] text-white/55 hover:text-[var(--color-accent)] transition-colors truncate w-24 shrink-0 text-left"
+        className="text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors truncate w-24 shrink-0 text-left"
       >
         @{username}
       </button>
@@ -168,7 +168,7 @@ function UsernameRow({ username, count, max, onAdd }: {
         target="_blank"
         rel="noopener noreferrer nofollow"
         title={`Open @${username} on X`}
-        className="shrink-0 text-white/20 hover:text-[var(--color-accent)] transition-colors opacity-0 group-hover/urow:opacity-100 focus:opacity-100"
+        className="shrink-0 text-[var(--color-text-quaternary)] hover:text-[var(--color-accent)] transition-colors opacity-0 group-hover/urow:opacity-100 focus:opacity-100"
       >
         <LinkIcon />
       </a>
@@ -178,7 +178,7 @@ function UsernameRow({ username, count, max, onAdd }: {
 }
 
 function RankedList({ items, empty }: { items: { label: string; count: number }[]; empty: string }) {
-  if (items.length === 0) return <p className="text-[11px] text-white/15">{empty}</p>
+  if (items.length === 0) return <p className="text-[11px] text-[var(--color-text-quaternary)]">{empty}</p>
   const max = Math.max(...items.map((i) => i.count))
   return <div>{items.map((i) => <BarRow key={i.label} label={i.label} count={i.count} max={max} />)}</div>
 }
@@ -189,7 +189,7 @@ function UsernameList({ items, empty, onAdd }: {
   empty: string
   onAdd: (u: string) => void
 }) {
-  if (items.length === 0) return <p className="text-[11px] text-white/15">{empty}</p>
+  if (items.length === 0) return <p className="text-[11px] text-[var(--color-text-quaternary)]">{empty}</p>
   const max = Math.max(...items.map((i) => i.count))
   return <div>{items.map((i) => <UsernameRow key={i.label} username={i.label} count={i.count} max={max} onAdd={onAdd} />)}</div>
 }
@@ -200,8 +200,8 @@ function HourHistogram({ hours }: { hours: number[] }) {
   return (
     <div className="flex items-end gap-[2px] h-12">
       {hours.map((c, h) => (
-        <div key={h} className="flex-1 flex flex-col items-center justify-end group/bar" title={`${h}:00 UTC — ${c} posts`}>
-          <div className="w-full rounded-sm bg-white/20 group-hover/bar:bg-white/40 transition-colors" style={{ height: `${(c / max) * 100}%`, minHeight: c > 0 ? 2 : 0 }} />
+        <div key={h} className="flex-1 h-full flex flex-col items-center justify-end group/bar" title={`${h}:00 UTC — ${c} posts`}>
+          <div className="w-full rounded-sm bg-[var(--color-border-faint)] group-hover/bar:bg-[var(--color-border-soft)] transition-colors" style={{ height: `${(c / max) * 100}%`, minHeight: c > 0 ? 2 : 0 }} />
         </div>
       ))}
     </div>
@@ -272,15 +272,15 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
             tip="Mean likes per analyzed post, with the single-post max."
           />
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-white/30">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-[var(--color-text-quaternary)]">
           <span>impr avg {formatTokens(e.impressions.avg)}</span>
           <span>replies avg {formatTokens(e.replies.avg)}</span>
           <span>quotes avg {formatTokens(e.quotes.avg)}</span>
           <span>top-decile {formatTokens(e.topDecileLikes)}L</span>
         </div>
         {best && (
-          <div className="mt-2 text-[10px] text-white/30">
-            Best performer: <span className="text-white/50">{best.text.slice(0, 80)}</span> ({formatTokens(best.metrics.likes)}L)
+          <div className="mt-2 text-[10px] text-[var(--color-text-quaternary)]">
+            Best performer: <span className="text-[var(--color-text-tertiary)]">{best.text.slice(0, 80)}</span> ({formatTokens(best.metrics.likes)}L)
           </div>
         )}
       </section>
@@ -288,13 +288,13 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
       {/* Composition */}
       <section>
         <SectionTitle>Composition</SectionTitle>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/50 font-mono">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--color-text-tertiary)] font-mono">
           <span>{c.byKindPct.original}% original</span>
           <span>{c.byKindPct.reply}% reply</span>
           <span>{c.byKindPct.quote}% quote</span>
           <span>{c.byKindPct.retweet}% retweet</span>
-          <span className="text-white/30">· {c.withMediaPct}% media</span>
-          <span className="text-white/30">{c.withLinkPct}% links</span>
+          <span className="text-[var(--color-text-quaternary)]">· {c.withMediaPct}% media</span>
+          <span className="text-[var(--color-text-quaternary)]">{c.withLinkPct}% links</span>
         </div>
       </section>
 
@@ -302,7 +302,7 @@ export function AnalyticsPanels({ a, posts, onAddTarget }: { a: ReportAnalytics;
       <section>
         <SectionTitle>Cadence — {a.cadence.pattern}, {a.cadence.variance} variance</SectionTitle>
         <HourHistogram hours={a.cadence.hourHistogramUtc} />
-        <div className="flex justify-between text-[9px] font-mono text-white/20 mt-1">
+        <div className="flex justify-between text-[9px] font-mono text-[var(--color-text-quaternary)] mt-1">
           <span>00 UTC</span>
           <span>{a.cadence.avgPerDay}/day{a.cadence.peakHoursUtc.length > 0 ? ` · peaks ${a.cadence.peakHoursUtc.map((h) => `${h}:00`).join(', ')}` : ''}</span>
           <span>23 UTC</span>
@@ -364,15 +364,15 @@ export function ChangeSummaryPanel({ change, canAddTarget = true }: { change: Ch
       {(change.emergingTopics.length > 0 || change.fadingTopics.length > 0) && (
         <div className="text-[10px] space-y-0.5">
           {change.emergingTopics.length > 0 && (
-            <div className="text-white/40">Emerging: <span className="text-green-400/60">{change.emergingTopics.slice(0, 6).join(', ')}</span></div>
+            <div className="text-[var(--color-text-tertiary)]">Emerging: <span className="text-green-400/60">{change.emergingTopics.slice(0, 6).join(', ')}</span></div>
           )}
           {change.fadingTopics.length > 0 && (
-            <div className="text-white/40">Fading: <span className="text-white/30">{change.fadingTopics.slice(0, 6).join(', ')}</span></div>
+            <div className="text-[var(--color-text-tertiary)]">Fading: <span className="text-[var(--color-text-quaternary)]">{change.fadingTopics.slice(0, 6).join(', ')}</span></div>
           )}
         </div>
       )}
       {(change.compositionDrift.length > 0 || change.cadenceDrift.length > 0) && (
-        <div className="text-[10px] text-white/30 font-mono">
+        <div className="text-[10px] text-[var(--color-text-quaternary)] font-mono">
           {[...change.compositionDrift, ...change.cadenceDrift].join(' · ')}
         </div>
       )}
@@ -387,6 +387,13 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
   canAddTarget?: boolean
 }) {
   const n = snapshot.narrative
+  const registerSummary = n.register.summary || n.register.description || ''
+  const registerSections = n.register.sections
+  const hasRegisterSections =
+    Boolean(registerSections) && Object.values(registerSections).some((s) => Boolean(s?.trim()))
+  const showRegister =
+    Boolean(registerSummary) || hasRegisterSections || n.register.devices.length > 0
+
   return (
     <div className="space-y-4">
       {n.executiveSummary && (
@@ -409,8 +416,8 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
               const { prose, ids } = splitEvidence(t.evidence ?? '')
               return (
                 <div key={i} className="text-[11.5px]">
-                  <span className="text-white/70 font-medium">{t.name}</span>
-                  {prose && <span className="text-white/35"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
+                  <span className="text-[var(--color-text-secondary)] font-medium">{t.name}</span>
+                  {prose && <span className="text-[var(--color-text-quaternary)]"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
                   <EvidencePosts ids={ids} posts={posts} onJumpToPost={onJumpToPost} />
                 </div>
               )
@@ -418,14 +425,36 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
           </div>
         </section>
       )}
-      {n.register.description && (
+      {showRegister && (
         <section>
           <SectionTitle>Register</SectionTitle>
-          <p className="text-[12px] text-white/60"><InlineText text={n.register.description} canAddTarget={canAddTarget} /></p>
+          {registerSummary && (
+            <p className="text-[12px] text-[var(--color-text-secondary)]"><InlineText text={registerSummary} canAddTarget={canAddTarget} /></p>
+          )}
+          {(
+            [
+              ['Cadence', registerSections?.cadence],
+              ['Diction', registerSections?.diction],
+              ['Stance', registerSections?.stance],
+              ['Rhetoric', registerSections?.rhetoric],
+              ['Texture', registerSections?.texture],
+              ['Format flex', registerSections?.formatFlex],
+              ['Constraints', registerSections?.constraints],
+            ] as const
+          )
+            .filter(([, body]) => Boolean(body?.trim()))
+            .map(([label, body]) => (
+              <div key={label} className="mt-2">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--color-text-quaternary)]">{label}</div>
+                <p className="text-[11.5px] text-[var(--color-text-tertiary)] mt-0.5">
+                  <InlineText text={body!} canAddTarget={canAddTarget} />
+                </p>
+              </div>
+            ))}
           {n.register.devices.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-2">
               {n.register.devices.map((d) => (
-                <span key={d} className="text-[10px] px-2 py-[2px] rounded-full bg-white/[0.05] text-white/45">{d}</span>
+                <span key={d} className="text-[10px] px-2 py-[2px] rounded-full bg-[var(--color-border-faint)] text-[var(--color-text-tertiary)]">{d}</span>
               ))}
             </div>
           )}
@@ -438,9 +467,9 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
             {n.narrativeArcs.map((arc, i) => {
               const { prose, ids } = splitEvidence(arc.evidence ?? '')
               return (
-                <div key={i} className="text-[11.5px] text-white/55">
-                  <span className="text-white/70">{arc.arc}</span> <span className="font-mono text-[10px] text-white/30">({arc.trend})</span>
-                  {prose && <span className="text-white/30"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
+                <div key={i} className="text-[11.5px] text-[var(--color-text-secondary)]">
+                  <span className="text-[var(--color-text-secondary)]">{arc.arc}</span> <span className="font-mono text-[10px] text-[var(--color-text-quaternary)]">({arc.trend})</span>
+                  {prose && <span className="text-[var(--color-text-quaternary)]"> — <InlineText text={prose} canAddTarget={canAddTarget} /></span>}
                   <EvidencePosts ids={ids} posts={posts} onJumpToPost={onJumpToPost} />
                 </div>
               )
@@ -451,7 +480,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
       {n.audienceRead && (
         <section>
           <SectionTitle>Audience</SectionTitle>
-          <p className="text-[12px] text-white/60"><InlineText text={n.audienceRead} canAddTarget={canAddTarget} /></p>
+          <p className="text-[12px] text-[var(--color-text-secondary)]"><InlineText text={n.audienceRead} canAddTarget={canAddTarget} /></p>
         </section>
       )}
       {n.notablePosts.length > 0 && (
@@ -464,15 +493,15 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
                 <button
                   key={np.postId}
                   onClick={() => onJumpToPost(np.postId)}
-                  className="text-left w-full rounded-lg border border-white/[0.05] bg-[var(--color-bg-card)] p-2.5 hover:border-white/15 transition-colors"
+                  className="text-left w-full rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-bg-card)] p-2.5 hover:border-[var(--color-border-strong)] transition-colors"
                 >
                   {post ? (
-                    <p className="text-[12px] text-white/65">{post.text.slice(0, 140)}{post.text.length > 140 ? '…' : ''}</p>
+                    <p className="text-[12px] text-[var(--color-text-secondary)]">{post.text.slice(0, 140)}{post.text.length > 140 ? '…' : ''}</p>
                   ) : (
-                    <p className="text-[11px] text-white/25 font-mono">post {np.postId}</p>
+                    <p className="text-[11px] text-[var(--color-text-quaternary)] font-mono">post {np.postId}</p>
                   )}
-                  <p className="text-[10px] text-white/30 mt-1">{np.why}
-                    {post && <span className="font-mono text-white/20"> · {formatTokens(post.metrics.likes)}L · view in Feed →</span>}
+                  <p className="text-[10px] text-[var(--color-text-quaternary)] mt-1">{np.why}
+                    {post && <span className="font-mono text-[var(--color-text-quaternary)]"> · {formatTokens(post.metrics.likes)}L · view in Feed →</span>}
                   </p>
                 </button>
               )
@@ -484,7 +513,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
         <section>
           <SectionTitle>Contradictions / tensions</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.contradictions.map((c, i) => <li key={i} className="text-[11.5px] text-white/50"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
+            {n.contradictions.map((c, i) => <li key={i} className="text-[11.5px] text-[var(--color-text-tertiary)]"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -492,7 +521,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
         <section>
           <SectionTitle>Engagement hooks</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.engagementHooks.map((h, i) => <li key={i} className="text-[11.5px] text-white/55"><InlineText text={h} canAddTarget={canAddTarget} /></li>)}
+            {n.engagementHooks.map((h, i) => <li key={i} className="text-[11.5px] text-[var(--color-text-secondary)]"><InlineText text={h} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -500,7 +529,7 @@ export function NarrativePanels({ snapshot, posts, onJumpToPost, canAddTarget = 
         <section>
           <SectionTitle>Analyst conclusions</SectionTitle>
           <ul className="list-disc pl-4 space-y-0.5">
-            {n.analystConclusions.map((c, i) => <li key={i} className="text-[11.5px] text-white/60"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
+            {n.analystConclusions.map((c, i) => <li key={i} className="text-[11.5px] text-[var(--color-text-secondary)]"><InlineText text={c} canAddTarget={canAddTarget} /></li>)}
           </ul>
         </section>
       )}
@@ -532,18 +561,18 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
             key={r.id}
             className={cn(
               'group/report relative shrink-0 rounded-lg border px-2.5 py-1.5 cursor-pointer transition-colors',
-              active ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.06]' : 'border-white/[0.06] bg-[var(--color-bg-card)] hover:border-white/[0.15]',
+              active ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/[0.06]' : 'border-[var(--color-border-faint)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-strong)]',
             )}
             onClick={() => onSelect(r.id)}
           >
-            <div className="text-[10px] font-medium text-white/70 whitespace-nowrap">{relDate(r.createdAt)}</div>
-            <div className="text-[9px] font-mono text-white/30 whitespace-nowrap">
+            <div className="text-[10px] font-medium text-[var(--color-text-secondary)] whitespace-nowrap">{relDate(r.createdAt)}</div>
+            <div className="text-[9px] font-mono text-[var(--color-text-quaternary)] whitespace-nowrap">
               {r.meta.postCount} posts
               {i === history.length - 1 ? ' · baseline' : deltaLabel != null ? ` · ${deltaLabel}` : ''}
             </div>
             {r.meta.tokenCost > 0 && (
               <div
-                className="text-[9px] font-mono text-white/25 whitespace-nowrap"
+                className="text-[9px] font-mono text-[var(--color-text-quaternary)] whitespace-nowrap"
                 title={
                   (r.meta.promptTokens != null && r.meta.completionTokens != null
                     ? `${r.meta.promptTokens.toLocaleString()} in + ${r.meta.completionTokens.toLocaleString()} out = `
@@ -556,7 +585,7 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
               >
                 {formatTokens(r.meta.tokenCost)} tok
                 {r.meta.completionTokens != null && (
-                  <span className="text-white/20"> · {formatTokens(r.meta.completionTokens)} out</span>
+                  <span className="text-[var(--color-text-quaternary)]"> · {formatTokens(r.meta.completionTokens)} out</span>
                 )}
                 {(r.meta.includedReportIds?.length ?? 0) > 0 && <span className="text-[var(--color-accent)]/50"> ↺</span>}
               </div>
@@ -564,7 +593,7 @@ export function ReportTimeline({ history, activeId, onSelect, onDelete }: {
             <button
               onClick={(ev) => { ev.stopPropagation(); onDelete(r.id) }}
               title="Delete report"
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--color-bg-overlay)] border border-[var(--color-border-soft)] text-white/30 hover:text-red-400/80 text-[10px] leading-none opacity-0 group-hover/report:opacity-100 transition-opacity"
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--color-bg-overlay)] border border-[var(--color-border-soft)] text-[var(--color-text-quaternary)] hover:text-red-400/80 text-[10px] leading-none opacity-0 group-hover/report:opacity-100 transition-opacity"
             >×</button>
           </div>
         )
@@ -618,7 +647,7 @@ export function ProfileReport() {
   const { ref: scrollRef, onScroll } = usePreserveScroll(activeTarget, activeReportKey)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">No profile selected</div>
   }
 
   const { profile, posts, edges, reportHistory, activeReportId } = report
@@ -652,8 +681,8 @@ export function ProfileReport() {
     <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-6 py-4 space-y-4">
       {/* Header: title + generate */}
       <div className="flex items-center gap-2">
-        <h2 className="text-[13px] font-semibold text-white/80">Intelligence report</h2>
-        <span className="text-[10px] text-white/25 font-mono">
+        <h2 className="text-[13px] font-semibold text-[var(--color-text-primary)]">Intelligence report</h2>
+        <span className="text-[10px] text-[var(--color-text-quaternary)] font-mono">
           {storedPostsLabel(profile, posts)}
         </span>
         <div className="flex-1" />
@@ -691,10 +720,10 @@ export function ProfileReport() {
         <div className="space-y-5">
           {active.changeSummary && <ChangeSummaryPanel change={active.changeSummary} />}
           <AnalyticsPanels a={active.analytics} posts={posts} onAddTarget={addAsTarget} />
-          <div className="border-t border-white/[0.05] pt-4">
+          <div className="border-t border-[var(--color-border-faint)] pt-4">
             <NarrativePanels snapshot={active} posts={posts} onJumpToPost={jumpToFeedPost} />
           </div>
-          <p className="text-[10px] text-white/12 font-mono pt-2">
+          <p className="text-[10px] text-[var(--color-text-quaternary)] font-mono pt-2">
             Report {relDate(active.createdAt)} · {active.model} · {active.meta.postCount} posts
             {active.meta.dateRange && ` · ${new Date(active.meta.dateRange.from).toLocaleDateString()}–${new Date(active.meta.dateRange.to).toLocaleDateString()}`}
             {active.meta.tokenCost > 0 && ` · ${formatTokens(active.meta.tokenCost)} tokens`}
@@ -706,15 +735,15 @@ export function ProfileReport() {
         </div>
       ) : liveAnalytics ? (
         <div className="space-y-5">
-          <p className="text-[11px] text-white/30">
+          <p className="text-[11px] text-[var(--color-text-quaternary)]">
             Live analytics preview (computed, free). Generate a report to add analyst narrative and start tracking changes over time.
           </p>
           <AnalyticsPanels a={liveAnalytics} posts={posts} onAddTarget={addAsTarget} />
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
-          <p className="text-[12px] text-white/40 font-medium">No report yet</p>
-          <p className="text-[11px] text-white/25 max-w-xs">
+          <p className="text-[12px] text-[var(--color-text-tertiary)] font-medium">No report yet</p>
+          <p className="text-[11px] text-[var(--color-text-quaternary)] max-w-xs">
             {hasPosts
               ? 'Generate a comprehensive intelligence report from the gathered posts.'
               : connected ? 'Gather posts from the profile rail first, then generate a report.' : 'Connect your X account, gather posts, then generate a report.'}

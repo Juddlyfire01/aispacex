@@ -34,12 +34,12 @@ export function PollEditor({ threadId, segment }: PollEditorProps) {
             onChange={(e) => setOption(i, e.target.value)}
             placeholder={`Choice ${i + 1}`}
             maxLength={25}
-            className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+            className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
           />
           {poll.options.length > 2 && (
             <button
               onClick={() => patchSegment(threadId, segment.id, { poll: { ...poll, options: poll.options.filter((_, idx) => idx !== i) } })}
-              className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors"
+              className="text-[10px] text-[var(--color-text-quaternary)] hover:text-red-400/70 transition-colors"
             >
               ×
             </button>
@@ -50,7 +50,7 @@ export function PollEditor({ threadId, segment }: PollEditorProps) {
         {poll.options.length < 4 && (
           <button
             onClick={() => patchSegment(threadId, segment.id, { poll: { ...poll, options: [...poll.options, ''] } })}
-            className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+            className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             + Choice
           </button>
@@ -58,7 +58,7 @@ export function PollEditor({ threadId, segment }: PollEditorProps) {
         <select
           value={poll.durationMinutes}
           onChange={(e) => patchSegment(threadId, segment.id, { poll: { ...poll, durationMinutes: Number(e.target.value) } })}
-          className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-1.5 py-1 text-[10px] text-white/60 outline-none"
+          className="bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-1.5 py-1 text-[10px] text-[var(--color-text-secondary)] outline-none"
         >
           {DURATIONS.map((d) => (
             <option key={d.minutes} value={d.minutes}>{d.label}</option>
@@ -67,7 +67,7 @@ export function PollEditor({ threadId, segment }: PollEditorProps) {
         <div className="flex-1" />
         <button
           onClick={() => patchSegment(threadId, segment.id, { poll: undefined })}
-          className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors"
+          className="text-[10px] text-[var(--color-text-quaternary)] hover:text-red-400/70 transition-colors"
         >
           Remove poll
         </button>

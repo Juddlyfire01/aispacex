@@ -79,16 +79,16 @@ function DefaultFallback({ error, reset }: { error: Error; reset: () => void }) 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 text-center" role="alert">
       <div className="max-w-md w-full">
-        <div className="text-[20px] font-semibold text-white/85 mb-2">Something went wrong</div>
-        <p className="text-[14px] text-white/40 mb-4">
+        <div className="text-[20px] font-semibold text-[var(--color-text-primary)] mb-2">Something went wrong</div>
+        <p className="text-[14px] text-[var(--color-text-tertiary)] mb-4">
           The app hit an unexpected error and couldn&apos;t render this view. Your work is safe — refresh to recover.
         </p>
         <details className="mb-5 text-left">
-          <summary className="text-[13px] text-white/30 cursor-pointer hover:text-white/55">
+          <summary className="text-[13px] text-[var(--color-text-quaternary)] cursor-pointer hover:text-[var(--color-text-secondary)]">
             Show details
           </summary>
           <div className="relative mt-2">
-            <pre className="text-[12px] text-red-300/70 bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 pr-10 overflow-auto max-h-40 whitespace-pre-wrap break-words">
+            <pre className="text-[12px] text-red-300/70 bg-[var(--color-border-faint)] border border-[var(--color-border-soft)] rounded-lg p-3 pr-10 overflow-auto max-h-40 whitespace-pre-wrap break-words">
               {detail}
             </pre>
             <button
@@ -96,7 +96,7 @@ function DefaultFallback({ error, reset }: { error: Error; reset: () => void }) 
               onClick={handleCopy}
               title={copied ? 'Copied' : 'Copy error'}
               aria-label={copied ? 'Error copied' : 'Copy error details'}
-              className="absolute top-2 right-2 p-1.5 rounded-md text-white/35 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+              className="absolute top-2 right-2 p-1.5 rounded-md text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] transition-colors"
             >
               {copied ? (
                 <span className="text-[10px] font-medium text-[var(--color-accent)]">Copied</span>
@@ -117,7 +117,7 @@ function DefaultFallback({ error, reset }: { error: Error; reset: () => void }) 
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="px-4 py-2 text-[14px] font-medium border border-white/[0.1] text-white/60 hover:text-white/80 hover:border-white/[0.2] rounded-md transition-colors"
+            className="px-4 py-2 text-[14px] font-medium border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] rounded-md transition-colors"
           >
             Reload page
           </button>

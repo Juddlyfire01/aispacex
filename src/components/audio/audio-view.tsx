@@ -175,11 +175,11 @@ export function AudioView() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-full border border-dashed border-white/[0.1] hover:border-white/[0.22] hover:bg-white/[0.02] rounded-xl p-8 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            className="w-full border border-dashed border-[var(--color-border-soft)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] rounded-xl p-8 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           >
             <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto mb-2 text-white/40"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
-            <p className="text-[14px] text-white/65">{file ? file.name : 'Click to select audio file'}</p>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto mb-2 text-[var(--color-text-tertiary)]"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+            <p className="text-[14px] text-[var(--color-text-secondary)]">{file ? file.name : 'Click to select audio file'}</p>
           </button>
           <PrimaryButton onClick={() => { if (file) transcription.mutate(file, { onSuccess: (d) => setTranscript(d.text), onError: (err) => toast.fromError(err, 'Transcription failed') }) }} disabled={!file || !apiKey} loading={transcription.isPending} size="lg">
             Transcribe
@@ -204,13 +204,13 @@ export function AudioView() {
             <LoadingState label="Generating…" size="lg" />
           ) : !text ? (
             <div className="max-w-md w-full flex flex-col gap-2">
-              <div className="text-[12px] uppercase tracking-[0.08em] text-white/35 font-medium text-left">Try one of these</div>
+              <div className="text-[12px] uppercase tracking-[0.08em] text-[var(--color-text-quaternary)] font-medium text-left">Try one of these</div>
               {AUDIO_EXAMPLES.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setText(p)}
-                  className="text-left px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04] transition-all text-[14px] text-white/65 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white/40"
+                  className="text-left px-3 py-2.5 rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-border-faint)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-border-faint)] transition-all text-[14px] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
                 >
                   {p}
                 </button>

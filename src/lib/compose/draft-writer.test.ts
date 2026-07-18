@@ -3,6 +3,7 @@ import {
   parseDraftWriteBrief,
   isDraftHandoffEnabled,
   isSeparateDraftModel,
+  resolveDraftWriteFormat,
   resolveDraftWriterModelId,
   describeDraftWriteLabels,
   DRAFT_MODEL_SAME,
@@ -39,8 +40,33 @@ describe('parseDraftWriteBrief', () => {
     expect(b.target).toEqual({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
   })
 
+  it('parses format when valid', () => {
+    expect(parseDraftWriteBrief({ brief: 'x', format: 'article' }).format).toBe('article')
+    expect(parseDraftWriteBrief({ brief: 'x', format: 'thread' }).format).toBe('thread')
+    expect(parseDraftWriteBrief({ brief: 'x', format: 'nope' }).format).toBeUndefined()
+  })
+
   it('tolerates missing brief', () => {
     expect(parseDraftWriteBrief({}).brief).toBe('')
+  })
+})
+
+describe('resolveDraftWriteFormat', () => {
+  it('locked preference wins over tool format', () => {
+    expect(resolveDraftWriteFormat('post', 'article')).toBe('post')
+    expect(resolveDraftWriteFormat('article', 'post')).toBe('article')
+  })
+
+  it('under Auto honors tool format', () => {
+    expect(resolveDraftWriteFormat('auto', 'article')).toBe('article')
+    expect(resolveDraftWriteFormat('auto', 'thread')).toBe('thread')
+    expect(resolveDraftWriteFormat('auto', 'longform')).toBe('longform')
+  })
+
+  it('under Auto falls back to longform flag then post', () => {
+    expect(resolveDraftWriteFormat('auto', undefined, true)).toBe('longform')
+    expect(resolveDraftWriteFormat('auto')).toBe('post')
+    expect(resolveDraftWriteFormat(undefined)).toBe('post')
   })
 })
 
@@ -149,16 +175,18 @@ describe('buildWriterUser', () => {
   })
 
   it('reminds writer to apply REGISTER when hasRegister', () => {
-    const u = buildWriterUser({ brief: 'Cover VVV burns' }, true)
+    const u = buildWriterUser({ brief: 'Cover VVV burns', preferredFormat: 'article' }, true)
     expect(u).toMatch(/Apply the REGISTER voice/)
+    expect(u).toMatch(/FORMAT=article/)
     expect(buildWriterUser({ brief: 'x' }, false)).not.toMatch(/REGISTER voice/)
   })
 })
 
 describe('buildWriterSystem', () => {
-  it('appends the register inject verbatim with no extra style guidance', () => {
+  it('appends the register inject and reminds format scaling', () => {
     const sys = buildWriterSystem('REGISTER — HARD STYLE CONSTRAINT\nDescription: terse')
     expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
+    expect(sys).toMatch(/scale length and paragraphing/)
     expect(sys).not.toMatch(/REGISTER OVERRIDE/)
     expect(buildWriterSystem(null)).not.toMatch(/REGISTER OVERRIDE/)
   })

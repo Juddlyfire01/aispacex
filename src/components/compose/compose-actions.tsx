@@ -160,9 +160,9 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
           : 'Post to X'
 
   return (
-    <div className="px-5 py-3 border-t border-white/[0.05] space-y-2">
+    <div className="px-5 py-3 border-t border-[var(--color-border-faint)] space-y-2">
       {postability.mode === 'copy' && !isReply && postability.reason && (
-        <p className="text-[10px] text-white/40 leading-snug">{postability.reason}</p>
+        <p className="text-[10px] text-[var(--color-text-tertiary)] leading-snug">{postability.reason}</p>
       )}
       {overLimit && <p className="text-[10px] text-red-400/70">A segment is over the {limit}-character limit.</p>}
       {error && (
@@ -199,7 +199,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
         <button
           onClick={copy}
           disabled={empty}
-          className="px-3 py-1.5 text-[11px] font-medium bg-white/10 text-white/80 rounded-md hover:bg-white/15 transition-colors disabled:opacity-30"
+          className="px-3 py-1.5 text-[11px] font-medium bg-[var(--color-border-faint)] text-[var(--color-text-primary)] rounded-md hover:bg-[var(--color-border-faint)] transition-colors disabled:opacity-30"
         >
           {copied ? 'Copied ✓' : 'Copy to X'}
         </button>

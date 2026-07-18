@@ -55,7 +55,7 @@ const NODE_PALETTE: Array<{ type: VeniceNodeType; label: string; Icon: () => Rea
   { type: 'tts', label: 'Text to Speech', Icon: PaletteSpeakerIcon, color: 'text-green-400/50' },
   { type: 'music', label: 'Music Gen', Icon: PaletteMusicIcon, color: 'text-yellow-400/50' },
   { type: 'video', label: 'Video Gen', Icon: PaletteVideoIcon, color: 'text-orange-400/50' },
-  { type: 'output', label: 'Output', Icon: PaletteOutputIcon, color: 'text-white/40' },
+  { type: 'output', label: 'Output', Icon: PaletteOutputIcon, color: 'text-[var(--color-text-tertiary)]' },
 ]
 
 const DEFAULT_MODELS: Record<VeniceNodeType, string> = {
@@ -276,16 +276,16 @@ function WorkflowCanvas() {
   return (
     <div className="flex h-full">
       {/* Toolbar */}
-      <div className="w-56 border-r border-white/[0.06] bg-[var(--color-bg-base)] flex flex-col shrink-0">
-        <div className="p-3 border-b border-white/[0.06]">
-          <span className="text-[13px] font-medium text-white/15 uppercase tracking-[0.08em]">Add Node</span>
+      <div className="w-56 border-r border-[var(--color-border-faint)] bg-[var(--color-bg-base)] flex flex-col shrink-0">
+        <div className="p-3 border-b border-[var(--color-border-faint)]">
+          <span className="text-[13px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em]">Add Node</span>
         </div>
         <div className="p-2 flex flex-col gap-1">
           {NODE_PALETTE.map((item) => (
             <button
               key={item.type}
               onClick={() => addNode(item.type)}
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-[14px] text-white/40 hover:text-white/60 hover:bg-white/[0.04] transition-colors text-left"
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-[14px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] transition-colors text-left"
             >
               <span className={item.color}><item.Icon /></span>
               {item.label}
@@ -295,20 +295,20 @@ function WorkflowCanvas() {
 
         <div className="flex-1" />
 
-        <div className="p-3 border-t border-white/[0.06]">
+        <div className="p-3 border-t border-[var(--color-border-faint)]">
           <button
             onClick={handleRun}
             disabled={isRunning || nodes.length === 0}
             className={cn(
               'w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-[14px] font-medium transition-all',
               isRunning
-                ? 'bg-white/[0.06] text-white/30 cursor-wait'
+                ? 'bg-[var(--color-border-faint)] text-[var(--color-text-quaternary)] cursor-wait'
                 : 'bg-[var(--color-btn-primary-bg)] text-[var(--color-btn-primary-fg)] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed',
             )}
           >
             {isRunning ? (
               <>
-                <Spinner size="xs" className="text-white/30" />
+                <Spinner size="xs" className="text-[var(--color-text-quaternary)]" />
                 Running...
               </>
             ) : (
@@ -336,7 +336,7 @@ function WorkflowCanvas() {
           defaultEdgeOptions={{ animated: true, style: { stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 } }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.03)" />
-          <Controls className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-white/[0.06]" />
+          <Controls className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-[var(--color-border-faint)]" />
           <MiniMap
             nodeColor="rgba(255,255,255,0.1)"
             maskColor="rgba(0,0,0,0.8)"
@@ -365,16 +365,16 @@ export function WorkflowsView() {
   if (activeWorkflowId && workflows.find((w) => w.id === activeWorkflowId)) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center gap-2.5 px-3 py-1.5 border-b border-white/[0.06] bg-[var(--color-bg-base)] shrink-0">
+        <div className="flex items-center gap-2.5 px-3 py-1.5 border-b border-[var(--color-border-faint)] bg-[var(--color-bg-base)] shrink-0">
           <button
             onClick={() => setActiveWorkflow(null)}
-            className="text-[13px] text-white/25 hover:text-white/50 transition-colors flex items-center gap-1"
+            className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors flex items-center gap-1"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
             Back
           </button>
-          <div className="w-px h-3.5 bg-white/[0.06]" />
-          <span className="text-[14px] text-white/50 font-medium">
+          <div className="w-px h-3.5 bg-[var(--color-border-faint)]" />
+          <span className="text-[14px] text-[var(--color-text-tertiary)] font-medium">
             {workflows.find((w) => w.id === activeWorkflowId)?.name}
           </span>
         </div>
@@ -390,8 +390,8 @@ export function WorkflowsView() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-8">
-        <h2 className="text-[16px] text-white/60 font-medium mb-1">Workflows</h2>
-        <p className="text-[13px] text-white/20 mb-6">Chain Venice models together visually</p>
+        <h2 className="text-[16px] text-[var(--color-text-secondary)] font-medium mb-1">Workflows</h2>
+        <p className="text-[13px] text-[var(--color-text-quaternary)] mb-6">Chain Venice models together visually</p>
 
         <div className="flex gap-2 mb-6">
           <input
@@ -399,7 +399,7 @@ export function WorkflowsView() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate(newName)}
             placeholder="Workflow name..."
-            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[15px] text-white/70 outline-none placeholder:text-white/15 focus:border-white/[0.12]"
+            className="flex-1 bg-[var(--color-border-faint)] border border-[var(--color-border-faint)] rounded-lg px-3 py-2 text-[15px] text-[var(--color-text-secondary)] outline-none placeholder:text-[var(--color-text-quaternary)] focus:border-[var(--color-border-soft)]"
           />
           <button
             onClick={() => handleCreate(newName)}
@@ -409,37 +409,37 @@ export function WorkflowsView() {
           </button>
         </div>
 
-        <h3 className="text-[13px] font-medium text-white/15 uppercase tracking-[0.08em] mb-3">Templates</h3>
+        <h3 className="text-[13px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em] mb-3">Templates</h3>
         <div className="grid grid-cols-3 gap-3 mb-8">
           {TEMPLATES.map((t) => (
             <button
               key={t.name}
               onClick={() => handleCreate(t.name, t)}
-              className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-all text-left"
+              className="p-3.5 rounded-xl border border-[var(--color-border-faint)] bg-[var(--color-border-faint)] hover:border-[var(--color-border-soft)] transition-all text-left"
             >
-              <div className="text-[15px] text-white/60 font-medium mb-1">{t.name}</div>
-              <div className="text-[13px] text-white/20">{t.desc}</div>
+              <div className="text-[15px] text-[var(--color-text-secondary)] font-medium mb-1">{t.name}</div>
+              <div className="text-[13px] text-[var(--color-text-quaternary)]">{t.desc}</div>
             </button>
           ))}
         </div>
 
         {workflows.length > 0 && (
           <>
-            <h3 className="text-[13px] font-medium text-white/15 uppercase tracking-[0.08em] mb-3">Saved Workflows</h3>
+            <h3 className="text-[13px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em] mb-3">Saved Workflows</h3>
             <div className="flex flex-col gap-2">
               {workflows.map((wf) => (
                 <div
                   key={wf.id}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1] transition-all cursor-pointer"
+                  className="flex items-center gap-3 p-3 rounded-xl border border-[var(--color-border-faint)] bg-[var(--color-border-faint)] hover:border-[var(--color-border-soft)] transition-all cursor-pointer"
                   onClick={() => setActiveWorkflow(wf.id)}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-[15px] text-white/60 font-medium truncate">{wf.name}</div>
-                    <div className="text-[13px] text-white/15">{wf.nodes.length} nodes</div>
+                    <div className="text-[15px] text-[var(--color-text-secondary)] font-medium truncate">{wf.name}</div>
+                    <div className="text-[13px] text-[var(--color-text-quaternary)]">{wf.nodes.length} nodes</div>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteWorkflow(wf.id) }}
-                    className="text-[13px] text-white/15 hover:text-red-400/60 transition-colors px-2 py-1"
+                    className="text-[13px] text-[var(--color-text-quaternary)] hover:text-red-400/60 transition-colors px-2 py-1"
                   >
                     Delete
                   </button>

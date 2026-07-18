@@ -19,7 +19,7 @@ const MODES: { value: RegisterMode; label: string }[] = [
 ]
 
 const REGISTER_HINT =
-  'Linguistic register — tone, cadence, and devices used when drafting. Default is your own; pick another target or a custom pack to override. Applies on the next chat turn.'
+  'Style sheet — cadence, diction, stance, rhetoric, texture, constraints. Default is your own; pick another target or a custom pack to override. Applies on the next chat turn. No sample posts (avoids repetition).'
 
 function activeSnapshot<T extends { id: string }>(
   reportHistory: T[],
@@ -186,9 +186,9 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
     const pack = draftReg.localPack
     if (!pack || isRegisterPackEmpty(pack)) return
     const register = {
-      description: pack.description,
+      summary: pack.summary,
+      sections: pack.sections,
       devices: pack.devices,
-      fewShotExamples: pack.fewShotExamples,
     }
     if (draftReg.mode === 'you' && selfId) {
       patchSelfRegister(selfId, register)
@@ -206,13 +206,13 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
       <div className="flex items-baseline justify-between gap-2">
         <label
           htmlFor="compose-register-mode"
-          className="text-[11px] text-white/40"
+          className="text-[11px] text-[var(--color-text-tertiary)]"
           title={REGISTER_HINT}
         >
           Register
         </label>
         <span
-          className="text-[10px] text-white/25 cursor-help"
+          className="text-[10px] text-[var(--color-text-quaternary)] cursor-help"
           title={REGISTER_HINT}
           aria-label={REGISTER_HINT}
         >
@@ -223,7 +223,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
         id="compose-register-mode"
         value={draftReg.mode}
         onChange={(e) => onModeChange(e.target.value as RegisterMode)}
-        className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none"
+        className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
         title={REGISTER_HINT}
       >
         {MODES.map((m) => {
@@ -241,7 +241,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
       </select>
 
       {draftReg.mode === 'other' && (
-        <label className="block text-[11px] text-white/40">
+        <label className="block text-[11px] text-[var(--color-text-tertiary)]">
           Target
           <select
             value={otherUsername}
@@ -252,7 +252,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
                 localPack: undefined,
               })
             }
-            className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none"
+            className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none"
           >
             {targetsWithReport.length === 0 && <option value="">No reports available</option>}
             {targetsWithReport.map((u) => (
@@ -287,7 +287,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="text-[11px] text-white/50 hover:text-white/80 transition-colors"
+            className="text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             Choose JSON file
           </button>
@@ -295,14 +295,14 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
       )}
 
       {draftReg.mode === 'custom' && (
-        <label className="block text-[11px] text-white/40">
+        <label className="block text-[11px] text-[var(--color-text-tertiary)]">
           Custom instructions
           <textarea
             value={draftReg.customPrompt ?? ''}
             onChange={(e) => patchRegister({ ...draftReg, customPrompt: e.target.value })}
             rows={3}
             placeholder="e.g. terse metric-dense replies, always flag risk, NFA close"
-            className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-white/70 outline-none resize-y min-h-[64px]"
+            className="w-full mt-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none resize-y min-h-[64px]"
           />
         </label>
       )}
@@ -313,10 +313,10 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
             type="button"
             onClick={() => setPackExpanded((v) => !v)}
             aria-expanded={packExpanded}
-            className="flex w-full items-center justify-between gap-2 text-[11px] text-white/40 hover:text-white/60 transition-colors"
+            className="flex w-full items-center justify-between gap-2 text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             <span>Register pack</span>
-            <span className="font-mono text-[10px] text-white/25">{packExpanded ? '−' : '+'}</span>
+            <span className="font-mono text-[10px] text-[var(--color-text-quaternary)]">{packExpanded ? '−' : '+'}</span>
           </button>
           {modeUnavailable && !displayedPack && (
             <span className="block text-[10px] text-amber-400/80">
@@ -330,7 +330,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
                 onChange={(e) => onPackTextChange(e.target.value)}
                 rows={8}
                 spellCheck={false}
-                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[10px] font-mono text-white/60 outline-none resize-y min-h-[120px]"
+                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] outline-none resize-y min-h-[120px]"
               />
               {packError && (
                 <span className="block text-[10px] text-amber-400/80">{packError}</span>
@@ -350,7 +350,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
                 otherUsername: draftReg.mode === 'other' ? otherUsername : undefined,
               })
             }
-            className="text-[10px] text-white/35 hover:text-white/60 transition-colors"
+            className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             Make default
           </button>
@@ -359,7 +359,7 @@ export function RegisterControls({ threadId }: RegisterControlsProps) {
           <button
             type="button"
             onClick={onSaveToReport}
-            className="text-[10px] text-white/35 hover:text-white/60 transition-colors"
+            className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             Save to report
           </button>

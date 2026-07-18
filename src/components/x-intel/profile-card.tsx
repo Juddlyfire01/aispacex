@@ -21,7 +21,7 @@ import { canGatherTarget, isDemoTarget } from '../../lib/x-intel/fields'
 function BioText({ text, bioUrls }: { text: string; bioUrls?: { url: string; expanded: string; display: string }[] }) {
   const linkCls = 'entity-link'
   return (
-    <p className="text-[12px] text-white/50 mt-1.5 break-words">
+    <p className="text-[12px] text-[var(--color-text-tertiary)] mt-1.5 break-words">
       {linkify(text, bioUrls).map((tok, i) => {
         switch (tok.type) {
           case 'url':
@@ -114,7 +114,7 @@ export function ProfileCard() {
   const canGather = canGatherTarget(activeTarget, connected)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">No profile selected</div>
   }
 
   const { synthesisSettings } = report

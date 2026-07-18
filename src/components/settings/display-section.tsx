@@ -42,8 +42,8 @@ function cnToggle(on: boolean) {
 
 function cnKnob(on: boolean) {
   return cn(
-    'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform translate-y-px',
-    on ? 'translate-x-[22px]' : 'translate-x-px',
+    'inline-block h-5 w-5 rounded-full shadow transition-transform translate-y-px',
+    on ? 'bg-[var(--color-accent-contrast)] translate-x-[22px]' : 'bg-[var(--color-text-secondary)] translate-x-px',
   )
 }
 

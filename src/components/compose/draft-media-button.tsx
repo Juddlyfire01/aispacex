@@ -84,7 +84,7 @@ const DRAFT_IMAGE_PROMPT_INSTRUCTION =
   'Write a single concise image-generation prompt that would illustrate the following social media draft. Output ONLY the prompt text — no quotes, labels, or preamble.'
 
 const TOOLBAR_BTN =
-  'inline-flex items-center h-5 text-[11px] leading-none text-white/30 hover:text-white/60 transition-colors disabled:opacity-20'
+  'inline-flex items-center h-5 text-[11px] leading-none text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-20'
 
 const TOOLBAR_ROW = 'flex items-center gap-3 h-5 px-0.5'
 
@@ -268,24 +268,24 @@ export function DraftMediaButton({ threadId, segment, className }: DraftMediaBut
       {panel === 'generate' && (
         <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,20rem)] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] p-2.5 shadow-lg space-y-2">
           <div className="flex items-center justify-between">
-            <button type="button" onClick={() => setPanel('menu')} className="text-[10px] text-white/35 hover:text-white/60">
+            <button type="button" onClick={() => setPanel('menu')} className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)]">
               ← Back
             </button>
-            <span className="text-[10px] text-white/25 uppercase tracking-wide">Generate</span>
+            <span className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-wide">Generate</span>
           </div>
           <textarea
             value={genPrompt}
             onChange={(e) => setGenPrompt(e.target.value)}
             rows={3}
             placeholder="Image prompt…"
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1.5 text-[11px] text-white/75 outline-none resize-none focus:border-[var(--color-border-strong)]"
+            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none resize-none focus:border-[var(--color-border-strong)]"
           />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => void proposeFromDraft()}
               disabled={proposing}
-              className="text-[11px] text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+              className="text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-40"
             >
               {proposing ? 'Proposing…' : 'From draft'}
             </button>
@@ -310,7 +310,7 @@ function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full px-3 py-1.5 text-left text-[12px] text-white/70 hover:bg-white/[0.06] hover:text-white transition-colors"
+      className="w-full px-3 py-1.5 text-left text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors"
     >
       {label}
     </button>
@@ -362,15 +362,15 @@ function GalleryPicker({
   return (
     <div className="absolute left-0 bottom-full mb-1 z-30 w-[min(100vw-2rem,18rem)] rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-overlay)] p-2.5 shadow-lg space-y-2">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="text-[10px] text-white/35 hover:text-white/60">
+        <button type="button" onClick={onBack} className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)]">
           ← Back
         </button>
-        <span className="text-[10px] text-white/25 uppercase tracking-wide">Gallery</span>
+        <span className="text-[10px] text-[var(--color-text-quaternary)] uppercase tracking-wide">Gallery</span>
       </div>
       {loading ? (
-        <p className="text-[11px] text-white/30 py-4 text-center">Loading…</p>
+        <p className="text-[11px] text-[var(--color-text-quaternary)] py-4 text-center">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="text-[11px] text-white/30 py-4 text-center">No images or videos saved yet</p>
+        <p className="text-[11px] text-[var(--color-text-quaternary)] py-4 text-center">No images or videos saved yet</p>
       ) : (
         <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto">
           {items.map((item) => (
@@ -378,7 +378,7 @@ function GalleryPicker({
               key={item.id}
               type="button"
               onClick={() => onPick(item)}
-              className="aspect-square rounded border border-white/[0.06] hover:border-white/25 overflow-hidden bg-black/40"
+              className="aspect-square rounded border border-[var(--color-border-faint)] hover:border-[var(--color-border-strong)] overflow-hidden bg-black/40"
               title={item.prompt}
             >
               {item.kind === 'video' ? (

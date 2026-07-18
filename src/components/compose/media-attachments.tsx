@@ -29,9 +29,9 @@ export function MediaAttachments({ threadId, segment }: MediaAttachmentsProps) {
       {segment.media.map((m) => (
         <div key={m.id} className="flex gap-2 items-start">
           {m.dataUrl && m.kind !== 'video' ? (
-            <img src={m.dataUrl} alt="" className="w-12 h-12 rounded object-cover border border-white/10" />
+            <img src={m.dataUrl} alt="" className="w-12 h-12 rounded object-cover border border-[var(--color-border-soft)]" />
           ) : (
-            <div className="w-12 h-12 rounded border border-white/10 flex items-center justify-center text-[9px] text-white/30 uppercase">
+            <div className="w-12 h-12 rounded border border-[var(--color-border-soft)] flex items-center justify-center text-[9px] text-[var(--color-text-quaternary)] uppercase">
               {m.kind}
             </div>
           )}
@@ -39,9 +39,9 @@ export function MediaAttachments({ threadId, segment }: MediaAttachmentsProps) {
             value={m.altText ?? ''}
             onChange={(e) => updateAlt(m.id, e.target.value)}
             placeholder="Alt text (accessibility)"
-            className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1 text-[11px] text-white/70 outline-none focus:border-[var(--color-border-strong)]"
+            className="flex-1 bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
           />
-          <button onClick={() => remove(m.id)} className="text-[10px] text-white/25 hover:text-red-400/70 transition-colors mt-1">
+          <button onClick={() => remove(m.id)} className="text-[10px] text-[var(--color-text-quaternary)] hover:text-red-400/70 transition-colors mt-1">
             Remove
           </button>
         </div>

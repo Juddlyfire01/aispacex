@@ -53,7 +53,7 @@ function Inner({ nodes: source, edges: sourceEdges }: { nodes: Node<VeniceNodeDa
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255,255,255,0.03)" />
       <Controls
         showInteractive={false}
-        className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-white/[0.06]"
+        className="!bg-[var(--color-bg-overlay)] !border-[var(--color-border-soft)] !shadow-xl [&>button]:!bg-[var(--color-bg-overlay)] [&>button]:!border-[var(--color-border-soft)] [&>button]:!text-[var(--color-text-tertiary)] [&>button:hover]:!bg-[var(--color-border-faint)]"
       />
     </ReactFlow>
   )
@@ -64,8 +64,8 @@ export function WorkflowPreview({ nodes, edges }: { nodes: Node<VeniceNodeData>[
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center max-w-sm">
-          <p className="text-[14px] text-white/20 mb-2">No workflow yet</p>
-          <p className="text-[13px] text-white/10">Tell the agent what you want to build — it will assemble the pipeline here in real time.</p>
+          <p className="text-[14px] text-[var(--color-text-quaternary)] mb-2">No workflow yet</p>
+          <p className="text-[13px] text-[var(--color-text-quaternary)]">Tell the agent what you want to build — it will assemble the pipeline here in real time.</p>
         </div>
       </div>
     )

@@ -218,7 +218,23 @@ describe('normalizePost', () => {
       },
     })
     expect(p.text).toBe(full)
+    expect(p.format).toBe('longform')
     expect(p.mentions).toEqual([{ username: 'deedydas', id: '55', start: 42, end: 51 }])
+  })
+
+  it('prefers article body and marks format article', () => {
+    const p = normalizePost({
+      ...rawPost,
+      text: 'https://t.co/abc',
+      article: {
+        title: 'Toward Unrestricted Intelligence',
+        plain_text: 'Venice launched to create private AI.',
+      },
+    })
+    expect(p.format).toBe('article')
+    expect(p.articleTitle).toBe('Toward Unrestricted Intelligence')
+    expect(p.text).toMatch(/Toward Unrestricted Intelligence/)
+    expect(p.text).toMatch(/Venice launched/)
   })
 })
 

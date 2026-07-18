@@ -16,6 +16,8 @@ export const POST_FIELDS = [
   // Distinguishes replies *to* the subject from bare @mentions in inbound gather.
   'in_reply_to_user_id',
   'public_metrics', 'context_annotations', 'entities', 'note_tweet',
+  // X Articles metadata/body when present on the announcement post.
+  'article',
   'referenced_tweets', 'reply_settings', 'source',
   'possibly_sensitive', 'attachments',
 ] as const

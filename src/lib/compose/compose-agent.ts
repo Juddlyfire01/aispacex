@@ -458,8 +458,11 @@ export async function runComposeAgent(
             result = {
               status: 'write_now',
               message:
-                'Write the publishable copy in your next response. Output ONLY the draft text — no preamble, markdown fences, or chat commentary. It streams into the Draft drawer.',
+                brief.format === 'article'
+                  ? 'Write the X Article in your next response: first line `# Title`, blank line, then markdown body only. No preamble, fences, or chat commentary. It streams into the Draft drawer.'
+                  : 'Write the publishable copy in your next response. Output ONLY the draft text — no preamble, markdown fences, or chat commentary. It streams into the Draft drawer.',
               brief: brief.brief,
+              ...(brief.format ? { format: brief.format } : {}),
               ...(brief.notes ? { notes: brief.notes } : {}),
               ...(brief.target ? { target: brief.target } : {}),
               ...(brief.longform != null ? { longform: brief.longform } : {}),

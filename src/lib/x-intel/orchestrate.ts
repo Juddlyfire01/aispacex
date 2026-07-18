@@ -4,6 +4,7 @@ import { deriveEdges } from './normalize'
 import { computeAnalytics, computeDelta, postDateRange } from './analytics'
 import { maxOwnPostId, partitionPosts } from './activity'
 import { synthesizeReport } from './synthesize'
+import { hydrateArticlePosts } from './article-hydrate'
 import { beginReportProgress } from './report-progress'
 import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from './report-gate'
 import { flushEncryptedStorage } from '../encrypted-storage'
@@ -221,7 +222,7 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   // Snapshot inputs up front so navigate-away / store churn cannot mid-flight
   // the analytics + synthesis against a different corpus.
   const profile = report.profile
-  const posts = report.posts
+  let posts = report.posts
   const edges = report.edges
   const synthesisSettings = { ...report.synthesisSettings }
   const reportHistory = report.reportHistory
@@ -236,7 +237,23 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   await progress.markPrepare()
 
   try {
-    const analytics = computeAnalytics(profile, posts, edges)
+    // Re-fetch Article teasers left over from pre-article-field gathers.
+    const auth = resolveGatherAuth(profile.username)
+    const hydrated = await hydrateArticlePosts(profile.id, posts, auth)
+    if (hydrated.cost > 0) store.addCost(key, hydrated.cost)
+    let edgesForReport = edges
+    // Apply merge whenever the fetch returned rows — not only when hydratedIds
+    // is non-empty (authorId backfill alone still matters for partitionPosts).
+    if (hydrated.updated) {
+      posts = hydrated.posts
+      edgesForReport = deriveEdges(profile.id, posts)
+      store.updateReport(key, { posts, edges: edgesForReport })
+    }
+    if (hydrated.error) {
+      console.warn('[generateReport] article hydrate:', hydrated.error)
+    }
+
+    const analytics = computeAnalytics(profile, posts, edgesForReport)
 
     // Computed delta vs. the previous report (baseline = null)
     let computedDelta: Omit<import('./types').ChangeSummary, 'narrative'> | null = null

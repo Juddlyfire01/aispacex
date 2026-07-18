@@ -92,8 +92,8 @@ function ProfileStat({
   capitalize?: boolean
 }) {
   return (
-    <span className="text-[11px] text-white/30">
-      <b className="text-white/80 font-semibold">{value}</b>
+    <span className="text-[11px] text-[var(--color-text-quaternary)]">
+      <b className="text-[var(--color-text-primary)] font-semibold">{value}</b>
       {' '}
       <Tooltip tip={tip}>
         <span className={capitalize ? 'capitalize' : undefined}>{label}</span>
@@ -103,7 +103,7 @@ function ProfileStat({
 }
 
 const BotIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="text-white/35 shrink-0">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="text-[var(--color-text-quaternary)] shrink-0">
     <path d="M17 8h1a4 4 0 010 8h-1v1a2 2 0 01-2 2H8a2 2 0 01-2-2v-1H5a4 4 0 110-8h1V6a4 4 0 014-4h6a4 4 0 014 4v2zM9 6v2h6V6a2 2 0 00-2-2h-2a2 2 0 00-2 2zm-1 8a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
   </svg>
 )
@@ -111,7 +111,7 @@ const BotIcon = () => (
 /** Fixed 4-char mono slot so counts stay right-aligned in the header. */
 function CapValue({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-block w-[4ch] text-right font-mono tabular-nums text-white/70 font-semibold">
+    <span className="inline-block w-[4ch] text-right font-mono tabular-nums text-[var(--color-text-secondary)] font-semibold">
       {children}
     </span>
   )
@@ -142,17 +142,17 @@ function SliderTrackLabels({
   const showMid = !atMin && !atMax && range > 0
 
   return (
-    <div className="relative h-3.5 mt-0.5 text-[9px] font-mono tabular-nums text-white/30">
-      <span className={cn('absolute left-0', atMin && 'text-white/60')}>{minLabel}</span>
+    <div className="relative h-3.5 mt-0.5 text-[9px] font-mono tabular-nums text-[var(--color-text-quaternary)]">
+      <span className={cn('absolute left-0', atMin && 'text-[var(--color-text-secondary)]')}>{minLabel}</span>
       {showMid && (
         <span
-          className="absolute -translate-x-1/2 text-white/60"
+          className="absolute -translate-x-1/2 text-[var(--color-text-secondary)]"
           style={{ left: `clamp(1.25rem, ${pct}%, calc(100% - 1.25rem))` }}
         >
           {midLabel ?? value}
         </span>
       )}
-      <span className={cn('absolute right-0', atMax && 'text-white/60')}>MAX</span>
+      <span className={cn('absolute right-0', atMax && 'text-[var(--color-text-secondary)]')}>MAX</span>
     </div>
   )
 }
@@ -174,7 +174,7 @@ function ContextCapControl({ value, postCount, onChange }: {
   const sliderValue = Math.min(value, sliderMax)
   const displayCount = isMax ? ceiling : value
   return (
-    <label className="block text-[11px] text-white/40">
+    <label className="block text-[11px] text-[var(--color-text-tertiary)]">
       <span className="flex items-baseline justify-between gap-2">
         <span title="How many gathered posts to feed into the next report.">
           Post context cap
@@ -250,9 +250,9 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
 
   if (reportHistory.length === 0) {
     return (
-      <div className="text-[11px] text-white/40">
+      <div className="text-[11px] text-[var(--color-text-tertiary)]">
         Report context cap
-        <p className="text-[10px] text-white/20 mt-0.5">No earlier reports yet — the first report is always a fresh baseline.</p>
+        <p className="text-[10px] text-[var(--color-text-quaternary)] mt-0.5">No earlier reports yet — the first report is always a fresh baseline.</p>
       </div>
     )
   }
@@ -281,7 +281,7 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
   const customList = [...reportHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   return (
-    <div className="text-[11px] text-white/40">
+    <div className="text-[11px] text-[var(--color-text-tertiary)]">
       <div className="flex items-baseline justify-between gap-2">
         <span title="Feed earlier reports into the next synthesis as narrative context so it builds on prior analysis.">
           Report context cap
@@ -311,22 +311,22 @@ function ReportContextSelector({ reportHistory, includedIds, onChange }: {
         className={cn(
           'mt-1.5 w-full rounded-md border px-2 py-1 text-[10px] transition-colors',
           expanded || isCustom
-            ? 'border-white/25 text-white/70'
-            : 'border-white/[0.08] text-white/40 hover:text-white/60',
+            ? 'border-[var(--color-border-strong)] text-[var(--color-text-secondary)]'
+            : 'border-[var(--color-border-soft)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
         )}
       >
         Custom{isCustom ? ` · ${selectedCount}` : ''}
       </button>
       {expanded && (
-        <div className="mt-1.5 space-y-1 max-h-[12rem] overflow-y-auto pr-1 border-l border-white/[0.06] pl-2">
+        <div className="mt-1.5 space-y-1 max-h-[12rem] overflow-y-auto pr-1 border-l border-[var(--color-border-faint)] pl-2">
           {customList.map((r, i) => {
             const checked = selectedSet.has(r.id)
             const isOldest = i === customList.length - 1
             return (
-              <label key={r.id} className="flex items-center gap-2 cursor-pointer text-[10px] text-white/50 hover:text-white/70">
+              <label key={r.id} className="flex items-center gap-2 cursor-pointer text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]">
                 <Checkbox checked={checked} onChange={() => toggle(r.id)} />
                 <span className="font-mono whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                <span className="text-white/25 truncate">
+                <span className="text-[var(--color-text-quaternary)] truncate">
                   {r.meta.postCount}p{isOldest ? ' · baseline' : ''}
                 </span>
               </label>
@@ -432,7 +432,7 @@ export function ProfileOverview({
     <div className="flex flex-col h-full min-h-0">
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto">
       {/* Refresh bar */}
-      <div className="px-5 pt-4 pb-3 border-b border-white/[0.04]">
+      <div className="px-5 pt-4 pb-3 border-b border-[var(--color-border-faint)]">
         <SectionRefresh
           layout="bar"
           label="Refresh profile"
@@ -469,15 +469,15 @@ export function ProfileOverview({
       <div className="px-5 pb-4 pt-2 space-y-3">
         <div>
           <div className="flex items-center gap-1.5">
-            <h2 className="text-[15px] font-semibold text-white/90 truncate">{profile.displayName}</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)] truncate">{profile.displayName}</h2>
             {profile.verified.type && <VerifiedBadge type={profile.verified.type} />}
             {profile.affiliation && <AffiliationBadge affiliation={profile.affiliation} />}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-            <span className="text-[11px] text-white/40">@{profile.username}</span>
+            <span className="text-[11px] text-[var(--color-text-tertiary)]">@{profile.username}</span>
             {profile.followsYou === true && (
               <span
-                className="text-[10px] font-medium text-white/55 bg-white/[0.08] px-1.5 py-0.5 rounded"
+                className="text-[10px] font-medium text-[var(--color-text-secondary)] bg-[var(--color-border-faint)] px-1.5 py-0.5 rounded"
                 title="This account follows you"
               >
                 Follows you
@@ -485,7 +485,7 @@ export function ProfileOverview({
             )}
           </div>
           {profile.automatedBy && (
-            <div className="flex items-center gap-1.5 text-[11px] text-white/40 mt-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-tertiary)] mt-1.5">
               <BotIcon />
               <span>
                 Automated by{' '}
@@ -505,7 +505,7 @@ export function ProfileOverview({
         {profile.bio && renderBio(profile)}
 
         {(profile.location || profile.website || profile.accountCreated) && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/35">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--color-text-quaternary)]">
             {profile.location && <span>{profile.location}</span>}
             {profile.website && (
               <a
@@ -566,12 +566,12 @@ export function ProfileOverview({
       <ActivityGlance activity={activity} />
 
       {/* Synthesis settings — collapsible, open by default */}
-      <div className="pt-3 border-t border-white/[0.04] space-y-2">
+      <div className="pt-3 border-t border-[var(--color-border-faint)] space-y-2">
         <button
           type="button"
           onClick={() => setSettingsOpen((o) => !o)}
           aria-expanded={settingsOpen}
-          className="flex items-center gap-1.5 w-full text-[10px] font-medium text-white/25 hover:text-white/45 uppercase tracking-[0.08em] transition-colors"
+          className="flex items-center gap-1.5 w-full text-[10px] font-medium text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] uppercase tracking-[0.08em] transition-colors"
         >
           <GearIcon />
           Synthesis settings
@@ -584,8 +584,8 @@ export function ProfileOverview({
           </svg>
         </button>
         {settingsOpen && (
-          <div className="rounded-lg border border-white/[0.05] bg-[var(--color-bg-card)] p-3 space-y-3">
-            <label className="block text-[11px] text-white/40">
+          <div className="rounded-lg border border-[var(--color-border-faint)] bg-[var(--color-bg-card)] p-3 space-y-3">
+            <label className="block text-[11px] text-[var(--color-text-tertiary)]">
               Model
               <select
                 value={displayModel}
@@ -604,7 +604,7 @@ export function ProfileOverview({
                 )}
               </select>
             </label>
-            <label className="block text-[11px] text-white/40">
+            <label className="block text-[11px] text-[var(--color-text-tertiary)]">
               <span className="flex items-baseline justify-between gap-2">
                 <span>Temperature</span>
                 <CapValue>{synthesisSettings.temperature.toFixed(1)}</CapValue>
@@ -617,7 +617,7 @@ export function ProfileOverview({
               />
             </label>
 
-            <div className="border-t border-white/[0.05]" />
+            <div className="border-t border-[var(--color-border-faint)]" />
 
             <ContextCapControl
               value={synthesisSettings.contextCap}
@@ -631,11 +631,11 @@ export function ProfileOverview({
             />
 
             {/* Live payload estimate — approximate, pre-send. */}
-            <div className="flex items-baseline justify-between border-t border-white/[0.05] pt-2 text-[11px]">
-              <span className="text-white/40" title="Heuristic estimate of the input payload for the next report. The exact count is logged per report after it runs.">
+            <div className="flex items-baseline justify-between border-t border-[var(--color-border-faint)] pt-2 text-[11px]">
+              <span className="text-[var(--color-text-tertiary)]" title="Heuristic estimate of the input payload for the next report. The exact count is logged per report after it runs.">
                 Est. payload
               </span>
-              <span className="font-mono text-white/60">
+              <span className="font-mono text-[var(--color-text-secondary)]">
                 {estTokens > 0 ? `~${formatTokens(estTokens)} tok` : '—'}
               </span>
             </div>

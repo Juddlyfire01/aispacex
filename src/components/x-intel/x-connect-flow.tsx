@@ -28,8 +28,8 @@ export function XConnectFlow({
     <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-6">
       <Spinner size="md" />
       <div className="space-y-1 max-w-sm">
-        <h2 className="text-[15px] font-semibold text-white/85">{title}</h2>
-        <p className="text-[12px] text-white/40 leading-relaxed">{subtitle}</p>
+        <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{title}</h2>
+        <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">{subtitle}</p>
       </div>
       {phase === 'syncing' && error && (
         <div className="space-y-2 max-w-sm">

@@ -37,7 +37,7 @@ export function ReportExportButton({ snapshot, username, profile, posts, disable
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="px-2.5 py-1 text-[11px] font-medium border border-white/10 text-white/70 rounded-md hover:border-white/20 hover:text-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="px-2.5 py-1 text-[11px] font-medium border border-[var(--color-border-soft)] text-[var(--color-text-secondary)] rounded-md hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         Export
       </button>
@@ -51,7 +51,7 @@ export function ReportExportButton({ snapshot, username, profile, posts, disable
             role="menuitem"
             onClick={() => exportAs('md')}
             className={cn(
-              'block w-full px-3 py-1.5 text-left text-[11px] text-white/70 hover:bg-white/[0.05] hover:text-white/90 transition-colors',
+              'block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors',
             )}
           >
             Markdown
@@ -61,7 +61,7 @@ export function ReportExportButton({ snapshot, username, profile, posts, disable
             role="menuitem"
             onClick={() => exportAs('json')}
             className={cn(
-              'block w-full px-3 py-1.5 text-left text-[11px] text-white/70 hover:bg-white/[0.05] hover:text-white/90 transition-colors',
+              'block w-full px-3 py-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)] transition-colors',
             )}
           >
             JSON

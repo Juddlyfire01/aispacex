@@ -188,7 +188,7 @@ export function NetworkGraphInner({
               className={cn(
                 'px-2 py-[3px] text-[10px] font-medium capitalize transition-colors',
                 view === mode
-                  ? 'bg-white/10 text-[var(--color-text-primary)]'
+                  ? 'bg-[var(--color-border-faint)] text-[var(--color-text-primary)]'
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
               )}
             >
@@ -208,12 +208,12 @@ export function NetworkGraphInner({
         {model && model.nodes.length === 0
           ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
-              <p className="text-[12px] text-white/40">
+              <p className="text-[12px] text-[var(--color-text-tertiary)]">
                 {direction === 'inbound'
                   ? `No inbound engagement gathered for ${subjectLabel} yet.`
                   : `No outbound engagement found in ${subjectLabel}'s gathered posts.`}
               </p>
-              <p className="text-[11px] text-white/25">
+              <p className="text-[11px] text-[var(--color-text-quaternary)]">
                 {direction === 'inbound'
                   ? 'Hit Refresh to pull who\u2019s mentioning them (included with the timeline).'
                   : 'Their recent posts may be all originals (no mentions/replies/quotes/retweets).'}
@@ -265,7 +265,7 @@ export function NetworkGraph() {
   const canGather = canGatherTarget(activeTarget, connected)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">No profile selected</div>
   }
 
   const lastGathered = report.refreshedAt?.network ?? report.posts[0]?.gatheredAt

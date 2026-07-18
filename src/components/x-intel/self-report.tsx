@@ -23,13 +23,13 @@ function ExtrasList({ title, posts, empty }: { title: string; posts: Post[]; emp
     <section>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 text-[10px] font-medium text-white/25 hover:text-white/50 uppercase tracking-[0.08em] transition-colors"
+        className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] uppercase tracking-[0.08em] transition-colors"
       >
         {title} ({posts.length})
       </button>
       {open && (
         posts.length === 0 ? (
-          <p className="text-[11px] text-white/15 mt-1.5">{empty}</p>
+          <p className="text-[11px] text-[var(--color-text-quaternary)] mt-1.5">{empty}</p>
         ) : (
           <div className="mt-1.5 space-y-1 max-h-[18rem] overflow-y-auto pr-1">
             {posts.slice(0, 100).map((p) => (
@@ -38,10 +38,10 @@ function ExtrasList({ title, posts, empty }: { title: string; posts: Post[]; emp
                 href={postUrl(p.id)}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="block text-[11px] text-white/50 hover:text-white/80 border border-white/[0.05] rounded-md px-2 py-1.5 transition-colors"
+                className="block text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 transition-colors"
               >
                 {p.text.slice(0, 140)}{p.text.length > 140 ? '…' : ''}
-                <span className="font-mono text-[9px] text-white/20"> · {formatTokens(p.metrics.likes)}L</span>
+                <span className="font-mono text-[9px] text-[var(--color-text-quaternary)]"> · {formatTokens(p.metrics.likes)}L</span>
               </a>
             ))}
           </div>
@@ -120,8 +120,8 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
   return (
     <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto px-6 py-4 space-y-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-[13px] font-semibold text-white/80">Your intelligence report</h2>
-        <span className="text-[10px] text-white/25 font-mono">{hasPosts ? `${posts.length} posts stored` : 'no posts yet'}</span>
+        <h2 className="text-[13px] font-semibold text-[var(--color-text-primary)]">Your intelligence report</h2>
+        <span className="text-[10px] text-[var(--color-text-quaternary)] font-mono">{hasPosts ? `${posts.length} posts stored` : 'no posts yet'}</span>
         <div className="flex-1" />
         {active && account && (
           <ReportExportButton
@@ -155,10 +155,10 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
         <div className="space-y-5">
           {active.changeSummary && <ChangeSummaryPanel change={active.changeSummary} canAddTarget={false} />}
           <AnalyticsPanels a={active.analytics} posts={posts} onAddTarget={noAdd} />
-          <div className="border-t border-white/[0.05] pt-4">
+          <div className="border-t border-[var(--color-border-faint)] pt-4">
             <NarrativePanels snapshot={active} posts={posts} onJumpToPost={jumpToSelfFeedPost} canAddTarget={false} />
           </div>
-          <p className="text-[10px] text-white/12 font-mono pt-2">
+          <p className="text-[10px] text-[var(--color-text-quaternary)] font-mono pt-2">
             Report {relDate(active.createdAt)} · {active.model} · {active.meta.postCount} posts
             {active.meta.tokenCost > 0 && ` · ${formatTokens(active.meta.tokenCost)} tokens`}
             {active.meta.promptTokens != null && active.meta.completionTokens != null &&
@@ -169,7 +169,7 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
         </div>
       ) : liveAnalytics ? (
         <div className="space-y-5">
-          <p className="text-[11px] text-white/30">
+          <p className="text-[11px] text-[var(--color-text-quaternary)]">
             Live analytics preview (computed, free). Generate a report to add analyst narrative and track changes over time.
           </p>
           <AnalyticsPanels a={liveAnalytics} posts={posts} onAddTarget={noAdd} />
@@ -183,18 +183,18 @@ export function SelfReport({ syncing = false }: { syncing?: boolean }) {
           className="py-16"
           label={syncing ? 'Syncing your data…' : 'Loading reports…'}
           size="sm"
-          labelClassName="text-[11px] text-white/25"
+          labelClassName="text-[11px] text-[var(--color-text-quaternary)]"
         />
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
-          <p className="text-[12px] text-white/40 font-medium">No report yet</p>
-          <p className="text-[11px] text-white/25 max-w-xs">Sync your data, then generate a report.</p>
+          <p className="text-[12px] text-[var(--color-text-tertiary)] font-medium">No report yet</p>
+          <p className="text-[11px] text-[var(--color-text-quaternary)] max-w-xs">Sync your data, then generate a report.</p>
         </div>
       )}
 
       {/* OAuth-only extras — saved & liked corpora */}
       {(bookmarks.length > 0 || likes.length > 0) && (
-        <div className="border-t border-white/[0.05] pt-4 space-y-3">
+        <div className="border-t border-[var(--color-border-faint)] pt-4 space-y-3">
           <ExtrasList title="Bookmarks" posts={bookmarks} empty="No bookmarks gathered" />
           <ExtrasList title="Likes" posts={likes} empty="No likes gathered" />
         </div>

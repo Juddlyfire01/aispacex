@@ -18,7 +18,7 @@ import { cn, formatTokens } from '../../lib/utils'
 function PostText({ text }: { text: string }) {
   const linkCls = 'entity-link'
   return (
-    <p className="text-[12px] text-white/70 whitespace-pre-wrap break-words">
+    <p className="text-[12px] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words">
       {linkify(text).map((tok, i) => {
         switch (tok.type) {
           case 'url':
@@ -111,7 +111,7 @@ const ALL_FILTER_KEYS = FILTER_OPTIONS.map((o) => o.key)
 const DEFAULT_FILTER_KEYS = ALL_FILTER_KEYS.filter((k) => k !== 'mention-in')
 
 const KIND_PILL: Record<Post['kind'], string> = {
-  original: 'bg-white/[0.08] text-white/50',
+  original: 'bg-[var(--color-border-faint)] text-[var(--color-text-tertiary)]',
   reply: 'bg-blue-400/10 text-blue-300/50',
   quote: 'bg-purple-400/10 text-purple-300/50',
   retweet: 'bg-green-400/10 text-green-300/50',
@@ -139,7 +139,7 @@ function PostTypeBadges({
       <>
         <span className={cn(
           muted
-            ? 'text-[10px] text-white/35'
+            ? 'text-[10px] text-[var(--color-text-quaternary)]'
             : replyIn
               ? 'px-1.5 py-px rounded-full font-medium bg-sky-400/10 text-sky-300/70'
               : 'px-1.5 py-px rounded-full font-medium bg-amber-400/10 text-amber-300/65',
@@ -147,7 +147,7 @@ function PostTypeBadges({
           {replyIn ? 'reply in' : 'mention in'}
         </span>
         {authorHandle && (
-          <span className="text-[10px] text-white/40 font-mono" title="Author">
+          <span className="text-[10px] text-[var(--color-text-tertiary)] font-mono" title="Author">
             @{authorHandle}
           </span>
         )}
@@ -158,7 +158,7 @@ function PostTypeBadges({
     <>
       <span className={cn(
         muted
-          ? 'text-[10px] text-white/35 capitalize'
+          ? 'text-[10px] text-[var(--color-text-quaternary)] capitalize'
           : cn('px-1.5 py-px rounded-full font-medium', KIND_PILL[post.kind]),
       )}>
         {post.kind}
@@ -167,7 +167,7 @@ function PostTypeBadges({
         <span
           className={cn(
             muted
-              ? 'text-[10px] text-white/25'
+              ? 'text-[10px] text-[var(--color-text-quaternary)]'
               : 'px-1.5 py-px rounded-full font-medium bg-cyan-400/10 text-cyan-300/60',
           )}
           title="This profile @mentioned someone"
@@ -277,13 +277,13 @@ export function ActivityFeedInner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 border-b border-[var(--color-border-faint)]">
         {FILTER_OPTIONS.map(({ key, label, title }, i) => (
           <span key={key} className="flex items-center gap-3">
-            {i === 5 && <span className="hidden sm:block w-px h-3 bg-white/[0.08]" aria-hidden />}
+            {i === 5 && <span className="hidden sm:block w-px h-3 bg-[var(--color-border-faint)]" aria-hidden />}
             <CheckboxField
               title={title}
               label={label}
               checked={selected.has(key)}
               onChange={() => toggleFilter(key)}
-              className="text-[10px] text-white/40 hover:text-white/60"
+              className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
             />
           </span>
         ))}
@@ -293,7 +293,7 @@ export function ActivityFeedInner({
           checked={watch}
           onChange={onToggleWatch}
           tick="muted"
-          className="text-[10px] text-white/25 shrink-0"
+          className="text-[10px] text-[var(--color-text-quaternary)] shrink-0"
         />
         <SectionRefresh
           onClick={onRefresh}
@@ -306,7 +306,7 @@ export function ActivityFeedInner({
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
         {filtered.length === 0 ? (
-          <div className="py-8 text-center text-[11px] text-white/10">
+          <div className="py-8 text-center text-[11px] text-[var(--color-text-quaternary)]">
             {selected.size === 0 ? 'No filters selected' : 'No posts match the selected filters'}
           </div>
         ) : (
@@ -319,7 +319,7 @@ export function ActivityFeedInner({
                 highlightId === p.id && 'border-[var(--color-accent)]/50 ring-2 ring-[var(--color-accent)]/20',
               )}
             >
-              <div className="flex items-center gap-2 text-[10px] text-white/20 mb-1.5">
+              <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-quaternary)] mb-1.5">
                 <PostTypeBadges profile={profile} post={p} variant={badgeVariant} />
                 <span>{new Date(p.createdAt).toLocaleString()}</span>
                 <div className="flex-1" />
@@ -328,13 +328,13 @@ export function ActivityFeedInner({
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   title="Open on X"
-                  className="shrink-0 text-white/25 hover:text-[var(--color-accent)] transition-colors"
+                  className="shrink-0 text-[var(--color-text-quaternary)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   <LinkIcon />
                 </a>
               </div>
               <ExpandablePostText text={p.text} />
-              <div className="flex gap-3 mt-2 text-[10px] text-white/20 font-mono">
+              <div className="flex gap-3 mt-2 text-[10px] text-[var(--color-text-quaternary)] font-mono">
                 <span>{formatTokens(p.metrics.impressions)} views</span>
                 <span>{formatTokens(p.metrics.likes)} likes</span>
                 <span>{formatTokens(p.metrics.reposts)} reposts</span>
@@ -386,7 +386,7 @@ export function ActivityFeed() {
   const clearFeedFocus = useXIntelStore((s) => s.clearFeedFocus)
 
   if (!activeTarget || !report) {
-    return <div className="flex items-center justify-center h-full text-[12px] text-white/15">No profile selected</div>
+    return <div className="flex items-center justify-center h-full text-[12px] text-[var(--color-text-quaternary)]">No profile selected</div>
   }
 
   // Per-section refresh timestamp (bumps even on a zero-new-posts pull), falling

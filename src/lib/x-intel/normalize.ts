@@ -181,13 +181,66 @@ function mapMentions(mentions: XPostEntities['mentions'] | undefined): Post['men
   })) ?? []
 }
 
-/** Prefer note_tweet — root `text` is truncated for long-form posts. */
-function resolvePostBody(raw: XPostRaw): { text: string; entities: XPostRaw['entities'] | undefined } {
+/** Prefer article body, then note_tweet — root `text` is often truncated/teaser. */
+function extractArticlePlainText(article: NonNullable<XPostRaw['article']>): string {
+  const direct =
+    (typeof article.plain_text === 'string' && article.plain_text.trim()) ||
+    (typeof article.text === 'string' && article.text.trim()) ||
+    (typeof article.preview_text === 'string' && article.preview_text.trim()) ||
+    (typeof article.description === 'string' && article.description.trim()) ||
+    ''
+  if (direct) return direct
+  const blocks = article.content_state?.blocks
+  if (Array.isArray(blocks) && blocks.length > 0) {
+    return blocks
+      .map((b) => (typeof b?.text === 'string' ? b.text.trim() : ''))
+      .filter(Boolean)
+      .join('\n\n')
+  }
+  return ''
+}
+
+function looksLikeArticleUrl(url: string): boolean {
+  return /\/article\//i.test(url) || /\/i\/article\//i.test(url)
+}
+
+function resolvePostBody(raw: XPostRaw): {
+  text: string
+  entities: XPostRaw['entities'] | undefined
+  format: 'post' | 'longform' | 'article'
+  articleTitle?: string
+} {
+  const article = raw.article
+  const articleText = article ? extractArticlePlainText(article) : ''
+  const articleTitle =
+    typeof article?.title === 'string' && article.title.trim() ? article.title.trim() : undefined
+  const urlHint =
+    raw.entities?.urls?.some((u) => looksLikeArticleUrl(u.expanded_url)) ||
+    article != null
+
+  if (article && (articleText || articleTitle || urlHint)) {
+    const note = raw.note_tweet?.text?.trim() ?? ''
+    const body = articleText || note || raw.text
+    const titled =
+      articleTitle && !body.startsWith(articleTitle) ? `${articleTitle}\n\n${body}` : body
+    return {
+      text: titled,
+      entities: article.entities ?? raw.note_tweet?.entities ?? raw.entities,
+      format: 'article',
+      articleTitle,
+    }
+  }
+
   const note = raw.note_tweet
   if (note?.text) {
-    return { text: note.text, entities: note.entities ?? raw.entities }
+    return {
+      text: note.text,
+      entities: note.entities ?? raw.entities,
+      format: 'longform',
+    }
   }
-  return { text: raw.text, entities: raw.entities }
+
+  return { text: raw.text, entities: raw.entities, format: 'post' }
 }
 
 export function normalizePost(
@@ -196,7 +249,7 @@ export function normalizePost(
 ): Post {
   const m = raw.public_metrics
   const ref = raw.referenced_tweets?.[0]
-  const { text, entities } = resolvePostBody(raw)
+  const { text, entities, format, articleTitle } = resolvePostBody(raw)
   const tweetById = new Map((includes?.tweets ?? []).map((t) => [t.id, t]))
   const userById = new Map((includes?.users ?? []).map((u) => [u.id, u]))
 
@@ -216,6 +269,8 @@ export function normalizePost(
       bookmarks: m?.bookmark_count ?? 0,
     },
     kind: ref ? (KIND_MAP[ref.type] ?? 'original') : 'original',
+    format,
+    ...(articleTitle ? { articleTitle } : {}),
     inReplyToUserId: raw.in_reply_to_user_id ?? null,
     referenced: (raw.referenced_tweets ?? []).map((r) => {
       const included = tweetById.get(r.id)

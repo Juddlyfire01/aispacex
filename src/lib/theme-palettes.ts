@@ -28,7 +28,7 @@ export const PALETTES: Record<string, Palette> = {
     bgBase: '#000000',
     bgRaised: '#16181C',
     bgInput: '#000000',
-    bgOverlay: '#1E2732',
+    bgOverlay: '#16181C',
     borderFaint: 'rgba(47, 51, 54, 0.65)',
     borderSoft: '#2F3336',
     borderStrong: '#536471',

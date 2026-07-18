@@ -69,7 +69,7 @@ export function RailSortMenu({
           'w-full min-h-9 flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium leading-none transition-colors',
           active
             ? 'border-[var(--color-accent)]/40 text-[var(--color-accent)] bg-[var(--color-accent)]/[0.06]'
-            : 'border-[var(--color-border-faint)] text-white/50 hover:text-white/80 hover:border-white/20',
+            : 'border-[var(--color-border-faint)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]',
         )}
       >
         <SortIcon />
@@ -90,7 +90,7 @@ export function RailSortMenu({
           role="menu"
           className="absolute left-0 right-0 top-full mt-1.5 z-50 p-1.5 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-input)] shadow-2xl animate-scale-in"
         >
-          <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-white/25">
+          <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-quaternary)]">
             Sort by
           </div>
           {RAIL_SORT_OPTIONS.map((opt) => {
@@ -106,12 +106,12 @@ export function RailSortMenu({
                   'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] transition-colors',
                   selected
                     ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/[0.06]'
-                    : 'text-white/70 hover:bg-white/[0.06] hover:text-white/90',
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border-faint)] hover:text-[var(--color-text-primary)]',
                 )}
               >
                 <span className="w-3 shrink-0 text-[var(--color-accent)]">{selected ? '✓' : ''}</span>
                 {opt.label}
-                <span className="ml-auto text-[10px] text-white/35">{opt.hint}</span>
+                <span className="ml-auto text-[10px] text-[var(--color-text-quaternary)]">{opt.hint}</span>
               </button>
             )
           })}
