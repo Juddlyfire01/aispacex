@@ -156,6 +156,7 @@ export function InteractiveChart({
                 y2={t.y}
                 stroke="var(--color-border-faint)"
                 strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
               />
             ))}
             <polyline
@@ -173,42 +174,48 @@ export function InteractiveChart({
               stroke="none"
               points={`${pad.l},${pad.t + innerH} ${points.join(' ')} ${pad.l + innerW},${pad.t + innerH}`}
             />
-            {[...annotationIdx.keys()].map((i) => (
-              <circle
-                key={`ann-${i}`}
-                cx={xAt(i)}
-                cy={yAt(series[i].v)}
-                r="3"
-                fill="var(--color-bg-base)"
-                stroke={color}
-                strokeWidth="1.5"
+            {hover && (
+              <line
+                x1={hoverX}
+                x2={hoverX}
+                y1={pad.t}
+                y2={pad.t + innerH}
+                stroke="var(--color-text-secondary)"
+                strokeWidth="1"
+                strokeDasharray="3 3"
                 vectorEffect="non-scaling-stroke"
               />
-            ))}
-            {hover && (
-              <>
-                <line
-                  x1={hoverX}
-                  x2={hoverX}
-                  y1={pad.t}
-                  y2={pad.t + innerH}
-                  stroke="var(--color-text-secondary)"
-                  strokeWidth="1"
-                  strokeDasharray="3 3"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <circle
-                  cx={hoverX}
-                  cy={hoverY}
-                  r="3.5"
-                  fill={color}
-                  stroke="var(--color-bg-base)"
-                  strokeWidth="1.5"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </>
             )}
           </svg>
+
+          {/* Dots live in HTML — SVG preserveAspectRatio="none" would squash circles. */}
+          {[...annotationIdx.keys()].map((i) => (
+            <div
+              key={`ann-${i}`}
+              className="absolute pointer-events-none z-[1] rounded-full border-[1.5px] bg-[var(--color-bg-base)]"
+              style={{
+                width: 7,
+                height: 7,
+                left: `${(xAt(i) / w) * 100}%`,
+                top: `${(yAt(series[i].v) / h) * 100}%`,
+                borderColor: color,
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          ))}
+          {hover && (
+            <div
+              className="absolute pointer-events-none z-[2] rounded-full border-[1.5px] border-[var(--color-bg-base)]"
+              style={{
+                width: 8,
+                height: 8,
+                left: `${hoverPctX}%`,
+                top: `${(hoverY / h) * 100}%`,
+                backgroundColor: color,
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          )}
 
           {hover && (
             <div

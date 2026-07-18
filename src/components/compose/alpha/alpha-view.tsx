@@ -74,7 +74,15 @@ function Sparkline({ buckets }: { buckets: { tweet_count: number }[] }) {
     .join(' ')
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full text-sky-400/85" preserveAspectRatio="none">
-      <polyline fill="none" stroke="currentColor" strokeWidth="1.5" points={points} />
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={points}
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   )
 }

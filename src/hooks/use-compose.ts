@@ -522,10 +522,8 @@ export function useCompose() {
             brief.format,
             brief.longform,
           )
-          // Auto → concrete: switch the thread pill so the drawer matches.
-          if (sendPref === 'auto') {
-            useComposeStore.getState().setPreferredFormat(threadId, resolvedFormat)
-          }
+          // Under Auto, resolve for this write only — do not lock the thread pill.
+          // User overrides (post/thread/…) persist; model choices stay ephemeral.
           const writerBrief: DraftWriteBrief = {
             ...brief,
             preferredFormat: resolvedFormat,
@@ -749,9 +747,6 @@ export function useCompose() {
                 target: { kind: 'original' },
                 segments: [emptySegment()],
               })
-              if (pref === 'auto' && looksLikeArticle && resolvedFormat !== 'article') {
-                store.setPreferredFormat(threadId, 'article')
-              }
               finishWriter('done', 'article ready')
               return
             }

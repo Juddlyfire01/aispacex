@@ -112,15 +112,20 @@ export function PostComposer({ threadId }: PostComposerProps) {
 
   return (
     <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-[var(--color-text-quaternary)] uppercase tracking-[0.08em]">Draft</span>
-        <button onClick={() => resetDraft(threadId)} className="text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors">
-          Clear
-        </button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <FormatPreference threadId={threadId} />
+        </div>
+        {showArticle && (
+          <button
+            type="button"
+            onClick={() => resetDraft(threadId)}
+            className="shrink-0 text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors self-end mb-0.5"
+          >
+            Clear
+          </button>
+        )}
       </div>
-
-      <FormatPreference threadId={threadId} />
-
       {showArticle ? (
         <ArticleComposer threadId={threadId} />
       ) : (

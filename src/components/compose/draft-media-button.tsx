@@ -415,25 +415,38 @@ export function DraftPollButton({ threadId, segment, className }: DraftPollButto
   )
 }
 
-/** Shared under-bubble action row — all three adds inline. */
+/** Shared under-bubble action row — adds inline, optional Clear far right. */
 export function DraftSegmentToolbar({
   threadId,
   segment,
+  showClear = false,
 }: {
   threadId: string
   segment: PostSegment
+  showClear?: boolean
 }) {
   return (
-    <div className={TOOLBAR_ROW}>
-      <DraftMediaButton threadId={threadId} segment={segment} />
-      <DraftPollButton threadId={threadId} segment={segment} />
-      <button
-        type="button"
-        onClick={() => useComposeStore.getState().addSegment(threadId, segment.id)}
-        className={TOOLBAR_BTN}
-      >
-        + Add thread
-      </button>
+    <div className={cn(TOOLBAR_ROW, showClear && 'justify-between')}>
+      <div className="flex items-center gap-3 min-w-0">
+        <DraftMediaButton threadId={threadId} segment={segment} />
+        <DraftPollButton threadId={threadId} segment={segment} />
+        <button
+          type="button"
+          onClick={() => useComposeStore.getState().addSegment(threadId, segment.id)}
+          className={TOOLBAR_BTN}
+        >
+          + Add thread
+        </button>
+      </div>
+      {showClear && (
+        <button
+          type="button"
+          onClick={() => useComposeStore.getState().resetDraft(threadId)}
+          className="shrink-0 text-[10px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-tertiary)] transition-colors"
+        >
+          Clear
+        </button>
+      )}
     </div>
   )
 }

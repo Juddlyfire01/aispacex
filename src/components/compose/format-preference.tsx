@@ -3,9 +3,12 @@ import type { PreferredFormat } from '../../lib/compose/format'
 import { PREFERRED_FORMATS } from '../../lib/compose/format'
 import { Label, PillGroup } from '../ui/shared'
 
+const FORMAT_TOOLTIP =
+  'Auto lets the model choose per draft (pill stays Auto). Lock Post, Thread, Long-form, or Article to force that shape for this thread.'
+
 export function FormatPreference({
   threadId,
-  title = 'Preferred format',
+  title = 'Format',
 }: {
   threadId: string
   title?: string
@@ -16,11 +19,9 @@ export function FormatPreference({
   const setPreferredFormat = useComposeStore((s) => s.setPreferredFormat)
   return (
     <div>
-      <Label title="Auto lets the model choose. Your override persists for this thread.">
-        {title}
-      </Label>
+      <Label title={FORMAT_TOOLTIP}>{title}</Label>
       <PillGroup
-        ariaLabel="Preferred draft format"
+        ariaLabel="Draft format"
         options={PREFERRED_FORMATS}
         value={preferredFormat}
         onChange={(v) => setPreferredFormat(threadId, v as PreferredFormat)}

@@ -95,7 +95,11 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
       </div>
 
       {/* Toolbar under every bubble — same language as + Add thread */}
-      <DraftSegmentToolbar threadId={threadId} segment={liveSegment} />
+      <DraftSegmentToolbar
+        threadId={threadId}
+        segment={liveSegment}
+        showClear={index === total - 1}
+      />
 
       {/* Poll form only when enabled — sits under the toolbar, not in the bubble */}
       {liveSegment.poll && (
