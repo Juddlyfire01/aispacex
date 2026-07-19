@@ -1,7 +1,7 @@
 import type { PreferredFormat } from './format'
 
 /**
- * A one-click Compose skill-stage starter (Discover → Angles → Craft → Polish).
+ * A one-click Compose skill-stage starter (Discover → Inbound replies → Angles → Craft → Polish).
  *
  * UX contract:
  *  - launched from the Templates menu / empty-state link

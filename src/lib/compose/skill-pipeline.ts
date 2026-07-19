@@ -3,7 +3,13 @@
  * Stages differ in job/output only — never strip tools.
  */
 
-export type SkillStageId = 'discover' | 'angles' | 'craft-post' | 'craft-thread' | 'polish'
+export type SkillStageId =
+  | 'discover'
+  | 'inbound-replies'
+  | 'angles'
+  | 'craft-post'
+  | 'craft-thread'
+  | 'polish'
 
 export interface StagePromptConfig {
   stage: SkillStageId
@@ -45,9 +51,9 @@ export function handoffContract(stage: SkillStageId): string {
     'HANDOFF CONTRACT:',
     '- Never recycle SPENT material as a new edition.',
   ]
-  if (stage === 'discover' || stage === 'angles') {
+  if (stage === 'discover' || stage === 'inbound-replies' || stage === 'angles') {
     lines.push(
-      '- Leave structured artifacts in CHAT (brief / tiered angles). Do not write the publishable draft in chat.',
+      '- Leave structured artifacts in CHAT (brief / reply report / tiered angles). Do not write the publishable draft in chat.',
       '- Prefer chat deliverables; discourage early compose_write_draft unless the user explicitly asks to draft now.',
     )
   } else if (stage === 'craft-post' || stage === 'craft-thread') {

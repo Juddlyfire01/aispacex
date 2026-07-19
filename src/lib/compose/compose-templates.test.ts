@@ -4,10 +4,11 @@ import { DISCOVER_STARTER } from './discover-workflow'
 import { fullToolsReminder, spentReminder, buildStagePrompt } from './skill-pipeline'
 
 describe('COMPOSE_TEMPLATES registry', () => {
-  it('contains five skill stages with Discover primary', () => {
-    expect(COMPOSE_TEMPLATES).toHaveLength(5)
+  it('contains six skill stages with Discover primary', () => {
+    expect(COMPOSE_TEMPLATES).toHaveLength(6)
     expect(COMPOSE_TEMPLATES.map((t) => t.id)).toEqual([
       'discover',
+      'inbound-replies',
       'angles',
       'craft-post',
       'craft-thread',
@@ -28,6 +29,7 @@ describe('COMPOSE_TEMPLATES registry', () => {
   it('sets preferredFormat per stage and auto does not force format', () => {
     const byId = Object.fromEntries(COMPOSE_TEMPLATES.map((t) => [t.id, t]))
     expect(byId.discover?.preferredFormat).toBe('auto')
+    expect(byId['inbound-replies']?.preferredFormat).toBe('auto')
     expect(byId.angles?.preferredFormat).toBe('auto')
     expect(byId.polish?.preferredFormat).toBe('auto')
     expect(byId['craft-post']?.preferredFormat).toBe('post')
@@ -56,14 +58,18 @@ describe('COMPOSE_TEMPLATES registry', () => {
     }
   })
 
-  it('craft stages require compose_write_draft; discover/angles discourage early draft', () => {
+  it('craft stages require compose_write_draft; chat stages discourage early draft', () => {
     const discover = COMPOSE_TEMPLATES.find((t) => t.id === 'discover')!.buildPrompt()
+    const inbound = COMPOSE_TEMPLATES.find((t) => t.id === 'inbound-replies')!.buildPrompt()
     const angles = COMPOSE_TEMPLATES.find((t) => t.id === 'angles')!.buildPrompt()
     const craftPost = COMPOSE_TEMPLATES.find((t) => t.id === 'craft-post')!.buildPrompt()
     const craftThread = COMPOSE_TEMPLATES.find((t) => t.id === 'craft-thread')!.buildPrompt()
     const polish = COMPOSE_TEMPLATES.find((t) => t.id === 'polish')!.buildPrompt()
 
     expect(discover).toMatch(/CHAT ONLY|discourage/i)
+    expect(inbound).toMatch(/CHAT ONLY|discourage/i)
+    expect(inbound).toMatch(/Highest-signal reply targets/i)
+    expect(inbound).toMatch(/Mass-mention spam/i)
     expect(angles).toMatch(/Tier|\[lever\]/i)
     expect(craftPost).toMatch(/MUST call compose_write_draft/)
     expect(craftThread).toMatch(/MUST call compose_write_draft/)
@@ -98,5 +104,16 @@ describe('skill-pipeline scaffolding', () => {
     expect(p).toMatch(/intel_\*/)
     expect(p).toMatch(/SPENT/)
     expect(p).toMatch(/HANDOFF CONTRACT/)
+  })
+
+  it('inbound-replies handoff stays chat-only like discover', () => {
+    const p = buildStagePrompt({
+      stage: 'inbound-replies',
+      label: 'Inbound replies',
+      jobBody: 'List replies.',
+    })
+    expect(p).toMatch(/reply report/)
+    expect(p).toMatch(/discourage early compose_write_draft/i)
+    expect(p).not.toMatch(/MUST call compose_write_draft/)
   })
 })

@@ -1,13 +1,14 @@
 /**
  * Registry of Compose skill-stage starters.
  *
- * Pipeline: Discover → Angles → Craft post → Craft thread → Polish.
+ * Pipeline: Discover → Inbound replies → Angles → Craft post → Craft thread → Polish.
  * Stages differ in job/output only — full tool surface every stage.
  * Templates menu + empty-state render from COMPOSE_TEMPLATES.
  */
 
 import type { ComposeTemplateStarter } from './template-types'
 import { DISCOVER_STARTER } from './discover-workflow'
+import { INBOUND_REPLIES_STARTER } from './inbound-replies-workflow'
 import { ANGLES_STARTER } from './angles-workflow'
 import { CRAFT_POST_STARTER } from './craft-post-workflow'
 import { CRAFT_THREAD_STARTER } from './craft-thread-workflow'
@@ -18,6 +19,7 @@ export type { ComposeTemplateStarter }
 /** Order here is the order shown in the Templates menu. */
 export const COMPOSE_TEMPLATES: readonly ComposeTemplateStarter[] = [
   DISCOVER_STARTER,
+  INBOUND_REPLIES_STARTER,
   ANGLES_STARTER,
   CRAFT_POST_STARTER,
   CRAFT_THREAD_STARTER,
