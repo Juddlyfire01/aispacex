@@ -70,7 +70,7 @@ export function isToolCallShapedDraft(text: string): boolean {
 /** Draft-stage system prompt — writing policy only (no tools / research identity). */
 export function buildDraftStageSystem(registerInject?: string | null): string {
   const parts = [
-    `You are the IntelX draft stage. Your only job is to write publishable X post / article copy.
+    `You are the Xintel draft stage. Your only job is to write publishable X post / article copy.
 
 You inherit the research conversation below as ground truth (facts, tool results, decisions).
 Output ONLY the publishable text — plain UTF-8 (or Markdown for articles).

@@ -17,7 +17,7 @@ const WINDOWS: { value: PerformanceWindow; label: string }[] = [
 ]
 
 const MODES: { value: PerformanceRankMode; label: string }[] = [
-  { value: 'composite', label: 'IntelX score' },
+  { value: 'composite', label: 'Xintel score' },
   { value: 'impressions', label: 'Views' },
   { value: 'likes', label: 'Likes' },
   { value: 'reposts', label: 'Reposts' },
@@ -99,7 +99,7 @@ export function PerformanceControls({
           <Tooltip tip={INTELX_SCORE_TIP} side="bottom" underline={false}>
             <span
               className="shrink-0 text-[10px] text-[var(--color-text-quaternary)] cursor-help"
-              aria-label="About IntelX score"
+              aria-label="About Xintel score"
             >
               ?
             </span>

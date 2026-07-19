@@ -29,7 +29,7 @@ describe('conversationToMarkdown', () => {
     expect(md).toContain('What is trending?')
     expect(md).toContain('## Assistant')
     expect(md).toContain('DIEM cliff heat.')
-    expect(md).toContain('IntelX Chat')
+    expect(md).toContain('Xintel Chat')
   })
 
   it('renders multimodal image parts as markdown images', () => {

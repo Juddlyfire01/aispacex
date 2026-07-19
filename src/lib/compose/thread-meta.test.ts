@@ -135,7 +135,7 @@ describe('threadToMarkdown', () => {
     expect(md).toContain('## Assistant')
     expect(md).toContain('## Draft')
     expect(md).toContain('Draft line')
-    expect(md).toContain('IntelX Compose')
+    expect(md).toContain('Xintel Compose')
   })
 })
 

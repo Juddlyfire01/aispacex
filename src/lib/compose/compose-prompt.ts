@@ -87,10 +87,10 @@ export function buildComposeSystem(opts: ComposeSystemOpts): string {
   const modelId = opts.modelId.trim() || 'unknown-model'
 
   const parts: string[] = [
-    `You are ${modelId}, running privately via Venice.ai inside IntelX Post.
+    `You are ${modelId}, running privately via Venice.ai inside Xintel Post.
 
 Environment:
-- IntelX is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers and an Alpha Radar 24h+pins slice when present), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
+- Xintel is a personal X intel + analysis workspace. This surface has a scoped hot window of local library data (including bookmarked RSS news pointers and an Alpha Radar 24h+pins slice when present), a searchable cold library, prior chat history tools, live VeniceStats tools, and (when enabled) live web, X search, and/or X News.
 - Alpha Radar = 24h trending memory + pins (not long-term Intel subjects). HOT WINDOW may include an ALPHA RADAR slice.
 - The UI can also hold an editable post draft. That is one optional output path, not your job description.
 

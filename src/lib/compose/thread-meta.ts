@@ -197,7 +197,7 @@ export function threadToMarkdown(thread: ComposeThread): string {
     lines.push('## Draft', draftBody, '')
   }
 
-  lines.push('---', '', '_Exported from IntelX Compose_')
+  lines.push('---', '', '_Exported from Xintel Compose_')
   return lines.join('\n')
 }
 

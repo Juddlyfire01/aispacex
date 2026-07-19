@@ -250,7 +250,7 @@ export function PerformanceView({
             ) : null}
           </h3>
           <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
-            Sorted high → low by {mode === 'composite' ? 'IntelX score' : mode}
+            Sorted high → low by {mode === 'composite' ? 'Xintel score' : mode}
             {' · '}pure retweets excluded
             {mode === 'composite' ? ' · approximation (not X live ranking)' : ''}
           </p>

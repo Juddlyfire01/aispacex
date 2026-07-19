@@ -39,7 +39,7 @@ export function conversationToMarkdown(conv: Conversation): string {
     lines.push(`## ${roleHeading(m.role)}`, messageContentToMarkdown(m), '')
   }
 
-  lines.push('---', '', '_Exported from IntelX Chat_')
+  lines.push('---', '', '_Exported from Xintel Chat_')
   return lines.join('\n')
 }
 

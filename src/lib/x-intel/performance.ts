@@ -9,7 +9,7 @@ export interface PerformanceCustomRange {
   endMs: number
 }
 
-/** Rank modes: raw metrics + IntelX weighted composite (approx.). */
+/** Rank modes: raw metrics + Xintel weighted composite (approx.). */
 export type PerformanceRankMode =
   | 'composite'
   | 'impressions'
@@ -25,7 +25,7 @@ export const PERF_SNAPSHOT_MAX = 180
 export const PERF_SNAPSHOT_MIN_GAP_MS = 6 * 60 * 60 * 1000 // 6h — avoid spam on rapid refreshes
 
 /**
- * Short tooltip copy: IntelX score is our approximation, not X's live ranking.
+ * Short tooltip copy: Xintel score is our approximation, not X's live ranking.
  * Safe to show next to labels and rank-by controls.
  */
 export const INTELX_SCORE_TIP =
@@ -136,7 +136,7 @@ export function filterPostsByWindow(
   })
 }
 
-/** IntelX weighted engagement score for one post (public counts only; approximation). */
+/** Xintel weighted engagement score for one post (public counts only; approximation). */
 export function xWeightedScore(p: Post): number {
   const m = p.metrics
   return (
@@ -197,7 +197,7 @@ export function scorePost(p: Post, mode: PerformanceRankMode): number {
 }
 
 export const MODE_LABEL: Record<PerformanceRankMode, string> = {
-  composite: 'IntelX score',
+  composite: 'Xintel score',
   impressions: 'impressions',
   likes: 'likes',
   reposts: 'reposts',
@@ -213,9 +213,9 @@ export function formatWhy(opts: {
   const label = MODE_LABEL[opts.mode]
   if (opts.mode === 'composite') {
     if (opts.multipleOfMedian != null && opts.multipleOfMedian > 0) {
-      return `${opts.multipleOfMedian}× this account's median IntelX score (approx.; likes cheap, replies/conversation heavy).`
+      return `${opts.multipleOfMedian}× this account's median Xintel score (approx.; likes cheap, replies/conversation heavy).`
     }
-    return 'Ranked by IntelX score (public-metric approximation, not X live ranking) on this account\'s posts.'
+    return 'Ranked by Xintel score (public-metric approximation, not X live ranking) on this account\'s posts.'
   }
   if (opts.multipleOfMedian != null && opts.multipleOfMedian > 0) {
     return `${opts.multipleOfMedian}× this account's median ${label} in this window.`
@@ -553,7 +553,7 @@ export function buildCatalysts(opts: {
     ? compareRangePeriods(opts.posts, opts.range!.startMs, opts.range!.endMs)
     : comparePeriods(opts.posts, periodDays, nowMs)
   const candidates: { key: keyof MetricTotals | 'followers'; delta: number; label: string }[] = [
-    { key: 'xScore', delta: cmp.delta.xScore, label: 'IntelX score' },
+    { key: 'xScore', delta: cmp.delta.xScore, label: 'Xintel score' },
     { key: 'impressions', delta: cmp.delta.impressions, label: 'impressions' },
     { key: 'likes', delta: cmp.delta.likes, label: 'likes' },
     { key: 'replies', delta: cmp.delta.replies, label: 'replies' },

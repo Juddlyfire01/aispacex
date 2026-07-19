@@ -1,4 +1,4 @@
-# IntelX
+# AiSpace Xintel
 
 A privacy-focused dashboard for [Venice AI](https://venice.ai) — X intelligence, community signal, on-chain protocol stats, and curated news — with generation tools for image, audio, music, and video.
 
@@ -80,7 +80,7 @@ See `.env.example` for the full list.
 npm run build   # outputs to /dist
 ```
 
-Serve `/dist` from any static host. The browser calls `https://api.venice.ai` directly (Venice allows CORS). Intel X OAuth and News/Stats proxies require the Vercel `/api` routes.
+Serve `/dist` from any static host. The browser calls `https://api.venice.ai` directly (Venice allows CORS). Xintel OAuth and News/Stats proxies require the Vercel `/api` routes.
 
 ### Docker
 

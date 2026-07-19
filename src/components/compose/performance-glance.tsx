@@ -80,7 +80,7 @@ export function PerformanceGlance({ glance }: { glance: PerformanceGlanceData })
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <PerfStat
-          label="IntelX score"
+          label="Xintel score"
           tip={INTELX_SCORE_TIP}
           value={formatCount(glance.current.xScore)}
           sub={period != null ? `${formatDelta(d.xScore)} ${period}` : allTimeSub}
@@ -130,7 +130,7 @@ export function PerformanceGlance({ glance }: { glance: PerformanceGlanceData })
       <p className="text-[10px] text-[var(--color-text-quaternary)]">
         Leading kind by{' '}
         <Tooltip tip={INTELX_SCORE_TIP} side="top" underline>
-          IntelX score
+          Xintel score
         </Tooltip>
         : {capitalize(glance.leadingKind)} · pure retweets excluded · approximation from public
         metrics (not X live ranking)

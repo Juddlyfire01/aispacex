@@ -269,7 +269,7 @@ describe('period compare + series + catalysts', () => {
     expect(cmp.current.reposts).toBe(2)
     expect(cmp.current.likes).toBe(10)
     expect(cmp.current.postCount).toBe(1)
-    // IntelX score must not include 6575 inherited retweets
+    // Xintel score must not include 6575 inherited retweets
     expect(cmp.current.xScore).toBeLessThan(100)
   })
 

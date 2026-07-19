@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const val = firstHeader(v)
     if (val) headers.set(k, val)
   }
-  headers.set('user-agent', 'IntelX/1.0 (VeniceStats proxy)')
+  headers.set('user-agent', 'Xintel/1.0 (VeniceStats proxy)')
   headers.set('accept', 'application/json')
   headers.set('accept-encoding', 'identity')
 
