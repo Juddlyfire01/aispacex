@@ -323,7 +323,7 @@ export const useComposePrefsStore = create<ComposePrefsState>()(
           if (state.lastContextLimit == null) state.lastContextLimit = 0
           if (state.hotMeter === undefined) state.hotMeter = null
         }
-        return state as ComposePrefsState
+        return state as unknown as ComposePrefsState
       },
       partialize: (state) => ({
         model: state.model,
