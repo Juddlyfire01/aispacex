@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../stores/auth-store'
-import { AppLogo } from '../ui/logo'
+import { AppWordmark } from '../ui/logo'
 import { toast } from '../../stores/toast-store'
 import { validateVeniceKey } from '../../lib/validate-venice-key'
 import { Modal, modalInputClass, modalGhostBtnClass, modalPrimaryBtnClass } from '../ui/modal'
@@ -68,7 +68,7 @@ export function ApiKeyDialog({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Modal open={open} onClose={onClose} aria-labelledby={titleId}>
       <div className="flex items-center gap-3 mb-5">
-        <AppLogo size={26} />
+        <AppWordmark className="text-[17px] shrink-0" />
         <div>
           <h2 id={titleId} className="text-[17px] font-semibold text-[var(--color-text-primary)]">
             {isUnlockMode ? 'Unlock saved key' : 'Connect to Venice'}

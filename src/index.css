@@ -5,6 +5,8 @@
      Overridden at runtime by applyAppearanceToHtml via --font-sans / --font-mono. */
   --font-sans: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", "Consolas", "Liberation Mono", monospace;
+  /* Display / wordmark — mirrors aispace Orbitron brand mark. */
+  --font-orbitron: "Orbitron", "Space Grotesk", system-ui, sans-serif;
   /* Color emoji only — do not include Segoe UI Symbol (it steals ASCII digits). */
   --font-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", emoji;
 }
@@ -264,9 +266,18 @@ body {
   0% { background-position: -1000px 0; }
   100% { background-position: 1000px 0; }
 }
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
 .animate-fade-in { animation: fade-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .animate-scale-in { animation: scale-in 0.14s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+.animate-gradient-x { animation: gradient-x 3s ease infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-x { animation: none; }
+}
 
 .skeleton {
   background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 100%);

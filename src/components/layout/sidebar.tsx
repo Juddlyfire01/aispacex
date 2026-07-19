@@ -1,6 +1,6 @@
 import { cn } from '../../lib/utils'
 import { useSettingsStore, type Tab } from '../../stores/settings-store'
-import { AppBrand, AppLogo } from '../ui/logo'
+import { AppBrand, AppWordmark } from '../ui/logo'
 import { PanelToggleButton } from './panel-toggle'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_ROW_CLASS } from './rail-footer'
 
@@ -93,7 +93,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
       )}>
         {expanded ? (
           <>
-            <AppBrand logoSize={20} className="min-w-0 flex-1" />
+            <AppBrand className="min-w-0 flex-1" />
             <PanelToggleButton
               expanded={sidebarOpen}
               onClick={toggleSidebar}
@@ -116,7 +116,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: Props) {
               label="Expand sidebar"
               className="hidden md:flex mx-auto shrink-0"
             />
-            <AppLogo size={20} className="shrink-0 md:hidden" />
+            <AppWordmark className="text-[15px] shrink-0 md:hidden" />
             <button
               onClick={onMobileClose}
               aria-label="Close menu"

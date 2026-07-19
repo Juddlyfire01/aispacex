@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useComposeStore, type XSearchMode, type WebSearchMode } from '../../stores/compose-store'
 import { useModels } from '../../hooks/use-models'
 import {
@@ -67,7 +68,25 @@ export function ComposeSettings({
   const setXNewsOn = useComposeStore((s) => s.setXNewsOn)
   const xNewsMaxAgeHours = useComposeStore((s) => s.xNewsMaxAgeHours)
   const setXNewsMaxAgeHours = useComposeStore((s) => s.setXNewsMaxAgeHours)
-  const xSearchSupported = modelSupportsXSearch(toolModels, model)
+
+  // Avoid painting store defaults / orphan “(no tools)” / false X-search warnings
+  // while encrypted persist hydrates and the model catalog is still empty.
+  const [storeHydrated, setStoreHydrated] = useState(() =>
+    useComposeStore.persist.hasHydrated(),
+  )
+  useEffect(() => {
+    const unsub = useComposeStore.persist.onFinishHydration(() => setStoreHydrated(true))
+    if (useComposeStore.persist.hasHydrated()) setStoreHydrated(true)
+    return unsub
+  }, [])
+  const modelsReady = Boolean(models?.length)
+  const prefsReady = storeHydrated
+  const modelPickerReady = storeHydrated && modelsReady
+  const xSearchSupported = modelPickerReady && modelSupportsXSearch(toolModels, model)
+  const showOrphanResearchModel =
+    modelPickerReady && Boolean(model) && !toolModels.some((m) => m.id === model)
+  const selectClassName =
+    'w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full disabled:opacity-50'
 
   return (
     <aside className="w-[340px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
@@ -81,10 +100,12 @@ export function ComposeSettings({
           </Label>
           <select
             id="compose-model"
-            value={model}
+            value={modelPickerReady ? model : ''}
             onChange={(e) => setModel(e.target.value)}
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full"
+            disabled={!modelPickerReady}
+            className={selectClassName}
           >
+            {!modelPickerReady && <option value="">Loading…</option>}
             {toolModels.map((m) => {
               const name = m.model_spec?.name || m.id
               const isPinned = m.id === researchDefaultId
@@ -94,7 +115,7 @@ export function ComposeSettings({
                 </option>
               )
             })}
-            {model && !toolModels.some((m) => m.id === model) && (
+            {showOrphanResearchModel && (
               <option value={model}>{model} (no tools — switch)</option>
             )}
           </select>
@@ -109,10 +130,12 @@ export function ComposeSettings({
           </Label>
           <select
             id="compose-draft-model"
-            value={draftModel || DRAFT_MODEL_SAME}
+            value={prefsReady ? draftModel || DRAFT_MODEL_SAME : ''}
             onChange={(e) => setDraftModel(e.target.value)}
-            className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full"
+            disabled={!prefsReady}
+            className={selectClassName}
           >
+            {!prefsReady && <option value="">Loading…</option>}
             <option value={DRAFT_MODEL_SAME}>Same as research</option>
             {writerModels.map((m) => {
               const name = m.model_spec?.name || m.id
@@ -132,8 +155,9 @@ export function ComposeSettings({
           <PillGroup
             ariaLabel="Web search mode"
             options={WEB_SEARCH_MODES}
-            value={webSearch}
+            value={prefsReady ? webSearch : 'off'}
             onChange={(v) => setWebSearch(v as WebSearchMode)}
+            disabled={!prefsReady}
           />
         </div>
 
@@ -142,11 +166,11 @@ export function ComposeSettings({
           <PillGroup
             ariaLabel="X search mode"
             options={X_SEARCH_MODES}
-            value={xSearchSupported ? xSearch : 'off'}
+            value={modelPickerReady && xSearchSupported ? xSearch : 'off'}
             onChange={(v) => setXSearch(v as XSearchMode)}
-            disabled={!xSearchSupported}
+            disabled={!modelPickerReady || !xSearchSupported}
           />
-          {!xSearchSupported && (
+          {modelPickerReady && !xSearchSupported && (
             <p className="mt-1 text-[10px] text-amber-400/60">Selected model lacks X search</p>
           )}
         </div>
@@ -161,10 +185,11 @@ export function ComposeSettings({
               { value: 'on', label: 'on' },
               { value: 'off', label: 'off' },
             ]}
-            value={xNewsOn ? 'on' : 'off'}
+            value={prefsReady ? (xNewsOn ? 'on' : 'off') : 'off'}
             onChange={(v) => setXNewsOn(v === 'on')}
+            disabled={!prefsReady}
           />
-          {xNewsOn && (
+          {prefsReady && xNewsOn && (
             <div className="mt-2">
               <Label htmlFor="compose-x-news-age" title="max_age_hours for x_news_search">
                 X News recency
@@ -173,7 +198,7 @@ export function ComposeSettings({
                 id="compose-x-news-age"
                 value={String(xNewsMaxAgeHours)}
                 onChange={(e) => setXNewsMaxAgeHours(Number(e.target.value))}
-                className="w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)]"
+                className={selectClassName}
               >
                 <option value="6">6 hours</option>
                 <option value="12">12 hours</option>

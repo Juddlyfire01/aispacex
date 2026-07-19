@@ -44,7 +44,7 @@ export function ChatView() {
         {!conversation || conversation.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 gap-6">
             <div className="flex flex-col items-center gap-3">
-              <AppBrand logoSize={32} wordmarkClassName="text-[18px] opacity-90" className="opacity-90" />
+              <AppBrand wordmarkClassName="text-[18px] opacity-90" className="opacity-90" />
               <div className="text-[20px] font-semibold text-[var(--color-text-primary)]">How can I help today?</div>
               <p className="text-[14px] text-[var(--color-text-tertiary)] max-w-sm">
                 {apiKey

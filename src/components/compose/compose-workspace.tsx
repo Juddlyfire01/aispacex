@@ -76,19 +76,32 @@ export function ComposeWorkspace() {
     [activeAccountId],
   )
 
+  // Encrypted IDB hydrate is async (~1–3s). Do not seed/upgrade models from the
+  // empty defaults or we flash pickComposeModel() and can clobber persisted prefs.
+  const [storeHydrated, setStoreHydrated] = useState(() =>
+    useComposeStore.persist.hasHydrated(),
+  )
+  useEffect(() => {
+    const unsub = useComposeStore.persist.onFinishHydration(() => setStoreHydrated(true))
+    if (useComposeStore.persist.hasHydrated()) setStoreHydrated(true)
+    return unsub
+  }, [])
+
   // Research model: latest standard Grok (tool + X search). Follows catalog upgrades
   // when the user was still on the previous default.
   useEffect(() => {
+    if (!storeHydrated) return
     if (!models || models.length === 0) return
     if (shouldUpgradeComposeResearchModel(model, models)) {
       setModel(pickComposeModel(models))
     }
-  }, [model, models, setModel])
+  }, [storeHydrated, model, models, setModel])
 
   // Draft stage model: default Same as research (same id, still a separate
   // draft-stage completion). Only auto-upgrade when user picked a specific
   // Venice Uncensored SKU that Venice retagged.
   useEffect(() => {
+    if (!storeHydrated) return
     if (!models || models.length === 0) return
     if (!draftModel) {
       setDraftModel(DRAFT_MODEL_SAME)
@@ -98,13 +111,14 @@ export function ComposeWorkspace() {
     if (shouldUpgradeDraftModel(draftModel, models, mostUncensoredModelId, defaultModelId)) {
       setDraftModel(pickDefaultDraftModel(models, mostUncensoredModelId))
     }
-  }, [draftModel, models, mostUncensoredModelId, defaultModelId, setDraftModel])
+  }, [storeHydrated, draftModel, models, mostUncensoredModelId, defaultModelId, setDraftModel])
 
   // Keep contextLimit in sync with the selected model for hot-window budgeting.
   useEffect(() => {
+    if (!storeHydrated) return
     const modelObj = models?.find((m) => m.id === model)
     setContextLimit(resolveContextLimit(modelObj))
-  }, [model, models, setContextLimit])
+  }, [storeHydrated, model, models, setContextLimit])
 
   useEffect(() => {
     ensureActiveThread()
