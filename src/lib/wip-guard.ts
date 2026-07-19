@@ -45,6 +45,7 @@ export async function flushAllWip(opts?: {
     runHandlers()
     const keys = opts?.storageKeys ?? [
       'venice-compose',
+      'venice-compose-prefs',
       'venice-chat',
       'venice-playground',
       'venice-settings',

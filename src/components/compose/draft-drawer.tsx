@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { PostComposer } from './post-composer'
 import { ComposeActions } from './compose-actions'
 
 /** Draft pane — lives in the chat split (not an overlay). Width owned by parent. */
 export function DraftDrawer() {
-  const draftDrawerOpen = useComposeStore((s) => s.draftDrawerOpen)
-  const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
+  const draftDrawerOpen = useComposePrefsStore((s) => s.draftDrawerOpen)
+  const setDraftDrawerOpen = useComposePrefsStore((s) => s.setDraftDrawerOpen)
   const activeThreadId = useComposeStore((s) => s.activeThreadId)
   const activeThreadExists = useComposeStore((s) =>
     Boolean(s.activeThreadId && s.threads[s.activeThreadId]),

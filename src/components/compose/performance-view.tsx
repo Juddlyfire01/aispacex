@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import {
@@ -61,7 +62,7 @@ export function PerformanceView({
   const activeThread = useComposeStore((s) =>
     s.activeThreadId ? s.threads[s.activeThreadId] : undefined,
   )
-  const newThreadContext = useComposeStore((s) => s.newThreadContext)
+  const newThreadContext = useComposePrefsStore((s) => s.newThreadContext)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const accounts = useXSelfStore((s) => s.accounts)
   const accountOrder = useXSelfStore((s) => s.accountOrder)

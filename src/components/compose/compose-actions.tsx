@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { resolveDraftFormat } from '../../lib/compose/format'
 import { classifyPostability } from '../../lib/compose/postability'
@@ -38,7 +39,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
   const connected = useXSelfStore((s) => s.connected)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
   const { isVerified } = useComposeVerified()
-  const longformPreference = useComposeStore((s) => s.longformPreference)
+  const longformPreference = useComposePrefsStore((s) => s.longformPreference)
   const [posting, setPosting] = useState(false)
   const [postedUrl, setPostedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

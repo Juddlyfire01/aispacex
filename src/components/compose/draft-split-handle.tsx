@@ -1,10 +1,10 @@
 import { useCallback, useRef } from 'react'
-import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 
 /** Drag handle between chat and draft panes. */
 export function DraftSplitHandle() {
-  const widthPct = useComposeStore((s) => s.draftDrawerWidthPct)
-  const setWidthPct = useComposeStore((s) => s.setDraftDrawerWidthPct)
+  const widthPct = useComposePrefsStore((s) => s.draftDrawerWidthPct)
+  const setWidthPct = useComposePrefsStore((s) => s.setDraftDrawerWidthPct)
   const dragging = useRef(false)
   const splitRef = useRef<HTMLDivElement>(null)
 

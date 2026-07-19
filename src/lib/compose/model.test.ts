@@ -8,6 +8,8 @@ import {
   shouldUpgradeComposeResearchModel,
   shouldUpgradeDraftModel,
   pickDefaultDraftModel,
+  formatComposeResearchLabel,
+  plainModelDisplayName,
   COMPOSE_FALLBACK_MODEL,
 } from './model'
 import type { ModelTrait, VeniceModel } from '../../types/venice'
@@ -212,5 +214,25 @@ describe('modelIdSupportsFunctionCalling', () => {
     expect(modelIdSupportsFunctionCalling(models, 'a')).toBe(true)
     expect(modelIdSupportsFunctionCalling(models, 'b')).toBe(false)
     expect(modelIdSupportsFunctionCalling(models, 'missing')).toBe(false)
+  })
+})
+
+describe('plainModelDisplayName', () => {
+  it('maps mathematical alphanumeric symbols to ASCII', () => {
+    // Bold math capitals G R O K → GROK (U+1D406 etc.)
+    const fancy = '𝐆𝐫𝐨𝐤 Build'
+    expect(plainModelDisplayName(fancy)).toBe('Grok Build')
+  })
+
+  it('leaves normal names unchanged', () => {
+    expect(plainModelDisplayName('GPT-5.4 Mini')).toBe('GPT-5.4 Mini')
+  })
+})
+
+describe('formatComposeResearchLabel', () => {
+  it('uses plain name and pins default', () => {
+    const m = model('grok-4-3', { name: 'Grok 4.3', tools: true })
+    expect(formatComposeResearchLabel(m, 'grok-4-3')).toBe('Grok 4.3 · default')
+    expect(formatComposeResearchLabel(m, 'other')).toBe('Grok 4.3')
   })
 })

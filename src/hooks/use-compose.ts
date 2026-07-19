@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useComposeStore } from '../stores/compose-store'
+import { useComposePrefsStore } from '../stores/compose-prefs-store'
 import {
   pauseEncryptedPersist,
   resumeEncryptedPersist,
@@ -280,8 +281,8 @@ export function useCompose() {
           webSearch,
           xNewsOn,
           xNewsMaxAgeHours,
-          contextLimit,
-        } = useComposeStore.getState()
+        } = useComposePrefsStore.getState()
+        const { contextLimit } = useComposeStore.getState()
         // preferredFormat is per-thread now; default auto when unset.
         const preferredFormat =
           useComposeStore.getState().threads[threadId]?.preferredFormat ?? 'auto'
@@ -536,7 +537,7 @@ export function useCompose() {
           }
           const sendWantsArticle = resolvedFormat === 'article'
           const s0 = useComposeStore.getState()
-          s0.setDraftDrawerOpen(true)
+          useComposePrefsStore.getState().setDraftDrawerOpen(true)
           s0.setDraftWriterStreaming(true)
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
@@ -760,7 +761,7 @@ export function useCompose() {
                   }))
                 : [{ ...seg, text: trimmed }]
             const isVerified = getActiveAccountVerified()
-            const longformPref = store.longformPreference
+            const longformPref = useComposePrefsStore.getState().longformPreference
             const patch: Partial<PostDraft> = {
               segments,
               article: undefined,
@@ -965,7 +966,7 @@ export function useCompose() {
               ) {
                 draftSkeletonShown = true
                 const s = useComposeStore.getState()
-                s.setDraftDrawerOpen(true)
+                useComposePrefsStore.getState().setDraftDrawerOpen(true)
                 s.setDraftWriterStreaming(true)
                 if (preferredFormat === 'article') {
                   const existing = s.threads[threadId]?.draft.article

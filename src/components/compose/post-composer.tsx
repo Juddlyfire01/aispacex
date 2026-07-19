@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { containsUrl } from '../../lib/compose/tweet-length'
 import {
   resolveLongform,
@@ -45,8 +46,8 @@ export function PostComposer({ threadId }: PostComposerProps) {
     }),
   )
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
-  const setLongformPreference = useComposeStore((s) => s.setLongformPreference)
-  const longformPreference = useComposeStore((s) => s.longformPreference)
+  const setLongformPreference = useComposePrefsStore((s) => s.setLongformPreference)
+  const longformPreference = useComposePrefsStore((s) => s.longformPreference)
   const preferredFormat = useComposeStore(
     (s) => s.threads[threadId]?.preferredFormat ?? 'auto',
   )
@@ -56,7 +57,7 @@ export function PostComposer({ threadId }: PostComposerProps) {
   useEffect(() => {
     const current = useComposeStore.getState().threads[threadId]
     if (!current) return
-    const pref = useComposeStore.getState().longformPreference
+    const pref = useComposePrefsStore.getState().longformPreference
     const patch = syncDraftForVerification(current.draft, isVerified, pref)
     if (patch) applyDraftPatch(threadId, patch)
   }, [isVerified, longformPreference, threadId, applyDraftPatch])

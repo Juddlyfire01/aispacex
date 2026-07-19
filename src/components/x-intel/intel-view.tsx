@@ -14,6 +14,10 @@ import { syncComposeContextFromActiveTarget } from '../../lib/compose/open-compo
 import { SubTabs } from '../ui/sub-tabs'
 import { ViewLoadingFallback, VIEW_LOADING_LABEL } from '../ui/spinner'
 import { cn } from '../../lib/utils'
+// Warm compose prefs as soon as Intel loads (open-compose already pulls this in).
+// Also kick the thread corpus hydrate in the background so the one-shot v18 prefs
+// seed can finish before the user opens Post.
+import '../../stores/compose-prefs-store'
 
 // Compose + network panes are heavy and only used on their tabs — keep them out of
 // the initial intel chunk until Post / Network is opened.
@@ -79,6 +83,12 @@ export function IntelView() {
   useEffect(() => {
     if (activeTopTab === 'post') setPostMounted(true)
   }, [activeTopTab])
+
+  // Start decrypting venice-compose in the background while the user is on You/Others
+  // so the one-shot prefs seed (and history) are ready when they open Post.
+  useEffect(() => {
+    void import('../../stores/compose-store')
+  }, [])
 
   // Entering Post from Profile/Targets: carry the active target into compose context.
   useEffect(() => {
@@ -162,7 +172,7 @@ export function IntelView() {
             className={cn('h-full min-h-0', activeTopTab !== 'post' && 'hidden')}
             aria-hidden={activeTopTab !== 'post'}
           >
-            <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.compose} />}>
+            <Suspense fallback={<ViewLoadingFallback label={VIEW_LOADING_LABEL.intel} />}>
               <LazyComposeWorkspace />
             </Suspense>
           </div>

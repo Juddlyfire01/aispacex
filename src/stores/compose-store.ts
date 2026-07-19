@@ -1,50 +1,35 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LibraryMode } from '../lib/compose/hot-window'
 import type { PreferredFormat } from '../lib/compose/format'
 import type { PostDraft, PostSegment, PostTarget } from '../lib/compose/types'
 import { emptyDraft, emptySegment } from '../lib/compose/types'
-import type { RegisterDefault } from '../lib/compose/register'
 import { DEFAULT_REGISTER_DEFAULT } from '../lib/compose/register'
 import type { ComposeMessage, ComposeThread, CompressArchive } from '../lib/compose/thread-types'
 import { recomputeThreadMeta } from '../lib/compose/thread-meta'
-import { clampBudgetPct, DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
+import { DEFAULT_CONTEXT_FALLBACK } from '../lib/compose/token-estimate'
 import type { ComposeScope } from '../lib/intel-library/types'
 import { scopeFromContext } from '../lib/intel-library/scope'
 import { createDebouncedJSONStorage } from '../lib/encrypted-storage'
 import type { AgentEvent, AgentEventStatus } from '../lib/compose/agent-events'
 import { DRAFT_MODEL_SAME } from '../lib/compose/draft-writer-tool'
 import { sortStarredFirst } from '../lib/starred-order'
+import { setPendingComposePrefsSeed } from '../lib/compose/compose-prefs-seed'
+import {
+  extractComposePrefsSeed,
+  markComposePrefsMigrationDone,
+  migratePostSubTab,
+  stripComposePrefsKeys,
+  useComposePrefsStore,
+} from './compose-prefs-store'
 
 // Context key constants for scope ↔ string conversion (scope.ts, UI selects).
 export const ME_CONTEXT = '__me__'
 export const ALL_CONTEXT = '__all__'
 
-export type { LibraryMode }
+export type { LibraryMode, XSearchMode, WebSearchMode, PostSubTab } from './compose-prefs-store'
 export type { ComposeThread }
 export type { PreferredFormat }
-
-export type XSearchMode = 'off' | 'auto' | 'on'
-/** Same off/auto/on shape as X search — Venice `enable_web_search`. */
-export type WebSearchMode = 'off' | 'auto' | 'on'
-
-/** Post top-tab sub-chrome: Composer | Alpha | Performance. */
-export type PostSubTab = 'composer' | 'alpha' | 'performance'
-
-const POST_SUB_TABS: readonly PostSubTab[] = ['composer', 'alpha', 'performance']
-
-function isPostSubTab(v: unknown): v is PostSubTab {
-  return typeof v === 'string' && (POST_SUB_TABS as readonly string[]).includes(v)
-}
-
-/** Map legacy profile/feed/network placeholders → real Post tabs. */
-export function migratePostSubTab(v: unknown): PostSubTab {
-  if (isPostSubTab(v)) return v
-  if (v === 'profile') return 'composer'
-  if (v === 'feed') return 'performance'
-  if (v === 'network') return 'alpha'
-  return 'composer'
-}
+export { migratePostSubTab }
 
 /** Legacy session shape (persist versions < 4). */
 interface LegacyComposeSession {
@@ -56,33 +41,9 @@ interface ComposeState {
   threads: Record<string, ComposeThread>
   threadOrder: string[]
   activeThreadId: string | null
-  newThreadContext: ComposeScope
-  draftDrawerOpen: boolean
-  /** Draft pane width as % of the chat+draft split (25–75). Default 50. */
-  draftDrawerWidthPct: number
-  model: string
-  /** Draft writer: 'same' = continue research turn; else a Venice model id for handoff. */
-  draftModel: string
-  xSearch: XSearchMode
-  /** Venice native web search (`enable_web_search`). */
-  webSearch: WebSearchMode
-  /** X News API tools (`x_news_*`) in the compose agent. Default on. */
-  xNewsOn: boolean
-  /** X News search recency window in hours. Default 24. */
-  xNewsMaxAgeHours: number
   isStreaming: boolean
   /** Ephemeral — true while the draft writer is streaming into the drawer. */
   draftWriterStreaming: boolean
-  /** Persisted long-form default for verified accounts (user can opt out). */
-  longformPreference: boolean
-  /** App-wide default register mode for new drafts. */
-  registerDefault: RegisterDefault
-  libraryMode: LibraryMode
-  budgetPct: number
-  /** null = all time */
-  dayWindowDays: number | null
-  /** Post → Composer / Alpha / Performance. Persisted across refresh. */
-  activePostSubTab: PostSubTab
   /** Ephemeral tool activity label — not persisted. */
   toolActivity: string | null
   /** Ephemeral Cursor-style step timeline for the current run — not persisted. */
@@ -101,9 +62,6 @@ interface ComposeState {
   toggleStarThread: (id: string) => void
   ensureActiveThread: () => string
   getActiveThread: () => ComposeThread | undefined
-  setNewThreadContext: (scope: ComposeScope) => void
-  setDraftDrawerOpen: (open: boolean) => void
-  setDraftDrawerWidthPct: (pct: number) => void
   setDraftWriterStreaming: (streaming: boolean) => void
   /**
    * Hot path for draft-writer article tokens — skips thread meta / order bump
@@ -141,21 +99,9 @@ interface ComposeState {
   patchSegment: (threadId: string, segmentId: string, patch: Partial<PostSegment>) => void
   resetDraft: (threadId: string) => void
 
-  setModel: (model: string) => void
-  setDraftModel: (model: string) => void
-  setXSearch: (mode: XSearchMode) => void
-  setWebSearch: (mode: WebSearchMode) => void
-  setXNewsOn: (on: boolean) => void
-  setXNewsMaxAgeHours: (hours: number) => void
   /** Set the preferred draft format for a specific thread (persisted). */
   setPreferredFormat: (threadId: string, format: PreferredFormat) => void
   setStreaming: (streaming: boolean) => void
-  setLongformPreference: (enabled: boolean) => void
-  setRegisterDefault: (def: RegisterDefault) => void
-  setLibraryMode: (mode: LibraryMode) => void
-  setBudgetPct: (pct: number) => void
-  setDayWindowDays: (days: number | null) => void
-  setActivePostSubTab: (tab: PostSubTab) => void
   setToolActivity: (label: string | null) => void
   setContextLimit: (limit: number) => void
 
@@ -345,6 +291,13 @@ export function migrateComposeState(persisted: unknown, version: number): Compos
     if (thread.preferredFormat == null) thread.preferredFormat = 'auto'
   }
 
+  // v18: UI prefs move to venice-compose-prefs. Capture a one-shot seed, then
+  // strip so the heavy blob only carries the thread corpus.
+  if (version < 18) {
+    setPendingComposePrefsSeed(extractComposePrefsSeed(state))
+  }
+  stripComposePrefsKeys(state)
+
   return state as unknown as ComposeState
 }
 
@@ -354,23 +307,8 @@ export const useComposeStore = create<ComposeState>()(
       threads: {},
       threadOrder: [],
       activeThreadId: null,
-      newThreadContext: { type: 'all' },
-      draftDrawerOpen: false,
-      draftDrawerWidthPct: 50,
-      model: '',
-      draftModel: DRAFT_MODEL_SAME,
-      xSearch: 'auto',
-      webSearch: 'auto',
-      xNewsOn: true,
-      xNewsMaxAgeHours: 24,
       isStreaming: false,
       draftWriterStreaming: false,
-      longformPreference: true,
-      registerDefault: { ...DEFAULT_REGISTER_DEFAULT },
-      libraryMode: 'auto',
-      budgetPct: 0.5,
-      dayWindowDays: 7,
-      activePostSubTab: 'composer',
       toolActivity: null,
       agentEvents: [],
       agentPhase: null,
@@ -379,11 +317,11 @@ export const useComposeStore = create<ComposeState>()(
       createThread: (context, target) => {
         const id = newId()
         const now = new Date().toISOString()
-        const s = get()
-        const scope = context ?? s.newThreadContext
+        const prefs = useComposePrefsStore.getState()
+        const scope = context ?? prefs.newThreadContext
         const draft = emptyDraft(target ?? { kind: 'original' }, {
-          longform: s.longformPreference,
-          registerDefault: s.registerDefault,
+          longform: prefs.longformPreference,
+          registerDefault: prefs.registerDefault,
         })
         const meta = recomputeThreadMeta({ messages: [], draft, title: 'New chat' })
         const thread: ComposeThread = {
@@ -454,10 +392,6 @@ export const useComposeStore = create<ComposeState>()(
         return s.activeThreadId ? s.threads[s.activeThreadId] : undefined
       },
 
-      setNewThreadContext: (scope) => set({ newThreadContext: scope }),
-      setDraftDrawerOpen: (open) => set({ draftDrawerOpen: open }),
-      setDraftDrawerWidthPct: (pct) =>
-        set({ draftDrawerWidthPct: Math.min(75, Math.max(25, Math.round(pct))) }),
       setDraftWriterStreaming: (streaming) => set({ draftWriterStreaming: streaming }),
 
       // Hot path: do NOT recomputeThreadMeta / bumpOrder on every writer token
@@ -689,25 +623,17 @@ export const useComposeStore = create<ComposeState>()(
         set((s) => mapDraft(s, threadId, (draft) => ({ ...draft, target }))),
 
       resetDraft: (threadId) =>
-        set((s) =>
-          mapThread(s, threadId, (t) => ({
+        set((s) => {
+          const prefs = useComposePrefsStore.getState()
+          return mapThread(s, threadId, (t) => ({
             ...t,
             draft: emptyDraft(t.draft.target, {
-              longform: s.longformPreference,
-              registerDefault: s.registerDefault,
+              longform: prefs.longformPreference,
+              registerDefault: prefs.registerDefault,
             }),
-          })),
-        ),
-
-      setModel: (model) => set({ model }),
-      setDraftModel: (model) => set({ draftModel: model }),
-      setXSearch: (mode) => set({ xSearch: mode }),
-      setWebSearch: (mode) => set({ webSearch: mode }),
-      setXNewsOn: (on) => set({ xNewsOn: on }),
-      setXNewsMaxAgeHours: (hours) =>
-        set({
-          xNewsMaxAgeHours: Math.min(168, Math.max(1, Math.round(hours) || 24)),
+          }))
         }),
+
       setPreferredFormat: (threadId, format) =>
         set((s) => {
           const thread = s.threads[threadId]
@@ -721,12 +647,6 @@ export const useComposeStore = create<ComposeState>()(
           }
         }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
-      setLongformPreference: (enabled) => set({ longformPreference: enabled }),
-      setRegisterDefault: (def) => set({ registerDefault: def }),
-      setLibraryMode: (mode) => set({ libraryMode: mode }),
-      setBudgetPct: (pct) => set({ budgetPct: clampBudgetPct(pct) }),
-      setDayWindowDays: (days) => set({ dayWindowDays: days }),
-      setActivePostSubTab: (tab) => set({ activePostSubTab: tab }),
       setToolActivity: (label) => set({ toolActivity: label }),
       setContextLimit: (limit) => set({ contextLimit: limit }),
 
@@ -740,7 +660,7 @@ export const useComposeStore = create<ComposeState>()(
     }),
     {
       name: 'venice-compose',
-      version: 17,
+      version: 18,
       // Debounced JSON + AES-GCM: avoid stringify/encrypt on every keystroke.
       storage: createDebouncedJSONStorage(),
       migrate: (persisted, version) => migrateComposeState(persisted, version),
@@ -748,24 +668,10 @@ export const useComposeStore = create<ComposeState>()(
         threads: state.threads,
         threadOrder: state.threadOrder,
         activeThreadId: state.activeThreadId,
-        newThreadContext: state.newThreadContext,
-        // Restore open draft drawer after refresh so WIP stays visible.
-        draftDrawerOpen: state.draftDrawerOpen,
-        model: state.model,
-        draftModel: state.draftModel,
-        xSearch: state.xSearch,
-        webSearch: state.webSearch,
-        xNewsOn: state.xNewsOn,
-        xNewsMaxAgeHours: state.xNewsMaxAgeHours,
-        // preferredFormat now lives per-thread (persisted inside `threads`).
-        draftDrawerWidthPct: state.draftDrawerWidthPct,
-        longformPreference: state.longformPreference,
-        registerDefault: state.registerDefault,
-        libraryMode: state.libraryMode,
-        budgetPct: state.budgetPct,
-        dayWindowDays: state.dayWindowDays,
-        activePostSubTab: state.activePostSubTab,
       }),
+      onRehydrateStorage: () => () => {
+        markComposePrefsMigrationDone()
+      },
     },
   ),
 )

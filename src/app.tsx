@@ -16,6 +16,7 @@ import { useXSelfStore } from './stores/x-self-store'
 
 import { ViewLoadingFallback, VIEW_LOADING_LABEL } from './components/ui/spinner'
 import { XConnectFlow } from './components/x-intel/x-connect-flow'
+import { IntelLoadingShell } from './components/x-intel/intel-loading-shell'
 
 // Before first React paint: pin Intel + connecting when returning from X OAuth
 // so we never flash the previous tab or a generic Suspense spinner.
@@ -77,7 +78,7 @@ function IntelView() {
   const oauthReturn = connecting || isXOAuthReturnPending()
   const fallback = oauthReturn
     ? <XConnectFlow phase="authorizing" />
-    : <ViewLoadingFallback label={VIEW_LOADING_LABEL.intel} />
+    : <IntelLoadingShell />
   return (
     <Suspense fallback={fallback}>
       <LazyIntelView />

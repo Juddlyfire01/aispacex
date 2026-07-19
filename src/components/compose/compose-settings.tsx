@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useComposeStore, type XSearchMode, type WebSearchMode } from '../../stores/compose-store'
+import {
+  useComposePrefsStore,
+  type XSearchMode,
+  type WebSearchMode,
+} from '../../stores/compose-prefs-store'
 import { useModels } from '../../hooks/use-models'
 import {
   modelSupportsXSearch,
   pickComposeModel,
+  formatComposeResearchLabel,
+  plainModelDisplayName,
   sortComposeResearchModels,
   sortDraftWriterModels,
 } from '../../lib/compose/model'
@@ -56,37 +62,60 @@ export function ComposeSettings({
   const researchDefaultId = pickComposeModel(models ?? [])
   const toolModels = sortComposeResearchModels(models ?? [], researchDefaultId)
   const writerModels = sortDraftWriterModels(models ?? [], mostUncensoredModelId)
-  const model = useComposeStore((s) => s.model)
-  const setModel = useComposeStore((s) => s.setModel)
-  const draftModel = useComposeStore((s) => s.draftModel)
-  const setDraftModel = useComposeStore((s) => s.setDraftModel)
-  const xSearch = useComposeStore((s) => s.xSearch)
-  const setXSearch = useComposeStore((s) => s.setXSearch)
-  const webSearch = useComposeStore((s) => s.webSearch)
-  const setWebSearch = useComposeStore((s) => s.setWebSearch)
-  const xNewsOn = useComposeStore((s) => s.xNewsOn)
-  const setXNewsOn = useComposeStore((s) => s.setXNewsOn)
-  const xNewsMaxAgeHours = useComposeStore((s) => s.xNewsMaxAgeHours)
-  const setXNewsMaxAgeHours = useComposeStore((s) => s.setXNewsMaxAgeHours)
+  const model = useComposePrefsStore((s) => s.model)
+  const modelLabel = useComposePrefsStore((s) => s.modelLabel)
+  const setModel = useComposePrefsStore((s) => s.setModel)
+  const draftModel = useComposePrefsStore((s) => s.draftModel)
+  const setDraftModel = useComposePrefsStore((s) => s.setDraftModel)
+  const xSearch = useComposePrefsStore((s) => s.xSearch)
+  const setXSearch = useComposePrefsStore((s) => s.setXSearch)
+  const webSearch = useComposePrefsStore((s) => s.webSearch)
+  const setWebSearch = useComposePrefsStore((s) => s.setWebSearch)
+  const xNewsOn = useComposePrefsStore((s) => s.xNewsOn)
+  const setXNewsOn = useComposePrefsStore((s) => s.setXNewsOn)
+  const xNewsMaxAgeHours = useComposePrefsStore((s) => s.xNewsMaxAgeHours)
+  const setXNewsMaxAgeHours = useComposePrefsStore((s) => s.setXNewsMaxAgeHours)
 
-  // Avoid painting store defaults / orphan “(no tools)” / false X-search warnings
-  // while encrypted persist hydrates and the model catalog is still empty.
-  const [storeHydrated, setStoreHydrated] = useState(() =>
-    useComposeStore.persist.hasHydrated(),
+  // Wait for the small prefs blob (ms), not the heavy thread corpus.
+  const [prefsHydrated, setPrefsHydrated] = useState(() =>
+    useComposePrefsStore.persist.hasHydrated(),
   )
   useEffect(() => {
-    const unsub = useComposeStore.persist.onFinishHydration(() => setStoreHydrated(true))
-    if (useComposeStore.persist.hasHydrated()) setStoreHydrated(true)
+    const unsub = useComposePrefsStore.persist.onFinishHydration(() => setPrefsHydrated(true))
+    if (useComposePrefsStore.persist.hasHydrated()) setPrefsHydrated(true)
     return unsub
   }, [])
+  const migratedFromCompose = useComposePrefsStore((s) => s.migratedFromCompose)
   const modelsReady = Boolean(models?.length)
-  const prefsReady = storeHydrated
-  const modelPickerReady = storeHydrated && modelsReady
-  const xSearchSupported = modelPickerReady && modelSupportsXSearch(toolModels, model)
-  const showOrphanResearchModel =
-    modelPickerReady && Boolean(model) && !toolModels.some((m) => m.id === model)
+  // Prefs are ready once hydrated. A stored model id can paint before the Venice
+  // catalog returns; only wait on legacy seed when model is still empty.
+  const prefsReady = prefsHydrated && (migratedFromCompose || Boolean(model))
+  const researchPending = !prefsReady
+  const modelInCatalog = toolModels.some((m) => m.id === model)
+  const catalogSelected = models?.find((m) => m.id === model)
+  const catalogSelectedLabel = catalogSelected
+    ? formatComposeResearchLabel(catalogSelected, researchDefaultId)
+    : ''
+  // Optimistic before catalog: persisted label. Once catalog is up, always use the
+  // plain catalog label so every row (including the closed value) matches.
+  const researchDisplayLabel = modelsReady
+    ? catalogSelectedLabel || modelLabel || model
+    : modelLabel || model
+  const showStoredResearchOption = prefsReady && Boolean(model) && !modelInCatalog
+  const showOrphanResearchModel = showStoredResearchOption && modelsReady
+  const xSearchSupported = modelsReady && modelSupportsXSearch(toolModels, model)
   const selectClassName =
     'w-full bg-[var(--color-bg-input)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-border-strong)] max-w-full disabled:opacity-50'
+
+  // Keep modelLabel aligned with the plain catalog label for the next optimistic paint.
+  useEffect(() => {
+    if (!prefsReady || !model || !models?.length) return
+    const m = models.find((x) => x.id === model)
+    if (!m) return
+    const next = formatComposeResearchLabel(m, pickComposeModel(models))
+    if (modelLabel === next) return
+    setModel(model, next)
+  }, [prefsReady, models, model, modelLabel, setModel])
 
   return (
     <aside className="w-[340px] shrink-0 border-r border-[var(--color-border-faint)] flex flex-col max-h-[55vh] md:max-h-none bg-[var(--color-bg-base)]">
@@ -100,23 +129,30 @@ export function ComposeSettings({
           </Label>
           <select
             id="compose-model"
-            value={modelPickerReady ? model : ''}
-            onChange={(e) => setModel(e.target.value)}
-            disabled={!modelPickerReady}
+            value={researchPending ? '' : model}
+            onChange={(e) => {
+              const id = e.target.value
+              const text = e.target.selectedOptions[0]?.text?.trim()
+              setModel(id, text || id)
+            }}
+            disabled={researchPending}
             className={selectClassName}
           >
-            {!modelPickerReady && <option value="">Loading…</option>}
+            {researchPending && <option value="">Loading…</option>}
             {toolModels.map((m) => {
-              const name = m.model_spec?.name || m.id
-              const isPinned = m.id === researchDefaultId
+              const label = formatComposeResearchLabel(m, researchDefaultId)
               return (
                 <option key={m.id} value={m.id}>
-                  {name}{isPinned ? ' · default' : ''}
+                  {label}
                 </option>
               )
             })}
-            {showOrphanResearchModel && (
-              <option value={model}>{model} (no tools — switch)</option>
+            {showStoredResearchOption && (
+              <option value={model}>
+                {showOrphanResearchModel
+                  ? `${researchDisplayLabel} (no tools — switch)`
+                  : researchDisplayLabel}
+              </option>
             )}
           </select>
         </div>
@@ -138,7 +174,7 @@ export function ComposeSettings({
             {!prefsReady && <option value="">Loading…</option>}
             <option value={DRAFT_MODEL_SAME}>Same as research</option>
             {writerModels.map((m) => {
-              const name = m.model_spec?.name || m.id
+              const name = plainModelDisplayName(m.model_spec?.name || m.id)
               const isPinned =
                 Boolean(mostUncensoredModelId) && m.id === mostUncensoredModelId
               return (
@@ -166,11 +202,17 @@ export function ComposeSettings({
           <PillGroup
             ariaLabel="X search mode"
             options={X_SEARCH_MODES}
-            value={modelPickerReady && xSearchSupported ? xSearch : 'off'}
+            value={
+              !prefsReady
+                ? 'off'
+                : modelsReady && !xSearchSupported
+                  ? 'off'
+                  : xSearch
+            }
             onChange={(v) => setXSearch(v as XSearchMode)}
-            disabled={!modelPickerReady || !xSearchSupported}
+            disabled={!prefsReady || (modelsReady && !xSearchSupported)}
           />
-          {modelPickerReady && !xSearchSupported && (
+          {prefsReady && modelsReady && !xSearchSupported && (
             <p className="mt-1 text-[10px] text-amber-400/60">Selected model lacks X search</p>
           )}
         </div>

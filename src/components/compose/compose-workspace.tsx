@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useComposeStore, type PostSubTab } from '../../stores/compose-store'
+import { useComposeStore } from '../../stores/compose-store'
+import {
+  useComposePrefsStore,
+  type PostSubTab,
+} from '../../stores/compose-prefs-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import { useModels } from '../../hooks/use-models'
 import {
   pickComposeModel,
   pickDefaultDraftModel,
+  formatComposeResearchLabel,
   shouldUpgradeComposeResearchModel,
   shouldUpgradeDraftModel,
 } from '../../lib/compose/model'
@@ -40,27 +45,27 @@ export function ComposeWorkspace() {
     s.activeThreadId ? s.threads[s.activeThreadId] : undefined,
   )
   const ensureActiveThread = useComposeStore((s) => s.ensureActiveThread)
-  const newThreadContext = useComposeStore((s) => s.newThreadContext)
-  const model = useComposeStore((s) => s.model)
-  const setModel = useComposeStore((s) => s.setModel)
-  const draftModel = useComposeStore((s) => s.draftModel)
-  const setDraftModel = useComposeStore((s) => s.setDraftModel)
+  const newThreadContext = useComposePrefsStore((s) => s.newThreadContext)
+  const model = useComposePrefsStore((s) => s.model)
+  const setModel = useComposePrefsStore((s) => s.setModel)
+  const draftModel = useComposePrefsStore((s) => s.draftModel)
+  const setDraftModel = useComposePrefsStore((s) => s.setDraftModel)
   const setContextLimit = useComposeStore((s) => s.setContextLimit)
   const contextLimit = useComposeStore((s) => s.contextLimit)
-  const libraryMode = useComposeStore((s) => s.libraryMode)
-  const setLibraryMode = useComposeStore((s) => s.setLibraryMode)
-  const budgetPct = useComposeStore((s) => s.budgetPct)
-  const setBudgetPct = useComposeStore((s) => s.setBudgetPct)
-  const dayWindowDays = useComposeStore((s) => s.dayWindowDays)
-  const setDayWindowDays = useComposeStore((s) => s.setDayWindowDays)
-  const draftDrawerOpen = useComposeStore((s) => s.draftDrawerOpen)
-  const draftDrawerWidthPct = useComposeStore((s) => s.draftDrawerWidthPct)
+  const libraryMode = useComposePrefsStore((s) => s.libraryMode)
+  const setLibraryMode = useComposePrefsStore((s) => s.setLibraryMode)
+  const budgetPct = useComposePrefsStore((s) => s.budgetPct)
+  const setBudgetPct = useComposePrefsStore((s) => s.setBudgetPct)
+  const dayWindowDays = useComposePrefsStore((s) => s.dayWindowDays)
+  const setDayWindowDays = useComposePrefsStore((s) => s.setDayWindowDays)
+  const draftDrawerOpen = useComposePrefsStore((s) => s.draftDrawerOpen)
+  const draftDrawerWidthPct = useComposePrefsStore((s) => s.draftDrawerWidthPct)
 
   const reports = useXIntelStore((s) => s.reports)
   const selfAccounts = useXSelfStore((s) => s.accounts)
 
-  const activeSubTab = useComposeStore((s) => s.activePostSubTab)
-  const setActiveSubTab = useComposeStore((s) => s.setActivePostSubTab)
+  const activeSubTab = useComposePrefsStore((s) => s.activePostSubTab)
+  const setActiveSubTab = useComposePrefsStore((s) => s.setActivePostSubTab)
   /** Performance-only profile pick; independent of compose thread history. */
   const [perfSelection, setPerfSelection] = useState<PerformanceSelection | null>(null)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)
@@ -76,32 +81,38 @@ export function ComposeWorkspace() {
     [activeAccountId],
   )
 
-  // Encrypted IDB hydrate is async (~1–3s). Do not seed/upgrade models from the
-  // empty defaults or we flash pickComposeModel() and can clobber persisted prefs.
-  const [storeHydrated, setStoreHydrated] = useState(() =>
-    useComposeStore.persist.hasHydrated(),
+  // Prefs live in a small encrypted blob — wait for that (ms), not the thread corpus.
+  const [prefsHydrated, setPrefsHydrated] = useState(() =>
+    useComposePrefsStore.persist.hasHydrated(),
   )
   useEffect(() => {
-    const unsub = useComposeStore.persist.onFinishHydration(() => setStoreHydrated(true))
-    if (useComposeStore.persist.hasHydrated()) setStoreHydrated(true)
+    const unsub = useComposePrefsStore.persist.onFinishHydration(() => setPrefsHydrated(true))
+    if (useComposePrefsStore.persist.hasHydrated()) setPrefsHydrated(true)
     return unsub
   }, [])
+  const migratedFromCompose = useComposePrefsStore((s) => s.migratedFromCompose)
 
   // Research model: latest standard Grok (tool + X search). Follows catalog upgrades
-  // when the user was still on the previous default.
+  // when the user was still on the previous default. Wait for legacy seed so we
+  // don't write pickComposeModel() over prefs that are about to arrive from compose.
   useEffect(() => {
-    if (!storeHydrated) return
+    if (!prefsHydrated || !migratedFromCompose) return
     if (!models || models.length === 0) return
     if (shouldUpgradeComposeResearchModel(model, models)) {
-      setModel(pickComposeModel(models))
+      const nextId = pickComposeModel(models)
+      const next = models.find((m) => m.id === nextId)
+      setModel(
+        nextId,
+        next ? formatComposeResearchLabel(next, nextId) : nextId,
+      )
     }
-  }, [storeHydrated, model, models, setModel])
+  }, [prefsHydrated, migratedFromCompose, model, models, setModel])
 
   // Draft stage model: default Same as research (same id, still a separate
   // draft-stage completion). Only auto-upgrade when user picked a specific
   // Venice Uncensored SKU that Venice retagged.
   useEffect(() => {
-    if (!storeHydrated) return
+    if (!prefsHydrated || !migratedFromCompose) return
     if (!models || models.length === 0) return
     if (!draftModel) {
       setDraftModel(DRAFT_MODEL_SAME)
@@ -111,14 +122,23 @@ export function ComposeWorkspace() {
     if (shouldUpgradeDraftModel(draftModel, models, mostUncensoredModelId, defaultModelId)) {
       setDraftModel(pickDefaultDraftModel(models, mostUncensoredModelId))
     }
-  }, [storeHydrated, draftModel, models, mostUncensoredModelId, defaultModelId, setDraftModel])
+  }, [
+    prefsHydrated,
+    migratedFromCompose,
+    draftModel,
+    models,
+    mostUncensoredModelId,
+    defaultModelId,
+    setDraftModel,
+  ])
 
   // Keep contextLimit in sync with the selected model for hot-window budgeting.
   useEffect(() => {
-    if (!storeHydrated) return
+    if (!prefsHydrated) return
+    if (!model) return
     const modelObj = models?.find((m) => m.id === model)
     setContextLimit(resolveContextLimit(modelObj))
-  }, [storeHydrated, model, models, setContextLimit])
+  }, [prefsHydrated, model, models, setContextLimit])
 
   useEffect(() => {
     ensureActiveThread()

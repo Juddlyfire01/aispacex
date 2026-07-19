@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { useXIntelStore, findReportKey } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import type { DraftRegister, RegisterMode, RegisterPack } from '../../lib/compose/register'
@@ -39,8 +40,8 @@ interface RegisterControlsProps {
 export function RegisterControls({ threadId }: RegisterControlsProps) {
   const thread = useComposeStore((s) => s.threads[threadId])
   const applyDraftPatch = useComposeStore((s) => s.applyDraftPatch)
-  const registerDefault = useComposeStore((s) => s.registerDefault)
-  const setRegisterDefault = useComposeStore((s) => s.setRegisterDefault)
+  const registerDefault = useComposePrefsStore((s) => s.registerDefault)
+  const setRegisterDefault = useComposePrefsStore((s) => s.setRegisterDefault)
   const fileRef = useRef<HTMLInputElement>(null)
   const [packText, setPackText] = useState('')
   const [packError, setPackError] = useState<string | null>(null)

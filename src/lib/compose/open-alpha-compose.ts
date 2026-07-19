@@ -1,4 +1,5 @@
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import type { AlphaColdBrief, AlphaColdStory, AlphaRail } from '../alpha/types'
 
@@ -81,14 +82,15 @@ export function openComposeWithAlphaSeed(opts: {
   promptContent: string
 }) {
   const store = useComposeStore.getState()
-  const id = store.createThread(store.newThreadContext)
+  const prefs = useComposePrefsStore.getState()
+  const id = store.createThread(prefs.newThreadContext)
   store.selectThread(id)
   store.addMessage(id, {
     role: 'user',
     content: opts.promptContent,
     displayContent: opts.displayContent,
   })
-  store.setActivePostSubTab('composer')
+  prefs.setActivePostSubTab('composer')
   useXIntelStore.getState().setActiveTopTab('post')
-  store.setDraftDrawerOpen(true)
+  prefs.setDraftDrawerOpen(true)
 }

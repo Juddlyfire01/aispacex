@@ -69,6 +69,58 @@ export function sortComposeResearchModels(
   })
 }
 
+/** Option text for the research model picker (name + optional · default). */
+export function formatComposeResearchLabel(
+  model: VeniceModel | { id: string; model_spec?: { name?: string } | null },
+  researchDefaultId?: string,
+): string {
+  const name = plainModelDisplayName(model.model_spec?.name || model.id)
+  if (researchDefaultId && model.id === researchDefaultId) return `${name} · default`
+  return name
+}
+
+/**
+ * Venice sometimes ships `model_spec.name` with Mathematical Alphanumeric Symbols
+ * (bold/italic “logo” letterforms). Native <select> options then render mixed fonts.
+ * Map those code points back to plain ASCII so the picker stays visually uniform.
+ */
+export function plainModelDisplayName(raw: string): string {
+  let out = ''
+  for (const ch of raw.normalize('NFKC')) {
+    const cp = ch.codePointAt(0)!
+    out += mathAlphanumericToAscii(cp) ?? ch
+  }
+  return out
+}
+
+/** Common Mathematical Alphanumeric Symbols ranges → ASCII. */
+function mathAlphanumericToAscii(cp: number): string | null {
+  // Bold / italic / bold-italic / script / bold-script / fraktur / …
+  // Latin capital pairs (26 letters) starting at each block base.
+  const capitalBlocks = [
+    0x1d400, 0x1d434, 0x1d468, 0x1d49c, 0x1d4d0, 0x1d504, 0x1d56c, 0x1d5a0,
+    0x1d5d4, 0x1d608, 0x1d63c, 0x1d670,
+  ]
+  for (const start of capitalBlocks) {
+    if (cp >= start && cp < start + 26) return String.fromCharCode(65 + (cp - start))
+  }
+  // Latin small pairs (26 letters). Some script/fraktur blocks have holes —
+  // only map when the offset is a contiguous a–z run.
+  const smallBlocks = [
+    0x1d41a, 0x1d44e, 0x1d482, 0x1d4b6, 0x1d4ea, 0x1d51e, 0x1d552, 0x1d586,
+    0x1d5ba, 0x1d5ee, 0x1d622, 0x1d656, 0x1d68a,
+  ]
+  for (const start of smallBlocks) {
+    if (cp >= start && cp < start + 26) return String.fromCharCode(97 + (cp - start))
+  }
+  // Bold digits 0-9
+  if (cp >= 0x1d7ce && cp <= 0x1d7d7) return String.fromCharCode(48 + (cp - 0x1d7ce))
+  if (cp >= 0x1d7e2 && cp <= 0x1d7eb) return String.fromCharCode(48 + (cp - 0x1d7e2))
+  if (cp >= 0x1d7ec && cp <= 0x1d7f5) return String.fromCharCode(48 + (cp - 0x1d7ec))
+  if (cp >= 0x1d7f6 && cp <= 0x1d7ff) return String.fromCharCode(48 + (cp - 0x1d7f6))
+  return null
+}
+
 /**
  * True when the stored research model should move to the live catalog default.
  * Upgrades empty / missing / non-tool picks, and follows the latest standard Grok

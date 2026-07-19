@@ -85,10 +85,10 @@ export function ViewLoadingFallback({ label }: { label: string }) {
       aria-busy="true"
       aria-label={label}
     >
-      {/* Fixed stack geometry: md spinner + 12px label + gap-2 — identical on every page */}
+      {/* Fixed stack geometry: md spinner + gap-2 + fixed label box — identical on every page */}
       <div className="flex flex-col items-center gap-2">
         <Spinner size="md" />
-        <span className="text-[12px] leading-5 text-[var(--color-text-secondary)] text-center min-h-5">
+        <span className="text-[12px] leading-5 text-[var(--color-text-secondary)] text-center min-h-5 w-[11rem]">
           {label}
         </span>
       </div>

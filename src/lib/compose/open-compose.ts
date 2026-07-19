@@ -1,4 +1,5 @@
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { findReportKey, useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import type { PostTarget } from './types'
@@ -9,7 +10,7 @@ export function openComposeForTarget(username: string) {
   const store = useComposeStore.getState()
   const id = store.createThread(scope)
   store.selectThread(id)
-  store.setDraftDrawerOpen(true)
+  useComposePrefsStore.getState().setDraftDrawerOpen(true)
   useXIntelStore.getState().setActiveTopTab('post')
 }
 
@@ -33,6 +34,7 @@ export function openComposeForPost(
       : { kind: 'reply', toPostId: postId, toUsername: username }
 
   const store = useComposeStore.getState()
+  const prefs = useComposePrefsStore.getState()
   const intel = useXIntelStore.getState()
   const activeId = store.activeThreadId
   const alreadyOnPost =
@@ -41,16 +43,16 @@ export function openComposeForPost(
   if (alreadyOnPost && activeId) {
     // Reuse the current chat's draft so agent-written reply body is kept.
     store.applyDraftPatch(activeId, { target })
-    store.setDraftDrawerOpen(true)
+    prefs.setDraftDrawerOpen(true)
     return
   }
 
   const scope = username
     ? ({ type: 'target' as const, username })
-    : store.newThreadContext
+    : prefs.newThreadContext
   const id = store.createThread(scope, target)
   store.selectThread(id)
-  store.setDraftDrawerOpen(true)
+  prefs.setDraftDrawerOpen(true)
   intel.setActiveTopTab('post')
 }
 
@@ -80,5 +82,5 @@ export function resolvePostAuthor(postId: string): string {
 export function syncComposeContextFromActiveTarget() {
   const target = useXIntelStore.getState().activeTarget
   if (!target) return
-  useComposeStore.getState().setNewThreadContext({ type: 'target', username: target })
+  useComposePrefsStore.getState().setNewThreadContext({ type: 'target', username: target })
 }

@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useComposeStore, ME_CONTEXT, ALL_CONTEXT } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useXSelfStore } from '../../stores/x-self-store'
 import {
@@ -66,7 +67,7 @@ function NewChatMenu() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const createThread = useComposeStore((s) => s.createThread)
-  const setNewThreadContext = useComposeStore((s) => s.setNewThreadContext)
+  const setNewThreadContext = useComposePrefsStore((s) => s.setNewThreadContext)
   const targets = useXIntelStore((s) => s.targets)
   const activeTarget = useXIntelStore((s) => s.activeTarget)
   const activeAccountId = useXSelfStore((s) => s.activeAccountId)

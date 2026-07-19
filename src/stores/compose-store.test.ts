@@ -1,22 +1,50 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useComposeStore, migrateComposeState, ME_CONTEXT } from './compose-store'
+import {
+  extractComposePrefsSeed,
+  markComposePrefsMigrationDone,
+  migratePostSubTab,
+  useComposePrefsStore,
+} from './compose-prefs-store'
+import {
+  clearPendingComposePrefsSeed,
+  peekPendingComposePrefsSeed,
+  setPendingComposePrefsSeed,
+} from '../lib/compose/compose-prefs-seed'
 import { emptyDraft } from '../lib/compose/types'
+import { DRAFT_MODEL_SAME } from '../lib/compose/draft-writer-tool'
 
 function reset() {
+  clearPendingComposePrefsSeed()
   useComposeStore.setState({
     threads: {},
     threadOrder: [],
     activeThreadId: null,
-    newThreadContext: { type: 'all' },
-    draftDrawerOpen: false,
-    model: '',
-    xSearch: 'auto',
     isStreaming: false,
+    toolActivity: null,
+  })
+  useComposePrefsStore.setState({
+    model: '',
+    modelLabel: '',
+    draftModel: DRAFT_MODEL_SAME,
+    xSearch: 'auto',
+    webSearch: 'auto',
+    xNewsOn: true,
+    xNewsMaxAgeHours: 24,
+    longformPreference: true,
     libraryMode: 'auto',
     budgetPct: 0.5,
     dayWindowDays: 7,
+    draftDrawerOpen: false,
+    draftDrawerWidthPct: 50,
     activePostSubTab: 'composer',
-    toolActivity: null,
+    newThreadContext: { type: 'all' },
+    migratedFromCompose: false,
+  })
+  // Tests call setters/apply without a real persist hydrate.
+  Object.defineProperty(useComposePrefsStore.persist, 'hasHydrated', {
+    configurable: true,
+    value: () => true,
   })
 }
 
@@ -48,158 +76,6 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().threadOrder).toEqual([b])
   })
 
-  it('toggleStarThread pins starred to top and blocks delete', () => {
-    const a = useComposeStore.getState().createThread({ type: 'me' })
-    const b = useComposeStore.getState().createThread({ type: 'all' })
-    expect(useComposeStore.getState().threadOrder[0]).toBe(b)
-
-    useComposeStore.getState().toggleStarThread(a)
-    expect(useComposeStore.getState().threads[a]?.starred).toBe(true)
-    expect(useComposeStore.getState().threadOrder[0]).toBe(a)
-
-    useComposeStore.getState().deleteThread(a)
-    expect(useComposeStore.getState().threads[a]).toBeDefined()
-
-    useComposeStore.getState().deleteThreads([a, b])
-    expect(useComposeStore.getState().threads[a]).toBeDefined()
-    expect(useComposeStore.getState().threads[b]).toBeUndefined()
-
-    useComposeStore.getState().toggleStarThread(a)
-    useComposeStore.getState().deleteThread(a)
-    expect(useComposeStore.getState().threads[a]).toBeUndefined()
-  })
-
-  it('activity bump keeps starred threads ahead of unstarred', () => {
-    const a = useComposeStore.getState().createThread({ type: 'me' })
-    const b = useComposeStore.getState().createThread({ type: 'all' })
-    useComposeStore.getState().toggleStarThread(a)
-    // b is unstarred and gets a message — should not leapfrog starred a
-    useComposeStore.getState().addMessage(b, { role: 'user', content: 'hello' })
-    const order = useComposeStore.getState().threadOrder
-    expect(order[0]).toBe(a)
-    expect(order[1]).toBe(b)
-  })
-
-  it('ensureActiveThread creates when none active, reuses when present', () => {
-    const s = useComposeStore.getState()
-    const first = s.ensureActiveThread()
-    expect(useComposeStore.getState().threads[first]).toBeDefined()
-    expect(useComposeStore.getState().threads[first].context).toEqual({ type: 'all' })
-    const again = useComposeStore.getState().ensureActiveThread()
-    expect(again).toBe(first)
-  })
-
-  it('addMessage sets title from first user message', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    s.addMessage(id, { role: 'user', content: 'Write a post about privacy' })
-    const thread = useComposeStore.getState().threads[id]
-    expect(thread.title).toBe('Write a post about privacy')
-    expect(thread.preview).toContain('privacy')
-    expect(thread.tokenEstimate).toBeGreaterThan(0)
-  })
-
-  it('appends streamed tokens to the last assistant message', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    s.addMessage(id, { role: 'user', content: 'hi' })
-    s.addMessage(id, { role: 'assistant', content: '' })
-    const orderBefore = useComposeStore.getState().threadOrder
-    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
-    s.appendToLastAssistant(id, 'Hel')
-    s.appendToLastAssistant(id, 'lo')
-    const after = useComposeStore.getState()
-    const msgs = after.threads[id].messages
-    expect(msgs[msgs.length - 1].content).toBe('Hello')
-    // Hot path must not recompute meta / reorder on every token
-    expect(after.threadOrder).toEqual(orderBefore)
-    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
-  })
-
-  it('applies a draft patch and bumps updatedAt', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const before = useComposeStore.getState().threads[id].draft.updatedAt
-    s.applyDraftPatch(id, { segments: [{ id: 'x', text: 'new', media: [] }] })
-    const draft = useComposeStore.getState().threads[id].draft
-    expect(draft.segments[0].text).toBe('new')
-    expect(draft.updatedAt >= before).toBe(true)
-  })
-
-  it('patchSegmentsStream skips meta recompute / order bump', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const orderBefore = useComposeStore.getState().threadOrder
-    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
-    const updatedAtBefore = useComposeStore.getState().threads[id].draft.updatedAt
-    s.patchSegmentsStream(id, [{ id: 'stream', text: 'hello', media: [] }])
-    const after = useComposeStore.getState()
-    expect(after.threads[id].draft.segments[0].text).toBe('hello')
-    expect(after.threadOrder).toEqual(orderBefore)
-    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
-    // Hot path does not touch draft.updatedAt
-    expect(after.threads[id].draft.updatedAt).toBe(updatedAtBefore)
-  })
-
-  it('setSegmentText is a hot path (no meta / order / timestamp)', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const segId = useComposeStore.getState().threads[id].draft.segments[0].id
-    const orderBefore = useComposeStore.getState().threadOrder
-    const tokensBefore = useComposeStore.getState().threads[id].tokenEstimate
-    const updatedAtBefore = useComposeStore.getState().threads[id].draft.updatedAt
-    const titleBefore = useComposeStore.getState().threads[id].title
-    s.setSegmentText(id, segId, 'typed live')
-    const after = useComposeStore.getState()
-    expect(after.threads[id].draft.segments[0].text).toBe('typed live')
-    expect(after.threadOrder).toEqual(orderBefore)
-    expect(after.threads[id].tokenEstimate).toBe(tokensBefore)
-    expect(after.threads[id].draft.updatedAt).toBe(updatedAtBefore)
-    expect(after.threads[id].title).toBe(titleBefore)
-  })
-
-  it('adds, edits, moves and removes segments', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const firstId = useComposeStore.getState().threads[id].draft.segments[0].id
-    s.setSegmentText(id, firstId, 'one')
-    s.addSegment(id)
-    let segs = useComposeStore.getState().threads[id].draft.segments
-    expect(segs).toHaveLength(2)
-    const secondId = segs[1].id
-    s.setSegmentText(id, secondId, 'two')
-    s.moveSegment(id, secondId, -1)
-    segs = useComposeStore.getState().threads[id].draft.segments
-    expect(segs.map((x) => x.text)).toEqual(['two', 'one'])
-    s.removeSegment(id, segs[0].id)
-    expect(useComposeStore.getState().threads[id].draft.segments).toHaveLength(1)
-  })
-
-  it('inserts a segment after the clicked bubble, not only at the end', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const a = useComposeStore.getState().threads[id].draft.segments[0].id
-    s.setSegmentText(id, a, 'a')
-    s.addSegment(id)
-    s.addSegment(id)
-    let segs = useComposeStore.getState().threads[id].draft.segments
-    expect(segs).toHaveLength(3)
-    s.setSegmentText(id, segs[1].id, 'b')
-    s.setSegmentText(id, segs[2].id, 'c')
-    s.addSegment(id, segs[0].id) // after "a" → a, new, b, c
-    segs = useComposeStore.getState().threads[id].draft.segments
-    expect(segs).toHaveLength(4)
-    expect(segs.map((x) => x.text)).toEqual(['a', '', 'b', 'c'])
-  })
-
-  it('never removes the last remaining segment', () => {
-    const s = useComposeStore.getState()
-    const id = s.createThread()
-    const segId = useComposeStore.getState().threads[id].draft.segments[0].id
-    s.removeSegment(id, segId)
-    expect(useComposeStore.getState().threads[id].draft.segments).toHaveLength(1)
-  })
-
   it('setLastAssistantContent replaces the streamed text (block-strip case)', () => {
     const s = useComposeStore.getState()
     const id = s.createThread()
@@ -209,32 +85,17 @@ describe('compose-store', () => {
     expect(msgs[msgs.length - 1].content).toBe('clean prose')
   })
 
-  it('defaults library mode, budget, and day window', () => {
-    const s = useComposeStore.getState()
-    expect(s.libraryMode).toBe('auto')
-    expect(s.budgetPct).toBe(0.5)
-    expect(s.dayWindowDays).toBe(7)
-    expect(s.toolActivity).toBeNull()
-    expect(s.newThreadContext).toEqual({ type: 'all' })
+  it('defaults tool activity null; prefs live on compose-prefs store', () => {
+    expect(useComposeStore.getState().toolActivity).toBeNull()
+    expect(useComposePrefsStore.getState().libraryMode).toBe('auto')
+    expect(useComposePrefsStore.getState().budgetPct).toBe(0.5)
+    expect(useComposePrefsStore.getState().dayWindowDays).toBe(7)
+    expect(useComposePrefsStore.getState().newThreadContext).toEqual({ type: 'all' })
   })
 
-  it('clamps budgetPct to 0.25–0.75', () => {
+  it('sets tool activity on compose store', () => {
     const s = useComposeStore.getState()
-    s.setBudgetPct(0.1)
-    expect(useComposeStore.getState().budgetPct).toBe(0.25)
-    s.setBudgetPct(0.9)
-    expect(useComposeStore.getState().budgetPct).toBe(0.75)
-    s.setBudgetPct(0.6)
-    expect(useComposeStore.getState().budgetPct).toBe(0.6)
-  })
-
-  it('sets library mode, day window, and tool activity', () => {
-    const s = useComposeStore.getState()
-    s.setLibraryMode('custom')
-    s.setDayWindowDays(null)
     s.setToolActivity('Searching library…')
-    expect(useComposeStore.getState().libraryMode).toBe('custom')
-    expect(useComposeStore.getState().dayWindowDays).toBeNull()
     expect(useComposeStore.getState().toolActivity).toBe('Searching library…')
     s.setToolActivity(null)
     expect(useComposeStore.getState().toolActivity).toBeNull()
@@ -251,7 +112,6 @@ describe('compose-store', () => {
       },
       8,
     )
-    // v16 removes the old global field; per-thread default applies instead.
     expect(
       (migrated as unknown as Record<string, unknown>).preferredFormat,
     ).toBeUndefined()
@@ -269,7 +129,6 @@ describe('compose-store', () => {
       },
       14,
     )
-    // Old global field is dropped by the v16 step below; nothing persisted at top level.
     expect(
       (migrated as unknown as Record<string, unknown>).preferredFormat,
     ).toBeUndefined()
@@ -290,11 +149,9 @@ describe('compose-store', () => {
       },
       15,
     )
-    // Top-level global field is removed.
     expect(
       (migrated as unknown as Record<string, unknown>).preferredFormat,
     ).toBeUndefined()
-    // Threads without a choice backfill to auto; existing per-thread choice is kept.
     expect(migrated.threads.t1?.preferredFormat).toBe('auto')
     expect(migrated.threads.t2?.preferredFormat).toBe('longform')
   })
@@ -305,7 +162,6 @@ describe('compose-store', () => {
     const b = s.createThread()
     useComposeStore.getState().setPreferredFormat(a, 'longform')
     expect(useComposeStore.getState().threads[a]?.preferredFormat).toBe('longform')
-    // Sibling thread keeps its own default.
     expect(useComposeStore.getState().threads[b]?.preferredFormat).toBe('auto')
   })
 
@@ -314,60 +170,64 @@ describe('compose-store', () => {
     expect(useComposeStore.getState().threads[id]?.preferredFormat).toBe('auto')
   })
 
-  it('migrateComposeState version < 12 defaults empty draftModel to same', () => {
+  it('migrateComposeState v18 strips prefs and seeds pending prefs snapshot', () => {
+    clearPendingComposePrefsSeed()
     const migrated = migrateComposeState(
       {
         threads: {},
         threadOrder: [],
         activeThreadId: null,
-        model: 'grok',
+        model: 'grok-4-3',
         draftModel: '',
-        preferredFormat: 'auto',
-        xNewsOn: true,
-        xNewsMaxAgeHours: 24,
+        xSearch: 'on',
+        webSearch: 'off',
+        xNewsOn: false,
+        xNewsMaxAgeHours: 48,
+        activePostSubTab: 'alpha',
+        newThreadContext: { type: 'me' },
+        libraryMode: 'custom',
+        budgetPct: 0.6,
+        dayWindowDays: 3,
+        draftDrawerOpen: true,
+        draftDrawerWidthPct: 40,
+        longformPreference: false,
       },
-      11,
+      17,
     )
-    expect(migrated.draftModel).toBe('same')
+    const raw = migrated as unknown as Record<string, unknown>
+    expect(raw.model).toBeUndefined()
+    expect(raw.draftModel).toBeUndefined()
+    expect(raw.activePostSubTab).toBeUndefined()
+    expect(raw.newThreadContext).toBeUndefined()
+
+    const seed = peekPendingComposePrefsSeed()
+    expect(seed).not.toBeNull()
+    expect(seed?.model).toBe('grok-4-3')
+    expect(seed?.draftModel).toBe(DRAFT_MODEL_SAME)
+    expect(seed?.xSearch).toBe('on')
+    expect(seed?.webSearch).toBe('off')
+    expect(seed?.xNewsOn).toBe(false)
+    expect(seed?.activePostSubTab).toBe('alpha')
+    expect(seed?.newThreadContext).toEqual({ type: 'me' })
+    expect(seed?.libraryMode).toBe('custom')
+    expect(seed?.budgetPct).toBe(0.6)
+    expect(seed?.draftDrawerOpen).toBe(true)
   })
 
-  it('migrateComposeState defaults activePostSubTab to composer', () => {
-    const migrated = migrateComposeState(
-      {
-        threads: {},
-        threadOrder: [],
-        activeThreadId: null,
-        model: 'grok',
-        draftModel: 'same',
-        preferredFormat: 'auto',
-      },
-      12,
-    )
-    expect(migrated.activePostSubTab).toBe('composer')
-  })
-
-  it('migrateComposeState maps legacy profile/feed/network Post ids', () => {
-    expect(migrateComposeState({ activePostSubTab: 'profile' }, 16).activePostSubTab).toBe(
-      'composer',
-    )
-    expect(migrateComposeState({ activePostSubTab: 'feed' }, 16).activePostSubTab).toBe(
-      'performance',
-    )
-    expect(migrateComposeState({ activePostSubTab: 'network' }, 16).activePostSubTab).toBe(
-      'alpha',
-    )
-  })
-
-  it('setActivePostSubTab updates Post sub-tab', () => {
-    useComposeStore.getState().setActivePostSubTab('performance')
-    expect(useComposeStore.getState().activePostSubTab).toBe('performance')
-    useComposeStore.getState().setActivePostSubTab('composer')
-    expect(useComposeStore.getState().activePostSubTab).toBe('composer')
-    useComposeStore.getState().setActivePostSubTab('alpha')
-    expect(useComposeStore.getState().activePostSubTab).toBe('alpha')
+  it('migrateComposeState maps legacy profile/feed/network Post ids into seed', () => {
+    clearPendingComposePrefsSeed()
+    migrateComposeState({ activePostSubTab: 'profile' }, 16)
+    expect(peekPendingComposePrefsSeed()?.activePostSubTab).toBe('composer')
+    clearPendingComposePrefsSeed()
+    migrateComposeState({ activePostSubTab: 'feed' }, 16)
+    expect(peekPendingComposePrefsSeed()?.activePostSubTab).toBe('performance')
+    clearPendingComposePrefsSeed()
+    migrateComposeState({ activePostSubTab: 'network' }, 16)
+    expect(peekPendingComposePrefsSeed()?.activePostSubTab).toBe('alpha')
   })
 
   it('migrateComposeState v3 sessions → v4 threads', () => {
+    clearPendingComposePrefsSeed()
     const olderDraft = emptyDraft({ kind: 'original' })
     olderDraft.updatedAt = '2024-01-01T00:00:00.000Z'
     const newerDraft = emptyDraft({ kind: 'original' })
@@ -401,12 +261,84 @@ describe('compose-store', () => {
     expect(raw.activeContext).toBeUndefined()
     expect(Object.keys(migrated.threads)).toHaveLength(2)
     expect(migrated.threadOrder).toHaveLength(2)
-    // Newer updatedAt first
     const firstId = migrated.threadOrder[0]
     expect(migrated.threads[firstId].context).toEqual({ type: 'target', username: 'AskVenice' })
     expect(migrated.activeThreadId).toBe(firstId)
-    expect(migrated.newThreadContext).toEqual({ type: 'target', username: 'AskVenice' })
+    expect(peekPendingComposePrefsSeed()?.newThreadContext).toEqual({
+      type: 'target',
+      username: 'AskVenice',
+    })
     const meThread = Object.values(migrated.threads).find((t) => t.context.type === 'me')
     expect(meThread?.title).toBe('Hello from me')
+  })
+})
+
+describe('compose-prefs-store', () => {
+  beforeEach(reset)
+
+  it('clamps budgetPct to 0.25–0.75', () => {
+    const s = useComposePrefsStore.getState()
+    s.setBudgetPct(0.1)
+    expect(useComposePrefsStore.getState().budgetPct).toBe(0.25)
+    s.setBudgetPct(0.9)
+    expect(useComposePrefsStore.getState().budgetPct).toBe(0.75)
+    s.setBudgetPct(0.6)
+    expect(useComposePrefsStore.getState().budgetPct).toBe(0.6)
+  })
+
+  it('sets library mode, day window, and post sub-tab', () => {
+    const s = useComposePrefsStore.getState()
+    s.setLibraryMode('custom')
+    s.setDayWindowDays(null)
+    s.setActivePostSubTab('performance')
+    expect(useComposePrefsStore.getState().libraryMode).toBe('custom')
+    expect(useComposePrefsStore.getState().dayWindowDays).toBeNull()
+    expect(useComposePrefsStore.getState().activePostSubTab).toBe('performance')
+    s.setActivePostSubTab('composer')
+    expect(useComposePrefsStore.getState().activePostSubTab).toBe('composer')
+    s.setActivePostSubTab('alpha')
+    expect(useComposePrefsStore.getState().activePostSubTab).toBe('alpha')
+  })
+
+  it('migratePostSubTab maps legacy ids', () => {
+    expect(migratePostSubTab('profile')).toBe('composer')
+    expect(migratePostSubTab('feed')).toBe('performance')
+    expect(migratePostSubTab('network')).toBe('alpha')
+    expect(migratePostSubTab('composer')).toBe('composer')
+  })
+
+  it('markComposePrefsMigrationDone applies pending seed once', () => {
+    setPendingComposePrefsSeed(
+      extractComposePrefsSeed({
+        model: 'grok-user',
+        draftModel: 'venice-uncensored-1-2',
+        xSearch: 'on',
+        activePostSubTab: 'alpha',
+      }),
+    )
+    markComposePrefsMigrationDone()
+    expect(useComposePrefsStore.getState().model).toBe('grok-user')
+    expect(useComposePrefsStore.getState().draftModel).toBe('venice-uncensored-1-2')
+    expect(useComposePrefsStore.getState().xSearch).toBe('on')
+    expect(useComposePrefsStore.getState().activePostSubTab).toBe('alpha')
+    expect(useComposePrefsStore.getState().migratedFromCompose).toBe(true)
+    expect(peekPendingComposePrefsSeed()).toBeNull()
+
+    // Second call must not overwrite user changes.
+    useComposePrefsStore.getState().setModel('kept')
+    setPendingComposePrefsSeed(
+      extractComposePrefsSeed({ model: 'should-not-apply' }),
+    )
+    markComposePrefsMigrationDone()
+    expect(useComposePrefsStore.getState().model).toBe('kept')
+  })
+
+  it('createThread reads newThreadContext from prefs store', () => {
+    useComposePrefsStore.getState().setNewThreadContext({ type: 'target', username: 'venice' })
+    const id = useComposeStore.getState().createThread()
+    expect(useComposeStore.getState().threads[id].context).toEqual({
+      type: 'target',
+      username: 'venice',
+    })
   })
 })

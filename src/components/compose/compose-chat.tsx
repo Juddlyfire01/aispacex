@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue, memo } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
+import { useComposePrefsStore } from '../../stores/compose-prefs-store'
 import { useCompose } from '../../hooks/use-compose'
 import { useModels } from '../../hooks/use-models'
 import { MarkdownMessage } from '../chat/markdown-message'
@@ -61,12 +62,12 @@ export function ComposeChat({
   const isThreadPending = renderThreadId !== threadId
   const liveEvents = useComposeStore((s) => s.agentEvents)
   const agentPhase = useComposeStore((s) => s.agentPhase)
-  const setDraftDrawerOpen = useComposeStore((s) => s.setDraftDrawerOpen)
+  const setDraftDrawerOpen = useComposePrefsStore((s) => s.setDraftDrawerOpen)
   const setPreferredFormat = useComposeStore((s) => s.setPreferredFormat)
-  const model = useComposeStore((s) => s.model)
-  const xSearch = useComposeStore((s) => s.xSearch)
-  const webSearch = useComposeStore((s) => s.webSearch)
-  const xNewsOn = useComposeStore((s) => s.xNewsOn)
+  const model = useComposePrefsStore((s) => s.model)
+  const xSearch = useComposePrefsStore((s) => s.xSearch)
+  const webSearch = useComposePrefsStore((s) => s.webSearch)
+  const xNewsOn = useComposePrefsStore((s) => s.xNewsOn)
   const contextLimit = useComposeStore((s) => s.contextLimit)
   const { data: models } = useModels('text')
   const toolModels = useMemo(() => filterComposeToolModels(models ?? []), [models])
