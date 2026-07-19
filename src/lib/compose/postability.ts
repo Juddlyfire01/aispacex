@@ -6,7 +6,7 @@ import type { PostDraft } from './types'
 // button posts natively or falls back to copy-to-X, and why.
 
 export interface PostabilityCaps {
-  /** Whether native media upload is wired (Phase 4 final task). */
+  /** Whether native image/GIF upload is wired for ordinary posts/threads. */
   mediaNativeSupported: boolean
 }
 
@@ -31,13 +31,16 @@ const QUOTE_REASON =
   'Quote-posts are not available via the X API on pay-per-use. Copy this to X to post it manually.'
 const MEDIA_REASON =
   'Posting media through the API is not enabled yet. Copy this to X to post it manually.'
+const VIDEO_REASON =
+  'Video upload through the API is not enabled yet. Copy this to X to post it manually.'
 
 /**
  * Decide how a draft can be published. Articles post natively via the Articles
  * API (media uploaded inside that path). Originals (single or thread) post
  * natively; replies post natively only when the target post summons you
  * (mention/quote of you — not merely a follower); quotes are copy-only per X
- * PAYG rules; segment media routes to copy until native upload is enabled.
+ * PAYG rules; images/GIFs post natively when mediaNativeSupported; videos stay
+ * copy-only until chunked upload is wired.
  */
 const ARTICLE_UNVERIFIED_REASON =
   'Articles require a verified X account — Copy to X for now.'
@@ -61,6 +64,9 @@ export function classifyPostability(
     return { mode: 'copy', reason: REPLY_REASON }
   }
   if (draft.target.kind === 'quote') return { mode: 'copy', reason: QUOTE_REASON }
+
+  const hasVideo = draft.segments.some((s) => s.media.some((m) => m.kind === 'video'))
+  if (hasVideo) return { mode: 'copy', reason: VIDEO_REASON }
 
   const hasMedia = draft.segments.some((s) => s.media.length > 0)
   if (hasMedia && !caps.mediaNativeSupported) return { mode: 'copy', reason: MEDIA_REASON }

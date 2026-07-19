@@ -56,8 +56,24 @@ describe('classifyPostability', () => {
     expect(result.reason).toMatch(/media/i)
   })
 
-  it('posts media natively once supported', () => {
+  it('posts images natively once supported', () => {
     expect(classifyPostability(withMedia(), { mediaNativeSupported: true })).toEqual({ mode: 'api' })
+  })
+
+  it('posts GIFs natively once supported', () => {
+    const draft = emptyDraft({ kind: 'original' })
+    draft.segments = [{ ...emptySegment(), media: [{ id: 'g1', kind: 'gif', dataUrl: 'data:...' }] }]
+    expect(classifyPostability(draft, { mediaNativeSupported: true })).toEqual({ mode: 'api' })
+  })
+
+  it('routes video to copy even when image upload is supported', () => {
+    const draft = emptyDraft({ kind: 'original' })
+    draft.segments = [
+      { ...emptySegment(), media: [{ id: 'v1', kind: 'video', dataUrl: 'data:...' }] },
+    ]
+    const result = classifyPostability(draft, { mediaNativeSupported: true })
+    expect(result.mode).toBe('copy')
+    expect(result.reason).toMatch(/video/i)
   })
 
   it('posts articles natively via the Articles API path', () => {

@@ -4,18 +4,19 @@
 // returns the URL of the first post. The browser sends NO token; we attach the
 // user-context access token (refreshing if needed) server-side.
 //
-// Originals/threads (+ polls, reply_settings, made_with_ai) and summoned
-// replies (target.kind === 'reply' with toPostId) are created here. X pay-per-use
-// rejects replies that are not a summon (@mention / quote of you). Quotes remain
-// copy-only and are never sent through this path.
+// Originals/threads (+ polls, reply_settings, made_with_ai, media_ids) and
+// summoned replies (target.kind === 'reply' with toPostId) are created here. X
+// pay-per-use rejects replies that are not a summon (@mention / quote of you).
+// Quotes remain copy-only and are never sent through this path.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { X_API_BASE } from '../_lib/x-oauth.js'
 import { resolveSession, clearSessionCookies } from '../_lib/x-session.js'
+import {
+  buildTweetPayload,
+  segmentHasContent,
+  type SegmentInput,
+} from '../../src/lib/compose/x-post-payload.js'
 
-interface SegmentInput {
-  text?: string
-  poll?: { options?: string[]; durationMinutes?: number }
-}
 interface PostBody {
   segments?: SegmentInput[]
   target?:
@@ -32,30 +33,6 @@ interface CreatedTweet {
   title?: string
 }
 
-function buildPayload(
-  seg: SegmentInput,
-  opts: { first: boolean; inReplyTo?: string; replySettings?: string; madeWithAi?: boolean },
-): Record<string, unknown> {
-  const payload: Record<string, unknown> = { text: seg.text ?? '' }
-
-  if (seg.poll?.options && seg.poll.options.length >= 2) {
-    payload.poll = {
-      options: seg.poll.options.slice(0, 4),
-      duration_minutes: seg.poll.durationMinutes ?? 1440,
-    }
-  }
-  if (opts.inReplyTo) {
-    payload.reply = { in_reply_to_tweet_id: opts.inReplyTo }
-  }
-  if (opts.first) {
-    if (opts.replySettings && opts.replySettings !== 'everyone') {
-      payload.reply_settings = opts.replySettings
-    }
-    if (opts.madeWithAi) payload.made_with_ai = true
-  }
-  return payload
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -70,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (session.setCookies.length) res.setHeader('Set-Cookie', session.setCookies)
 
   const body = req.body as PostBody
-  const segments = (body?.segments ?? []).filter((s) => (s.text ?? '').trim() !== '' || s.poll)
+  const segments = (body?.segments ?? []).filter(segmentHasContent)
   if (segments.length === 0) return res.status(400).json({ error: 'empty_draft' })
 
   const replyBase =
@@ -80,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let prevId: string | undefined = replyBase
 
   for (let i = 0; i < segments.length; i++) {
-    const payload = buildPayload(segments[i], {
+    const payload = buildTweetPayload(segments[i], {
       first: i === 0,
       inReplyTo: prevId,
       replySettings: body.replySettings,

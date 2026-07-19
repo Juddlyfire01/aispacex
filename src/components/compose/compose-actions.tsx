@@ -17,8 +17,8 @@ import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
 import { yieldForPaint } from '../../lib/yield-for-paint'
 
-// Native media posting is not wired yet, so drafts with media route to copy.
-const CAPS = { mediaNativeSupported: false }
+// Images/GIFs post natively; videos still route to copy (see classifyPostability).
+const CAPS = { mediaNativeSupported: true }
 
 const REPLY_TIP_CHECKING = 'Checking if this post summons you…'
 const REPLY_TIP_BLOCKED = 'Needs @mention or quote of you'
