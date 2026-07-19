@@ -3,7 +3,7 @@ import { useAuthStore } from '../../stores/auth-store'
 import { useImageEdit, useImageUpscale, useBackgroundRemove } from '../../hooks/use-image-tools'
 import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
-import { Label, TextArea, PrimaryButton, ErrorText, EmptyState } from '../ui/shared'
+import { Label, TextArea, PrimaryButton, EmptyState } from '../ui/shared'
 import { SegmentedControl } from '../ui/sub-tabs'
 import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
@@ -151,7 +151,6 @@ export function ImageTools({
   }
 
   const isLoading = editMutation.isPending || upscaleMutation.isPending || bgRemoveMutation.isPending
-  const error = editMutation.error || upscaleMutation.error || bgRemoveMutation.error
 
   const controls = (
     <>
@@ -230,7 +229,6 @@ export function ImageTools({
       >
         {tool === 'edit' ? 'Edit Image' : tool === 'upscale' ? 'Upscale Image' : 'Remove Background'}
       </PrimaryButton>
-      {error && <ErrorText>{error.message}</ErrorText>}
     </>
   )
 

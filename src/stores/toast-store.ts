@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { VeniceAPIError } from '../lib/venice-client'
 
 export type ToastVariant = 'info' | 'success' | 'error' | 'progress'
 
@@ -116,16 +117,22 @@ export const toast = {
     useToastStore
       .getState()
       .push({ variant: 'error', title, description, action, copyError, duration: 6500 }),
+  /**
+   * Generation-suite (and general) API failure toast. Human description prefers
+   * Zod issues → message → code → status fallback; Copy error includes status,
+   * code, issues, and stack for debugging.
+   */
   fromError: (err: unknown, title = 'Something went wrong') => {
-    const description = err instanceof Error ? err.message : typeof err === 'string' ? err : undefined
     return useToastStore.getState().push({
       variant: 'error',
       title,
-      description,
-      copyError: rawErrorText(err),
+      description: humanErrorDescription(err),
+      copyError: debugErrorText(err),
       duration: 6500,
     })
   },
+  /** Alias of fromError — same uniform generation-suite error surface. */
+  generationError: (err: unknown, title: string) => toast.fromError(err, title),
   /**
    * Long-running job toast. Does not auto-dismiss until complete/fail
    * (or the user closes it). Returns an id for update/complete/fail.
@@ -168,7 +175,40 @@ export const toast = {
     }),
 }
 
-/** Full error text (message + stack) for the "Copy error" control. */
+/** User-facing toast description — actionable, never bare `HTTP 400`. */
+export function humanErrorDescription(err: unknown): string | undefined {
+  if (err instanceof VeniceAPIError) {
+    if (err.issues && err.issues.length > 0) return err.issues.join(' · ')
+    if (err.message && !/^HTTP \d+$/.test(err.message)) return err.message
+    if (err.code) return err.code
+    if (err.status > 0) return `Request rejected (${err.status})`
+    return err.message || undefined
+  }
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return undefined
+}
+
+/** Structured debug payload for the toaster "Copy error" control. */
+export function debugErrorText(err: unknown): string | undefined {
+  if (err instanceof VeniceAPIError) {
+    const lines = [`message: ${err.message}`, `status: ${err.status}`]
+    if (err.code) lines.push(`code: ${err.code}`)
+    if (err.issues && err.issues.length > 0) {
+      lines.push('issues:')
+      for (const issue of err.issues) lines.push(`  - ${issue}`)
+    }
+    if (err.suggestedPrompt) lines.push(`suggestedPrompt: ${err.suggestedPrompt}`)
+    if (err.stack?.trim()) {
+      lines.push('')
+      lines.push(err.stack.trim())
+    }
+    return lines.join('\n')
+  }
+  return rawErrorText(err)
+}
+
+/** Full error text (message + stack) for non-Venice errors. */
 function rawErrorText(err: unknown): string | undefined {
   if (err instanceof Error) {
     return err.stack?.trim() || err.message

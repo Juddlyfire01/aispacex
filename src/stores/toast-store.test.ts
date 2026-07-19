@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { toast, useToastStore } from './toast-store'
+import { VeniceAPIError } from '../lib/venice-client'
+import {
+  debugErrorText,
+  humanErrorDescription,
+  toast,
+  useToastStore,
+} from './toast-store'
 
 describe('toast store progress lifecycle', () => {
   beforeEach(() => {
@@ -72,5 +78,49 @@ describe('toast store progress lifecycle', () => {
     toast.info('Four')
     const titles = useToastStore.getState().toasts.map((t) => t.title)
     expect(titles).toEqual(['Two', 'Three', 'Four'])
+  })
+})
+
+describe('toast.fromError / generation errors', () => {
+  beforeEach(() => {
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('prefers Zod issues for the human description', () => {
+    const err = new VeniceAPIError('Invalid request', 400, 'VALIDATION', undefined, [
+      'prompt must be at least 10 characters',
+    ])
+    expect(humanErrorDescription(err)).toBe('prompt must be at least 10 characters')
+  })
+
+  it('falls back to Request rejected when message is bare HTTP status', () => {
+    const err = new VeniceAPIError('HTTP 400', 400)
+    expect(humanErrorDescription(err)).toBe('Request rejected (400)')
+  })
+
+  it('includes status, code, and issues in the copy payload', () => {
+    const err = new VeniceAPIError('Invalid request', 400, 'VALIDATION', 'try a longer prompt', [
+      'prompt too short',
+    ])
+    const copy = debugErrorText(err)!
+    expect(copy).toContain('status: 400')
+    expect(copy).toContain('code: VALIDATION')
+    expect(copy).toContain('prompt too short')
+    expect(copy).toContain('suggestedPrompt: try a longer prompt')
+  })
+
+  it('fromError and generationError push the same copyable error toast', () => {
+    const err = new VeniceAPIError('bad', 422, 'CONTENT')
+    toast.fromError(err, 'Video failed')
+    const t = useToastStore.getState().toasts[0]
+    expect(t.variant).toBe('error')
+    expect(t.title).toBe('Video failed')
+    expect(t.description).toBe('bad')
+    expect(t.copyError).toContain('code: CONTENT')
+    expect(t.copyError).toContain('status: 422')
+
+    useToastStore.setState({ toasts: [] })
+    toast.generationError(err, 'Music failed')
+    expect(useToastStore.getState().toasts[0].title).toBe('Music failed')
   })
 })

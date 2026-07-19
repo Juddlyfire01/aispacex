@@ -88,11 +88,13 @@ async function parseError(res: Response): Promise<VeniceAPIError> {
   } catch {
     /* keep default */
   }
-  // If we only have generic "Invalid request" but extracted concrete Zod
-  // issues, prefer the issues as the user-facing message — "prompt must be
-  // at least 10 characters" is far more actionable than "Invalid request".
+  // Prefer actionable text over opaque defaults:
+  // 1) Zod issues · 2) API code · 3) "Request rejected (status)" — never leave
+  // bare "HTTP 400" as the only thing a user (or toast) sees.
   if (issues && issues.length > 0 && (message === 'Invalid request' || /^HTTP \d+$/.test(message))) {
     message = issues.join(' · ')
+  } else if (/^HTTP \d+$/.test(message)) {
+    message = code ?? `Request rejected (${res.status})`
   }
   return new VeniceAPIError(message, res.status, code, suggestedPrompt, issues)
 }

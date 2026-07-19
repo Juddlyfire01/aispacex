@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
+import { toast } from '../stores/toast-store'
 import type { MusicQueueRequest, MusicQueueResponse, MusicRetrieveResponse } from '../types/venice'
 
 const POLL_INTERVAL_MS = 3000
@@ -76,6 +77,13 @@ export function useMusic() {
     runtimesRef.current.delete(id)
   }, [stopJobTimers])
 
+  /** Toast via the global toaster, then drop the job (no inline error UI). */
+  const failJob = useCallback((id: string, err: unknown) => {
+    removeRuntime(id)
+    toast.fromError(err, 'Music failed')
+    syncJobs((prev) => prev.filter((j) => j.id !== id))
+  }, [removeRuntime, syncJobs])
+
   useEffect(() => () => {
     for (const id of [...runtimesRef.current.keys()]) removeRuntime(id)
   }, [removeRuntime])
@@ -100,8 +108,7 @@ export function useMusic() {
 
       runtime.attempts += 1
       if (runtime.attempts > MAX_ATTEMPTS) {
-        stopJobTimers(jobId)
-        patchJob(jobId, { status: 'failed', error: 'Generation took too long. Cancel and try again.' })
+        failJob(jobId, new Error('Generation took too long. Cancel and try again.'))
         return
       }
 
@@ -142,37 +149,24 @@ export function useMusic() {
               elapsedMs: Date.now() - job.startedAt,
             })
           } catch (fetchErr) {
-            stopJobTimers(jobId)
-            patchJob(jobId, {
-              status: 'failed',
-              error: fetchErr instanceof Error ? fetchErr.message : 'Failed to download completed audio',
-            })
+            failJob(jobId, fetchErr instanceof Error ? fetchErr : new Error('Failed to download completed audio'))
           }
           return
         }
         if (s === 'failed') {
-          stopJobTimers(jobId)
-          patchJob(jobId, { status: 'failed', error: result.error ?? 'Music generation failed' })
+          failJob(jobId, new Error(result.error ?? 'Music generation failed'))
         }
       } catch (err) {
         if (isPermanentError(err)) {
-          stopJobTimers(jobId)
-          patchJob(jobId, {
-            status: 'failed',
-            error: err instanceof Error ? err.message : 'Polling failed',
-          })
+          failJob(jobId, err)
           return
         }
         if (runtime.attempts >= MAX_ATTEMPTS) {
-          stopJobTimers(jobId)
-          patchJob(jobId, {
-            status: 'failed',
-            error: err instanceof Error ? err.message : 'Polling failed',
-          })
+          failJob(jobId, err instanceof Error ? err : new Error('Polling failed'))
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [patchJob, stopJobTimers])
+  }, [failJob, patchJob, stopJobTimers])
 
   const activeCount = jobs.filter((j) => isActive(j.status)).length
   const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
@@ -211,16 +205,10 @@ export function useMusic() {
       startPolling(id)
       return id
     } catch (err) {
-      removeRuntime(id)
-      patchJob(id, {
-        status: 'failed',
-        error: err instanceof Error ? err.message : 'Queue failed',
-        suggestedPrompt: err instanceof VeniceAPIError ? err.suggestedPrompt ?? null : null,
-        issues: err instanceof VeniceAPIError ? err.issues ?? null : null,
-      })
+      failJob(id, err instanceof Error ? err : new Error('Queue failed'))
       throw err
     }
-  }, [patchJob, removeRuntime, startPolling, syncJobs])
+  }, [failJob, patchJob, startPolling, syncJobs])
 
   const dismissJob = useCallback((id: string) => {
     removeRuntime(id)
@@ -251,8 +239,6 @@ export function useMusic() {
     return job
   }, [dismissJob])
 
-  const latestError = jobs.find((j) => j.status === 'failed')
-
   return {
     queue,
     jobs,
@@ -263,8 +249,5 @@ export function useMusic() {
     cancelAll,
     dismissJob,
     takeCompleted,
-    error: latestError?.error ?? null,
-    suggestedPrompt: latestError?.suggestedPrompt ?? null,
-    issues: latestError?.issues ?? null,
   }
 }

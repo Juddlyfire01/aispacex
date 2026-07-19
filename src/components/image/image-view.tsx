@@ -6,14 +6,13 @@ import { useImageGenerate } from '../../hooks/use-image'
 import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { useAuthStore } from '../../stores/auth-store'
 import { Select } from '../ui/select'
-import { Label, TextArea, PrimaryButton, PillGroup, ErrorText, ExamplePrompts } from '../ui/shared'
+import { Label, TextArea, PrimaryButton, PillGroup, ExamplePrompts } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
 import { MediaGallery, type ImageToolAction } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
 import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
-import { VeniceAPIError } from '../../lib/venice-client'
 import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
 import type { GalleryItemView } from '../../hooks/use-media-gallery'
@@ -71,7 +70,6 @@ export function ImageView({
   const [safeMode, setSafeMode] = useState(false)
   const [pendingJobs, setPendingJobs] = useState(0)
   const [pendingSlots, setPendingSlots] = useState(0)
-  const [lastError, setLastError] = useState<Error | null>(null)
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -147,7 +145,6 @@ export function ImageView({
     if (hasAspectRatios && aspectRatio) extras.aspectRatio = aspectRatio
     if (hasResolutions && resolution) extras.resolution = resolution
 
-    setLastError(null)
     setPendingJobs((n) => n + 1)
     const jobVariants = variants
     setPendingSlots((n) => n + jobVariants)
@@ -172,7 +169,7 @@ export function ImageView({
           })()
         },
         onError: (err) => {
-          setLastError(err instanceof Error ? err : new Error('Generate failed'))
+          toast.fromError(err, 'Image failed')
         },
         onSettled: () => {
           setPendingJobs((n) => Math.max(0, n - 1))
@@ -253,34 +250,6 @@ export function ImageView({
       >
         {pendingJobs > 0 ? `Generate another (${pendingJobs}/${MAX_CONCURRENT_MEDIA_JOBS})` : 'Generate'}
       </PrimaryButton>
-      {lastError && (() => {
-        const apiErr = lastError instanceof VeniceAPIError ? lastError : null
-        const errMsg = lastError.message
-        const sug = apiErr?.suggestedPrompt
-        const iss = apiErr?.issues
-        return (
-          <div className="flex flex-col gap-2">
-            <ErrorText>{errMsg}</ErrorText>
-            {iss && iss.length > 0 && (
-              <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
-                {iss.map((issue, i) => <li key={i}>{issue}</li>)}
-              </ul>
-            )}
-            {sug && (
-              <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
-                <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
-                <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{sug}</p>
-                <button
-                  onClick={() => { setPrompt(sug); }}
-                  className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
-                >
-                  Use this prompt
-                </button>
-              </div>
-            )}
-          </div>
-        )
-      })()}
     </>
   )
 

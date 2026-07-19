@@ -4,7 +4,7 @@ import { useVideoModels, type VideoModelGroup } from '../../hooks/use-models'
 import { useVideo } from '../../hooks/use-video'
 import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
-import { Label, TextArea, PrimaryButton, PillGroup, ErrorText } from '../ui/shared'
+import { Label, TextArea, PrimaryButton, PillGroup } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { Spinner } from '../ui/spinner'
 import { SegmentedControl } from '../ui/sub-tabs'
@@ -35,8 +35,7 @@ export function VideoView() {
   const gallery = useMediaGallery('video')
   const {
     queue, jobs, activeCount, atCapacity, maxConcurrent,
-    cancelAll, dismissJob, takeCompleted,
-    error, suggestedPrompt, issues,
+    cancelAll, takeCompleted,
   } = useVideo()
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
@@ -152,7 +151,7 @@ export function VideoView() {
       negativePrompt: trimmedNegative,
       model: activeModel.id,
       extras: Object.keys(extras).length ? extras : undefined,
-    }).catch(() => { /* error surfaced on job */ })
+    }).catch(() => { /* failure toasted in useVideo */ })
   }
 
   // Tags for model capabilities
@@ -300,47 +299,14 @@ export function VideoView() {
         >
           {activeCount > 0 ? `Generate another (${activeCount}/${maxConcurrent})` : 'Generate Video'}
         </PrimaryButton>
-        {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={cancelAll}
-            className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors self-start"
-          >
-            Cancel all ({activeCount})
-          </button>
-        )}
-      {error && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <ErrorText>{error}</ErrorText>
-            <button
-              onClick={() => {
-                const failed = jobs.find((j) => j.status === 'failed')
-                if (failed) dismissJob(failed.id)
-              }}
-              className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 shrink-0 transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-          {issues && issues.length > 0 && (
-            <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
-              {issues.map((issue, i) => <li key={i}>{issue}</li>)}
-            </ul>
-          )}
-          {suggestedPrompt && (
-            <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
-              <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{suggestedPrompt}</p>
-              <button
-                onClick={() => { setPrompt(suggestedPrompt) }}
-                className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
-              >
-                Use this prompt
-              </button>
-            </div>
-          )}
-        </div>
+      {activeCount > 0 && (
+        <button
+          type="button"
+          onClick={cancelAll}
+          className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors self-start"
+        >
+          Cancel all ({activeCount})
+        </button>
       )}
     </>
   )

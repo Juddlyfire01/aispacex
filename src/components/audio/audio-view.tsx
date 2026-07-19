@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/auth-store'
 import { useTTS, useTranscription } from '../../hooks/use-audio'
 import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
-import { Label, TextArea, PrimaryButton, ErrorText, EmptyState } from '../ui/shared'
+import { Label, TextArea, PrimaryButton, EmptyState } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
 import { SegmentedControl } from '../ui/sub-tabs'
@@ -168,7 +168,6 @@ export function AudioView() {
           >
             {pendingTts > 0 ? `Generate another (${pendingTts}/${MAX_CONCURRENT_MEDIA_JOBS})` : 'Generate Speech'}
           </PrimaryButton>
-          {tts.error && <ErrorText>{tts.error.message}</ErrorText>}
         </>
       ) : (
         <>
@@ -184,7 +183,6 @@ export function AudioView() {
           <PrimaryButton onClick={() => { if (file) transcription.mutate(file, { onSuccess: (d) => setTranscript(d.text), onError: (err) => toast.fromError(err, 'Transcription failed') }) }} disabled={!file || !apiKey} loading={transcription.isPending} size="lg">
             Transcribe
           </PrimaryButton>
-          {transcription.error && <ErrorText>{transcription.error.message}</ErrorText>}
         </>
       )}
     </>

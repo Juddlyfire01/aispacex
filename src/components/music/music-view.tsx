@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/auth-store'
 import { useMusic } from '../../hooks/use-music'
 import { useMediaGallery } from '../../hooks/use-media-gallery'
 import { Select } from '../ui/select'
-import { Label, TextArea, PrimaryButton, ErrorText, PillGroup } from '../ui/shared'
+import { Label, TextArea, PrimaryButton, PillGroup } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { Spinner } from '../ui/spinner'
 import { MediaGallery } from '../media/media-gallery'
@@ -45,8 +45,7 @@ export function MusicView() {
   const gallery = useMediaGallery('music')
   const {
     queue, jobs, activeCount, atCapacity, maxConcurrent,
-    cancelAll, dismissJob, takeCompleted,
-    error, suggestedPrompt, issues,
+    cancelAll, takeCompleted,
   } = useMusic()
 
   const minPromptLength = caps.minPromptLength
@@ -114,7 +113,7 @@ export function MusicView() {
       lyrics: trimmedLyrics,
       model,
       extras: Object.keys(extras).length ? extras : undefined,
-    }).catch(() => { /* surfaced on job */ })
+    }).catch(() => { /* failure toasted in useMusic */ })
   }
 
   const durationStep = caps.maxDuration > 60 ? 5 : 1
@@ -228,39 +227,6 @@ export function MusicView() {
         >
           Cancel all ({activeCount})
         </button>
-      )}
-      {error && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <ErrorText>{error}</ErrorText>
-            <button
-              onClick={() => {
-                const failed = jobs.find((j) => j.status === 'failed')
-                if (failed) dismissJob(failed.id)
-              }}
-              className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 shrink-0 transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-          {issues && issues.length > 0 && (
-            <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
-              {issues.map((issue, i) => <li key={i}>{issue}</li>)}
-            </ul>
-          )}
-          {suggestedPrompt && (
-            <div className="rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-border-faint)] p-3">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)] font-semibold mb-1">Suggested prompt</p>
-              <p className="text-[13.5px] text-[var(--color-text-secondary)] leading-relaxed">{suggestedPrompt}</p>
-              <button
-                onClick={() => setPrompt(suggestedPrompt)}
-                className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
-              >
-                Use this prompt
-              </button>
-            </div>
-          )}
-        </div>
       )}
     </>
   )
