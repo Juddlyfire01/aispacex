@@ -40,6 +40,8 @@ function reset() {
     activePostSubTab: 'composer',
     newThreadContext: { type: 'all' },
     migratedFromCompose: false,
+    lastContextLimit: 0,
+    hotMeter: null,
   })
   // Tests call setters/apply without a real persist hydrate.
   Object.defineProperty(useComposePrefsStore.persist, 'hasHydrated', {

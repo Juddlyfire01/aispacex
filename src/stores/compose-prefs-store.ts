@@ -22,6 +22,22 @@ export type WebSearchMode = 'off' | 'auto' | 'on'
 /** Post top-tab sub-chrome: Composer | Alpha | Performance. */
 export type PostSubTab = 'composer' | 'alpha' | 'performance'
 
+/** Last painted Hot window stats — optimistic paint before intel corpus hydrates. */
+export interface HotWindowMeterCache {
+  scopeKey: string
+  estimatedTokens: number
+  contextLimit: number
+  budgetPct: number
+  posts: number
+  reports: number
+  limitAssumed: boolean
+}
+
+export function composeScopeKey(scope: ComposeScope): string {
+  if (scope.type === 'target') return `target:${scope.username.replace(/^@/, '').toLowerCase()}`
+  return scope.type
+}
+
 const POST_SUB_TABS: readonly PostSubTab[] = ['composer', 'alpha', 'performance']
 
 function isPostSubTab(v: unknown): v is PostSubTab {
@@ -69,6 +85,10 @@ export interface ComposePrefsState {
    * absent). Prevents empty defaults from overwriting a later seed.
    */
   migratedFromCompose: boolean
+  /** Last known model context window — budget line before catalog resolves. */
+  lastContextLimit: number
+  /** Last Hot / Corpus meter for the active scope. */
+  hotMeter: HotWindowMeterCache | null
 
   setModel: (model: string, label?: string) => void
   setDraftModel: (model: string) => void
@@ -85,6 +105,8 @@ export interface ComposePrefsState {
   setDraftDrawerWidthPct: (pct: number) => void
   setActivePostSubTab: (tab: PostSubTab) => void
   setNewThreadContext: (scope: ComposeScope) => void
+  setLastContextLimit: (limit: number) => void
+  setHotMeter: (meter: HotWindowMeterCache | null) => void
 }
 
 const PREFS_DEFAULTS = {
@@ -103,6 +125,8 @@ const PREFS_DEFAULTS = {
   draftDrawerWidthPct: 50,
   activePostSubTab: 'composer' as PostSubTab,
   migratedFromCompose: false,
+  lastContextLimit: 0,
+  hotMeter: null as HotWindowMeterCache | null,
 }
 
 function clampDrawerWidthPct(pct: number): number {
@@ -280,10 +304,13 @@ export const useComposePrefsStore = create<ComposePrefsState>()(
       setDraftDrawerWidthPct: (pct) => set({ draftDrawerWidthPct: clampDrawerWidthPct(pct) }),
       setActivePostSubTab: (tab) => set({ activePostSubTab: tab }),
       setNewThreadContext: (scope) => set({ newThreadContext: scope }),
+      setLastContextLimit: (limit) =>
+        set({ lastContextLimit: limit > 0 ? Math.floor(limit) : 0 }),
+      setHotMeter: (meter) => set({ hotMeter: meter }),
     }),
     {
       name: 'venice-compose-prefs',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted, version) => {
         const state = { ...(persisted as Record<string, unknown>) }
@@ -291,6 +318,10 @@ export const useComposePrefsStore = create<ComposePrefsState>()(
         // the real display string (avoid locking in a raw id forever).
         if (version < 2 && state.modelLabel == null) {
           state.modelLabel = ''
+        }
+        if (version < 3) {
+          if (state.lastContextLimit == null) state.lastContextLimit = 0
+          if (state.hotMeter === undefined) state.hotMeter = null
         }
         return state as ComposePrefsState
       },
@@ -312,6 +343,8 @@ export const useComposePrefsStore = create<ComposePrefsState>()(
         activePostSubTab: state.activePostSubTab,
         newThreadContext: state.newThreadContext,
         migratedFromCompose: state.migratedFromCompose,
+        lastContextLimit: state.lastContextLimit,
+        hotMeter: state.hotMeter,
       }),
       onRehydrateStorage: () => () => {
         applyPendingComposePrefsSeed()

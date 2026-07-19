@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useComposeStore } from '../../stores/compose-store'
 import {
   useComposePrefsStore,
+  composeScopeKey,
   type PostSubTab,
 } from '../../stores/compose-prefs-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
@@ -15,10 +16,16 @@ import {
   shouldUpgradeDraftModel,
 } from '../../lib/compose/model'
 import { DRAFT_MODEL_SAME } from '../../lib/compose/draft-writer-tool'
-import { computeHotBudget, resolveContextLimit } from '../../lib/compose/token-estimate'
+import {
+  computeHotBudget,
+  DEFAULT_CONTEXT_FALLBACK,
+  resolveContextLimit,
+} from '../../lib/compose/token-estimate'
 import { packHotWindowCached } from '../../lib/compose/hot-window'
 import { buildIntelSnapshot } from '../../lib/intel-library/from-stores'
 import { libraryCounts } from '../../lib/intel-library/library'
+import type { LibraryCounts } from '../../lib/intel-library/types'
+import type { PackResult } from '../../lib/compose/hot-window'
 import type { PerformanceSelection } from '../../lib/compose/performance-context'
 import { selectSelfAccount } from '../../lib/x-intel/self-orchestrate'
 import { SubTabs } from '../ui/sub-tabs'
@@ -137,7 +144,11 @@ export function ComposeWorkspace() {
     if (!prefsHydrated) return
     if (!model) return
     const modelObj = models?.find((m) => m.id === model)
-    setContextLimit(resolveContextLimit(modelObj))
+    const next = resolveContextLimit(modelObj)
+    setContextLimit(next)
+    if (modelObj && typeof modelObj.model_spec?.availableContextTokens === 'number') {
+      useComposePrefsStore.getState().setLastContextLimit(next)
+    }
   }, [prefsHydrated, model, models, setContextLimit])
 
   useEffect(() => {
@@ -147,10 +158,41 @@ export function ComposeWorkspace() {
   const threadId = activeThreadId && activeThread ? activeThreadId : null
 
   const modelObj = useMemo(() => models?.find((m) => m.id === model), [models, model])
+  const lastContextLimit = useComposePrefsStore((s) => s.lastContextLimit)
+  const hotMeter = useComposePrefsStore((s) => s.hotMeter)
+  const setHotMeter = useComposePrefsStore((s) => s.setHotMeter)
+
+  // Prefer live catalog limit; fall back to last persisted limit before models load.
+  const displayContextLimit =
+    typeof modelObj?.model_spec?.availableContextTokens === 'number' &&
+    modelObj.model_spec.availableContextTokens > 0
+      ? modelObj.model_spec.availableContextTokens
+      : lastContextLimit > 0
+        ? lastContextLimit
+        : contextLimit > 0
+          ? contextLimit
+          : DEFAULT_CONTEXT_FALLBACK
+
   const limitAssumed = !(
     typeof modelObj?.model_spec?.availableContextTokens === 'number' &&
     modelObj.model_spec.availableContextTokens > 0
   )
+  // Cached context limit is a real prior measurement — don't show the † assumed mark.
+  const displayLimitAssumed = limitAssumed && !(lastContextLimit > 0)
+
+  const [intelHydrated, setIntelHydrated] = useState(() => useXIntelStore.persist.hasHydrated())
+  const [selfHydrated, setSelfHydrated] = useState(() => useXSelfStore.persist.hasHydrated())
+  useEffect(() => {
+    const u1 = useXIntelStore.persist.onFinishHydration(() => setIntelHydrated(true))
+    const u2 = useXSelfStore.persist.onFinishHydration(() => setSelfHydrated(true))
+    if (useXIntelStore.persist.hasHydrated()) setIntelHydrated(true)
+    if (useXSelfStore.persist.hasHydrated()) setSelfHydrated(true)
+    return () => {
+      u1()
+      u2()
+    }
+  }, [])
+  const corpusReady = intelHydrated && selfHydrated
 
   const snapshot = useMemo(
     () =>
@@ -163,13 +205,14 @@ export function ComposeWorkspace() {
 
   // Scope for meter: active thread context, else new-thread default.
   const scope = activeThread?.context ?? newThreadContext
+  const scopeKey = composeScopeKey(scope)
 
   const budget = useMemo(
-    () => computeHotBudget(contextLimit, budgetPct),
-    [contextLimit, budgetPct],
+    () => computeHotBudget(displayContextLimit, budgetPct),
+    [displayContextLimit, budgetPct],
   )
 
-  const pack = useMemo(
+  const livePack = useMemo(
     () =>
       packHotWindowCached({
         snapshot,
@@ -182,9 +225,71 @@ export function ComposeWorkspace() {
     [snapshot, scope, libraryMode, dayWindowDays, budget],
   )
 
-  const counts = useMemo(() => libraryCounts(snapshot, scope), [snapshot, scope])
+  const liveCounts = useMemo(() => libraryCounts(snapshot, scope), [snapshot, scope])
 
-  const sendBlocked = libraryMode === 'custom' && pack.overBudget
+  const cachedMeter =
+    hotMeter && hotMeter.scopeKey === scopeKey ? hotMeter : null
+  const useOptimisticMeter =
+    Boolean(cachedMeter) &&
+    (!corpusReady || (liveCounts.posts === 0 && liveCounts.reports === 0 && cachedMeter!.posts + cachedMeter!.reports > 0))
+
+  const pack: PackResult = useOptimisticMeter
+    ? {
+        ...livePack,
+        estimatedTokens: cachedMeter!.estimatedTokens,
+      }
+    : livePack
+
+  const counts: LibraryCounts = useOptimisticMeter
+    ? {
+        ...liveCounts,
+        posts: cachedMeter!.posts,
+        reports: cachedMeter!.reports,
+      }
+    : liveCounts
+
+  // Persist meter once corpus is live so the next mount can paint immediately.
+  useEffect(() => {
+    if (!corpusReady) return
+    if (liveCounts.posts === 0 && liveCounts.reports === 0 && livePack.estimatedTokens === 0) {
+      return
+    }
+    const next = {
+      scopeKey,
+      estimatedTokens: livePack.estimatedTokens,
+      contextLimit: displayContextLimit,
+      budgetPct,
+      posts: liveCounts.posts,
+      reports: liveCounts.reports,
+      limitAssumed: displayLimitAssumed,
+    }
+    const prev = useComposePrefsStore.getState().hotMeter
+    if (
+      prev &&
+      prev.scopeKey === next.scopeKey &&
+      prev.estimatedTokens === next.estimatedTokens &&
+      prev.contextLimit === next.contextLimit &&
+      prev.budgetPct === next.budgetPct &&
+      prev.posts === next.posts &&
+      prev.reports === next.reports &&
+      prev.limitAssumed === next.limitAssumed
+    ) {
+      return
+    }
+    setHotMeter(next)
+  }, [
+    corpusReady,
+    scopeKey,
+    livePack.estimatedTokens,
+    displayContextLimit,
+    budgetPct,
+    liveCounts.posts,
+    liveCounts.reports,
+    displayLimitAssumed,
+    setHotMeter,
+  ])
+
+  const sendBlocked = libraryMode === 'custom' && livePack.overBudget
 
   return (
     <div className="flex h-full min-h-0">
@@ -209,12 +314,12 @@ export function ComposeWorkspace() {
               <ComposeSettings
                 pack={pack}
                 budget={budget}
-                contextLimit={contextLimit}
+                contextLimit={displayContextLimit}
                 budgetPct={budgetPct}
                 libraryMode={libraryMode}
                 dayWindowDays={dayWindowDays}
                 counts={counts}
-                limitAssumed={limitAssumed}
+                limitAssumed={displayLimitAssumed}
                 onModeChange={setLibraryMode}
                 onBudgetPctChange={setBudgetPct}
                 onDayWindowChange={setDayWindowDays}
