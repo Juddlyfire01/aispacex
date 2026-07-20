@@ -2,8 +2,6 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { beginSelfLogin } from '../../lib/x-intel/self-client'
-import { VENICE_SERVER_FRONTED } from '../../lib/venice-config'
 import { Select } from '../ui/select'
 import { ConnectionPill } from '../ui/shared'
 
@@ -41,20 +39,21 @@ const tabSubtitles: Record<string, string> = {
 const noModelSelector = new Set(['video', 'music', 'audio', 'image', 'intel', 'signal', 'stats', 'news', 'settings'])
 
 interface Props {
-  onOpenApiKey: () => void
+  onOpenConnections: () => void
   onOpenMobileSidebar?: () => void
 }
 
-export function Header({ onOpenApiKey, onOpenMobileSidebar }: Props) {
+export function Header({ onOpenConnections, onOpenMobileSidebar }: Props) {
   const { activeTab, selectedModels, setSelectedModel } = useSettingsStore()
   const apiKey = useAuthStore((s) => s.apiKey)
-  const xConnected = useXSelfStore((s) => s.connected)
   const xConnecting = useXSelfStore((s) => s.connecting)
   const hasOwnSelector = noModelSelector.has(activeTab)
   const modelType = modelTypeMap[activeTab] || 'text'
   const { data: models, defaultModelId } = useModels(hasOwnSelector ? undefined : modelType)
   const currentModel = hasOwnSelector ? '' : (selectedModels[activeTab] || defaultModelId)
   const modelOptions = hasOwnSelector ? [] : (models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [])
+
+  const veniceReady = Boolean(apiKey)
 
   return (
     <header className="flex items-center gap-3 h-14 px-3 border-b border-[var(--color-border-faint)] bg-[var(--color-bg-base)] shrink-0">
@@ -89,28 +88,14 @@ export function Header({ onOpenApiKey, onOpenMobileSidebar }: Props) {
 
       <div className="flex-1" />
 
-      {activeTab === 'intel' && (
-        <ConnectionPill
-          connected={xConnected}
-          connecting={xConnecting}
-          connectedLabel="X: Connected"
-          disconnectedLabel="Connect X"
-          connectingLabel="Connecting…"
-          onClick={() => { if (!xConnected && !xConnecting) beginSelfLogin() }}
-        />
-      )}
-
-      {/* Venice key pill is only meaningful in bring-your-own-key mode. When the
-          app fronts a shared server-side key, there's nothing to connect, so we
-          hide it — leaving at most the single X indicator on the Intel tab. */}
-      {!VENICE_SERVER_FRONTED && (
-        <ConnectionPill
-          connected={!!apiKey}
-          connectedLabel="Connected"
-          disconnectedLabel="Connect API key"
-          onClick={onOpenApiKey}
-        />
-      )}
+      <ConnectionPill
+        connected={veniceReady}
+        connecting={xConnecting}
+        connectedLabel="Connections"
+        disconnectedLabel="Connections"
+        connectingLabel="Connecting X…"
+        onClick={onOpenConnections}
+      />
     </header>
   )
 }

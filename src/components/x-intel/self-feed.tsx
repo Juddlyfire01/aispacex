@@ -60,7 +60,7 @@ export function SelfFeed() {
       emptyTitle="No posts gathered yet"
       emptyHint={connected
         ? `Fetch @${account.username}'s recent posts + replies/mentions (up to 50 each per pull).`
-        : 'Connect your X account first (header → Connect X).'}
+        : 'Connect your X account first (Connections).'}
       emptyActionLabel="Gather posts"
     />
   )

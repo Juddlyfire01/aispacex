@@ -1,12 +1,12 @@
 import { toast } from '../../stores/toast-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
-import { useXSelfStore } from '../../stores/x-self-store'
 import { runGather } from './orchestrate'
 import type { Profile } from './types'
 
 /**
  * Add a profile to the Others rail with toaster feedback (no OS confirm).
- * Soft-gates on X connect; Undo removes the target from the rail.
+ * No OAuth required — public gather uses the app bearer when disconnected.
+ * Undo removes the target from the rail.
  *
  * Always kicks off a fresh gather on add — even for a previously-cached target —
  * so the rail never shows stale metrics/posts after (re-)adding. An optional
@@ -17,11 +17,6 @@ export function addTargetWithToast(username: string, seedProfile?: Profile): voi
   const handle = username.replace(/^@/, '').trim()
   if (!handle) return
   const subject = `@${handle}`
-
-  if (!useXSelfStore.getState().connected) {
-    toast.info('Connect X', 'Connect your X account (header → Connect X) to add profiles.')
-    return
-  }
 
   const { targets, addTarget, seedTarget, removeTarget } = useXIntelStore.getState()
   const lower = handle.toLowerCase()
@@ -52,14 +47,9 @@ export function addTargetWithToast(username: string, seedProfile?: Profile): voi
  * roster). Seeds each with its already-fetched profile for instant identity,
  * skips any already on the rail, kicks off a background gather per newly-added
  * target, and shows ONE summary toast (not one per profile). Returns how many
- * were newly added. No-op with a connect hint when X isn't connected.
+ * were newly added.
  */
 export function addTargetsWithToast(profiles: Profile[]): number {
-  if (!useXSelfStore.getState().connected) {
-    toast.info('Connect X', 'Connect your X account (header → Connect X) to add profiles.')
-    return 0
-  }
-
   const { targets, seedTarget } = useXIntelStore.getState()
   const onRail = new Set(targets.map((t) => t.toLowerCase()))
   const toAdd = profiles.filter((p) => p.username && !onRail.has(p.username.toLowerCase()))

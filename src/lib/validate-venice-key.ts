@@ -1,4 +1,4 @@
-import { BASE_URL } from './venice-client'
+import { byokVeniceBaseUrl } from './venice-config'
 
 export type VeniceKeyValidation =
   | { ok: true }
@@ -7,11 +7,11 @@ export type VeniceKeyValidation =
 // NOTE: /models is a PUBLIC endpoint — it returns 200 even for a bogus key or
 // no key at all, so it cannot be used to validate. /api_keys/rate_limits is
 // auth-gated: 200 for a valid key, 401 for an invalid one.
-// We reuse the client's BASE_URL so this works for BYOK (Vite /venice or direct
-// api.venice.ai) without a hardcoded path.
+// Always hit the BYOK base (never the app proxy), so validation tests the
+// user's key even when VITE_VENICE_SERVER_FRONTED is on.
 export async function validateVeniceKey(key: string): Promise<VeniceKeyValidation> {
   try {
-    const res = await fetch(`${BASE_URL}/api_keys/rate_limits`, {
+    const res = await fetch(`${byokVeniceBaseUrl()}/api_keys/rate_limits`, {
       headers: { Authorization: `Bearer ${key}` },
     })
     if (res.ok) return { ok: true }

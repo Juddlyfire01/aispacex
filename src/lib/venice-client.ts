@@ -1,19 +1,25 @@
 import type { VeniceErrorBody, VeniceDetailedError, VeniceContentViolationError } from '../types/venice'
 import { useAuthStore } from '../stores/auth-store'
-import { VENICE_SERVER_FRONTED } from './venice-config'
+import {
+  VENICE_SERVER_FRONTED,
+  byokVeniceBaseUrl,
+  isUserVeniceKey,
+} from './venice-config'
 
-const ENV_BASE = (import.meta.env.VITE_VENICE_BASE_URL as string | undefined)?.replace(/\/$/, '')
-// Server-fronted: always hit our /api/venice/proxy so the shared key is injected
-// by vercel dev / Vercel Functions (same path in local dev and production).
-// BYOK: Vite /venice proxy in dev (optional local key inject or pass-through),
-// direct Venice API in production with the user's client key.
-export const BASE_URL =
-  ENV_BASE ||
-  (VENICE_SERVER_FRONTED
-    ? '/api/venice/proxy'
-    : import.meta.env.DEV
-      ? '/venice/api/v1'
-      : 'https://api.venice.ai/api/v1')
+/**
+ * Resolve Venice base URL for the current auth mode.
+ * BYOK (real user key) → direct / Vite /venice; else fronted → server proxy; else BYOK path (key required).
+ */
+export function resolveVeniceBaseUrl(): string {
+  const envBase = (import.meta.env.VITE_VENICE_BASE_URL as string | undefined)?.replace(/\/$/, '')
+  if (envBase) return envBase
+  if (isUserVeniceKey(useAuthStore.getState().apiKey)) return byokVeniceBaseUrl()
+  if (VENICE_SERVER_FRONTED) return '/api/venice/proxy'
+  return byokVeniceBaseUrl()
+}
+
+/** @deprecated Prefer resolveVeniceBaseUrl() — value is correct only when auth mode is stable at import time. */
+export const BASE_URL = resolveVeniceBaseUrl()
 
 const RETRY_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
 const MAX_RETRIES = 2
@@ -42,8 +48,15 @@ export class VeniceAPIError extends Error {
 
 function getApiKey(): string {
   const key = useAuthStore.getState().apiKey
-  if (!key) throw new VeniceAPIError('API key not set. Click "API Key" in the header to connect.', 401)
+  if (!isUserVeniceKey(key)) {
+    throw new VeniceAPIError('API key not set. Open Connections to add your Venice key.', 401)
+  }
   return key
+}
+
+/** True when requests should go through the app proxy with no client Authorization. */
+function usesServerFrontedProxy(): boolean {
+  return VENICE_SERVER_FRONTED && !isUserVeniceKey(useAuthStore.getState().apiKey)
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -108,17 +121,17 @@ interface VeniceFetchOptions extends RequestInit {
 export async function veniceFetch(path: string, options: VeniceFetchOptions): Promise<Response> {
   const { stream, noAuth, retries = MAX_RETRIES, ...fetchOptions } = options
   const headers = new Headers(fetchOptions.headers)
-  // When server-fronted, /api/venice/proxy injects the shared key — the browser
-  // must not send one. Otherwise use the user's client key.
-  if (!noAuth && !VENICE_SERVER_FRONTED) headers.set('Authorization', `Bearer ${getApiKey()}`)
+  // App proxy injects the shared key — browser must not send one. BYOK sends the user key.
+  if (!noAuth && !usesServerFrontedProxy()) headers.set('Authorization', `Bearer ${getApiKey()}`)
   if (fetchOptions.body && typeof fetchOptions.body === 'string') {
     headers.set('Content-Type', 'application/json')
   }
 
+  const baseUrl = resolveVeniceBaseUrl()
   let lastErr: unknown
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(`${BASE_URL}${path}`, { ...fetchOptions, headers })
+      const res = await fetch(`${baseUrl}${path}`, { ...fetchOptions, headers })
       if (res.ok) return res
 
       // Don't retry client errors (auth, validation) or terminal failures

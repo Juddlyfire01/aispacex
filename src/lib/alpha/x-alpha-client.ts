@@ -63,7 +63,7 @@ async function alphaGet<T>(
     try {
       const err = (await res.json()) as Record<string, unknown>
       if (typeof err.error === 'string' && err.error === 'x_not_connected') {
-        message = 'Connect your X account (header → Connect X).'
+        message = 'Connect your X account (Connections).'
       } else if (typeof err.detail === 'string') {
         message = err.detail
       } else if (typeof err.title === 'string') {

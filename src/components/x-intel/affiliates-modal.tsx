@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Modal, modalInputClass, modalSecondaryBtnClass } from '../ui/modal'
 import { useXAffiliatesStore, VENICE_ORG, orgKey, type AffiliateRoster } from '../../stores/x-affiliates-store'
 import { useXIntelStore } from '../../stores/x-intel-store'
-import { useXSelfStore } from '../../stores/x-self-store'
 import { refreshAffiliates, type AffiliateOrg } from '../../lib/x-intel/affiliates'
 import { addTargetWithToast, addTargetsWithToast } from '../../lib/x-intel/add-target'
 import { AffiliationBadge } from './verified-badge'
@@ -57,11 +56,10 @@ function AffiliateRow({ member, onAdd }: { member: Profile; onAdd: (member: Prof
 /**
  * Affiliate roster browser. Opens from the target rail; lists an organization's
  * X affiliates (default: Venice), with manual Refresh, per-row add-as-target,
- * and — when X is connected — an org handle lookup for any other organization.
+ * and org handle lookup for any organization.
  */
 export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const titleId = useId()
-  const connected = useXSelfStore((s) => s.connected)
   const rosters = useXAffiliatesStore((s) => s.rosters)
   const setActiveTopTab = useXIntelStore((s) => s.setActiveTopTab)
   const railTargets = useXIntelStore((s) => s.targets)
@@ -97,17 +95,13 @@ export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () 
   const handleLookup = async () => {
     const handle = lookup.trim().replace(/^@/, '')
     if (!handle) return
-    if (!connected) {
-      setError('Connect your X account to look up other organizations.')
-      return
-    }
-    // The affiliates endpoint is keyed by org id; resolve the handle to an id
-    // via a profile fetch first (OAuth path — arbitrary orgs need connection).
+    // Affiliates endpoint works with app-bearer public reads for any org.
     setBusy(true)
     setError(null)
     try {
       const { gatherProfile } = await import('../../lib/x-intel/gather')
-      const { data: profile } = await gatherProfile(handle, 'oauth')
+      const { resolveGatherAuth } = await import('../../lib/x-intel/gather-auth')
+      const { data: profile } = await gatherProfile(handle, resolveGatherAuth(handle))
       const nextOrg: AffiliateOrg = { id: profile.id, username: profile.username, name: profile.displayName }
       setOrg(nextOrg)
       setLookup('')
@@ -207,29 +201,23 @@ export function AffiliatesModal({ open, onClose }: { open: boolean; onClose: () 
       </div>
 
       <div className="mt-3 pt-3 border-t border-[var(--color-border-faint)]">
-        {connected ? (
-          <div className="flex items-center gap-2">
-            <input
-              value={lookup}
-              onChange={(e) => setLookup(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleLookup() } }}
-              placeholder="Look up another org, e.g. Stripe"
-              className={cn(modalInputClass, 'flex-1 rounded-md px-2.5 py-1.5 text-[12px]')}
-            />
-            <button
-              type="button"
-              onClick={handleLookup}
-              disabled={busy || !lookup.trim()}
-              className={cn(modalSecondaryBtnClass, 'px-3 py-1.5')}
-            >
-              Look up
-            </button>
-          </div>
-        ) : (
-          <p className="text-[11px] text-[var(--color-text-tertiary)]">
-            Connect your X account (header → Connect X) to look up any other organization's affiliates.
-          </p>
-        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={lookup}
+            onChange={(e) => setLookup(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleLookup() } }}
+            placeholder="Look up another org, e.g. Stripe"
+            className={cn(modalInputClass, 'flex-1 rounded-md px-2.5 py-1.5 text-[12px]')}
+          />
+          <button
+            type="button"
+            onClick={handleLookup}
+            disabled={busy || !lookup.trim()}
+            className={cn(modalSecondaryBtnClass, 'px-3 py-1.5')}
+          >
+            Look up
+          </button>
+        </div>
       </div>
     </Modal>
   )

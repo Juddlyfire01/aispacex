@@ -49,8 +49,12 @@ export default defineConfig(({ mode }) => {
           // Server-fronted mode uses /api/venice/proxy (in-process) instead.
           configure: (proxy) => {
             if (!veniceKey) return
+            // Only inject the local env key when the client did not send one
+            // (legacy BYOK-less local). Never overwrite a user-supplied Bearer.
             proxy.on('proxyReq', (proxyReq) => {
-              proxyReq.setHeader('authorization', `Bearer ${veniceKey}`)
+              if (!proxyReq.getHeader('authorization')) {
+                proxyReq.setHeader('authorization', `Bearer ${veniceKey}`)
+              }
             })
           },
         },

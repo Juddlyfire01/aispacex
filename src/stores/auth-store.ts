@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { VENICE_SERVER_FRONTED, VENICE_FRONTED_SENTINEL } from '../lib/venice-config'
+import { VENICE_SERVER_FRONTED, VENICE_FRONTED_SENTINEL, isUserVeniceKey } from '../lib/venice-config'
 import { b64encode, b64decode } from '../lib/base64'
 
 const SESSION_KEY = 'venice-auth'
@@ -62,15 +62,17 @@ async function decrypt(blob: EncryptedBlob, passphrase: string): Promise<string>
 const initialKey = (() => {
   try {
     const session = sessionStorage.getItem(SESSION_KEY)
-    if (session) return session
+    if (session && isUserVeniceKey(session)) return session
     const legacy = localStorage.getItem(SESSION_KEY)
     if (legacy) {
       try {
         const parsed = JSON.parse(legacy) as { state?: { apiKey?: string | null } }
         const key = parsed?.state?.apiKey ?? null
         localStorage.removeItem(SESSION_KEY)
-        if (key) sessionStorage.setItem(SESSION_KEY, key)
-        return key
+        if (key && isUserVeniceKey(key)) {
+          sessionStorage.setItem(SESSION_KEY, key)
+          return key
+        }
       } catch {
         localStorage.removeItem(SESSION_KEY)
       }
@@ -89,12 +91,16 @@ const initialHasEncrypted = (() => {
   }
 })()
 
+function frontedFallbackKey(): string | null {
+  return VENICE_SERVER_FRONTED ? VENICE_FRONTED_SENTINEL : null
+}
+
 export const useAuthStore = create<AuthState>()((set) => ({
-  // When server-fronted, Venice is powered by a shared server-side key, so we
-  // seed a sentinel: every `!!apiKey` availability gate passes and the connect
-  // UI stays hidden. The sentinel is never sent as a credential.
-  apiKey: VENICE_SERVER_FRONTED ? VENICE_FRONTED_SENTINEL : initialKey,
-  hasEncrypted: VENICE_SERVER_FRONTED ? false : initialHasEncrypted,
+  // Prefer a real user key from session. Otherwise, when server-fronted, seed
+  // the sentinel so availability gates pass (app pays). Encrypted blobs are
+  // still detected so the user can unlock a BYOK override.
+  apiKey: initialKey ?? frontedFallbackKey(),
+  hasEncrypted: initialHasEncrypted,
 
   setApiKey: async (key, remember) => {
     sessionStorage.setItem(SESSION_KEY, key)
@@ -123,6 +129,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   clearApiKey: () => {
     sessionStorage.removeItem(SESSION_KEY)
     localStorage.removeItem(ENCRYPTED_KEY)
-    set({ apiKey: null, hasEncrypted: false })
+    // Restore app-fronted sentinel when available; otherwise require BYOK again.
+    set({ apiKey: frontedFallbackKey(), hasEncrypted: false })
   },
 }))

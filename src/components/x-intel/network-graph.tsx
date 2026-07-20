@@ -94,9 +94,7 @@ export function NetworkGraphInner({
     return (
       <SectionEmpty
         title="No network gathered yet"
-        hint={canGather
-          ? `Build ${subjectLabel}'s graph from their posts (inbound mentions are included).`
-          : 'Connect your X account first (header → Connect X).'}
+        hint={`Build ${subjectLabel}'s graph from their posts (inbound mentions are included).`}
         actionLabel="Gather network"
         onAction={onRefresh}
         busy={refreshing}

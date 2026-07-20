@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { validateVeniceKey } from './validate-venice-key'
-import { BASE_URL } from './venice-client'
+import { byokVeniceBaseUrl } from './venice-config'
 
 describe('validateVeniceKey', () => {
   beforeEach(() => {
@@ -32,11 +32,11 @@ describe('validateVeniceKey', () => {
     expect(result).toEqual({ ok: false, message: 'Could not reach Venice' })
   })
 
-  it('sends the candidate key as a Bearer token', async () => {
+  it('sends the candidate key as a Bearer token against the BYOK base', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
     await validateVeniceKey('sk-my-key')
-    expect(fetchMock).toHaveBeenCalledWith(`${BASE_URL}/api_keys/rate_limits`, {
+    expect(fetchMock).toHaveBeenCalledWith(`${byokVeniceBaseUrl()}/api_keys/rate_limits`, {
       headers: { Authorization: 'Bearer sk-my-key' },
     })
   })

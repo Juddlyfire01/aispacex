@@ -1,9 +1,10 @@
 import { useState, useEffect, lazy, Suspense, type ComponentType } from 'react'
 import { useSettingsStore, type Tab } from './stores/settings-store'
 import { useAuthStore } from './stores/auth-store'
+import { isUserVeniceKey, VENICE_SERVER_FRONTED } from './lib/venice-config'
 import { Sidebar } from './components/layout/sidebar'
 import { Header } from './components/layout/header'
-import { ApiKeyDialog } from './components/layout/api-key-dialog'
+import { ConnectionsDialog } from './components/layout/connections-dialog'
 import { ErrorBoundary } from './components/ui/error-boundary'
 import { Toaster } from './components/ui/toaster'
 import { ConfirmDialogHost } from './components/ui/confirm-dialog'
@@ -103,8 +104,11 @@ type LiveTab = keyof typeof views
 const TAB_ORDER: LiveTab[] = ['image', 'audio', 'music', 'video', 'intel']
 
 export function App() {
-  const needsUnlock = useAuthStore((s) => s.hasEncrypted && !s.apiKey)
-  const [apiKeyOpen, setApiKeyOpen] = useState(needsUnlock)
+  // Only force unlock when there is no app-fronted fallback (BYOK-required mode).
+  const needsUnlock = useAuthStore(
+    (s) => s.hasEncrypted && !isUserVeniceKey(s.apiKey) && !VENICE_SERVER_FRONTED,
+  )
+  const [connectionsOpen, setConnectionsOpen] = useState(needsUnlock)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const activeTab = useSettingsStore((s) => s.activeTab)
   const setActiveTab = useSettingsStore((s) => s.setActiveTab)
@@ -144,7 +148,7 @@ export function App() {
       <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
       <div className="flex flex-col flex-1 min-w-0">
         <Header
-          onOpenApiKey={() => setApiKeyOpen(true)}
+          onOpenConnections={() => setConnectionsOpen(true)}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
         <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -156,7 +160,7 @@ export function App() {
         </main>
       </div>
       </div>
-      <ApiKeyDialog open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
+      <ConnectionsDialog open={connectionsOpen} onClose={() => setConnectionsOpen(false)} />
       <Toaster />
       <ConfirmDialogHost />
       <PromptDialogHost />

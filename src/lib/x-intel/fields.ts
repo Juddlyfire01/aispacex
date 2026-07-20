@@ -40,12 +40,12 @@ export const COST_PER_LIKE = 0.001
 // profile in the same request (no extra cost).
 export const DEFAULT_TARGET = 'AskVenice'
 
-/** Gratis demo intel target — gatherable without user OAuth via /api/x/demo. */
+/** Default seed / featured target (@AskVenice). Gather works for any handle via app bearer. */
 export function isDemoTarget(username: string): boolean {
   return username.toLowerCase() === DEFAULT_TARGET.toLowerCase()
 }
 
-export function canGatherTarget(username: string | null | undefined, connected: boolean): boolean {
-  if (!username) return false
-  return connected || isDemoTarget(username)
+/** Any non-empty username can be gathered (app bearer or OAuth). `connected` unused. */
+export function canGatherTarget(username: string | null | undefined, _connected?: boolean): boolean {
+  return Boolean(username?.trim())
 }

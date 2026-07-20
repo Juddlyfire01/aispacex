@@ -1,5 +1,5 @@
 // Base paths for X API proxies. Target reads use OAuth when connected, or the
-// gratis @AskVenice demo path (app-only bearer) when not.
+// app-only bearer public path (/api/x/demo) when not.
 export const X_PROXY_BASE = '/api/x/proxy'
 export const X_DEMO_BASE = '/api/x/demo'
 
@@ -11,9 +11,9 @@ const PROXY_BASE: Record<GatherAuth, string> = {
 }
 
 const ERROR_HINTS: Record<string, string> = {
-  x_not_connected: 'Connect your X account (header → Connect X).',
-  x_demo_unconfigured: 'Demo profile loading is not configured on this deployment.',
-  demo_path_forbidden: 'This action requires connecting your X account.',
+  x_not_connected: 'Connect your X account (Connections) to post or use self features.',
+  x_demo_unconfigured: 'Public profile loading is not configured on this deployment.',
+  demo_path_forbidden: 'This X API path is not allowed for public reads.',
 }
 
 export class XAPIError extends Error {

@@ -582,7 +582,7 @@ export function AlphaView() {
 
         {!xConnected && (
           <p className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-[12px] text-amber-100/90">
-            Connect X (header → Connect X) for live counts, X News, and post firehose. Grok brief
+            Connect X (Connections) for live counts, X News, and post firehose. Grok brief
             still runs on Venice alone.
           </p>
         )}

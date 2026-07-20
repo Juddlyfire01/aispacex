@@ -1,6 +1,6 @@
 // Orchestration for organization affiliate rosters: fetch via the X affiliates
-// endpoint and persist into the affiliates store. Venice is fetchable gratis
-// (demo bearer) when X is not connected; any other org requires OAuth.
+// endpoint and persist into the affiliates store. Uses OAuth when connected,
+// otherwise app-bearer public reads for any org.
 import { gatherAffiliates } from './gather'
 import { resolveGatherAuth } from './gather-auth'
 import { flushEncryptedStorage } from '../encrypted-storage'

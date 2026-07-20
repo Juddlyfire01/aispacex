@@ -11,7 +11,7 @@ import { ensureProfileShape, profileNeedsLinkRefresh } from '../../lib/x-intel/n
 import { computeActivity } from '../../lib/x-intel/activity'
 import type { Profile } from '../../lib/x-intel/types'
 import { ProfileOverview } from './profile-overview'
-import { canGatherTarget, isDemoTarget } from '../../lib/x-intel/fields'
+import { canGatherTarget } from '../../lib/x-intel/fields'
 
 /**
  * Render a bio with clickable URLs, @mentions and #hashtags. URLs and hashtags
@@ -129,11 +129,7 @@ export function ProfileCard() {
       refreshError={refreshError}
       lastGatheredIso={report.refreshedAt?.profile ?? profile?.gatheredAt}
       onRefresh={runRefresh}
-      emptyHint={canGather
-        ? (isDemoTarget(activeTarget) && !connected
-          ? `Fetch @${activeTarget}'s profile, posts & network — no X account needed. Connect X to analyze anyone else.`
-          : `Fetch @${activeTarget}'s profile, posts & network in one pull.`)
-        : 'Connect your X account first (header → Connect X).'}
+      emptyHint={`Fetch @${activeTarget}'s profile, posts & network in one pull.`}
       renderBio={(p: Profile) => <BioText text={p.bio ?? ''} bioUrls={p.bioUrls} />}
       activity={activity}
       synthesisSettings={synthesisSettings}

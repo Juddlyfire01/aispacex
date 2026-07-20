@@ -16,13 +16,16 @@ describe('isDemoTarget', () => {
 })
 
 describe('canGatherTarget', () => {
-  it('allows demo target without OAuth', () => {
+  it('allows any non-empty username without OAuth', () => {
     expect(canGatherTarget('AskVenice', false)).toBe(true)
+    expect(canGatherTarget('elonmusk', false)).toBe(true)
+    expect(canGatherTarget('elonmusk', true)).toBe(true)
   })
 
-  it('blocks other targets until connected', () => {
-    expect(canGatherTarget('elonmusk', false)).toBe(false)
-    expect(canGatherTarget('elonmusk', true)).toBe(true)
+  it('rejects empty', () => {
+    expect(canGatherTarget('', false)).toBe(false)
+    expect(canGatherTarget(null, false)).toBe(false)
+    expect(canGatherTarget(undefined, true)).toBe(false)
   })
 })
 
@@ -31,17 +34,14 @@ describe('resolveGatherAuth', () => {
     useXSelfStore.setState({ connected: false })
   })
 
-  it('uses demo auth for AskVenice when disconnected', () => {
+  it('uses demo auth for any username when disconnected', () => {
     expect(resolveGatherAuth('askvenice')).toBe('demo')
+    expect(resolveGatherAuth('random')).toBe('demo')
   })
 
   it('uses oauth when connected', () => {
     useXSelfStore.setState({ connected: true })
     expect(resolveGatherAuth('askvenice')).toBe('oauth')
     expect(resolveGatherAuth('random')).toBe('oauth')
-  })
-
-  it('throws for non-demo targets when disconnected', () => {
-    expect(() => resolveGatherAuth('random')).toThrow(/Connect your X account/)
   })
 })

@@ -1,12 +1,13 @@
 import { useXSelfStore } from '../../stores/x-self-store'
-import { isDemoTarget } from './fields'
-import { XAPIError, type GatherAuth } from './x-client'
+import type { GatherAuth } from './x-client'
 
 export type { GatherAuth }
 
-/** OAuth when connected; demo bearer for @AskVenice when not. */
-export function resolveGatherAuth(username: string): GatherAuth {
+/**
+ * OAuth when connected (richer fields e.g. connection_status); otherwise
+ * app-bearer public reads for any username. Never requires Connect X to gather.
+ */
+export function resolveGatherAuth(_username: string): GatherAuth {
   if (useXSelfStore.getState().connected) return 'oauth'
-  if (isDemoTarget(username)) return 'demo'
-  throw new XAPIError('Connect your X account (header → Connect X) to gather other profiles.', 401)
+  return 'demo'
 }

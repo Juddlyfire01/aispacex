@@ -102,7 +102,7 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
     (isReply && !replyAllowed)
 
   const primaryTitle = !connected
-    ? 'Connect your X account (header → Connect X)'
+    ? 'Connect your X account (Connections)'
     : isReply
       ? replySummoned == null
         ? REPLY_TIP_CHECKING

@@ -407,9 +407,7 @@ export function ActivityFeed() {
       focusPostId={focusPostId}
       focusNonce={focusNonce}
       onFocusHandled={clearFeedFocus}
-      emptyHint={canGather
-        ? `Fetch @${activeTarget}'s recent posts (up to 50 per pull).`
-        : 'Connect your X account first (header → Connect X).'}
+      emptyHint={`Fetch @${activeTarget}'s recent posts (up to 50 per pull).`}
     />
   )
 }
