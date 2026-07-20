@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'method_not_allowed' })
   }
 
-  const bearer = readAppBearerToken()
+  const bearer = readAppBearerToken(req)
   if (!bearer) {
     return res.status(503).json({ error: 'x_demo_unconfigured' })
   }

@@ -53,6 +53,9 @@
   --color-accent: #3c8fdd;
   --color-accent-soft: rgba(60, 143, 221, 0.18);
   --color-accent-contrast: #ffffff;
+  /* Connection status dots — independent of chrome accent (green/red). */
+  --color-status-ok: #3ecf8e;
+  --color-status-off: #e55c5c;
   /* X-fidelity content/external links — same blue on every theme (not chrome accent). */
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
@@ -97,6 +100,8 @@
   --color-accent: #ffffff;
   --color-accent-soft: rgba(255, 255, 255, 0.14);
   --color-accent-contrast: #000000;
+  --color-status-ok: #3ecf8e;
+  --color-status-off: #e55c5c;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
   --color-highlight: #38bdf8;
@@ -133,6 +138,8 @@
   --color-accent: #4aa3ff;
   --color-accent-soft: rgba(74, 163, 255, 0.16);
   --color-accent-contrast: #03121f;
+  --color-status-ok: #3ecf8e;
+  --color-status-off: #e55c5c;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
   --color-highlight: #4aa3ff;
@@ -171,6 +178,8 @@
   --color-accent: #0f9a84;
   --color-accent-soft: rgba(15, 154, 132, 0.14);
   --color-accent-contrast: #ffffff;
+  --color-status-ok: #1a9f63;
+  --color-status-off: #d64545;
   --color-link: #1d9bf0;
   --color-link-soft: rgba(29, 155, 240, 0.35);
   /* Light: deeper blue so text/border read on near-white surfaces. */

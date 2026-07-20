@@ -1,12 +1,14 @@
 // App-only bearer reads for public X profile gather — never user OAuth.
 // Used by /api/x/demo (legacy route name) as a read-only allowlisted proxy.
-import { X_API_BASE } from './x-oauth.js'
+import { X_API_BASE, readByokCredentials, type OAuthRequest } from './x-oauth.js'
 
 export const DEMO_USERNAME = 'AskVenice'
 
 let cachedDemoUserId: string | null = null
 
-export function readAppBearerToken(): string | null {
+export function readAppBearerToken(req?: OAuthRequest): string | null {
+  const byok = readByokCredentials(req).bearer
+  if (byok) return byok
   const token = process.env.X_BEARER_TOKEN?.trim()
   return token || null
 }

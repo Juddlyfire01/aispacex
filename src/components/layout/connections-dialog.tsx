@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../stores/auth-store'
 import { useXSelfStore } from '../../stores/x-self-store'
-import { AppWordmark } from '../ui/logo'
 import { toast } from '../../stores/toast-store'
 import { validateVeniceKey } from '../../lib/validate-venice-key'
 import { Modal, modalInputClass, modalGhostBtnClass, modalPrimaryBtnClass, modalSecondaryBtnClass } from '../ui/modal'
@@ -13,6 +12,7 @@ import {
 } from '../../lib/venice-config'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
+import { useXAppCredentialsStore, syncXByokCookies } from '../../stores/x-app-credentials-store'
 
 const MIN_PASSPHRASE = 8
 
@@ -20,18 +20,18 @@ function useVeniceStatus() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const hasEncrypted = useAuthStore((s) => s.hasEncrypted)
   if (isUserVeniceKey(apiKey)) {
-    return { tone: 'teal' as const, text: 'Using your API key' }
+    return { tone: 'ok' as const, text: 'Using your API key' }
   }
   if (VENICE_SERVER_FRONTED && apiKey) {
-    return { tone: 'teal' as const, text: 'Using app-provided credentials (alpha)' }
+    return { tone: 'ok' as const, text: 'Using app-provided credentials (alpha)' }
   }
   if (hasEncrypted) {
     return { tone: 'amber' as const, text: 'Saved key locked — unlock to use your key' }
   }
   if (VENICE_SERVER_FRONTED) {
-    return { tone: 'teal' as const, text: 'Using app-provided credentials (alpha)' }
+    return { tone: 'ok' as const, text: 'Using app-provided credentials (alpha)' }
   }
-  return { tone: 'slate' as const, text: 'API key required' }
+  return { tone: 'off' as const, text: 'API key required' }
 }
 
 export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -49,6 +49,20 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
   const [error, setError] = useState<string | null>(null)
   const [showVeniceForm, setShowVeniceForm] = useState(false)
   const [forceConnect, setForceConnect] = useState(false)
+  const [showXAppForm, setShowXAppForm] = useState(false)
+  const [xAppBusy, setXAppBusy] = useState(false)
+  const [xAppError, setXAppError] = useState<string | null>(null)
+
+  const xAppClientId = useXAppCredentialsStore((s) => s.clientId)
+  const xAppClientSecret = useXAppCredentialsStore((s) => s.clientSecret)
+  const xAppBearer = useXAppCredentialsStore((s) => s.bearer)
+  const setXAppCredentials = useXAppCredentialsStore((s) => s.setCredentials)
+  const clearXAppCredentials = useXAppCredentialsStore((s) => s.clearCredentials)
+  const hasXAppCreds = Boolean(xAppClientId.trim() || xAppClientSecret.trim() || xAppBearer.trim())
+
+  const [draftClientId, setDraftClientId] = useState('')
+  const [draftClientSecret, setDraftClientSecret] = useState('')
+  const [draftBearer, setDraftBearer] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -58,6 +72,11 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
     setValue('')
     setPassphrase('')
     setRemember(false)
+    setShowXAppForm(false)
+    setXAppError(null)
+    setDraftClientId(useXAppCredentialsStore.getState().clientId)
+    setDraftClientSecret(useXAppCredentialsStore.getState().clientSecret)
+    setDraftBearer(useXAppCredentialsStore.getState().bearer)
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -124,16 +143,13 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
 
   return (
     <Modal open={open} onClose={onClose} aria-labelledby={titleId} className="max-w-md">
-      <div className="flex items-center gap-3 mb-5">
-        <AppWordmark className="text-[17px] shrink-0" />
-        <div>
-          <h2 id={titleId} className="text-[17px] font-semibold text-[var(--color-text-primary)]">
-            Connections
-          </h2>
-          <p className="text-[13px] text-[var(--color-text-secondary)]">
-            What’s powering this session — and what you can unlock.
-          </p>
-        </div>
+      <div className="mb-5">
+        <h2 id={titleId} className="text-[17px] font-semibold text-[var(--color-text-primary)]">
+          Connections
+        </h2>
+        <p className="text-[13px] text-[var(--color-text-secondary)]">
+          What’s powering this session — and what you can unlock.
+        </p>
       </div>
 
       {/* Venice */}
@@ -286,7 +302,7 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <StatusDot tone={xConnected ? 'teal' : 'slate'} pulsing={!xConnected && !xConnecting} />
+              <StatusDot tone={xConnected ? 'ok' : 'off'} pulsing={!xConnected && !xConnecting} />
               <h3 className="text-[14px] font-medium text-[var(--color-text-primary)]">X account</h3>
             </div>
             <p className="text-[12px] text-[var(--color-text-secondary)] mt-1 leading-snug">
@@ -299,6 +315,11 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
             <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-snug">
               Optional — connect to post. You can gather any public profile without connecting.
             </p>
+            {hasXAppCreds && (
+              <p className="text-[11px] text-teal-300/80 mt-1 leading-snug">
+                Using your X developer app credentials for API costs.
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             {xConnected ? (
@@ -314,12 +335,147 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
                 type="button"
                 className={modalSecondaryBtnClass}
                 disabled={xConnecting}
-                onClick={() => beginSelfLogin()}
+                onClick={() => { void beginSelfLogin() }}
               >
                 {xConnecting ? 'Connecting…' : 'Connect X'}
               </button>
             )}
           </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-[var(--color-border-faint)]">
+          <button
+            type="button"
+            className="text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2"
+            onClick={() => {
+              setShowXAppForm((v) => !v)
+              setXAppError(null)
+              setDraftClientId(xAppClientId)
+              setDraftClientSecret(xAppClientSecret)
+              setDraftBearer(xAppBearer)
+            }}
+          >
+            {showXAppForm ? 'Hide' : 'Advanced'} — your X developer app (Client ID / Secret)
+          </button>
+
+          {showXAppForm && (
+            <div className="mt-3 space-y-2.5">
+              <p className="text-[11px] text-[var(--color-text-tertiary)] leading-snug">
+                Override app-provided X credentials so gather and OAuth bill your developer app.
+                Register this site’s callback URL in the{' '}
+                <a
+                  href="https://developer.x.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  X developer portal
+                </a>
+                . Stored in this tab; synced as HttpOnly cookies for API calls — not saved to our database.
+              </p>
+              <div>
+                <label htmlFor="x-byok-client-id" className="block text-[11px] text-[var(--color-text-tertiary)] mb-1">
+                  Client ID
+                </label>
+                <input
+                  id="x-byok-client-id"
+                  type="text"
+                  value={draftClientId}
+                  onChange={(e) => setDraftClientId(e.target.value)}
+                  placeholder="Your X app Client ID"
+                  className={`${modalInputClass} text-[13px] font-mono`}
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label htmlFor="x-byok-client-secret" className="block text-[11px] text-[var(--color-text-tertiary)] mb-1">
+                  Client Secret <span className="text-[var(--color-text-quaternary)]">(optional for public clients)</span>
+                </label>
+                <input
+                  id="x-byok-client-secret"
+                  type="password"
+                  value={draftClientSecret}
+                  onChange={(e) => setDraftClientSecret(e.target.value)}
+                  placeholder="Client Secret"
+                  className={`${modalInputClass} text-[13px] font-mono`}
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label htmlFor="x-byok-bearer" className="block text-[11px] text-[var(--color-text-tertiary)] mb-1">
+                  Bearer Token <span className="text-[var(--color-text-quaternary)]">(optional — public gather / read costs)</span>
+                </label>
+                <input
+                  id="x-byok-bearer"
+                  type="password"
+                  value={draftBearer}
+                  onChange={(e) => setDraftBearer(e.target.value)}
+                  placeholder="App-only Bearer Token"
+                  className={`${modalInputClass} text-[13px] font-mono`}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="min-h-[1.5rem]" aria-live="polite">
+                {xAppError && <p role="alert" className="text-[12px] text-red-300 leading-snug">{xAppError}</p>}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {hasXAppCreds && (
+                  <button
+                    type="button"
+                    className={`${modalGhostBtnClass} text-[12px] hover:text-red-300`}
+                    disabled={xAppBusy}
+                    onClick={() => {
+                      void (async () => {
+                        setXAppBusy(true)
+                        setXAppError(null)
+                        clearXAppCredentials()
+                        setDraftClientId('')
+                        setDraftClientSecret('')
+                        setDraftBearer('')
+                        const result = await syncXByokCookies()
+                        setXAppBusy(false)
+                        if (!result.ok) {
+                          setXAppError(result.error ?? 'Failed to clear')
+                          return
+                        }
+                        toast.info('Using app-provided X credentials again')
+                        setShowXAppForm(false)
+                      })()
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={modalPrimaryBtnClass}
+                  disabled={xAppBusy || (!draftClientId.trim() && !draftClientSecret.trim() && !draftBearer.trim())}
+                  aria-busy={xAppBusy || undefined}
+                  onClick={() => {
+                    void (async () => {
+                      setXAppBusy(true)
+                      setXAppError(null)
+                      setXAppCredentials({
+                        clientId: draftClientId.trim(),
+                        clientSecret: draftClientSecret.trim(),
+                        bearer: draftBearer.trim(),
+                      })
+                      const result = await syncXByokCookies()
+                      setXAppBusy(false)
+                      if (!result.ok) {
+                        setXAppError(result.error ?? 'Failed to save')
+                        return
+                      }
+                      toast.success('X app credentials saved for this session')
+                      setShowXAppForm(false)
+                    })()
+                  }}
+                >
+                  {xAppBusy ? '…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

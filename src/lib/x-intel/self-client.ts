@@ -74,8 +74,10 @@ export async function getSelfSession(): Promise<SelfSession> {
  *  connecting UI until the session probe resolves. Prefetches the Intel chunk
  *  so the post-redirect Suspense fallback is usually a cache hit. The redirect
  *  is deferred one paint frame (double rAF) so the connecting state actually
- *  renders before the browser navigates away. */
-export function beginSelfLogin(): void {
+ *  renders before the browser navigates away.
+ *  Syncs advanced-user X app credentials to HttpOnly cookies first so login
+ *  uses the user's Client ID/Secret when set. */
+export async function beginSelfLogin(): Promise<void> {
   useXSelfStore.getState().setConnecting(true)
   // Land on Intel after X; persist best-effort (async encrypted write may not
   // finish before navigation — sessionStorage + primeXOAuthReturnShell cover that).
@@ -85,6 +87,12 @@ export function beginSelfLogin(): void {
     sessionStorage.setItem(X_OAUTH_INTEL_TAB_KEY, useXIntelStore.getState().activeTopTab)
   } catch { /* private mode / disabled */ }
   prefetchIntelView()
+
+  try {
+    const { syncXByokCookies } = await import('../../stores/x-app-credentials-store')
+    await syncXByokCookies()
+  } catch { /* proceed with env credentials */ }
+
   requestAnimationFrame(() => requestAnimationFrame(() => {
     window.location.href = X_OAUTH_LOGIN_PATH
   }))

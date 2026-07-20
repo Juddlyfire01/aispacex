@@ -13,7 +13,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     const env = readEnv(req)
     const verifier = randomUrlToken(32)
     const challenge = codeChallengeS256(verifier)
-    const state = packOAuthState(verifier)
+    const state = packOAuthState(verifier, env)
 
     const authUrl = new URL(X_AUTHORIZE_URL)
     authUrl.searchParams.set('response_type', 'code')

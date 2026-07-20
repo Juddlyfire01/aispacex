@@ -223,11 +223,11 @@ export function Badge({ children, tone = 'slate' }: { children: React.ReactNode;
   )
 }
 
-export function StatusDot({ tone = 'slate', pulsing }: { tone?: 'emerald' | 'amber' | 'rose' | 'slate' | 'teal'; pulsing?: boolean }) {
-  const color = tone === 'emerald' ? 'bg-emerald-400'
+export function StatusDot({ tone = 'slate', pulsing }: { tone?: 'emerald' | 'amber' | 'rose' | 'slate' | 'teal' | 'ok' | 'off'; pulsing?: boolean }) {
+  const color = tone === 'ok' || tone === 'emerald' ? 'bg-[var(--color-status-ok)]'
+    : tone === 'off' || tone === 'rose' ? 'bg-[var(--color-status-off)]'
     : tone === 'amber' ? 'bg-amber-400'
-    : tone === 'rose' ? 'bg-rose-400'
-    : tone === 'teal' ? 'bg-[var(--color-accent)]'
+    : tone === 'teal' ? 'bg-[var(--color-status-ok)]'
     : 'bg-[var(--color-text-quaternary)]'
   return (
     <span className={cn('inline-block w-1.5 h-1.5 rounded-full', color, pulsing && 'animate-pulse-dot')} />
@@ -265,7 +265,7 @@ export function ConnectionPill({ connected, connecting, connectedLabel, disconne
         </>
       ) : (
         <>
-          <StatusDot tone={connected ? 'teal' : 'slate'} pulsing={!connected} />
+          <StatusDot tone={connected ? 'ok' : 'off'} pulsing={!connected} />
           <span className={connected ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)]'}>
             {connected ? connectedLabel : disconnectedLabel}
           </span>

@@ -43,7 +43,14 @@ export const COOKIE = {
   // Multi-account cookies.
   activeAccount: 'x_active_account', // holds the active X account id
   accountLabel: 'x_account',          // x_account__<id> = username (HttpOnly)
+  // Advanced-user override of app X developer credentials (HttpOnly).
+  // Set via POST /api/x/byok; preferred over env in readEnv / bearer reads.
+  byokClientId: 'x_byok_client_id',
+  byokClientSecret: 'x_byok_client_secret',
+  byokBearer: 'x_byok_bearer',
 } as const
+
+const BYOK_COOKIE_MAX_AGE = 60 * 60 * 24 * 60 // 60 days
 
 /** Per-account cookie name for the access token: `x_access_token__<id>`. */
 export function accessCookieName(accountId: string): string {
@@ -181,19 +188,76 @@ export function cookiesAreSecure(req?: OAuthRequest): boolean {
   return inferProto(req?.headers, host.split(',')[0]!.trim()) === 'https'
 }
 
-/** Read + validate OAuth env. Pass the incoming request on login/callback routes. */
+export interface XByokCredentials {
+  clientId?: string
+  clientSecret?: string
+  bearer?: string
+}
+
+function cookieDecode(raw: string | undefined): string | undefined {
+  if (!raw) return undefined
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+/** Read advanced-user X app credential overrides from HttpOnly cookies. */
+export function readByokCredentials(req?: OAuthRequest): XByokCredentials {
+  const cookies = parseCookies(headerFirst(req?.headers, 'cookie'))
+  return {
+    clientId: cookieDecode(cookies[COOKIE.byokClientId])?.trim() || undefined,
+    clientSecret: cookieDecode(cookies[COOKIE.byokClientSecret])?.trim() || undefined,
+    bearer: cookieDecode(cookies[COOKIE.byokBearer])?.trim() || undefined,
+  }
+}
+
+/** Set-Cookie headers that persist BYOK X app credentials (HttpOnly). */
+export function serializeByokCookies(creds: XByokCredentials, secure: boolean): string[] {
+  const out: string[] = []
+  const opts = { maxAge: BYOK_COOKIE_MAX_AGE, secure }
+  if (creds.clientId) {
+    out.push(serializeCookie(COOKIE.byokClientId, encodeURIComponent(creds.clientId), opts))
+  } else {
+    out.push(clearCookie(COOKIE.byokClientId))
+  }
+  if (creds.clientSecret) {
+    out.push(serializeCookie(COOKIE.byokClientSecret, encodeURIComponent(creds.clientSecret), opts))
+  } else {
+    out.push(clearCookie(COOKIE.byokClientSecret))
+  }
+  if (creds.bearer) {
+    out.push(serializeCookie(COOKIE.byokBearer, encodeURIComponent(creds.bearer), opts))
+  } else {
+    out.push(clearCookie(COOKIE.byokBearer))
+  }
+  return out
+}
+
+export function clearByokCookies(): string[] {
+  return [
+    clearCookie(COOKIE.byokClientId),
+    clearCookie(COOKIE.byokClientSecret),
+    clearCookie(COOKIE.byokBearer),
+  ]
+}
+
+/** Read + validate OAuth env. Pass the incoming request on login/callback routes.
+ *  Prefers advanced-user BYOK cookies over process.env. */
 export function readEnv(req?: OAuthRequest): XOAuthEnv {
-  const clientId = process.env.X_CLIENT_ID?.trim()
+  const byok = readByokCredentials(req)
+  const clientId = byok.clientId || process.env.X_CLIENT_ID?.trim()
   if (!clientId) {
     const vercelEnv = process.env.VERCEL_ENV
     if (vercelEnv === 'preview' || vercelEnv === 'development') {
       throw new Error(
-        'X_CLIENT_ID is not set for this Vercel environment. In Vercel → Project Settings → Environment Variables, add X_CLIENT_ID (and X_CLIENT_SECRET if required) with Preview enabled, then redeploy.',
+        'X_CLIENT_ID is not set for this Vercel environment. In Vercel → Project Settings → Environment Variables, add X_CLIENT_ID (and X_CLIENT_SECRET if required) with Preview enabled, then redeploy — or supply your own Client ID in Connections.',
       )
     }
     if (!vercelEnv) {
       throw new Error(
-        'X_CLIENT_ID is not set. For local `npm run dev` (in-process API), put X_CLIENT_ID in project-root .env and restart Vite. It is no longer auto-pulled from Vercel.',
+        'X_CLIENT_ID is not set. Put X_CLIENT_ID in project-root .env, or supply your own Client ID in Connections.',
       )
     }
     throw new Error('X_CLIENT_ID is not set')
@@ -201,7 +265,7 @@ export function readEnv(req?: OAuthRequest): XOAuthEnv {
   const { redirectUri, appBaseUrl } = resolveOAuthOrigin(req)
   return {
     clientId,
-    clientSecret: process.env.X_CLIENT_SECRET || null,
+    clientSecret: byok.clientSecret || process.env.X_CLIENT_SECRET || null,
     redirectUri,
     appBaseUrl,
   }
@@ -226,29 +290,32 @@ export function codeChallengeS256(verifier: string): string {
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
 
-function oauthStateSecret(): string {
-  return process.env.X_CLIENT_SECRET || process.env.X_CLIENT_ID || 'oauth-state'
+function oauthStateSecret(env?: Pick<XOAuthEnv, 'clientId' | 'clientSecret'>): string {
+  return env?.clientSecret || env?.clientId || process.env.X_CLIENT_SECRET || process.env.X_CLIENT_ID || 'oauth-state'
 }
 
 /** Build the `state` query param: HMAC-signed verifier + expiry. */
-export function packOAuthState(verifier: string): string {
+export function packOAuthState(verifier: string, env?: Pick<XOAuthEnv, 'clientId' | 'clientSecret'>): string {
   const payload = JSON.stringify({
     v: verifier,
     e: Date.now() + OAUTH_STATE_TTL_MS,
     n: randomUrlToken(8),
   })
-  const sig = crypto.createHmac('sha256', oauthStateSecret()).update(payload).digest('base64url')
+  const sig = crypto.createHmac('sha256', oauthStateSecret(env)).update(payload).digest('base64url')
   return Buffer.from(JSON.stringify({ p: payload, s: sig })).toString('base64url')
 }
 
 /** Recover the PKCE verifier from `state`, or null if invalid/expired. */
-export function unpackOAuthState(state: string): string | null {
+export function unpackOAuthState(
+  state: string,
+  env?: Pick<XOAuthEnv, 'clientId' | 'clientSecret'>,
+): string | null {
   try {
     const { p, s } = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as {
       p: string
       s: string
     }
-    const expected = crypto.createHmac('sha256', oauthStateSecret()).update(p).digest('base64url')
+    const expected = crypto.createHmac('sha256', oauthStateSecret(env)).update(p).digest('base64url')
     if (s !== expected) return null
     const { v, e } = JSON.parse(p) as { v: string; e: number }
     if (!v || Date.now() > e) return null

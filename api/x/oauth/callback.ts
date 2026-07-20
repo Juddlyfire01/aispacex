@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Prefer signed state (survives cross-site redirect without cookies). Fall back
     // to legacy PKCE cookies for in-flight logins started before deploy.
     const cookies = parseCookies(req.headers.cookie)
-    let verifier = unpackOAuthState(state)
+    let verifier = unpackOAuthState(state, env)
     if (!verifier && cookies[COOKIE.state] === state && cookies[COOKIE.verifier]) {
       verifier = cookies[COOKIE.verifier]
     }
