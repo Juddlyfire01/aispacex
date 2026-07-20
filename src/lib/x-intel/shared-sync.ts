@@ -175,15 +175,23 @@ async function flushPush(username: string): Promise<void> {
   const report = key ? reports[key] : undefined
   if (!report || !report.profile) return // nothing worth sharing yet
   const bundle = toSharedBundle(report)
+  const body = JSON.stringify(bundle)
   try {
-    await fetch(`${BUNDLE_URL}?username=${encodeURIComponent(username)}`, {
+    // Chromium caps `keepalive` fetch bodies at ~64KB and silently drops larger
+    // requests — typical 50-post intel bundles exceed that, so almost nothing
+    // ever reached the shared library. Only use keepalive for small payloads
+    // (e.g. profile-only refreshes) so unload flushes still work when cheap.
+    const res = await fetch(`${BUNDLE_URL}?username=${encodeURIComponent(username)}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(bundle),
-      keepalive: true,
+      body,
+      keepalive: body.length < 60_000,
     })
-  } catch {
-    /* best-effort: a failed share never surfaces to the user */
+    if (!res.ok) {
+      console.warn(`[shared-library] push @${username} failed: HTTP ${res.status}`)
+    }
+  } catch (err) {
+    console.warn(`[shared-library] push @${username} failed`, err)
   }
 }
 
