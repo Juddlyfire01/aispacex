@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
 import { useXIntelStore, findReportKey } from '../../stores/x-intel-store'
+import { useSharedLibraryStore } from '../../stores/shared-library-store'
 import { TargetRail } from './target-rail'
 import { ActivityFeed } from './activity-feed'
 import { ProfileCard } from './profile-card'
@@ -88,6 +89,13 @@ export function IntelView() {
   // so the one-shot prefs seed (and history) are ready when they open Post.
   useEffect(() => {
     void import('../../stores/compose-store')
+  }, [])
+
+  // Load the shared-profile library index once on mount so the Others rail can
+  // surface available (not-yet-pulled) profiles and the Add field can suggest
+  // them. Best-effort: no-ops quietly when the KV store isn't configured.
+  useEffect(() => {
+    void useSharedLibraryStore.getState().refreshIndex()
   }, [])
 
   // Entering Post from Profile/Targets: carry the active target into compose context.

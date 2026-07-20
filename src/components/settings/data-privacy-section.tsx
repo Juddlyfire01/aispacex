@@ -76,6 +76,15 @@ export function DataPrivacySection() {
         cached — use the controls below to permanently erase it.
       </p>
 
+      <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
+        <span className="text-[var(--color-text-secondary)] font-medium">Shared library:</span>{' '}
+        Analyzed profiles in the Others rail hold public X data (profiles, posts, and derived
+        reports). To save everyone repeat gathers, this public data is contributed to a shared
+        library so other users can load a profile someone already analyzed. Your own connected
+        accounts and all other app data (chats, settings, spend, synthesis preferences) are never
+        shared — they stay on this device.
+      </p>
+
       {/* Your own accounts */}
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

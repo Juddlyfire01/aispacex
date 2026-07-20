@@ -10,6 +10,7 @@ import { canGenerateAfterRefresh, GENERATE_NEEDS_REFRESH_HINT } from './report-g
 import { flushEncryptedStorage } from '../encrypted-storage'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
 import { toast } from '../../stores/toast-store'
+import { pushShared } from './shared-sync'
 import type { IntelReportSnapshot, Post } from './types'
 
 const REPORT_DISK_SAVE_FAILED =
@@ -83,6 +84,9 @@ export async function runGather(username: string, opts: { backfill?: number } = 
     const edges = deriveEdges(profile.id, merged)
 
     updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'profile', 'feed', 'network') })
+    // Mirror the freshly-gathered public corpus to the shared library (debounced,
+    // best-effort). Only profile/posts/edges/reports leave the device.
+    pushShared(key)
   } finally {
     useXIntelStore.getState().setGathering(key, false)
   }
@@ -115,6 +119,7 @@ export async function refreshProfile(
     const result = await gatherProfile(apiUsername, auth)
     addCost(key, result.cost)
     updateReport(key, { profile: result.data, refreshedAt: markRefreshed(key, 'profile') })
+    pushShared(key)
     if (toastId !== null) toast.complete(toastId, 'Profile updated', subject)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Could not refresh profile'
@@ -156,6 +161,7 @@ export async function refreshPosts(username: string): Promise<void> {
   // Stamp feed + network on every success — a zero-new-posts pull still means
   // "checked just now", so the label must move even though `merged` is unchanged.
   updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'feed', 'network') })
+  pushShared(key)
 }
 
 /**
@@ -190,6 +196,7 @@ export async function refreshNetwork(username: string): Promise<void> {
   const merged = mergePosts(mergePosts(latestPosts, postsResult.data), mentionsResult.data)
   const edges = deriveEdges(profileId, merged)
   updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'network', 'feed') })
+  pushShared(key)
 }
 
 /** @deprecated Use `refreshNetwork` — mentions are included in Network Refresh. */
@@ -315,6 +322,8 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
       progress.fail('Report not saved', REPORT_DISK_SAVE_FAILED)
       return snapshot
     }
+    // Share the new report snapshot (with its analyzed corpus) to the library.
+    pushShared(key)
     progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {

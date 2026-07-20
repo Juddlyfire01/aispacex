@@ -9,7 +9,9 @@ import { RailAddMenu } from './rail-add-menu'
 import { RailFilterMenu } from './rail-filter-menu'
 import { RailSortMenu, type RailSortKey } from './rail-sort-menu'
 import { AffiliatesModal } from './affiliates-modal'
+import { SharedLibrarySection } from './shared-library-section'
 import { ensureProfileShape } from '../../lib/x-intel/normalize'
+import { useSharedLibraryStore } from '../../stores/shared-library-store'
 import { cn } from '../../lib/utils'
 
 function relativeTime(iso: string | undefined): string {
@@ -172,10 +174,33 @@ export function TargetRail() {
     const name = input.trim().replace(/^@/, '')
     if (!name) return
     setInput('')
+    // Prefer a free shared-library pull when this handle is already gathered by
+    // someone else; only fall back to a live X gather when it isn't.
+    const sharedMatch = useSharedLibraryStore
+      .getState()
+      .entries.find((e) => e.username.toLowerCase() === name.toLowerCase())
+    if (sharedMatch) {
+      await handleSelectShared(sharedMatch.username)
+      return
+    }
     addTarget(name)
     // addTarget may revive a differently-cased cached key (e.g. askvenice → AskVenice).
     const resolved = useXIntelStore.getState().activeTarget
     if (resolved) await gather(resolved)
+  }
+
+  // Pull a shared bundle into the local store (free + instant), then add it to
+  // the rail and activate it. Falls back to a live gather only if the pull found
+  // no usable profile. Shared by the Add field submit + the type-ahead picks.
+  const handleSelectShared = async (username: string) => {
+    setInput('')
+    const pulled = await useSharedLibraryStore.getState().pull(username)
+    addTarget(username)
+    const resolved = useXIntelStore.getState().activeTarget ?? username
+    setActiveTarget(resolved)
+    if (!pulled && !useXIntelStore.getState().reports[resolved]?.profile) {
+      await gather(resolved)
+    }
   }
 
   return (
@@ -189,6 +214,8 @@ export function TargetRail() {
           onChange={setInput}
           onSubmit={handleAdd}
           onOpenAffiliates={() => setAffiliatesOpen(true)}
+          onSelectShared={handleSelectShared}
+          railUsernames={targets}
           error={error}
         />
         <div className="flex items-start gap-1.5">
@@ -227,6 +254,9 @@ export function TargetRail() {
           // Sorted: derived order, drag disabled.
           visibleTargets.map((t) => renderRow(t, null))
         )}
+
+        {/* Profiles others have gathered but this device hasn't pulled yet. */}
+        <SharedLibrarySection />
       </div>
 
       <CostMeter />

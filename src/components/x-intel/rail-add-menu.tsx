@@ -1,27 +1,51 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
+import { useSharedLibraryStore } from '../../stores/shared-library-store'
 
 /**
  * Collapsed rail control: a single "+ Add" button that opens a popover holding
  * an Add-profile text field and an "Org affiliates" launcher. Dismisses on
  * Escape / outside click. Filtering lives in its own control (RailFilterMenu).
+ *
+ * As the user types, matching profiles from the shared library are offered as
+ * suggestions. Picking one downloads the shared bundle (free + instant) via
+ * `onSelectShared` instead of triggering a live X gather. `railUsernames` are
+ * the handles already on the rail, which are excluded from suggestions.
  */
 export function RailAddMenu({
   value,
   onChange,
   onSubmit,
   onOpenAffiliates,
+  onSelectShared,
+  railUsernames,
   error,
 }: {
   value: string
   onChange: (v: string) => void
   onSubmit: () => void
   onOpenAffiliates: () => void
+  onSelectShared: (username: string) => void
+  railUsernames: string[]
   error?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const sharedEntries = useSharedLibraryStore((s) => s.entries)
+  const pulling = useSharedLibraryStore((s) => s.pulling)
+
+  // Suggestions: shared-library handles that match the query and aren't already
+  // on the rail. Capped so the popover never grows unwieldy.
+  const suggestions = useMemo(() => {
+    const q = value.trim().replace(/^@/, '').toLowerCase()
+    if (!q) return []
+    const onRail = new Set(railUsernames.map((u) => u.toLowerCase()))
+    return sharedEntries
+      .filter((e) => !onRail.has(e.username.toLowerCase()) && e.username.toLowerCase().includes(q))
+      .slice(0, 6)
+  }, [value, sharedEntries, railUsernames])
 
   useEffect(() => {
     if (!open) return
@@ -88,6 +112,37 @@ export function RailAddMenu({
             className="w-full bg-[var(--color-bg-base)] border border-[var(--color-border-faint)] rounded-md px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-strong)] transition-colors placeholder:text-[var(--color-text-placeholder)]"
           />
           {error && <p className="text-[10px] text-red-400/70 px-0.5">{error}</p>}
+
+          {suggestions.length > 0 && (
+            <div className="space-y-0.5 border-b border-[var(--color-border-faint)] pb-1 mb-0.5">
+              <div className="px-2 pt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-quaternary)]">
+                From shared library
+              </div>
+              {suggestions.map((s) => {
+                const isPulling = Boolean(pulling[s.username.toLowerCase()])
+                return (
+                  <button
+                    key={s.username}
+                    type="button"
+                    role="menuitem"
+                    disabled={isPulling}
+                    onClick={() => { onSelectShared(s.username); setOpen(false) }}
+                    className={cn(itemCls, 'disabled:opacity-60')}
+                  >
+                    {s.avatarUrl ? (
+                      <img src={s.avatarUrl} alt="" className="w-4 h-4 rounded-full shrink-0" draggable={false} />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-[var(--color-bg-surface)] shrink-0" />
+                    )}
+                    <span className="truncate flex-1 text-left">@{s.username}</span>
+                    <span className="shrink-0 text-[9px] text-[var(--color-text-quaternary)]">
+                      {isPulling ? 'downloading…' : 'add'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           <button
             type="button"
