@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { computeFloatingRect } from '../../lib/floating-panel'
 import { cn } from '../../lib/utils'
+
+const MENU_WIDTH = 220
 
 export type RailSortKey = 'manual' | 'followers' | 'recent' | 'name' | 'cost'
 
@@ -36,7 +40,20 @@ export function RailSortMenu({
   onChange: (key: RailSortKey) => void
 }) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  const reposition = () => {
+    const anchor = anchorRef.current
+    if (!anchor) return
+    const height = panelRef.current?.offsetHeight ?? 220
+    setPosition(computeFloatingRect(anchor.getBoundingClientRect(), MENU_WIDTH, height))
+  }
+
+  useLayoutEffect(() => {
+    if (open) reposition()
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -44,13 +61,19 @@ export function RailSortMenu({
       if (e.key === 'Escape') setOpen(false)
     }
     const onPointer = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as HTMLElement
+      if (!panelRef.current?.contains(target) && !anchorRef.current?.contains(target)) setOpen(false)
     }
+    const onViewportChange = () => reposition()
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onPointer)
+    window.addEventListener('resize', onViewportChange)
+    window.addEventListener('scroll', onViewportChange, true)
     return () => {
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onPointer)
+      window.removeEventListener('resize', onViewportChange)
+      window.removeEventListener('scroll', onViewportChange, true)
     }
   }, [open])
 
@@ -58,8 +81,9 @@ export function RailSortMenu({
   const current = RAIL_SORT_OPTIONS.find((o) => o.key === sortKey)
 
   return (
-    <div ref={rootRef} className="relative">
+    <div className="relative">
       <button
+        ref={anchorRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -85,11 +109,14 @@ export function RailSortMenu({
         </svg>
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute left-0 right-0 top-full mt-1.5 z-50 p-1.5 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-input)] shadow-2xl animate-scale-in"
-        >
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="menu"
+            style={{ top: position.top, left: position.left, width: MENU_WIDTH }}
+            className="fixed z-[200] p-1.5 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-bg-input)] shadow-2xl animate-scale-in"
+          >
           <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-quaternary)]">
             Sort by
           </div>
@@ -115,8 +142,9 @@ export function RailSortMenu({
               </button>
             )
           })}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

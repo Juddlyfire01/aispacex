@@ -448,6 +448,10 @@ export function ProfileOverview({
       <div className="relative h-[88px] bg-[#17202a]">
         {profile.bannerUrl && (
           <img
+            // Key on the subject so a switch mounts a fresh node instead of
+            // reusing this one — otherwise the browser keeps painting the prior
+            // account's bitmap until the new src decodes (worse under load).
+            key={profile.id}
             src={bannerImageSrc(profile.bannerUrl)}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
@@ -459,6 +463,7 @@ export function ProfileOverview({
       <div className="px-5 relative -mt-[26px]">
         {profile.avatarUrl && (
           <img
+            key={profile.id}
             src={hiResAvatar(profile.avatarUrl)}
             alt=""
             className="w-14 h-14 rounded-full border-4 border-[var(--color-bg-base)] bg-[var(--color-bg-base)] object-cover"
