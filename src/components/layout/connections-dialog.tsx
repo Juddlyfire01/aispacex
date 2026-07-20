@@ -63,9 +63,10 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  const veniceStatus = useVeniceStatus()
+
   if (!open) return null
 
-  const veniceStatus = useVeniceStatus()
   const isUnlockMode = hasEncrypted && !isUserVeniceKey(apiKey) && !forceConnect && showVeniceForm
   const passphraseTooShort = remember && passphrase.length > 0 && passphrase.length < MIN_PASSPHRASE
   const titleId = 'connections-dialog-title'
