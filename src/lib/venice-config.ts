@@ -18,7 +18,7 @@ export const VENICE_SERVER_FRONTED =
 export const VENICE_FRONTED_SENTINEL = 'server-fronted'
 
 /** True when the stored value is a real user key (not missing, not the sentinel). */
-export function isUserVeniceKey(key: string | null | undefined): boolean {
+export function isUserVeniceKey(key: string | null | undefined): key is string {
   return Boolean(key && key !== VENICE_FRONTED_SENTINEL)
 }
 
