@@ -10,6 +10,7 @@ import { RailFilterMenu } from './rail-filter-menu'
 import { RailSortMenu, type RailSortKey } from './rail-sort-menu'
 import { AffiliatesModal } from './affiliates-modal'
 import { SharedLibrarySection } from './shared-library-section'
+import { RailMetaFlip } from './rail-meta-flip'
 import { ensureProfileShape } from '../../lib/x-intel/normalize'
 import { useSharedLibraryStore } from '../../stores/shared-library-store'
 import { cn } from '../../lib/utils'
@@ -108,30 +109,14 @@ export function TargetRail() {
           <div className="w-4 h-4 rounded-full bg-[var(--color-bg-surface)] shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-1 min-w-0">
-            <span className="flex items-center gap-1 min-w-0">
-              <span className="truncate">@{t}</span>
-              {affiliation && (
-                <img
-                  src={affiliation.badgeUrl}
-                  alt=""
-                  title={`Affiliated with ${affiliation.org?.name ?? affiliation.description ?? 'an organization'}`}
-                  className="w-3 h-3 rounded-[2px] shrink-0 opacity-70"
-                  draggable={false}
-                />
-              )}
-            </span>
-            {(report?.totalCost ?? 0) > 0 && (
-              <span
-                title={`All-time API spend for @${t}`}
-                className={cn(
-                  'shrink-0 font-mono tabular-nums text-[9px]',
-                  t === activeTarget ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-tertiary)]',
-                )}
-              >
-                ${report!.totalCost.toFixed(3)}
-              </span>
-            )}
+          <div className="flex items-center justify-between gap-1.5 min-w-0">
+            <span className="truncate">@{t}</span>
+            <RailMetaFlip
+              affiliation={affiliation}
+              cost={report?.totalCost ?? 0}
+              username={t}
+              active={t === activeTarget}
+            />
           </div>
           <div className="text-[9px] text-[var(--color-text-tertiary)]">
             {gatheringTargets[t]

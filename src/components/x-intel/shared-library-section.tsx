@@ -2,7 +2,24 @@ import { useMemo, useState } from 'react'
 import { useXIntelStore } from '../../stores/x-intel-store'
 import { useSharedLibraryStore } from '../../stores/shared-library-store'
 import { runGather } from '../../lib/x-intel/orchestrate'
+import type { Affiliation } from '../../lib/x-intel/types'
+import { RailMetaFlip } from './rail-meta-flip'
 import { cn } from '../../lib/utils'
+
+function affiliationFromEntry(e: {
+  affiliationBadgeUrl?: string | null
+  affiliationLabel?: string | null
+}): Affiliation | null {
+  if (!e.affiliationBadgeUrl) return null
+  return {
+    badgeUrl: e.affiliationBadgeUrl,
+    description: e.affiliationLabel ?? null,
+    url: null,
+    org: e.affiliationLabel
+      ? { id: '', username: '', name: e.affiliationLabel }
+      : null,
+  }
+}
 
 /**
  * Collapsible "Shared library" section for the Others rail. Lists profiles that
@@ -78,6 +95,7 @@ export function SharedLibrarySection() {
         <div className="flex flex-col gap-0.5 mt-1">
           {available.map((e) => {
             const isPulling = Boolean(pulling[e.username.toLowerCase()])
+            const affiliation = affiliationFromEntry(e)
             return (
               <button
                 key={e.username}
@@ -93,7 +111,16 @@ export function SharedLibrarySection() {
                   <div className="w-4 h-4 rounded-full bg-[var(--color-bg-surface)] shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="truncate">@{e.username}</div>
+                  <div className="flex items-center justify-between gap-1.5 min-w-0">
+                    <span className="truncate">@{e.username}</span>
+                    {!isPulling && (
+                      <RailMetaFlip
+                        affiliation={affiliation}
+                        cost={0}
+                        username={e.username}
+                      />
+                    )}
+                  </div>
                   <div className="text-[9px] text-[var(--color-text-quaternary)]">
                     {isPulling
                       ? 'downloading…'

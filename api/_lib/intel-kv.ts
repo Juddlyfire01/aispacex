@@ -78,6 +78,7 @@ export async function writeBundle(
 
 /** Project a bundle down to its lightweight index row. */
 export function indexEntryFrom(bundle: SharedBundle): SharedIndexEntry {
+  const aff = bundle.profile?.affiliation
   return {
     username: bundle.username,
     displayName: bundle.profile?.displayName ?? bundle.username,
@@ -86,5 +87,7 @@ export function indexEntryFrom(bundle: SharedBundle): SharedIndexEntry {
     postCount: bundle.posts.length,
     reportCount: bundle.reportHistory.length,
     gatheredAt: bundle.gatheredAt,
+    affiliationBadgeUrl: aff?.badgeUrl ?? null,
+    affiliationLabel: aff?.org?.name ?? aff?.description ?? null,
   }
 }

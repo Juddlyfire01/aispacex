@@ -66,7 +66,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const form = new FormData()
   const filename = `upload.${extForMime(mime)}`
-  form.append('media', new Blob([bytes], { type: mime }), filename)
+  // Copy into a fresh ArrayBuffer-backed view — NodeNext rejects SharedArrayBuffer-typed views as BlobPart.
+  const part = new Uint8Array(bytes.byteLength)
+  part.set(bytes)
+  form.append('media', new Blob([part], { type: mime }), filename)
   form.append('media_category', mediaCategory)
   form.append('media_type', mime)
 

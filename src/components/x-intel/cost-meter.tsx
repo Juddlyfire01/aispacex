@@ -16,7 +16,7 @@ const VIEWS: { id: CostProviderView; title: string }[] = [
 ]
 
 /** One half of the Y-flip (out to edge / in from edge). */
-const FLIP_HALF_MS = 160
+const FLIP_HALF_MS = 320
 
 /**
  * Fixed stage for every face (X / Venice / Both) and every flip frame.

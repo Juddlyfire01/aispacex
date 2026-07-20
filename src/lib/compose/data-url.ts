@@ -1,4 +1,4 @@
-import { b64decode } from '../base64'
+import { b64decode } from '../base64.js'
 
 /** Parse a `data:<mime>;base64,<payload>` URL into mime type and raw bytes. */
 export function parseDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {

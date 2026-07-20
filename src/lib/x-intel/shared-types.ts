@@ -10,7 +10,7 @@
 // (reportHistory). Device-private fields — totalCost, per-target
 // synthesisSettings, and the `watch` flag — are intentionally excluded and
 // never leave the device. See toSharedBundle() in shared-sync.ts.
-import type { Profile, Post, Edge, IntelReportSnapshot } from './types'
+import type { Profile, Post, Edge, IntelReportSnapshot } from './types.js'
 
 /** Current shared-bundle schema version. Bump when the wire shape changes. */
 export const SHARED_BUNDLE_VERSION = 1
@@ -49,6 +49,13 @@ export interface SharedIndexEntry {
   reportCount: number
   /** ISO — last time this bundle was updated in the shared store. */
   gatheredAt: string
+  /**
+   * Org affiliation badge URL when the profile is a Verified Org member.
+   * Optional for backward compatibility with older index rows.
+   */
+  affiliationBadgeUrl?: string | null
+  /** Org name / affiliation description for the badge tooltip. */
+  affiliationLabel?: string | null
 }
 
 /** Lowercase, @-stripped storage/key form of a username. */

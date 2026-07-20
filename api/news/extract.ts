@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const html = buf.toString('utf8')
     const result = extractArticleFromHtml(html, parsed.toString())
-    if (!result.ok) {
+    if (result.ok === false) {
       return res.status(422).json({
         error: result.reason,
         url: parsed.toString(),
