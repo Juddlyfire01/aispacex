@@ -8,6 +8,9 @@ import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { ChatMessage, VeniceModel } from '../../types/venice'
 import type { DraftWriteBrief } from './draft-writer-tool'
 import { buildCraftInject } from './skills'
+import { ensureToolResultPairs } from './tool-message-pairs'
+
+export { ensureToolResultPairs, repairToolMessagePairs, toolPairsAreComplete } from './tool-message-pairs'
 
 export { parseArticleFromWriterText, splitArticleImagePrompt } from './article-parse'
 export type { ParsedWriterArticle } from './article-parse'
@@ -142,6 +145,7 @@ export function buildWriterUser(
 /**
  * Prepare agent messages for the draft stage: drop research system, keep
  * user/assistant/tool turns, append write-now. Truncate from the head if over budget.
+ * Always runs {@link ensureToolResultPairs} so Claude/Anthropic writers accept the tape.
  */
 export function buildDraftStageMessages(
   agentMessages: ChatMessage[],
@@ -166,11 +170,14 @@ export function buildDraftStageMessages(
   const serialize = (msgs: ChatMessage[]) =>
     msgs.map((m) => `${m.role}:${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n')
 
-  let kept = body
+  // SOP: pair every tool_use before the write-now user turn (Claude rejects orphans).
+  let kept = ensureToolResultPairs(body)
   const withEnds = () => [system, ...kept, writeNow]
   if (serialize(withEnds()).length > maxChars && kept.length > 0) {
     while (kept.length > 1 && serialize(withEnds()).length > maxChars) {
       kept = kept.slice(1)
+      // Head truncation can split a pair — re-ensure (stubs) rather than strip.
+      kept = ensureToolResultPairs(kept)
     }
   }
   return withEnds()

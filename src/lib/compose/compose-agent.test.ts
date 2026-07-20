@@ -459,14 +459,85 @@ describe('runComposeAgent', () => {
     })
 
     expect(onDraftHandoff).toHaveBeenCalledTimes(1)
+    const handoffMsgs = onDraftHandoff.mock.calls[0]![1] as Array<{
+      role: string
+      tool_calls?: unknown[]
+      tool_call_id?: string
+    }>
     expect(onDraftHandoff).toHaveBeenCalledWith(
       expect.objectContaining({ intent: '≤280', format: 'post' }),
-      expect.arrayContaining([
-        expect.objectContaining({ role: 'user' }),
-        expect.objectContaining({ role: 'assistant', tool_calls: expect.any(Array) }),
-      ]),
+      expect.any(Array),
+    )
+    // Claude-compatible writers require tool_result immediately after tool_use.
+    const assistantIdx = handoffMsgs.findIndex((m) => m.role === 'assistant' && m.tool_calls)
+    expect(assistantIdx).toBeGreaterThanOrEqual(0)
+    expect(handoffMsgs[assistantIdx + 1]).toEqual(
+      expect.objectContaining({ role: 'tool', tool_call_id: 'call_draft' }),
     )
     expect(result.content).toMatch(/Draft is in the drawer/)
     expect(veniceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('handoff waits for all tool_results when draft is batched with research tools', async () => {
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'toolu_research',
+              type: 'function',
+              function: {
+                name: 'intel_list_subjects',
+                arguments: '{}',
+              },
+            },
+            {
+              index: 1,
+              id: 'toolu_01XGFmFRHtcdJJFGAY6BkdwP',
+              type: 'function',
+              function: {
+                name: 'compose_write_draft',
+                arguments: JSON.stringify({ format: 'post' }),
+              },
+            },
+          ],
+          finish_reason: 'tool_calls',
+        }),
+      ]),
+    )
+    veniceMock.mockResolvedValueOnce(
+      sseStreamFromChunks([chunk({ content: 'Done.', finish_reason: 'stop' })]),
+    )
+
+    const onDraftHandoff = vi.fn()
+    await runComposeAgent({
+      model: 'claude-test',
+      messages: [{ role: 'user', content: 'Subjects then draft' }],
+      snapshot: sampleSnapshot(),
+      historySnapshot: { threads: [] },
+      scope: { type: 'all' },
+      xSearchOn: false,
+      onDraftHandoff,
+      onDelta: () => {},
+    })
+
+    expect(onDraftHandoff).toHaveBeenCalledTimes(1)
+    const handoffMsgs = onDraftHandoff.mock.calls[0]![1] as Array<{
+      role: string
+      tool_calls?: Array<{ id: string }>
+      tool_call_id?: string
+    }>
+    const assistantIdx = handoffMsgs.findIndex((m) => m.role === 'assistant' && m.tool_calls)
+    expect(assistantIdx).toBeGreaterThanOrEqual(0)
+    const ids = new Set(handoffMsgs[assistantIdx]!.tool_calls!.map((c) => c.id))
+    let j = assistantIdx + 1
+    while (j < handoffMsgs.length && handoffMsgs[j]!.role === 'tool') {
+      const id = handoffMsgs[j]!.tool_call_id
+      if (id) ids.delete(id)
+      j += 1
+    }
+    expect(ids.size).toBe(0)
+    expect(j - assistantIdx - 1).toBe(2)
   })
 })

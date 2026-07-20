@@ -15,6 +15,7 @@ import {
   buildDraftStageSystem,
   buildDraftStageWriteNow,
   buildDraftStageMessages,
+  repairToolMessagePairs,
   parseArticleFromWriterText,
   isToolCallShapedDraft,
 } from './draft-writer'
@@ -202,13 +203,98 @@ describe('buildDraftStageSystem / buildWriterSystem', () => {
   })
 })
 
+describe('repairToolMessagePairs', () => {
+  it('keeps complete tool_use + tool_result pairs', () => {
+    const repaired = repairToolMessagePairs([
+      { role: 'user', content: 'go' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 't1', type: 'function', function: { name: 'x', arguments: '{}' } },
+        ],
+      },
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 't1' },
+    ])
+    expect(repaired).toHaveLength(3)
+    expect(repaired[1]?.tool_calls).toHaveLength(1)
+    expect(repaired[2]?.tool_call_id).toBe('t1')
+  })
+
+  it('strips tool_use when tool_result is missing', () => {
+    const repaired = repairToolMessagePairs([
+      { role: 'user', content: 'go' },
+      {
+        role: 'assistant',
+        content: 'thinking…',
+        tool_calls: [
+          { id: 't1', type: 'function', function: { name: 'x', arguments: '{}' } },
+        ],
+      },
+      { role: 'user', content: 'write now' },
+    ])
+    expect(repaired).toEqual([
+      { role: 'user', content: 'go' },
+      { role: 'assistant', content: 'thinking…' },
+      { role: 'user', content: 'write now' },
+    ])
+  })
+
+  it('drops orphan tool results', () => {
+    const repaired = repairToolMessagePairs([
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 'orphan' },
+      { role: 'user', content: 'hi' },
+    ])
+    expect(repaired).toEqual([{ role: 'user', content: 'hi' }])
+  })
+})
+
+describe('ensureToolResultPairs via buildDraftStageMessages', () => {
+  it('stubs missing tool_result before write-now (Claude messages.2 regression)', () => {
+    const msgs = buildDraftStageMessages(
+      [
+        { role: 'user', content: 'Draft a post' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            {
+              id: 'toolu_01XGFmFRHtcdJJFGAY6BkdwP',
+              type: 'function',
+              function: { name: 'compose_write_draft', arguments: '{}' },
+            },
+          ],
+        },
+        // Intentionally no tool_result — old handoff shape that Claude rejects.
+      ],
+      { preferredFormat: 'post', intent: '≤280' },
+    )
+    const assistantIdx = msgs.findIndex((m) => m.role === 'assistant' && m.tool_calls)
+    expect(assistantIdx).toBeGreaterThanOrEqual(0)
+    expect(msgs[assistantIdx + 1]).toEqual(
+      expect.objectContaining({
+        role: 'tool',
+        tool_call_id: 'toolu_01XGFmFRHtcdJJFGAY6BkdwP',
+      }),
+    )
+    expect(msgs[msgs.length - 1]?.role).toBe('user')
+    expect(String(msgs[msgs.length - 1]?.content)).toMatch(/DRAFT STAGE/)
+  })
+})
+
 describe('buildDraftStageMessages', () => {
   it('replaces research system and appends write-now', () => {
     const msgs = buildDraftStageMessages(
       [
         { role: 'system', content: 'research system' },
         { role: 'user', content: 'Craft a post' },
-        { role: 'assistant', content: 'Facts about DIEM' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 't1', type: 'function', function: { name: 'x', arguments: '{}' } },
+          ],
+        },
         { role: 'tool', content: '{"ok":true}', tool_call_id: 't1' },
       ],
       { preferredFormat: 'post', intent: '≤280' },
@@ -221,6 +307,52 @@ describe('buildDraftStageMessages', () => {
     expect(msgs[msgs.length - 1]?.role).toBe('user')
     expect(String(msgs[msgs.length - 1]?.content)).toMatch(/DRAFT STAGE/)
     expect(msgs.every((m) => m.content !== 'research system')).toBe(true)
+  })
+
+  it('does not leave unpaired tool_use after truncation', () => {
+    const bulky = 'x'.repeat(40_000)
+    const msgs = buildDraftStageMessages(
+      [
+        { role: 'user', content: bulky },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'old', type: 'function', function: { name: 'x', arguments: '{}' } },
+          ],
+        },
+        { role: 'tool', content: bulky, tool_call_id: 'old' },
+        { role: 'user', content: 'draft please' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            {
+              id: 'draft',
+              type: 'function',
+              function: { name: 'compose_write_draft', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', content: '{"status":"started"}', tool_call_id: 'draft' },
+      ],
+      { preferredFormat: 'post' },
+      null,
+      8_000,
+    )
+    for (let i = 0; i < msgs.length; i++) {
+      const m = msgs[i]!
+      if (m.role === 'assistant' && m.tool_calls?.length) {
+        const ids = new Set(m.tool_calls.map((c) => c.id))
+        let j = i + 1
+        while (j < msgs.length && msgs[j]!.role === 'tool') {
+          const id = msgs[j]!.tool_call_id
+          if (id) ids.delete(id)
+          j += 1
+        }
+        expect(ids.size).toBe(0)
+      }
+    }
   })
 })
 

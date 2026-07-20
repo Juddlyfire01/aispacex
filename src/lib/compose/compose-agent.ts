@@ -22,6 +22,7 @@ import {
   parseDraftWriteBrief,
   type DraftWriteBrief,
 } from './draft-writer-tool'
+import { ensureToolResultPairs } from './tool-message-pairs'
 
 export const MAX_TOOL_ROUNDS = 6
 
@@ -381,6 +382,10 @@ export async function runComposeAgent(
           }
         : ('auto' as const)
 
+    // SOP: Claude (and strict providers) reject tool_use without an immediate
+    // tool_result. Repair before every round — Grok often tolerates orphans.
+    messages.splice(0, messages.length, ...ensureToolResultPairs(messages))
+
     const { content, toolCalls: callEntries, contentResetFired, usage } =
       await streamComposeRound(opts, messages, tools, toolChoice)
 
@@ -404,6 +409,11 @@ export async function runComposeAgent(
     // Tool round: clear UI preamble if mid-stream didn't already.
     if (content && !contentResetFired) opts.onContentReset?.()
 
+    // Defer draft handoff until every tool_result for this assistant turn is
+    // appended. Claude-compatible writers reject transcripts with tool_use and
+    // no matching tool_result (Grok often tolerates the incomplete pair).
+    let pendingDraftBrief: DraftWriteBrief | null = null
+
     for (let i = 0; i < callEntries.length; i++) {
       const { index, call } = callEntries[i]!
       const sanitized = sanitizedCalls[i]!
@@ -416,19 +426,10 @@ export async function runComposeAgent(
 
       let result: unknown
       if (name === COMPOSE_WRITE_DRAFT_TOOL_NAME) {
-        const brief = parseDraftWriteBrief(args)
-        try {
-          // Pass transcript including this assistant tool_call message; tool
-          // result is pushed after so the draft stage sees the signal.
-          opts.onDraftHandoff?.(brief, [...messages])
-          result = {
-            status: 'started',
-            message: 'Draft stage writing into the draft drawer.',
-          }
-        } catch (err) {
-          result = {
-            error: err instanceof Error ? err.message : 'Failed to start draft stage',
-          }
+        pendingDraftBrief = parseDraftWriteBrief(args)
+        result = {
+          status: 'started',
+          message: 'Draft stage writing into the draft drawer.',
         }
       } else if (name.startsWith('compose_history_')) {
         result = executeHistoryTool(name, args, { snapshot: opts.historySnapshot })
@@ -463,6 +464,14 @@ export async function runComposeAgent(
         tool_call_id: sanitized.id || call.id,
         content: JSON.stringify(result),
       })
+    }
+
+    if (pendingDraftBrief && opts.onDraftHandoff) {
+      try {
+        opts.onDraftHandoff(pendingDraftBrief, [...messages])
+      } catch {
+        // Draft stage is fire-and-forget; research turn must continue.
+      }
     }
   }
 
