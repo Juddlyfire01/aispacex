@@ -173,6 +173,13 @@ export interface GroupJobHandle {
  */
 export function joinReportGroup(subject: string, initialLabel: string): GroupJobHandle {
   clearSettleTimer()
+  // If the previous wave already settled (we're mid-linger on a success/error
+  // summary), detach from it so this job opens a brand-new toast rather than
+  // reviving the finished one. The old toast keeps lingering on its own timer.
+  if (allSettled()) {
+    jobs.clear()
+    toastId = null
+  }
   const jobId = ++jobCounter
   jobs.set(jobId, {
     id: jobId,
