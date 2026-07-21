@@ -9,7 +9,7 @@
 // never a hard dependency of the app.
 import { Redis } from '@upstash/redis'
 import type { SharedBundle, SharedIndexEntry } from '../../src/lib/x-intel/shared-types.js'
-import { sharedKey } from '../../src/lib/x-intel/shared-types.js'
+import { mergeSharedBundleWrite, sharedKey } from '../../src/lib/x-intel/shared-types.js'
 
 const BUNDLE_PREFIX = 'intel:bundle:'
 const INDEX_KEY = 'intel:index'
@@ -54,9 +54,9 @@ export async function readBundle(username: string): Promise<SharedBundle | null>
 }
 
 /**
- * Upsert a bundle with last-write-wins semantics on `gatheredAt`. Returns the
- * bundle that is now authoritative (the incoming one when it won, else the
- * existing newer one) plus whether a write actually happened.
+ * Upsert a bundle with last-write-wins on `gatheredAt`, unioning reportHistory
+ * by id so a thinner newer push cannot wipe reports already in the store.
+ * Returns the authoritative bundle plus whether a write actually happened.
  */
 export async function writeBundle(
   incoming: SharedBundle,
@@ -66,14 +66,12 @@ export async function writeBundle(
 
   const key = sharedKey(incoming.username)
   const existing = await readBundle(key)
-  // Stale write: an equal-or-newer bundle already exists — keep it.
-  if (existing && existing.gatheredAt >= incoming.gatheredAt) {
-    return { stored: existing, written: false }
-  }
+  const { stored, written } = mergeSharedBundleWrite(existing, incoming)
+  if (!written) return { stored, written: false }
 
-  await redis.set(BUNDLE_PREFIX + key, JSON.stringify(incoming))
-  await redis.hset(INDEX_KEY, { [key]: JSON.stringify(indexEntryFrom(incoming)) })
-  return { stored: incoming, written: true }
+  await redis.set(BUNDLE_PREFIX + key, JSON.stringify(stored))
+  await redis.hset(INDEX_KEY, { [key]: JSON.stringify(indexEntryFrom(stored)) })
+  return { stored, written: true }
 }
 
 /** Project a bundle down to its lightweight index row. */

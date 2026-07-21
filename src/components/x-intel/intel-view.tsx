@@ -10,6 +10,7 @@ import { SelfRail } from './self-rail'
 import { SelfFeed } from './self-feed'
 import { runGather } from '../../lib/x-intel/orchestrate'
 import { refreshSelfSession } from '../../lib/x-intel/self-orchestrate'
+import { syncSharedReportsForTarget } from '../../lib/x-intel/shared-sync'
 import { isDemoTarget } from '../../lib/x-intel/fields'
 import { syncComposeContextFromActiveTarget } from '../../lib/compose/open-compose'
 import { SubTabs } from '../ui/sub-tabs'
@@ -97,6 +98,19 @@ export function IntelView() {
   useEffect(() => {
     void useSharedLibraryStore.getState().refreshIndex()
   }, [])
+
+  // Selecting an Others target: quietly pull any shared reports this device is
+  // missing. Skips when the index is loaded and the handle is not on the shelf.
+  useEffect(() => {
+    if (activeTopTab !== 'targets' || !activeTarget) return
+    const lib = useSharedLibraryStore.getState()
+    if (lib.loaded) {
+      const lower = activeTarget.replace(/^@/, '').toLowerCase()
+      const onShelf = lib.entries.some((e) => e.username.toLowerCase() === lower)
+      if (!onShelf) return
+    }
+    void syncSharedReportsForTarget(activeTarget)
+  }, [activeTopTab, activeTarget])
 
   // Entering Post from Profile/Targets: carry the active target into compose context.
   useEffect(() => {

@@ -30,9 +30,47 @@ export interface SharedBundle {
   reportHistory: IntelReportSnapshot[]
   /**
    * ISO timestamp used for last-write-wins conflict resolution. Derived from the
-   * most recent section refresh (or profile.gatheredAt) at push time.
+   * most recent section refresh, profile.gatheredAt, or newest report createdAt
+   * at push time — whichever is latest — so report-only uploads are not treated
+   * as stale relative to the refresh that unlocked them.
    */
   gatheredAt: string
+}
+
+/**
+ * Merge two report histories by snapshot id. Primary wins on id conflict;
+ * result is newest-first by createdAt. Used so a thinner push/pull cannot wipe
+ * reports the other side already held.
+ */
+export function unionReportHistory(
+  primary: IntelReportSnapshot[],
+  secondary: IntelReportSnapshot[],
+): IntelReportSnapshot[] {
+  const byId = new Map<string, IntelReportSnapshot>()
+  for (const r of secondary) byId.set(r.id, r)
+  for (const r of primary) byId.set(r.id, r)
+  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/**
+ * Pure LWW + report-union decision for a shared-bundle upsert. Extracted so the
+ * KV layer and unit tests share one rule: newer gatheredAt wins corpus fields,
+ * but reportHistory is always the union of incoming and existing ids.
+ */
+export function mergeSharedBundleWrite(
+  existing: SharedBundle | null,
+  incoming: SharedBundle,
+): { stored: SharedBundle; written: boolean } {
+  if (existing && existing.gatheredAt >= incoming.gatheredAt) {
+    return { stored: existing, written: false }
+  }
+  const stored: SharedBundle = {
+    ...incoming,
+    reportHistory: existing
+      ? unionReportHistory(incoming.reportHistory, existing.reportHistory)
+      : incoming.reportHistory,
+  }
+  return { stored, written: true }
 }
 
 /**

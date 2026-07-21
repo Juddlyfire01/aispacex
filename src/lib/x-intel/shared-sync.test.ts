@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   toSharedBundle,
   mergeBundleIntoReport,
+  applySharedBundleOnSelect,
+  hasLocalCorpus,
   bundleGatheredAt,
   bundleIsNewer,
 } from './shared-sync'
@@ -9,7 +11,11 @@ import type { IntelReport } from '../../stores/x-intel-store'
 import { DEFAULT_SYNTHESIS_SETTINGS } from './types'
 import { makePost, makeProfile, makeReport } from '../intel-library/test-fixtures'
 import type { SharedBundle } from './shared-types'
-import { SHARED_BUNDLE_VERSION } from './shared-types'
+import {
+  SHARED_BUNDLE_VERSION,
+  unionReportHistory,
+  mergeSharedBundleWrite,
+} from './shared-types'
 
 function makeIntelReport(partial: Partial<IntelReport> & Pick<IntelReport, 'username'>): IntelReport {
   return {
@@ -69,14 +75,87 @@ describe('bundleGatheredAt', () => {
         network: '2026-07-05T00:00:00.000Z',
       },
       profile: makeProfile('x'),
+      reportHistory: [],
     })
     expect(at).toBe('2026-07-09T00:00:00.000Z')
   })
 
   it('falls back to profile.gatheredAt then epoch', () => {
     const p = makeProfile('x')
-    expect(bundleGatheredAt({ refreshedAt: {}, profile: p })).toBe(p.gatheredAt)
-    expect(bundleGatheredAt({ refreshedAt: {}, profile: null })).toBe(new Date(0).toISOString())
+    expect(bundleGatheredAt({ refreshedAt: {}, profile: p, reportHistory: [] })).toBe(p.gatheredAt)
+    expect(bundleGatheredAt({ refreshedAt: {}, profile: null, reportHistory: [] })).toBe(
+      new Date(0).toISOString(),
+    )
+  })
+
+  it('advances past refresh when a newer report exists (generate-after-refresh)', () => {
+    const reportCreatedAt = '2026-07-21T15:10:00.000Z'
+    const at = bundleGatheredAt({
+      refreshedAt: { profile: '2026-07-21T14:00:00.000Z' },
+      profile: makeProfile('x'),
+      reportHistory: [{ ...makeReport('r2', 'delta'), createdAt: reportCreatedAt }],
+    })
+    expect(at).toBe(reportCreatedAt)
+  })
+})
+
+describe('unionReportHistory', () => {
+  it('keeps both ids and sorts newest-first', () => {
+    const older = { ...makeReport('r1', 'baseline'), createdAt: '2026-07-20T20:20:00.000Z' }
+    const newer = { ...makeReport('r2', 'delta'), createdAt: '2026-07-21T15:10:00.000Z' }
+    const merged = unionReportHistory([newer], [older])
+    expect(merged.map((r) => r.id)).toEqual(['r2', 'r1'])
+  })
+
+  it('primary wins on id conflict', () => {
+    const a = { ...makeReport('r1', 'from-primary'), createdAt: '2026-07-20T20:20:00.000Z' }
+    const b = { ...makeReport('r1', 'from-secondary'), createdAt: '2026-07-20T20:20:00.000Z' }
+    expect(unionReportHistory([a], [b])[0].narrative.executiveSummary).toBe('from-primary')
+  })
+})
+
+describe('mergeSharedBundleWrite', () => {
+  const baseBundle = (partial: Partial<SharedBundle>): SharedBundle => ({
+    v: SHARED_BUNDLE_VERSION,
+    username: 'tbystrican',
+    profile: makeProfile('tbystrican'),
+    posts: [],
+    edges: [],
+    reportHistory: [],
+    gatheredAt: '2026-07-20T20:00:00.000Z',
+    ...partial,
+  })
+
+  it('rejects equal-or-older gatheredAt', () => {
+    const existing = baseBundle({
+      reportHistory: [makeReport('r1', 'baseline')],
+      gatheredAt: '2026-07-21T14:00:00.000Z',
+    })
+    const incoming = baseBundle({
+      reportHistory: [makeReport('r1', 'baseline'), makeReport('r2', 'delta')],
+      gatheredAt: '2026-07-21T14:00:00.000Z',
+    })
+    const result = mergeSharedBundleWrite(existing, incoming)
+    expect(result.written).toBe(false)
+    expect(result.stored.reportHistory).toHaveLength(1)
+  })
+
+  it('unions reports when a thinner newer push wins', () => {
+    const r1 = { ...makeReport('r1', 'baseline'), createdAt: '2026-07-20T20:20:00.000Z' }
+    const r2 = { ...makeReport('r2', 'delta'), createdAt: '2026-07-21T15:10:00.000Z' }
+    const existing = baseBundle({
+      reportHistory: [r2, r1],
+      gatheredAt: '2026-07-21T15:10:00.000Z',
+    })
+    // Local machine only has r1 but refreshes → newer gatheredAt, thinner history.
+    const incoming = baseBundle({
+      reportHistory: [r1],
+      gatheredAt: '2026-07-21T19:00:00.000Z',
+    })
+    const result = mergeSharedBundleWrite(existing, incoming)
+    expect(result.written).toBe(true)
+    expect(result.stored.reportHistory.map((r) => r.id)).toEqual(['r2', 'r1'])
+    expect(result.stored.gatheredAt).toBe('2026-07-21T19:00:00.000Z')
   })
 })
 
@@ -140,6 +219,27 @@ describe('mergeBundleIntoReport', () => {
     expect(merged.synthesisSettings.temperature).toBe(0.7)
   })
 
+  it('unions local reports the shared bundle is missing', () => {
+    const localOnly = { ...makeReport('r2', 'local'), createdAt: '2026-07-21T15:10:00.000Z' }
+    const shared = { ...makeReport('r1', 'shared'), createdAt: '2026-07-20T20:20:00.000Z' }
+    const base = makeIntelReport({
+      username: 'AskVenice',
+      reportHistory: [localOnly],
+    })
+    const bundle: SharedBundle = {
+      v: SHARED_BUNDLE_VERSION,
+      username: 'AskVenice',
+      profile: makeProfile('AskVenice'),
+      posts: [],
+      edges: [],
+      reportHistory: [shared],
+      gatheredAt: '2026-07-21T19:00:00.000Z',
+    }
+
+    const merged = mergeBundleIntoReport(bundle, base)
+    expect(merged.reportHistory.map((r) => r.id)).toEqual(['r2', 'r1'])
+  })
+
   it('round-trips through toSharedBundle then mergeBundleIntoReport', () => {
     const original = makeIntelReport({
       username: 'AskVenice',
@@ -155,5 +255,55 @@ describe('mergeBundleIntoReport', () => {
     expect(restored.posts).toEqual(original.posts)
     expect(restored.reportHistory).toEqual(original.reportHistory)
     expect(restored.profile).toEqual(original.profile)
+  })
+})
+
+describe('applySharedBundleOnSelect', () => {
+  it('unions reports but keeps local posts when corpus already exists', () => {
+    const localPosts = [makePost({ id: 'fresh-1' }), makePost({ id: 'fresh-2' })]
+    const r1 = { ...makeReport('r1', 'baseline'), createdAt: '2026-07-20T20:20:00.000Z' }
+    const r2 = { ...makeReport('r2', 'delta'), createdAt: '2026-07-21T15:10:00.000Z' }
+    const base = makeIntelReport({
+      username: 'tbystrican',
+      profile: makeProfile('tbystrican'),
+      posts: localPosts,
+      reportHistory: [r1],
+      refreshedAt: { profile: '2026-07-21T19:00:00.000Z' },
+    })
+    const bundle: SharedBundle = {
+      v: SHARED_BUNDLE_VERSION,
+      username: 'tbystrican',
+      profile: makeProfile('tbystrican'),
+      posts: [makePost({ id: 'old-shared' })],
+      edges: [],
+      reportHistory: [r2, r1],
+      gatheredAt: '2026-07-21T15:10:00.000Z',
+    }
+
+    expect(hasLocalCorpus(base)).toBe(true)
+    const merged = applySharedBundleOnSelect(bundle, base)
+    expect(merged.reportHistory.map((r) => r.id)).toEqual(['r2', 'r1'])
+    expect(merged.posts).toEqual(localPosts)
+    expect(merged.refreshedAt.profile).toBe('2026-07-21T19:00:00.000Z')
+  })
+
+  it('full-adopts when local bucket has no corpus yet', () => {
+    const empty = makeIntelReport({ username: 'newbie' })
+    const bundle: SharedBundle = {
+      v: SHARED_BUNDLE_VERSION,
+      username: 'newbie',
+      profile: makeProfile('newbie'),
+      posts: [makePost({ id: 't1' })],
+      edges: [],
+      reportHistory: [makeReport('r1', 'first')],
+      gatheredAt: '2026-07-21T12:00:00.000Z',
+    }
+
+    expect(hasLocalCorpus(empty)).toBe(false)
+    const merged = applySharedBundleOnSelect(bundle, empty)
+    expect(merged.posts).toHaveLength(1)
+    expect(merged.profile?.username).toBe('newbie')
+    expect(merged.reportHistory).toHaveLength(1)
+    expect(merged.refreshedAt.profile).toBe('2026-07-21T12:00:00.000Z')
   })
 })
