@@ -16,6 +16,7 @@
 //  - pullSharedBundle merges into the store through the existing seedTarget /
 //    updateReport actions so encryption + persist happen the normal way.
 import { useXIntelStore, findReportKey, type IntelReport } from '../../stores/x-intel-store'
+import { toast } from '../../stores/toast-store'
 import type { SharedBundle, SharedIndexEntry } from './shared-types'
 import { SHARED_BUNDLE_VERSION, unionReportHistory } from './shared-types'
 import type { Profile } from './types'
@@ -279,6 +280,7 @@ async function flushPush(username: string): Promise<void> {
   if (!report || !report.profile) return // nothing worth sharing yet
   const bundle = toSharedBundle(report)
   const body = JSON.stringify(bundle)
+  const subject = `@${username}`
   try {
     // Chromium caps `keepalive` fetch bodies at ~64KB and silently drops larger
     // requests — typical 50-post intel bundles exceed that, so almost nothing
@@ -291,10 +293,25 @@ async function flushPush(username: string): Promise<void> {
       keepalive: body.length < 60_000,
     })
     if (!res.ok) {
+      // 503 = KV not provisioned — shared library is optional; stay quiet.
+      if (res.status === 503) return
       console.warn(`[shared-library] push @${username} failed: HTTP ${res.status}`)
+      toast.error("Couldn't update shared library", subject, {
+        label: 'Retry',
+        onClick: () => {
+          void flushPush(username)
+        },
+      })
+      return
     }
   } catch (err) {
     console.warn(`[shared-library] push @${username} failed`, err)
+    toast.error("Couldn't update shared library", subject, {
+      label: 'Retry',
+      onClick: () => {
+        void flushPush(username)
+      },
+    })
   }
 }
 
