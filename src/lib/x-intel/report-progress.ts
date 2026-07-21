@@ -1,4 +1,4 @@
-import { toast } from '../../stores/toast-store'
+import { joinReportGroup } from './report-progress-group'
 import {
   estimateExpectedCompletionTokens,
   mapReportStreamProgress,
@@ -69,11 +69,10 @@ export function beginReportProgress(opts: {
   const bridgeThinkingStep = 5
   const changeStep = 6
 
-  const toastId = toast.progress('Generating report', {
-    description: subject,
-    progress: 0.02,
-    progressLabel: numbered(1, totalStages, 'Computing analytics…'),
-  })
+  // Route through the shared group so concurrent reports coalesce into one
+  // toast instead of stacking (and eventually evicting) N separate bars.
+  const job = joinReportGroup(subject, numbered(1, totalStages, 'Computing analytics…'))
+  const toastId = job.sharedToastId
 
   let lastProgress = 0.02
   let streamingStarted = false
@@ -87,7 +86,7 @@ export function beginReportProgress(opts: {
     // Monotonic bar — never jump backwards across stages.
     const next = Math.max(lastProgress, Math.min(0.97, progress))
     lastProgress = next
-    toast.update(toastId, { progress: next, progressLabel })
+    job.setProgress(next, progressLabel)
   }
 
   const clearTick = () => {
@@ -218,13 +217,13 @@ export function beginReportProgress(opts: {
       clearTick()
       streamingStarted = true
       awaitingChangeTokens = false
-      toast.complete(toastId, title, description)
+      job.complete(title, description)
     },
     fail: (title, description) => {
       clearTick()
       streamingStarted = true
       awaitingChangeTokens = false
-      toast.fail(toastId, title, description)
+      job.fail(title, description)
     },
   }
 }

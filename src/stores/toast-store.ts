@@ -71,9 +71,16 @@ export const useToastStore = create<ToastState>((set, get) => ({
     const id = ++counter
     set((s) => {
       const next = [...s.toasts, { ...t, id, duration }]
+      // Variant-aware eviction: never drop a live `progress` toast to satisfy the
+      // cap. Dropping one orphans a running job — its bar vanishes and the later
+      // complete()/fail() update() becomes a silent no-op (lost result/error).
+      // Evict the oldest auto-dismissable toast instead; if every toast is a live
+      // job, let the stack temporarily exceed MAX_TOASTS (they resolve on their own).
       while (next.length > MAX_TOASTS) {
-        const dropped = next.shift()
-        if (dropped) clearDismissTimer(dropped.id)
+        const idx = next.findIndex((x) => x.variant !== 'progress')
+        if (idx === -1) break
+        const [dropped] = next.splice(idx, 1)
+        clearDismissTimer(dropped.id)
       }
       return { toasts: next }
     })

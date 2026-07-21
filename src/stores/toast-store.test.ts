@@ -79,6 +79,35 @@ describe('toast store progress lifecycle', () => {
     const titles = useToastStore.getState().toasts.map((t) => t.title)
     expect(titles).toEqual(['Two', 'Three', 'Four'])
   })
+
+  it('never evicts a live progress toast — drops the oldest auto-dismiss toast instead', () => {
+    const p1 = toast.progress('Report A')
+    const p2 = toast.progress('Report B')
+    toast.info('Ping') // 3rd slot, auto-dismissable
+    toast.progress('Report C') // overflow: must drop "Ping", keep both progress jobs
+
+    const titles = useToastStore.getState().toasts.map((t) => t.title)
+    expect(titles).toEqual(['Report A', 'Report B', 'Report C'])
+    // Earliest jobs survived, so their completion still lands.
+    expect(useToastStore.getState().toasts.find((t) => t.id === p1)).toBeDefined()
+    expect(useToastStore.getState().toasts.find((t) => t.id === p2)).toBeDefined()
+  })
+
+  it('lets the stack exceed the cap when every toast is a live job', () => {
+    const ids = [
+      toast.progress('Report A'),
+      toast.progress('Report B'),
+      toast.progress('Report C'),
+      toast.progress('Report D'),
+    ]
+    expect(useToastStore.getState().toasts).toHaveLength(4)
+
+    // The 4th job's completion is NOT a no-op — it was never evicted.
+    toast.complete(ids[3], 'Report ready', 'Report D · done')
+    const d = useToastStore.getState().toasts.find((t) => t.id === ids[3])!
+    expect(d.variant).toBe('success')
+    expect(d.progress).toBe(1)
+  })
 })
 
 describe('toast.fromError / generation errors', () => {

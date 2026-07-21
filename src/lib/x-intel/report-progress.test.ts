@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../stores/toast-store'
 import { beginReportProgress } from './report-progress'
+import { __resetReportGroupForTests } from './report-progress-group'
 
 function labelOf(id: number): string | undefined {
   return useToastStore.getState().toasts.find((t) => t.id === id)?.progressLabel
@@ -20,10 +21,12 @@ async function prepare(p: ReturnType<typeof beginReportProgress>) {
 describe('beginReportProgress pre-stream holds', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    __resetReportGroupForTests()
     useToastStore.setState({ toasts: [] })
   })
   afterEach(() => {
     vi.useRealTimers()
+    __resetReportGroupForTests()
     useToastStore.setState({ toasts: [] })
   })
 
