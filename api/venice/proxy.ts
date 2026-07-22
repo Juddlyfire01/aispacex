@@ -77,9 +77,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!headers.accept) headers.accept = 'application/json, text/event-stream'
 
   const method = (req.method ?? 'GET').toUpperCase()
-  // Uint8Array (ArrayBufferView) is accepted by both Node and DOM BodyInit.
-  // Plain Buffer is rejected by some undici/DOM RequestInit overloads on Vercel.
-  let body: Uint8Array | undefined
+  // Copy into a fresh Uint8Array so the buffer is ArrayBuffer-backed (TS 5.9
+  // BodyInit rejects Uint8Array<ArrayBufferLike> from Buffer.slice views).
+  let body: BodyInit | undefined
   if (method !== 'GET' && method !== 'HEAD') {
     const chunks: Buffer[] = []
     for await (const chunk of req) {
@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (chunks.length) {
       const buf = Buffer.concat(chunks)
-      body = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+      body = Uint8Array.from(buf)
     }
   }
 
