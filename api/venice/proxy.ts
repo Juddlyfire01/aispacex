@@ -77,23 +77,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!headers.accept) headers.accept = 'application/json, text/event-stream'
 
   const method = (req.method ?? 'GET').toUpperCase()
-  // Copy into a fresh Uint8Array so the buffer is ArrayBuffer-backed (TS 5.9
-  // BodyInit rejects Uint8Array<ArrayBufferLike> from Buffer.slice views).
-  let body: BodyInit | undefined
+  // Copy into a fresh Uint8Array so the buffer is ArrayBuffer-backed (TS 5.9 /
+  // undici BodyInit rejects Buffer views typed as Uint8Array<ArrayBufferLike>).
+  let body: Uint8Array | undefined
   if (method !== 'GET' && method !== 'HEAD') {
     const chunks: Buffer[] = []
     for await (const chunk of req) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array))
     }
     if (chunks.length) {
-      const buf = Buffer.concat(chunks)
-      body = Uint8Array.from(buf)
+      body = Uint8Array.from(Buffer.concat(chunks))
     }
   }
 
   let upstream: Response
   try {
-    upstream = await fetch(url.toString(), { method, headers, body })
+    upstream = await fetch(url.toString(), {
+      method,
+      headers,
+      // Cast: DOM lib BodyInit and Node undici disagree on Uint8Array generics.
+      body: body as never,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return res.status(502).json({ error: 'venice_upstream_unreachable', message })
