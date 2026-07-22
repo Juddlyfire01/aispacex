@@ -80,109 +80,98 @@ describe('getConnectionsStatus', () => {
   })
 
   describe('Free on', () => {
-    it('pill ok with app fronted key; Venice micro-dot stays off', () => {
+    it('pill ok with app fronted key; compute ok (same job as Credits/BYOK)', () => {
       resetAuth(VENICE_FRONTED_SENTINEL)
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('ok')
-      expect(s.venice).toBe('off')
-      expect(s.x).toBe('off')
-      expect(s.credits).toBe('off')
+      expect(s.compute).toBe('ok')
+      expect(s.x).toBe('amber')
     })
 
-    it('Venice ok when BYOK unlocked', () => {
+    it('compute ok when BYOK unlocked', () => {
       resetAuth(BYOK_KEY)
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('ok')
-      expect(s.venice).toBe('ok')
+      expect(s.compute).toBe('ok')
     })
 
-    it('Venice amber when encrypted key locked', () => {
-      resetAuth(VENICE_FRONTED_SENTINEL, true)
+    it('compute amber when encrypted key locked and Free has no live key', () => {
+      resetAuth(null, true)
       const s = getConnectionsStatus('intel')
-      expect(s.venice).toBe('amber')
+      expect(s.compute).toBe('amber')
+      expect(s.tone).toBe('amber')
     })
   })
 
   describe('Free off — nothing connected', () => {
-    it('pill off and all dots off on Intel', () => {
+    it('pill off; compute off; X amber (never red)', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('off')
-      expect(s.venice).toBe('off')
-      expect(s.x).toBe('off')
-      expect(s.credits).toBe('off')
+      expect(s.compute).toBe('off')
+      expect(s.x).toBe('amber')
       expect(s.ariaLabel).toContain('not ready')
     })
   })
 
   describe('Free off — Credits', () => {
-    it('wallet + SIWE → pill ok, Credits ok', () => {
+    it('wallet + SIWE → pill ok, compute ok (Credits covers Venice)', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       paidReady()
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('ok')
-      expect(s.credits).toBe('ok')
-      expect(s.venice).toBe('off')
+      expect(s.compute).toBe('ok')
     })
 
-    it('wallet without SIWE → pill amber, Credits amber', () => {
+    it('Credits + X connected → both dots ok (matches modal)', () => {
+      configFlags.disableFree = true
+      resetAuth(VENICE_FRONTED_SENTINEL)
+      paidReady()
+      resetXSelf({ connected: true })
+      const s = getConnectionsStatus('intel')
+      expect(s.tone).toBe('ok')
+      expect(s.compute).toBe('ok')
+      expect(s.x).toBe('ok')
+    })
+
+    it('wallet without SIWE → pill amber, compute amber', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       walletNeedsSiwe()
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('amber')
-      expect(s.credits).toBe('amber')
+      expect(s.compute).toBe('amber')
     })
   })
 
   describe('Free off — BYOK', () => {
-    it('Venice + X BYOK, no wallet → pill ok on Intel', () => {
+    it('Venice + X BYOK, no wallet → pill ok; compute ok', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
       resetXSelf({ connected: true })
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('ok')
-      expect(s.venice).toBe('ok')
+      expect(s.compute).toBe('ok')
       expect(s.x).toBe('ok')
-      expect(s.credits).toBe('off')
     })
 
-    it('Venice only on Intel → amber', () => {
+    it('Venice only on Intel → pill amber; compute ok; X amber', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('amber')
-      expect(s.venice).toBe('ok')
-      expect(s.x).toBe('off')
+      expect(s.compute).toBe('ok')
+      expect(s.x).toBe('amber')
     })
 
-    it('Venice only on media tab → ok', () => {
+    it('Venice only on media tab → pill ok', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
       const s = getConnectionsStatus('image')
       expect(s.tone).toBe('ok')
-      expect(s.venice).toBe('ok')
-    })
-
-    it('X connecting → X amber', () => {
-      configFlags.disableFree = true
-      resetXSelf({ connecting: true })
-      const s = getConnectionsStatus('intel')
-      expect(s.x).toBe('amber')
-      expect(s.tone).toBe('off')
-    })
-  })
-
-  describe('x402 disabled', () => {
-    it('Credits dot stays off even with wallet state', () => {
-      configFlags.enabled = false
-      configFlags.disableFree = false
-      paidReady()
-      const s = getConnectionsStatus('intel')
-      expect(s.credits).toBe('off')
-      expect(s.tone).toBe('ok') // Free / fronted key
+      expect(s.compute).toBe('ok')
     })
   })
 })

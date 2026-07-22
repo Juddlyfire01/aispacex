@@ -276,23 +276,22 @@ export function ConnectionPill({ connected, connecting, connectedLabel, disconne
 }
 
 export type ConnectionsStatusPillTone = 'ok' | 'amber' | 'off'
+export type ConnectionsXDotTone = 'ok' | 'amber'
 
 /**
- * Header Connections control: readiness-colored label + three rail micro-dots
- * (Venice / X / Credits). Opens the Connections dialog.
+ * Header Connections control: readiness-colored label + two micro-dots
+ * (compute = Credits|BYOK, X OAuth = amber|ok). Opens the Connections dialog.
  */
 export function ConnectionsStatusPill({
   tone,
-  venice,
+  compute,
   x,
-  credits,
   ariaLabel,
   onClick,
 }: {
   tone: ConnectionsStatusPillTone
-  venice: ConnectionsStatusPillTone
-  x: ConnectionsStatusPillTone
-  credits: ConnectionsStatusPillTone
+  compute: ConnectionsStatusPillTone
+  x: ConnectionsXDotTone
   ariaLabel: string
   onClick: () => void
 }) {
@@ -310,9 +309,8 @@ export function ConnectionsStatusPill({
       className="flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-md border border-[var(--color-border-soft)] hover:border-[var(--color-border-strong)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
     >
       <span className="flex items-center gap-1" aria-hidden>
-        <StatusDot tone={venice} pulsing={venice === 'off'} />
-        <StatusDot tone={x} pulsing={x === 'off' || x === 'amber'} />
-        <StatusDot tone={credits} pulsing={credits === 'off'} />
+        <StatusDot tone={compute} pulsing={compute === 'off'} />
+        <StatusDot tone={x} pulsing={x === 'amber'} />
       </span>
       <span className={labelClass}>Connections</span>
     </button>

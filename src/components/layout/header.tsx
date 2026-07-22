@@ -100,9 +100,8 @@ export function Header({ onOpenConnections, onOpenMobileSidebar }: Props) {
 
       <ConnectionsStatusPill
         tone={connections.tone}
-        venice={connections.venice}
+        compute={connections.compute}
         x={connections.x}
-        credits={connections.credits}
         ariaLabel={connections.ariaLabel}
         onClick={onOpenConnections}
       />
