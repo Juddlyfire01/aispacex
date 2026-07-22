@@ -137,7 +137,7 @@ export function IntelView() {
           const key = findReportKey(reports, t) ?? t
           if (!reports[key]?.watch) continue
           if (!isConnected && !isDemoTarget(t)) continue
-          runGather(key).catch(() => { /* surfaced on manual gather */ })
+          runGather(key, { silentPaidGate: true }).catch(() => { /* surfaced on manual gather */ })
         }
       })
       .catch(() => { /* session probe failure = treated as disconnected */ })

@@ -1,6 +1,38 @@
 import type { MediaItem, PostDraft } from './types'
 import { setMediaAltText, uploadImageDataUrl, XMediaError } from './x-media-client'
 import type { SegmentInput } from './x-post-payload'
+import { COST_PER_POST_CREATE, COST_PER_POST_CREATE_URL } from '../x-intel/fields'
+import { recordCost } from '../../stores/cost-ledger-store'
+
+/** Crude URL presence check — X bills Post: Create (with URL) at a 40x rate. */
+function segmentHasUrl(text: string): boolean {
+  return /https?:\/\/\S+/i.test(text) || /\b\w[\w-]*\.(com|org|net|io|ai|co|xyz|app|dev|gg)\b/i.test(text)
+}
+
+/**
+ * Record the per-request write cost for a posted draft into the unified ledger.
+ * One Post: Create charge per created id; segments containing a URL are billed
+ * at the higher URL rate. Best-effort — never throws into the post flow.
+ */
+function recordPostWriteCost(draft: PostDraft, createdCount: number): void {
+  try {
+    const segments = draft.segments.filter((s) => s.text.trim() || s.media.length > 0)
+    for (let i = 0; i < createdCount; i++) {
+      const seg = segments[i]
+      const hasUrl = seg ? segmentHasUrl(seg.text) : false
+      recordCost({
+        action: 'x-post',
+        provider: 'x',
+        kind: hasUrl ? 'post_create_url' : 'post_create',
+        units: 1,
+        unitPriceUsd: hasUrl ? COST_PER_POST_CREATE_URL : COST_PER_POST_CREATE,
+        meta: { draftId: draft.id, hasUrl },
+      })
+    }
+  } catch {
+    /* metering must never break posting */
+  }
+}
 
 // Browser helper to post a draft through the server-side write proxy
 // (/api/x/post). The browser sends no token; the serverless function attaches
@@ -108,5 +140,7 @@ export async function postDraft(draft: PostDraft): Promise<PostResult> {
     throw new XPostError(message, res.status, needsReconnect)
   }
 
-  return json as PostResult
+  const result = json as PostResult
+  recordPostWriteCost(draft, result.ids?.length ?? 1)
+  return result
 }

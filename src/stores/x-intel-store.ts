@@ -12,6 +12,17 @@ import {
   makeSnapshot,
   type MetricSnapshot,
 } from '../lib/x-intel/performance'
+import { recordCost } from './cost-ledger-store'
+import type { CostKind } from '../lib/cost/ledger'
+
+/** Optional grouping/metadata forwarded to the unified cost ledger from addCost. */
+export interface XLedgerContext {
+  action?: string
+  kind?: CostKind
+  /** Number of billable resources this cost represents (for unit price derivation). */
+  units?: number
+  meta?: Record<string, unknown>
+}
 
 /** Small id generator; crypto.randomUUID where available, else a random fallback. */
 export function newReportId(): string {
@@ -148,7 +159,7 @@ interface XIntelState {
   setActiveSelfSubTab: (tab: IntelSubTab) => void
   setActiveTopTab: (tab: IntelTopTab) => void
   updateReport: (username: string, patch: Partial<IntelReport>) => void
-  addCost: (username: string, cost: number) => void
+  addCost: (username: string, cost: number, ledger?: XLedgerContext) => void
   setDefaultSynthesisSettings: (s: SynthesisSettings) => void
   /** Set synthesis model on the default + every target (other settings stay per-target). */
   setGlobalSynthesisModel: (model: string) => void
@@ -359,7 +370,7 @@ export const useXIntelStore = create<XIntelState>()(
         })
       },
 
-      addCost: (username, cost) => {
+      addCost: (username, cost, ledger) => {
         set((s) => {
           const key = findReportKey(s.reports, username)
           if (!key) return s  // no-op for non-existent target — don't charge sessionCost either
@@ -370,6 +381,19 @@ export const useXIntelStore = create<XIntelState>()(
             reports: { ...s.reports, [key]: { ...report, totalCost: report.totalCost + cost } },
           }
         })
+        // Mirror into the unified cost ledger. Default the action to the target
+        // username so per-target report costs group under one action.
+        if (cost > 0) {
+          recordCost({
+            action: ledger?.action ?? username,
+            provider: 'x',
+            kind: ledger?.kind ?? 'posts',
+            units: ledger?.units ?? 1,
+            unitPriceUsd: ledger?.units ? cost / ledger.units : cost,
+            rawUsd: cost,
+            meta: { username, ...ledger?.meta },
+          })
+        }
       },
 
       setDefaultSynthesisSettings: (settings) => set({ defaultSynthesisSettings: settings }),

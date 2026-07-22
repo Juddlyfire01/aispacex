@@ -1,6 +1,7 @@
 import { xapi, type GatherAuth } from './x-client'
 import { USER_FIELDS, POST_FIELDS, POST_EXPANSIONS, USER_EXPANSIONS, COST_PER_POST, COST_PER_USER, COST_PER_LIKE } from './fields'
 import { normalizeProfile, normalizePost } from './normalize'
+import { billableXUnits } from './x-dedup-billing'
 import type { Profile, Post, XUserRaw, XPostRaw, XSingleResponse, XPaginatedResponse } from './types'
 
 export type CostKind = 'posts' | 'users' | 'likes'
@@ -15,9 +16,28 @@ export function estimateCost(kind: CostKind, count: number): number {
   return RATES[kind] * count
 }
 
+/**
+ * Billable resource count for a paginated X response. X charges per resource
+ * RETURNED, which it reports authoritatively in `meta.result_count`. Prefer it
+ * over the normalized array length (which can drift when rows are dropped or
+ * deduped during normalization). Falls back to the array length, then 0.
+ */
+export function billableCount(
+  meta: { result_count?: number } | undefined,
+  fallbackLength: number,
+): number {
+  const rc = meta?.result_count
+  if (typeof rc === 'number' && Number.isFinite(rc) && rc >= 0) return rc
+  return Math.max(0, fallbackLength)
+}
+
 export interface GatherResult<T> {
   data: T
   cost: number
+  /** Billable resource count (for unified-ledger unit pricing). */
+  units?: number
+  /** Cost kind for ledger classification. */
+  kind?: CostKind
 }
 
 export async function gatherProfile(username: string, auth: GatherAuth): Promise<GatherResult<Profile>> {
@@ -26,7 +46,9 @@ export async function gatherProfile(username: string, auth: GatherAuth): Promise
     expansions: USER_EXPANSIONS.join(','),
   }, auth)
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? `User @${username} not found`)
-  return { data: normalizeProfile(resp.data, resp.includes), cost: estimateCost('users', 1) }
+  const profile = normalizeProfile(resp.data, resp.includes)
+  const units = billableXUnits('users', [profile.id], 1)
+  return { data: profile, cost: estimateCost('users', units), units, kind: 'users' }
 }
 
 export async function gatherPosts(
@@ -46,7 +68,12 @@ export async function gatherPosts(
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
   const posts = (resp.data ?? []).map((raw) => normalizePost(raw, resp.includes))
-  return { data: posts, cost: estimateCost('posts', posts.length) }
+  const units = billableXUnits(
+    'posts',
+    posts.map((p) => p.id),
+    billableCount(resp.meta, posts.length),
+  )
+  return { data: posts, cost: estimateCost('posts', units), units, kind: 'posts' }
 }
 
 export async function gatherMentions(
@@ -66,7 +93,12 @@ export async function gatherMentions(
     throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
   }
   const posts = (resp.data ?? []).map((raw) => normalizePost(raw, resp.includes))
-  return { data: posts, cost: estimateCost('posts', posts.length) }
+  const units = billableXUnits(
+    'posts',
+    posts.map((p) => p.id),
+    billableCount(resp.meta, posts.length),
+  )
+  return { data: posts, cost: estimateCost('posts', units), units, kind: 'posts' }
 }
 
 export async function resolveUser(userId: string, auth: GatherAuth): Promise<GatherResult<Profile>> {
@@ -75,7 +107,9 @@ export async function resolveUser(userId: string, auth: GatherAuth): Promise<Gat
     expansions: USER_EXPANSIONS.join(','),
   }, auth)
   if (!resp.data) throw new Error(resp.errors?.[0]?.detail ?? `User ${userId} not found`)
-  return { data: normalizeProfile(resp.data, resp.includes), cost: estimateCost('users', 1) }
+  const profile = normalizeProfile(resp.data, resp.includes)
+  const units = billableXUnits('users', [profile.id], 1)
+  return { data: profile, cost: estimateCost('users', units), units, kind: 'users' }
 }
 
 /** Max affiliate pages to walk in one refresh — a hard stop against runaway pagination. */
@@ -96,6 +130,7 @@ export async function gatherAffiliates(
   const affiliates: Profile[] = []
   let pageToken: string | undefined
   let pages = 0
+  let billed = 0
 
   do {
     const params: Record<string, string> = {
@@ -113,12 +148,21 @@ export async function gatherAffiliates(
     if (!resp.data && resp.errors?.length) {
       throw new Error(resp.errors[0]?.detail ?? 'X API returned errors')
     }
-    for (const raw of resp.data ?? []) {
-      affiliates.push(normalizeProfile(raw, resp.includes))
+    const pageRows = resp.data ?? []
+    const pageProfiles: Profile[] = []
+    for (const raw of pageRows) {
+      const profile = normalizeProfile(raw, resp.includes)
+      pageProfiles.push(profile)
+      affiliates.push(profile)
     }
+    billed += billableXUnits(
+      'users',
+      pageProfiles.map((p) => p.id),
+      billableCount(resp.meta, pageRows.length),
+    )
     pageToken = resp.meta?.next_token
     pages += 1
   } while (pageToken && pages < MAX_AFFILIATE_PAGES)
 
-  return { data: affiliates, cost: estimateCost('users', affiliates.length) }
+  return { data: affiliates, cost: estimateCost('users', billed), units: billed, kind: 'users' }
 }

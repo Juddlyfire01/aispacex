@@ -7,6 +7,8 @@ import { splitArticleImagePrompt } from './article-parse'
 import type { MediaItem, PostDraft } from './types'
 import { uploadImageDataUrl, XMediaError } from './x-media-client'
 import type { PostResult } from './x-post-client'
+import { COST_PER_POST_CREATE_URL } from '../x-intel/fields'
+import { recordCost } from '../../stores/cost-ledger-store'
 
 export class XArticleError extends Error {
   status: number
@@ -112,6 +114,20 @@ export async function publishArticleDraft(draft: PostDraft): Promise<PostResult>
   const url = typeof json.url === 'string' ? json.url : ''
   if (!postId || !url) {
     throw new XArticleError('Article publish response missing post id or url.', 502, false)
+  }
+
+  // An Article announcement post carries a URL, so it bills at the URL rate.
+  try {
+    recordCost({
+      action: 'x-post',
+      provider: 'x',
+      kind: 'post_create_url',
+      units: 1,
+      unitPriceUsd: COST_PER_POST_CREATE_URL,
+      meta: { draftId: draft.id, article: true },
+    })
+  } catch {
+    /* metering must never break publishing */
   }
 
   return { id: postId, ids: [postId], url }

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
+import { recordMediaCost } from '../lib/venice/media-cost'
+import { chargeAction, assertPaidReady, markActionStart } from '../lib/x402/charge-flow'
+import { notifyInsufficientFunds } from '../lib/x402/notify-insufficient'
 import { toast } from '../stores/toast-store'
 import type { VideoQueueRequest, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
 
@@ -65,6 +69,33 @@ export function useVideo() {
   const [jobs, setJobs] = useState<VideoJob[]>([])
   const jobsRef = useRef<VideoJob[]>([])
   const runtimesRef = useRef<Map<string, JobRuntime>>(new Map())
+  const queryClient = useQueryClient()
+
+  /**
+   * Record the cost of a completed video once. `extras.duration` (a bucket key
+   * like "5" or "10s") or numeric seconds drives the price via model pricing.
+   */
+  const recordVideoCost = useCallback((job: VideoJob) => {
+    const durationRaw = job.meta.extras?.duration
+    const durationKey = durationRaw != null ? String(durationRaw) : undefined
+    const seconds =
+      typeof durationRaw === 'number'
+        ? durationRaw
+        : durationKey && /^\d+(\.\d+)?/.test(durationKey)
+          ? parseFloat(durationKey)
+          : undefined
+    const sinceTs = markActionStart()
+    recordMediaCost(
+      queryClient,
+      'video',
+      job.model,
+      { durationKey, seconds },
+      { action: 'video', meta: { jobId: job.id } },
+    )
+    void chargeAction('video', { sinceTs }).then((charge) => {
+      if (charge.insufficient) notifyInsufficientFunds(charge)
+    })
+  }, [queryClient])
 
   const syncJobs = useCallback((updater: (prev: VideoJob[]) => VideoJob[]) => {
     setJobs((prev) => {
@@ -146,6 +177,7 @@ export function useVideo() {
           if (runtime.cancelled) return
           stopJobTimers(jobId)
           patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
+          recordVideoCost(job)
           void finalize(job)
           return
         }
@@ -172,6 +204,7 @@ export function useVideo() {
               blob: blob.type ? blob : new Blob([blob], { type: 'video/mp4' }),
               elapsedMs: Date.now() - job.startedAt,
             })
+            recordVideoCost(job)
             void finalize(job)
           } catch (fetchErr) {
             failJob(jobId, fetchErr instanceof Error ? fetchErr : new Error('Failed to download completed video'))
@@ -192,12 +225,13 @@ export function useVideo() {
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [failJob, patchJob, stopJobTimers])
+  }, [failJob, patchJob, stopJobTimers, recordVideoCost])
 
   const activeCount = jobs.filter((j) => isActive(j.status)).length
   const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: VideoQueueRequest, meta: VideoJobMeta) => {
+    assertPaidReady()
     if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} videos. Wait for one to finish.`)
     }

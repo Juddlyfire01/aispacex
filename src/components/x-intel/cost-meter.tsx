@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useXIntelStore } from '../../stores/x-intel-store'
-import { useVeniceCostStore } from '../../stores/venice-cost-store'
+import { useCostLedgerStore } from '../../stores/cost-ledger-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useX402Store } from '../../stores/x402-store'
+import { X402_ENABLED } from '../../lib/x402/config'
 import { VeniceKeysMark, XMark } from '../ui/brand-marks'
 import { Tooltip } from '../ui/tooltip'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_STACK_CLASS } from '../layout/rail-footer'
@@ -153,17 +154,76 @@ function FlipProviderMark({ view, theme }: { view: CostProviderView; theme: stri
 export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderView } = {}) {
   const [view, setView] = useState<CostProviderView>(defaultView)
   const theme = useSettingsStore((s) => s.theme)
+  const openSettings = useSettingsStore((s) => s.openSettings)
 
-  const xSession = useXIntelStore((s) => s.sessionCost)
-  const xLifetime = useXIntelStore((s) => s.lifetimeTotal)
-  const vSession = useVeniceCostStore((s) => s.sessionCost)
-  const vLife = useVeniceCostStore((s) => s.lifetimeTotal)
+  const address = useX402Store((s) => s.address)
+  const status = useX402Store((s) => s.status)
+  const balanceUsd = useX402Store((s) => s.balanceUsd)
+  const sessionChargedUsd = useX402Store((s) => s.sessionChargedUsd)
+  const showCredits = X402_ENABLED && status === 'connected' && Boolean(address)
+
+  // Unified ledger: session/lifetime totals split by provider.
+  const sessionTotals = useCostLedgerStore((s) => s.session)
+  const lifetimeTotals = useCostLedgerStore((s) => s.lifetime)
 
   const session =
-    view === 'x' ? xSession : view === 'venice' ? vSession : xSession + vSession
-  const total = view === 'x' ? xLifetime : view === 'venice' ? vLife : xLifetime + vLife
+    view === 'x'
+      ? sessionTotals.x
+      : view === 'venice'
+        ? sessionTotals.venice
+        : sessionTotals.x + sessionTotals.venice
+  const total =
+    view === 'x'
+      ? lifetimeTotals.x
+      : view === 'venice'
+        ? lifetimeTotals.venice
+        : lifetimeTotals.x + lifetimeTotals.venice
 
   const activeMeta = VIEWS.find((v) => v.id === view)!
+
+  // Credits wallet connected: show credit balance + session charges.
+  if (showCredits) {
+    return (
+      <div
+        className={cn(RAIL_FOOTER_CLASS, 'relative cursor-pointer select-none')}
+        role="button"
+        tabIndex={0}
+        title="Credits — open Billing"
+        aria-label="Credits balance"
+        onClick={() => openSettings('billing')}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            openSettings('billing')
+          }
+        }}
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex justify-center">
+          <span
+            className="flex h-[14px] items-center justify-center text-[9px] font-medium tracking-wide text-[var(--color-text-secondary)]"
+            aria-hidden
+          >
+            Credits
+          </span>
+        </div>
+
+        <div className={cn(RAIL_FOOTER_STACK_CLASS, 'relative')}>
+          <div className="flex h-[13px] items-center justify-between gap-1.5 text-[9px] leading-none text-[var(--color-text-tertiary)]">
+            <Tooltip tip="Credits charged this browser session (API cost × margin)." underline={false} focusable={false}>
+              <span className="shrink-0">Session</span>
+            </Tooltip>
+            <span className="font-mono tabular-nums shrink-0">${sessionChargedUsd.toFixed(2)}</span>
+          </div>
+          <div className="flex h-[15px] items-center justify-between gap-1.5 text-[11px] leading-none text-[var(--color-text-secondary)]">
+            <Tooltip tip="Remaining prepaid credit balance." underline={false} focusable={false}>
+              <span className="shrink-0">Balance</span>
+            </Tooltip>
+            <span className="font-mono shrink-0 tabular-nums">${balanceUsd.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -190,13 +250,13 @@ export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderVie
           <Tooltip tip="API spend for this browser session." underline={false} focusable={false}>
             <span className="shrink-0">Session</span>
           </Tooltip>
-          <span className="font-mono tabular-nums shrink-0">${session.toFixed(3)}</span>
+          <span className="font-mono tabular-nums shrink-0">${session.toFixed(2)}</span>
         </div>
         <div className="flex h-[15px] items-center justify-between gap-1.5 text-[11px] leading-none text-[var(--color-text-secondary)]">
           <Tooltip tip="All-time API spend tracked in this app." underline={false} focusable={false}>
             <span className="shrink-0">Total</span>
           </Tooltip>
-          <span className="font-mono shrink-0 tabular-nums">${total.toFixed(3)}</span>
+          <span className="font-mono shrink-0 tabular-nums">${total.toFixed(2)}</span>
         </div>
 
         <div

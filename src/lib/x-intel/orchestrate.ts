@@ -11,7 +11,18 @@ import { flushEncryptedStorage } from '../encrypted-storage'
 import { mergePosts, useXIntelStore, newReportId, findReportKey, type RefreshedAt, type IntelReport } from '../../stores/x-intel-store'
 import { toast } from '../../stores/toast-store'
 import { pushShared } from './shared-sync'
+import { chargeAction, assertPaidReady, markActionStart } from '../x402/charge-flow'
+import { notifyInsufficientFunds } from '../x402/notify-insufficient'
+import { notifyPaidNotReady } from '../x402/notify-paid-not-ready'
 import type { IntelReportSnapshot, Post } from './types'
+
+async function settlePaid(action: string, sinceTs: number): Promise<void> {
+  const charge = await chargeAction(action, { sinceTs })
+  if (charge.insufficient) notifyInsufficientFunds(charge)
+  else if (charge.error === 'needs_wallet' || charge.error === 'needs_session' || charge.error === 'session_expired') {
+    notifyPaidNotReady(charge.error === 'session_expired' ? 'needs_session' : charge.error)
+  }
+}
 
 const REPORT_DISK_SAVE_FAILED =
   'Report is in this tab, but browser storage could not save it (often full). It will be lost on reload — free space and generate again.'
@@ -44,18 +55,23 @@ function markRefreshed(key: string, ...sections: (keyof RefreshedAt)[]): Refresh
  * the initial gather when a target is added. A mentions hiccup is non-fatal —
  * posts still land — so the core timeline is never lost to an inbound failure.
  */
-export async function runGather(username: string, opts: { backfill?: number } = {}): Promise<void> {
+export async function runGather(
+  username: string,
+  opts: { backfill?: number; silentPaidGate?: boolean } = {},
+): Promise<void> {
+  assertPaidReady({ silent: opts.silentPaidGate })
   const store = useXIntelStore.getState()
   const { updateReport, addCost, setGathering } = store
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
   const auth = resolveGatherAuth(apiUsername)
+  const sinceTs = markActionStart()
 
   setGathering(key, true)
   try {
     // 1. Profile — always refresh (cheap, metrics change)
     const profileResult = await gatherProfile(apiUsername, auth)
-    addCost(key, profileResult.cost)
+    addCost(key, profileResult.cost, { kind: profileResult.kind, units: profileResult.units })
     const profile = profileResult.data
     // Stamp profile section with the profile write so rail + refresh bar share
     // the same timestamp source (refreshedAt.profile) once the job finishes.
@@ -71,10 +87,10 @@ export async function runGather(username: string, opts: { backfill?: number } = 
     const sinceId = currentReport ? maxOwnPostId(profile.id, currentReport.posts) : undefined
     const [postsResult, mentionsResult] = await Promise.all([
       gatherPosts(profile.id, auth, { sinceId, maxResults: opts.backfill ?? 50 }),
-      gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
+      gatherMentions(profile.id, auth).catch(() => ({ data: [] as Post[], cost: 0, units: 0, kind: 'posts' as const })),
     ])
-    addCost(key, postsResult.cost)
-    addCost(key, mentionsResult.cost)
+    addCost(key, postsResult.cost, { kind: postsResult.kind, units: postsResult.units })
+    addCost(key, mentionsResult.cost, { kind: mentionsResult.kind, units: mentionsResult.units })
 
     // Re-read posts right before merging to avoid stale snapshot from concurrent gathers
     const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
@@ -87,6 +103,7 @@ export async function runGather(username: string, opts: { backfill?: number } = 
     // Mirror the freshly-gathered public corpus to the shared library (debounced,
     // best-effort). Only profile/posts/edges/reports leave the device.
     pushShared(key)
+    await settlePaid(key, sinceTs)
   } finally {
     useXIntelStore.getState().setGathering(key, false)
   }
@@ -100,6 +117,7 @@ export async function refreshProfile(
   username: string,
   opts?: { silent?: boolean },
 ): Promise<void> {
+  assertPaidReady({ silent: opts?.silent === true })
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
@@ -114,12 +132,14 @@ export async function refreshProfile(
         progress: 0.15,
         progressLabel: 'Looking up user…',
       })
+  const sinceTs = markActionStart()
 
   try {
     const result = await gatherProfile(apiUsername, auth)
-    addCost(key, result.cost)
+    addCost(key, result.cost, { kind: result.kind, units: result.units })
     updateReport(key, { profile: result.data, refreshedAt: markRefreshed(key, 'profile') })
     pushShared(key)
+    await settlePaid(key, sinceTs)
     if (toastId !== null) toast.complete(toastId, 'Profile updated', subject)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Could not refresh profile'
@@ -134,16 +154,18 @@ export async function refreshProfile(
  * (timeline only — inbound mentions are pulled by `refreshNetwork`).
  */
 export async function refreshPosts(username: string): Promise<void> {
+  assertPaidReady()
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
   const auth = resolveGatherAuth(apiUsername)
+  const sinceTs = markActionStart()
 
   // Need a profile id to query posts; fetch it first if we don't have one yet.
   let profileId = report.profile?.id
   if (!profileId) {
     const profileResult = await gatherProfile(apiUsername, auth)
-    addCost(key, profileResult.cost)
+    addCost(key, profileResult.cost, { kind: profileResult.kind, units: profileResult.units })
     updateReport(key, { profile: profileResult.data, refreshedAt: markRefreshed(key, 'profile') })
     profileId = profileResult.data.id
   }
@@ -153,7 +175,7 @@ export async function refreshPosts(username: string): Promise<void> {
   const existingPosts = useXIntelStore.getState().reports[key]?.posts ?? []
   const sinceId = maxOwnPostId(profileId, existingPosts)
   const postsResult = await gatherPosts(profileId, auth, { sinceId })
-  addCost(key, postsResult.cost)
+  addCost(key, postsResult.cost, { kind: postsResult.kind, units: postsResult.units })
 
   const latestPosts = useXIntelStore.getState().reports[key]?.posts ?? existingPosts
   const merged = mergePosts(latestPosts, postsResult.data)
@@ -162,6 +184,7 @@ export async function refreshPosts(username: string): Promise<void> {
   // "checked just now", so the label must move even though `merged` is unchanged.
   updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'feed', 'network') })
   pushShared(key)
+  await settlePaid(key, sinceTs)
 }
 
 /**
@@ -170,15 +193,17 @@ export async function refreshPosts(username: string): Promise<void> {
  * Outbound and Inbound views. Mentions failures are non-fatal (timeline still lands).
  */
 export async function refreshNetwork(username: string): Promise<void> {
+  assertPaidReady()
   const { updateReport, addCost } = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   const apiUsername = report.profile?.username ?? report.username
   const auth = resolveGatherAuth(apiUsername)
+  const sinceTs = markActionStart()
 
   let profileId = report.profile?.id
   if (!profileId) {
     const profileResult = await gatherProfile(apiUsername, auth)
-    addCost(key, profileResult.cost)
+    addCost(key, profileResult.cost, { kind: profileResult.kind, units: profileResult.units })
     updateReport(key, { profile: profileResult.data, refreshedAt: markRefreshed(key, 'profile') })
     profileId = profileResult.data.id
   }
@@ -187,16 +212,17 @@ export async function refreshNetwork(username: string): Promise<void> {
   const sinceId = maxOwnPostId(profileId, existingPosts)
   const [postsResult, mentionsResult] = await Promise.all([
     gatherPosts(profileId, auth, { sinceId }),
-    gatherMentions(profileId, auth).catch(() => ({ data: [] as Post[], cost: 0 })),
+    gatherMentions(profileId, auth).catch(() => ({ data: [] as Post[], cost: 0, units: 0, kind: 'posts' as const })),
   ])
-  addCost(key, postsResult.cost)
-  addCost(key, mentionsResult.cost)
+  addCost(key, postsResult.cost, { kind: postsResult.kind, units: postsResult.units })
+  addCost(key, mentionsResult.cost, { kind: mentionsResult.kind, units: mentionsResult.units })
 
   const latestPosts = useXIntelStore.getState().reports[key]?.posts ?? existingPosts
   const merged = mergePosts(mergePosts(latestPosts, postsResult.data), mentionsResult.data)
   const edges = deriveEdges(profileId, merged)
   updateReport(key, { posts: merged, edges, refreshedAt: markRefreshed(key, 'network', 'feed') })
   pushShared(key)
+  await settlePaid(key, sinceTs)
 }
 
 /** @deprecated Use `refreshNetwork` — mentions are included in Network Refresh. */
@@ -214,6 +240,7 @@ export async function refreshNetworkWithMentions(username: string): Promise<void
  * post metrics change on a later re-gather.
  */
 export async function generateReport(username: string): Promise<IntelReportSnapshot> {
+  assertPaidReady()
   const store = useXIntelStore.getState()
   const { key, report } = requireReport(username)
   if (store.generatingReports[key]) {
@@ -240,14 +267,22 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
   const prevSnapshot = reportHistory[0] ?? null
   const hasChangeStep = Boolean(prevSnapshot)
   const subject = `@${profile.username}`
+  const reportAction = `report:${profile.username}`
   const progress = beginReportProgress({ subject, hasChangeStep })
   await progress.markPrepare()
+  const sinceTs = markActionStart()
 
   try {
     // Re-fetch Article teasers left over from pre-article-field gathers.
     const auth = resolveGatherAuth(profile.username)
     const hydrated = await hydrateArticlePosts(profile.id, posts, auth)
-    if (hydrated.cost > 0) store.addCost(key, hydrated.cost)
+    if (hydrated.cost > 0) {
+      store.addCost(key, hydrated.cost, {
+        kind: 'posts',
+        units: hydrated.units,
+        action: reportAction,
+      })
+    }
     let edgesForReport = edges
     // Apply merge whenever the fetch returned rows — not only when hydratedIds
     // is non-empty (authorId backfill alone still matters for partitionPosts).
@@ -324,6 +359,7 @@ export async function generateReport(username: string): Promise<IntelReportSnaps
     }
     // Share the new report snapshot (with its analyzed corpus) to the library.
     pushShared(key)
+    await settlePaid(reportAction, sinceTs)
     progress.complete('Report ready', `${subject} · ${posts.length} posts analyzed`)
     return snapshot
   } catch (e) {

@@ -13,6 +13,8 @@ import {
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { useXAppCredentialsStore, syncXByokCookies } from '../../stores/x-app-credentials-store'
+import { X402_ENABLED } from '../../lib/x402/config'
+import { CreditsStrip } from '../x402/credits-strip'
 
 const MIN_PASSPHRASE = 8
 
@@ -478,6 +480,13 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
           )}
         </div>
       </section>
+
+      {/* Credits (x402) — quick purchase strip; full Billing lives in Settings */}
+      {X402_ENABLED && (
+        <div className="mt-3">
+          <CreditsStrip onCloseConnections={onClose} />
+        </div>
+      )}
 
       <div className="flex justify-end mt-5">
         <button type="button" onClick={onClose} className={`${modalPrimaryBtnClass} text-[14px]`}>

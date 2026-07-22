@@ -180,6 +180,8 @@ export const toast = {
       // Longer so multi-line failure reasons stay readable.
       duration: 12_000,
     }),
+  /** Remove a toast immediately (e.g. abandon a progress toast without success/fail). */
+  dismiss: (id: number) => useToastStore.getState().dismiss(id),
 }
 
 /** User-facing toast description — actionable, never bare `HTTP 400`. */

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
+import { recordMediaCost } from '../lib/venice/media-cost'
+import { chargeAction, assertPaidReady, markActionStart } from '../lib/x402/charge-flow'
+import { notifyInsufficientFunds } from '../lib/x402/notify-insufficient'
 import { toast } from '../stores/toast-store'
 import type { MusicQueueRequest, MusicQueueResponse, MusicRetrieveResponse } from '../types/venice'
 
@@ -50,6 +54,29 @@ export function useMusic() {
   const [jobs, setJobs] = useState<MusicJob[]>([])
   const jobsRef = useRef<MusicJob[]>([])
   const runtimesRef = useRef<Map<string, JobRuntime>>(new Map())
+  const queryClient = useQueryClient()
+
+  /** Record the cost of a completed track once, priced by duration seconds. */
+  const recordMusicCost = useCallback((job: MusicJob) => {
+    const durationRaw = job.meta.extras?.duration_seconds ?? job.meta.extras?.duration
+    const seconds =
+      typeof durationRaw === 'number'
+        ? durationRaw
+        : typeof durationRaw === 'string' && /^\d+(\.\d+)?$/.test(durationRaw)
+          ? parseFloat(durationRaw)
+          : undefined
+    const sinceTs = markActionStart()
+    recordMediaCost(
+      queryClient,
+      'music',
+      job.model,
+      { seconds },
+      { action: 'music', meta: { jobId: job.id } },
+    )
+    void chargeAction('music', { sinceTs }).then((charge) => {
+      if (charge.insufficient) notifyInsufficientFunds(charge)
+    })
+  }, [queryClient])
 
   const syncJobs = useCallback((updater: (prev: MusicJob[]) => MusicJob[]) => {
     setJobs((prev) => {
@@ -129,6 +156,7 @@ export function useMusic() {
           if (runtime.cancelled) return
           stopJobTimers(jobId)
           patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
+          recordMusicCost(job)
           return
         }
 
@@ -148,6 +176,7 @@ export function useMusic() {
               blob: blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' }),
               elapsedMs: Date.now() - job.startedAt,
             })
+            recordMusicCost(job)
           } catch (fetchErr) {
             failJob(jobId, fetchErr instanceof Error ? fetchErr : new Error('Failed to download completed audio'))
           }
@@ -166,12 +195,13 @@ export function useMusic() {
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [failJob, patchJob, stopJobTimers])
+  }, [failJob, patchJob, stopJobTimers, recordMusicCost])
 
   const activeCount = jobs.filter((j) => isActive(j.status)).length
   const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: MusicQueueRequest, meta: MusicJobMeta) => {
+    assertPaidReady()
     if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} tracks. Wait for one to finish.`)
     }

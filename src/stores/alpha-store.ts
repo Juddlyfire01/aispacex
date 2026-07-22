@@ -13,6 +13,14 @@ import {
   upsertStory,
   type AlphaArchiveState,
 } from '../lib/alpha/archive'
+import { recordCost } from './cost-ledger-store'
+
+/** Optional grouping/metadata forwarded to the unified cost ledger. */
+export interface AlphaLedgerContext {
+  kind?: 'counts' | 'posts' | 'news_search'
+  units?: number
+  meta?: Record<string, unknown>
+}
 import type {
   AlphaColdBrief,
   AlphaColdPost,
@@ -46,7 +54,7 @@ interface AlphaState {
   setCountsCache: (cache: RailCountsCache) => void
   setNewsScan: (scan: AlphaNewsScanCache) => void
   setExpandedRailId: (id: string | null) => void
-  addCost: (usd: number) => void
+  addCost: (usd: number, ledger?: AlphaLedgerContext) => void
   keepBrief: (brief: AlphaColdBrief) => void
   keepStory: (story: AlphaColdStory) => void
   keepPosts: (posts: AlphaColdPost[]) => void
@@ -146,12 +154,21 @@ export const useAlphaStore = create<AlphaState>()(
 
       setExpandedRailId: (id) => set({ expandedRailId: id }),
 
-      addCost: (usd) => {
+      addCost: (usd, ledger) => {
         if (!(usd > 0)) return
         set((s) => ({
           sessionCost: s.sessionCost + usd,
           lifetimeCost: s.lifetimeCost + usd,
         }))
+        recordCost({
+          action: 'alpha',
+          provider: 'x',
+          kind: ledger?.kind ?? 'posts',
+          units: ledger?.units ?? 1,
+          unitPriceUsd: ledger?.units ? usd / ledger.units : usd,
+          rawUsd: usd,
+          meta: ledger?.meta,
+        })
       },
 
       pruneCold: (now = Date.now()) => {

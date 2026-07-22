@@ -6,7 +6,8 @@
 import { xapi, type GatherAuth } from './x-client'
 import { POST_FIELDS, POST_EXPANSIONS } from './fields'
 import { normalizePost } from './normalize'
-import { estimateCost } from './gather'
+import { estimateCost, billableCount } from './gather'
+import { billableXUnits } from './x-dedup-billing'
 import { mergePosts } from '../../stores/x-intel-store'
 import type { Post, XPostRaw, XPaginatedResponse } from './types'
 import { postFormatOf } from './style-features'
@@ -78,9 +79,10 @@ export function findArticleStubIds(authorId: string, posts: Post[]): string[] {
 export async function gatherPostsByIds(
   ids: string[],
   auth: GatherAuth,
-): Promise<{ data: Post[]; cost: number }> {
-  if (ids.length === 0) return { data: [], cost: 0 }
+): Promise<{ data: Post[]; cost: number; units: number; kind: 'posts' }> {
+  if (ids.length === 0) return { data: [], cost: 0, units: 0, kind: 'posts' }
   const out: Post[] = []
+  let billed = 0
   for (let i = 0; i < ids.length; i += BATCH) {
     const chunk = ids.slice(i, i + BATCH)
     const resp = await xapi<XPaginatedResponse<XPostRaw>>('/tweets', {
@@ -97,13 +99,20 @@ export async function gatherPostsByIds(
     for (const raw of rows) {
       out.push(normalizePost(raw, resp.includes))
     }
+    billed += billableXUnits(
+      'posts',
+      rows.map((r) => r.id),
+      billableCount(resp.meta, rows.length),
+    )
   }
-  return { data: out, cost: estimateCost('posts', out.length) }
+  return { data: out, cost: estimateCost('posts', billed), units: billed, kind: 'posts' }
 }
 
 export interface HydrateArticleResult {
   posts: Post[]
   cost: number
+  /** Billable resource count (for unified-ledger unit pricing). */
+  units?: number
   /** Stub ids we attempted to fetch. */
   stubIds: string[]
   /** Ids that came back as hydrated articles. */
@@ -134,9 +143,9 @@ export async function hydrateArticlePosts(
     return { posts, cost: 0, stubIds: [], hydratedIds: [], updated: false }
   }
   try {
-    const { data, cost } = await gatherPostsByIds(stubIds, auth)
+    const { data, cost, units } = await gatherPostsByIds(stubIds, auth)
     if (data.length === 0) {
-      return { posts, cost, stubIds, hydratedIds: [], updated: false }
+      return { posts, cost, units, stubIds, hydratedIds: [], updated: false }
     }
     const hydratedIds = data
       .filter((p) => postFormatOf(p) === 'article' && (p.text?.length ?? 0) >= HYDRATED_MIN_CHARS)
@@ -144,6 +153,7 @@ export async function hydrateArticlePosts(
     return {
       posts: mergePosts(posts, data),
       cost,
+      units,
       stubIds,
       hydratedIds,
       updated: true,

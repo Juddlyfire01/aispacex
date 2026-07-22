@@ -13,7 +13,7 @@ import {
 } from '../lib/appearance'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
-export type SettingsCategory = 'profile' | 'display' | 'data'
+export type SettingsCategory = 'profile' | 'display' | 'data' | 'billing'
 export type Theme = 'dark' | 'venice' | 'grey' | 'light'
 export type Scale = 90 | 100 | 110 | 125
 export type FontScale = 'sm' | 'md' | 'lg'

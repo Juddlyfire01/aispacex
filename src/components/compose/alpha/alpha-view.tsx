@@ -249,7 +249,7 @@ export function AlphaView() {
           try {
             const cache = await fetchCountsRecent(rail.id, rail.query)
             setCountsCache(cache)
-            addCost(cache.cost)
+            addCost(cache.cost, { kind: 'counts', units: 1, meta: { railId: rail.id } })
           } catch (err) {
             if (err instanceof XAPIError && err.status === 401) {
               setLiveError(err.message)
@@ -280,7 +280,7 @@ export function AlphaView() {
         const res = await fetchNewsScan()
         const fetchedAt = Date.now()
         setNewsScan({ stories: res.stories, fetchedAt, cost: res.cost })
-        addCost(res.cost)
+        addCost(res.cost, { kind: 'news_search', units: 1 })
         for (const st of res.stories) {
           const prevPinned = useAlphaStore.getState().stories[st.id]?.pinned ?? false
           keepStory({
@@ -448,7 +448,7 @@ export function AlphaView() {
             storyId: st.id,
           })),
         )
-        addCost(cost)
+        addCost(cost, { kind: 'posts', units: posts.length, meta: { storyId: st.id } })
         setClusterPostsByStory((s) => ({ ...s, [st.id]: posts }))
       } catch (err) {
         setLiveError(err instanceof Error ? err.message : String(err))
@@ -487,7 +487,7 @@ export function AlphaView() {
       try {
         const search = await fetchSearchRecent(query, 15)
         setPostsByRail((s) => ({ ...s, [railId]: search.posts }))
-        addCost(search.cost)
+        addCost(search.cost, { kind: 'posts', units: search.posts.length, meta: { railId } })
       } catch (err) {
         setLiveError(err instanceof Error ? err.message : String(err))
       } finally {
@@ -532,7 +532,7 @@ export function AlphaView() {
       try {
         const cache = await fetchCountsRecent(id, query.trim())
         setCountsCache(cache)
-        addCost(cache.cost)
+        addCost(cache.cost, { kind: 'counts', units: 1, meta: { railId: id } })
       } catch (err) {
         if (err instanceof XAPIError && err.status === 401) {
           setLiveError(err.message)

@@ -14,6 +14,8 @@ import { RailMetaFlip } from './rail-meta-flip'
 import { ensureProfileShape } from '../../lib/x-intel/normalize'
 import { useSharedLibraryStore } from '../../stores/shared-library-store'
 import { cn } from '../../lib/utils'
+import { useX402Store } from '../../stores/x402-store'
+import { X402_ENABLED } from '../../lib/x402/config'
 
 function relativeTime(iso: string | undefined): string {
   if (!iso) return 'never'
@@ -28,6 +30,10 @@ function relativeTime(iso: string | undefined): string {
 
 export function TargetRail() {
   const { targets, reports, activeTarget, setActiveTarget, addTarget, removeTarget, reorderTargets, gatheringTargets } = useXIntelStore()
+  const address = useX402Store((s) => s.address)
+  const status = useX402Store((s) => s.status)
+  const creditsWallet = X402_ENABLED && status === 'connected' && Boolean(address)
+  const chargedByTarget = useX402Store((s) => s.chargedByTarget)
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [officialOnly, setOfficialOnly] = useState(false)
@@ -48,8 +54,15 @@ export function TargetRail() {
     switch (sortKey) {
       case 'followers':
         return (reports[b]?.profile?.metrics.followers ?? -1) - (reports[a]?.profile?.metrics.followers ?? -1)
-      case 'cost':
+      case 'cost': {
+        // Credits wallet: sort by credits charged for that target, not raw API spend.
+        if (creditsWallet) {
+          const ca = chargedByTarget[a.toLowerCase()] ?? 0
+          const cb = chargedByTarget[b.toLowerCase()] ?? 0
+          return cb - ca
+        }
         return (reports[b]?.totalCost ?? 0) - (reports[a]?.totalCost ?? 0)
+      }
       case 'name':
         return a.toLowerCase().localeCompare(b.toLowerCase())
       case 'recent': {

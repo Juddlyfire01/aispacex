@@ -4,6 +4,7 @@ import { useXSelfStore } from '../../stores/x-self-store'
 import { confirmDialog } from '../../stores/confirm-store'
 import { refreshProfile, runGather } from '../../lib/x-intel/orchestrate'
 import { withRefreshToast } from '../../lib/x-intel/refresh-toast'
+import { PaidNotReadyError } from '../../lib/x402/charge-flow'
 import { linkify } from '../../lib/x-intel/linkify'
 import { EthAddressLink } from './eth-address-link'
 import { MentionLink } from './mention-link'
@@ -81,6 +82,8 @@ export function ProfileCard() {
         'Profile up to date',
       )
     } catch (e) {
+      // Wallet toast already covers paid-gate blocks; skip inline duplicate.
+      if (e instanceof PaidNotReadyError) return
       setRefreshError(e instanceof Error ? e.message : 'Refresh failed')
     } finally {
       setProfileRefreshing(false)

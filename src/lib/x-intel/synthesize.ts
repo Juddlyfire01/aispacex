@@ -557,11 +557,12 @@ export async function synthesizeReport(
   let promptTokens = narrPrompt
   let completionTokens = narrCompletion
   const modelSpec = await resolveTextModel(settings.model)
+  const reportAction = `report:${profile.username}`
   useVeniceCostStore.getState().addUsage(modelSpec, {
     prompt_tokens: narrPrompt,
     completion_tokens: narrCompletion,
     total_tokens: narrTotal,
-  })
+  }, { action: reportAction, kind: 'text', meta: { phase: 'narrative' } })
 
   let changeNarrative: string | null = null
   if (computedDelta && prevSnapshot) {
@@ -613,7 +614,7 @@ export async function synthesizeReport(
       prompt_tokens: chPrompt,
       completion_tokens: chCompletion,
       total_tokens: chTotal,
-    })
+    }, { action: reportAction, kind: 'text', meta: { phase: 'change' } })
 
     if (changeStream.content.trim()) {
       const parsed = extractJson(changeStream.content) as { narrative?: string } | null

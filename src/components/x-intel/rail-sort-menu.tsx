@@ -2,18 +2,27 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { computeFloatingRect } from '../../lib/floating-panel'
 import { cn } from '../../lib/utils'
+import { X402_ENABLED } from '../../lib/x402/config'
+import { useX402Store } from '../../stores/x402-store'
 
 const MENU_WIDTH = 220
 
 export type RailSortKey = 'manual' | 'followers' | 'recent' | 'name' | 'cost'
 
-export const RAIL_SORT_OPTIONS: { key: RailSortKey; label: string; hint: string }[] = [
-  { key: 'manual', label: 'Manual', hint: 'Drag to reorder' },
-  { key: 'followers', label: 'Followers', hint: 'Most first' },
-  { key: 'recent', label: 'Recently updated', hint: 'Newest first' },
-  { key: 'name', label: 'Name', hint: 'A → Z' },
-  { key: 'cost', label: 'API spend', hint: 'Highest first' },
-]
+export function railSortOptions(creditsWallet = false): { key: RailSortKey; label: string; hint: string }[] {
+  const paid = X402_ENABLED && creditsWallet
+  return [
+    { key: 'manual', label: 'Manual', hint: 'Drag to reorder' },
+    { key: 'followers', label: 'Followers', hint: 'Most first' },
+    { key: 'recent', label: 'Recently updated', hint: 'Newest first' },
+    { key: 'name', label: 'Name', hint: 'A → Z' },
+    {
+      key: 'cost',
+      label: paid ? 'Credits spent' : 'API spend',
+      hint: 'Highest first',
+    },
+  ]
+}
 
 /** Sort glyph (bars, descending). */
 function SortIcon({ className }: { className?: string }) {
@@ -43,6 +52,9 @@ export function RailSortMenu({
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const address = useX402Store((s) => s.address)
+  const status = useX402Store((s) => s.status)
+  const options = railSortOptions(status === 'connected' && Boolean(address))
 
   const reposition = () => {
     const anchor = anchorRef.current
@@ -78,7 +90,7 @@ export function RailSortMenu({
   }, [open])
 
   const active = sortKey !== 'manual'
-  const current = RAIL_SORT_OPTIONS.find((o) => o.key === sortKey)
+  const current = options.find((o) => o.key === sortKey)
 
   return (
     <div className="relative">
@@ -120,7 +132,7 @@ export function RailSortMenu({
           <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-quaternary)]">
             Sort by
           </div>
-          {RAIL_SORT_OPTIONS.map((opt) => {
+          {options.map((opt) => {
             const selected = opt.key === sortKey
             return (
               <button

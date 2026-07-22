@@ -5,6 +5,7 @@ import { isUserVeniceKey, VENICE_SERVER_FRONTED } from './lib/venice-config'
 import { Sidebar } from './components/layout/sidebar'
 import { Header } from './components/layout/header'
 import { ConnectionsDialog } from './components/layout/connections-dialog'
+import { PurchaseCreditsModal } from './components/x402/purchase-credits-modal'
 import { ErrorBoundary } from './components/ui/error-boundary'
 import { Toaster } from './components/ui/toaster'
 import { ConfirmDialogHost } from './components/ui/confirm-dialog'
@@ -161,6 +162,7 @@ export function App() {
       </div>
       </div>
       <ConnectionsDialog open={connectionsOpen} onClose={() => setConnectionsOpen(false)} />
+      <PurchaseCreditsModal />
       <Toaster />
       <ConfirmDialogHost />
       <PromptDialogHost />

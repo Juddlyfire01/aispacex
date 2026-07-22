@@ -13,5 +13,6 @@
       "source": "/((?!api/|@|src/|node_modules/|.*\\..*).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "crons": [{ "path": "/api/x402/reconcile", "schedule": "0 6 * * *" }]
 }

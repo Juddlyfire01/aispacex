@@ -1,24 +1,40 @@
 import { useEffect, useState } from 'react'
 import { cn } from '../../lib/utils'
 import { useSettingsStore, type SettingsCategory } from '../../stores/settings-store'
+import { X402_ENABLED } from '../../lib/x402/config'
 import { ProfileSection } from './profile-section'
 import { DisplaySection } from './display-section'
 import { DataPrivacySection } from './data-privacy-section'
+import { BillingSection } from './billing-section'
 
 type Category = SettingsCategory
 
-const CATEGORIES: Array<{ id: Category; label: string; desc: string }> = [
+const BASE_CATEGORIES: Array<{ id: Category; label: string; desc: string }> = [
   { id: 'profile', label: 'Profile', desc: 'Your display identity' },
   { id: 'display', label: 'Display', desc: 'Theme, scale, and density' },
   { id: 'data', label: 'Data & privacy', desc: 'Manage & clear cached data' },
 ]
 
+const BILLING_CATEGORY = {
+  id: 'billing' as const,
+  label: 'Billing',
+  desc: 'Credits and payments',
+}
+
 export function SettingsView() {
   const settingsFocus = useSettingsStore((s) => s.settingsFocus)
   const [cat, setCat] = useState<Category>('display')
 
+  const categories = X402_ENABLED
+    ? [...BASE_CATEGORIES, BILLING_CATEGORY]
+    : BASE_CATEGORIES
+
   useEffect(() => {
     if (!settingsFocus) return
+    if (settingsFocus === 'billing' && !X402_ENABLED) {
+      useSettingsStore.setState({ settingsFocus: null })
+      return
+    }
     setCat(settingsFocus)
     useSettingsStore.setState({ settingsFocus: null })
   }, [settingsFocus])
@@ -40,7 +56,7 @@ export function SettingsView() {
           <span className="text-[14px] font-semibold text-[var(--color-text-primary)]">Settings</span>
         </div>
         <nav className="flex flex-col gap-px p-2">
-          {CATEGORIES.map((c) => {
+          {categories.map((c) => {
             const active = cat === c.id
             return (
               <button
@@ -69,9 +85,17 @@ export function SettingsView() {
       <div className="flex-1 min-w-0 overflow-y-auto">
         <div className="px-8 py-8 max-w-2xl">
           <h2 className="text-[18px] font-semibold text-[var(--color-text-primary)] mb-6">
-            {CATEGORIES.find((c) => c.id === cat)?.label}
+            {categories.find((c) => c.id === cat)?.label}
           </h2>
-          {cat === 'profile' ? <ProfileSection /> : cat === 'data' ? <DataPrivacySection /> : <DisplaySection />}
+          {cat === 'profile' ? (
+            <ProfileSection />
+          ) : cat === 'data' ? (
+            <DataPrivacySection />
+          ) : cat === 'billing' ? (
+            <BillingSection />
+          ) : (
+            <DisplaySection />
+          )}
         </div>
       </div>
     </div>

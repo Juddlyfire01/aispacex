@@ -35,6 +35,11 @@ export const COST_PER_POST = 0.005
 export const COST_PER_USER = 0.01
 export const COST_PER_LIKE = 0.001
 
+// Write-operation rate card (USD per request). Post: Create is $0.015; a create
+// that includes a URL is billed at $0.200 (40x) per X pay-per-use pricing.
+export const COST_PER_POST_CREATE = 0.015
+export const COST_PER_POST_CREATE_URL = 0.2
+
 // Default target seeded on first successful token connect. The validation
 // lookup targets this account, so validating the token also fetches its
 // profile in the same request (no extra cost).

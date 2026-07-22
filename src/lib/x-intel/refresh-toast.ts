@@ -1,4 +1,5 @@
 import { toast } from '../../stores/toast-store'
+import { PaidNotReadyError } from '../x402/charge-flow'
 
 /**
  * Wrap a refresh action with a progress toast. Deliberately does NOT report a
@@ -9,8 +10,9 @@ import { toast } from '../../stores/toast-store'
  * `successTitle` lets callers distinguish a full Profile refresh from a
  * section-scoped Feed/Network refresh.
  *
- * Rethrows on failure after flipping the toast to an error, so callers can still
- * set their own inline error state.
+ * Completes only after `action` resolves successfully. On PaidNotReadyError the
+ * progress toast is dismissed (wallet toast already fired). Other failures flip
+ * the toast to an error and rethrow so callers can set inline error state.
  */
 export async function withRefreshToast(
   subject: string,
@@ -26,6 +28,10 @@ export async function withRefreshToast(
     await action()
     toast.complete(toastId, successTitle, subject)
   } catch (e) {
+    if (e instanceof PaidNotReadyError) {
+      toast.dismiss(toastId)
+      throw e
+    }
     const message = e instanceof Error ? e.message : 'Refresh failed'
     toast.fail(toastId, 'Refresh failed', message)
     throw e
