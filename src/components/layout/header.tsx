@@ -2,8 +2,10 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
 import { useXSelfStore } from '../../stores/x-self-store'
+import { useX402Store } from '../../stores/x402-store'
+import { getConnectionsStatus } from '../../lib/connections-status'
 import { Select } from '../ui/select'
-import { ConnectionPill } from '../ui/shared'
+import { ConnectionsStatusPill } from '../ui/shared'
 
 const modelTypeMap: Record<string, string> = {
   image: 'image',
@@ -45,15 +47,23 @@ interface Props {
 
 export function Header({ onOpenConnections, onOpenMobileSidebar }: Props) {
   const { activeTab, selectedModels, setSelectedModel } = useSettingsStore()
-  const apiKey = useAuthStore((s) => s.apiKey)
-  const xConnecting = useXSelfStore((s) => s.connecting)
+  // Subscribe so the Connections pill re-renders when rails change.
+  useAuthStore((s) => s.apiKey)
+  useAuthStore((s) => s.hasEncrypted)
+  useXSelfStore((s) => s.connected)
+  useXSelfStore((s) => s.connecting)
+  useX402Store((s) => s.status)
+  useX402Store((s) => s.address)
+  useX402Store((s) => s.sessionToken)
+  useX402Store((s) => s.sessionExpiresAt)
+
   const hasOwnSelector = noModelSelector.has(activeTab)
   const modelType = modelTypeMap[activeTab] || 'text'
   const { data: models, defaultModelId } = useModels(hasOwnSelector ? undefined : modelType)
   const currentModel = hasOwnSelector ? '' : (selectedModels[activeTab] || defaultModelId)
   const modelOptions = hasOwnSelector ? [] : (models?.map((m) => ({ value: m.id, label: m.model_spec?.name || m.id })) ?? [])
 
-  const veniceReady = Boolean(apiKey)
+  const connections = getConnectionsStatus(activeTab)
 
   return (
     <header className="flex items-center gap-3 h-14 px-3 border-b border-[var(--color-border-faint)] bg-[var(--color-bg-base)] shrink-0">
@@ -88,12 +98,12 @@ export function Header({ onOpenConnections, onOpenMobileSidebar }: Props) {
 
       <div className="flex-1" />
 
-      <ConnectionPill
-        connected={veniceReady}
-        connecting={xConnecting}
-        connectedLabel="Connections"
-        disconnectedLabel="Connections"
-        connectingLabel="Connecting X…"
+      <ConnectionsStatusPill
+        tone={connections.tone}
+        venice={connections.venice}
+        x={connections.x}
+        credits={connections.credits}
+        ariaLabel={connections.ariaLabel}
         onClick={onOpenConnections}
       />
     </header>
