@@ -13,7 +13,9 @@ import {
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { useXAppCredentialsStore, syncXByokCookies } from '../../stores/x-app-credentials-store'
-import { X402_ENABLED } from '../../lib/x402/config'
+import { useX402Store } from '../../stores/x402-store'
+import { X402_ENABLED, X402_DISABLE_FREE } from '../../lib/x402/config'
+import { isCreditsWalletConnected } from '../../lib/x402/charge-flow'
 import { CreditsStrip } from '../x402/credits-strip'
 
 const MIN_PASSPHRASE = 8
@@ -21,16 +23,40 @@ const MIN_PASSPHRASE = 8
 function useVeniceStatus() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const hasEncrypted = useAuthStore((s) => s.hasEncrypted)
+  // Re-render when credits wallet connects so Free-off status updates.
+  useX402Store((s) => s.status)
+  useX402Store((s) => s.address)
+
   if (isUserVeniceKey(apiKey)) {
     return { tone: 'ok' as const, text: 'Using your API key' }
   }
   if (VENICE_SERVER_FRONTED && apiKey) {
+    if (X402_DISABLE_FREE && !isCreditsWalletConnected()) {
+      return {
+        tone: 'off' as const,
+        text: 'Free mode is off — app credentials need Credits or your key',
+      }
+    }
+    if (X402_DISABLE_FREE && isCreditsWalletConnected()) {
+      return { tone: 'ok' as const, text: 'App credentials via Credits' }
+    }
     return { tone: 'ok' as const, text: 'Using app-provided credentials (alpha)' }
   }
   if (hasEncrypted) {
-    return { tone: 'amber' as const, text: 'Saved key locked — unlock to use your key' }
+    return {
+      tone: 'amber' as const,
+      text: X402_DISABLE_FREE
+        ? 'Saved key locked — unlock, or connect Credits'
+        : 'Saved key locked — unlock to use your key',
+    }
   }
   if (VENICE_SERVER_FRONTED) {
+    if (X402_DISABLE_FREE && !isCreditsWalletConnected()) {
+      return {
+        tone: 'off' as const,
+        text: 'Free mode is off — connect Credits or add your Venice key',
+      }
+    }
     return { tone: 'ok' as const, text: 'Using app-provided credentials (alpha)' }
   }
   return { tone: 'off' as const, text: 'API key required' }
@@ -140,7 +166,13 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
     setPassphrase('')
     setRemember(false)
     setForceConnect(false)
-    toast.info(VENICE_SERVER_FRONTED ? 'Using app-provided Venice again' : 'API key cleared')
+    toast.info(
+      VENICE_SERVER_FRONTED
+        ? X402_DISABLE_FREE
+          ? 'Key cleared — connect Credits or add a key to continue'
+          : 'Using app-provided Venice again'
+        : 'API key cleared',
+    )
   }
 
   return (
@@ -150,7 +182,9 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
           Connections
         </h2>
         <p className="text-[13px] text-[var(--color-text-secondary)]">
-          What’s powering this session — and what you can unlock.
+          {X402_DISABLE_FREE
+            ? 'Free mode is off — connect Credits, or use your own Venice key + X account.'
+            : 'What’s powering this session — and what you can unlock.'}
         </p>
       </div>
 
@@ -167,36 +201,42 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
             </p>
             {VENICE_SERVER_FRONTED && !isUserVeniceKey(apiKey) && (
               <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-snug">
-                Optional — add your own key to override app credentials (privacy-first, stays on this device).
+                {X402_DISABLE_FREE
+                  ? isCreditsWalletConnected()
+                    ? 'Paid actions use app Venice credentials; add your own key to override (stays on this device).'
+                    : 'Connect a Credits wallet to use app Venice, or add your own key (BYOK, stays on this device).'
+                  : 'Optional — add your own key to override app credentials (privacy-first, stays on this device).'}
               </p>
             )}
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             {!showVeniceForm && (
-              <button
-                type="button"
-                className={modalSecondaryBtnClass}
-                onClick={() => {
-                  setShowVeniceForm(true)
-                  setForceConnect(!(hasEncrypted && !isUserVeniceKey(apiKey)))
-                  setError(null)
-                }}
-              >
-                {isUserVeniceKey(apiKey)
-                  ? 'Replace key'
-                  : hasEncrypted && !isUserVeniceKey(apiKey)
-                    ? 'Unlock key'
-                    : 'Use your key'}
-              </button>
-            )}
-            {(isUserVeniceKey(apiKey) || hasEncrypted) && (
-              <button
-                type="button"
-                className={`${modalGhostBtnClass} text-[12px] hover:text-red-300 px-0`}
-                onClick={handleClearVenice}
-              >
-                Disconnect
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={modalSecondaryBtnClass}
+                  onClick={() => {
+                    setShowVeniceForm(true)
+                    setForceConnect(!(hasEncrypted && !isUserVeniceKey(apiKey)))
+                    setError(null)
+                  }}
+                >
+                  {isUserVeniceKey(apiKey)
+                    ? 'Replace key'
+                    : hasEncrypted && !isUserVeniceKey(apiKey)
+                      ? 'Unlock key'
+                      : 'Use your key'}
+                </button>
+                {(isUserVeniceKey(apiKey) || hasEncrypted) && (
+                  <button
+                    type="button"
+                    className={`${modalGhostBtnClass} text-[12px] hover:text-red-300 px-0`}
+                    onClick={handleClearVenice}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -300,7 +340,7 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
       </section>
 
       {/* X */}
-      <section className="rounded-lg border border-[var(--color-border-soft)] p-3.5">
+      <section className="rounded-lg border border-[var(--color-border-soft)] p-3.5 mb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -312,10 +352,16 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
                 ? 'Connecting…'
                 : xConnected
                   ? `Connected as @${xUsername ?? '…'}`
-                  : 'Not connected — posting locked'}
+                  : X402_DISABLE_FREE
+                    ? 'Not connected — needed for BYOK gather (or use Credits)'
+                    : 'Not connected — posting locked'}
             </p>
             <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-snug">
-              Optional — connect to post. You can gather any public profile without connecting.
+              {X402_DISABLE_FREE
+                ? xConnected
+                  ? 'Connected for posting and BYOK gather. Free app-bearer gather is off.'
+                  : 'Free app-bearer gather is off. Connect X for BYOK, or pay with Credits.'
+                : 'Optional — connect to post. You can gather any public profile without connecting.'}
             </p>
             {hasXAppCreds && (
               <p className="text-[11px] text-teal-300/80 mt-1 leading-snug">
@@ -327,7 +373,7 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
             {xConnected ? (
               <button
                 type="button"
-                className={`${modalGhostBtnClass} text-[12px] hover:text-red-300 px-0`}
+                className={modalSecondaryBtnClass}
                 onClick={() => { void disconnectActiveAccount().then(() => toast.info('X account disconnected')) }}
               >
                 Disconnect

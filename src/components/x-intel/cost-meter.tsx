@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useCostLedgerStore } from '../../stores/cost-ledger-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useX402Store } from '../../stores/x402-store'
-import { X402_ENABLED } from '../../lib/x402/config'
+import { useAuthStore } from '../../stores/auth-store'
+import { useXSelfStore } from '../../stores/x-self-store'
+import { isUserVeniceKey } from '../../lib/venice-config'
+import { X402_ENABLED, X402_DISABLE_FREE } from '../../lib/x402/config'
 import { VeniceKeysMark, XMark } from '../ui/brand-marks'
 import { Tooltip } from '../ui/tooltip'
 import { RAIL_FOOTER_CLASS, RAIL_FOOTER_STACK_CLASS } from '../layout/rail-footer'
@@ -162,22 +165,29 @@ export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderVie
   const sessionChargedUsd = useX402Store((s) => s.sessionChargedUsd)
   const showCredits = X402_ENABLED && status === 'connected' && Boolean(address)
 
+  const veniceByok = isUserVeniceKey(useAuthStore((s) => s.apiKey))
+  const xByok = useXSelfStore((s) => s.connected)
+  // Free-off with no wallet and no BYOK: don't surface historical Free spend.
+  const hideFreeSpend = X402_DISABLE_FREE && !showCredits && !veniceByok && !xByok
+
   // Unified ledger: session/lifetime totals split by provider.
   const sessionTotals = useCostLedgerStore((s) => s.session)
   const lifetimeTotals = useCostLedgerStore((s) => s.lifetime)
 
-  const session =
+  const rawSession =
     view === 'x'
       ? sessionTotals.x
       : view === 'venice'
         ? sessionTotals.venice
         : sessionTotals.x + sessionTotals.venice
-  const total =
+  const rawTotal =
     view === 'x'
       ? lifetimeTotals.x
       : view === 'venice'
         ? lifetimeTotals.venice
         : lifetimeTotals.x + lifetimeTotals.venice
+  const session = hideFreeSpend ? 0 : rawSession
+  const total = hideFreeSpend ? 0 : rawTotal
 
   const activeMeta = VIEWS.find((v) => v.id === view)!
 
@@ -225,72 +235,107 @@ export function CostMeter({ defaultView = 'x' }: { defaultView?: CostProviderVie
     )
   }
 
+  const openBillingOrCycle = () => {
+    if (hideFreeSpend) {
+      openSettings('billing')
+      return
+    }
+    setView((v) => nextView(v))
+  }
+
   return (
     <div
       className={cn(RAIL_FOOTER_CLASS, 'relative cursor-pointer select-none')}
       role="button"
       tabIndex={0}
-      title={activeMeta.title}
-      aria-label={activeMeta.title}
-      onClick={() => setView((v) => nextView(v))}
+      title={hideFreeSpend ? 'Free mode is off — open Billing' : activeMeta.title}
+      aria-label={hideFreeSpend ? 'Credits required' : activeMeta.title}
+      onClick={openBillingOrCycle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          setView((v) => nextView(v))
+          openBillingOrCycle()
         }
       }}
     >
       {/* Logos live on top, centered — never in the Session row */}
       <div className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex justify-center">
-        <FlipProviderMark view={view} theme={theme} />
+        {hideFreeSpend ? (
+          <span
+            className="flex h-[14px] items-center justify-center text-[9px] font-medium tracking-wide text-[var(--color-text-secondary)]"
+            aria-hidden
+          >
+            Credits
+          </span>
+        ) : (
+          <FlipProviderMark view={view} theme={theme} />
+        )}
       </div>
 
       <div className={cn(RAIL_FOOTER_STACK_CLASS, 'relative')}>
         <div className="flex h-[13px] items-center justify-between gap-1.5 text-[9px] leading-none text-[var(--color-text-tertiary)]">
-          <Tooltip tip="API spend for this browser session." underline={false} focusable={false}>
+          <Tooltip
+            tip={
+              hideFreeSpend
+                ? 'Connect a Credits wallet to meter spend.'
+                : 'API spend for this browser session.'
+            }
+            underline={false}
+            focusable={false}
+          >
             <span className="shrink-0">Session</span>
           </Tooltip>
           <span className="font-mono tabular-nums shrink-0">${session.toFixed(2)}</span>
         </div>
         <div className="flex h-[15px] items-center justify-between gap-1.5 text-[11px] leading-none text-[var(--color-text-secondary)]">
-          <Tooltip tip="All-time API spend tracked in this app." underline={false} focusable={false}>
+          <Tooltip
+            tip={
+              hideFreeSpend
+                ? 'Free mode is off — no Free spend to show.'
+                : 'All-time API spend tracked in this app.'
+            }
+            underline={false}
+            focusable={false}
+          >
             <span className="shrink-0">Total</span>
           </Tooltip>
           <span className="font-mono shrink-0 tabular-nums">${total.toFixed(2)}</span>
         </div>
 
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 flex h-2.5 items-end justify-center gap-1.5"
-          role="group"
-          aria-label="Source"
-        >
-          {VIEWS.map((v) => {
-            const active = view === v.id
-            return (
-              <button
-                key={v.id}
-                type="button"
-                title={v.title}
-                aria-label={v.title}
-                aria-pressed={active}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setView(v.id)
-                }}
-                className="pointer-events-auto flex h-2.5 w-2.5 items-end justify-center p-0"
-              >
-                <span
-                  className={cn(
-                    'rounded-full transition-all',
-                    active
-                      ? 'h-1.5 w-1.5 bg-[var(--color-text-primary)]'
-                      : 'h-1 w-1 bg-[var(--color-text-tertiary)] opacity-45 hover:opacity-80',
-                  )}
-                />
-              </button>
-            )
-          })}
-        </div>
+        {!hideFreeSpend && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 flex h-2.5 items-end justify-center gap-1.5"
+            role="group"
+            aria-label="Source"
+          >
+            {VIEWS.map((v) => {
+              const active = view === v.id
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  title={v.title}
+                  aria-label={v.title}
+                  aria-pressed={active}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setView(v.id)
+                  }}
+                  className="pointer-events-auto flex h-2.5 w-2.5 items-end justify-center p-0"
+                >
+                  <span
+                    className={cn(
+                      'rounded-full transition-all',
+                      active
+                        ? 'h-1.5 w-1.5 bg-[var(--color-text-primary)]'
+                        : 'h-1 w-1 bg-[var(--color-text-tertiary)] opacity-45 hover:opacity-80',
+                    )}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

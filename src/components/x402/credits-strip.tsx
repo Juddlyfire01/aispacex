@@ -18,7 +18,7 @@ function fmtUsd(n: number): string {
 /**
  * Compact Credits strip for the Connections modal: wallet connect, balance,
  * Purchase CTA, and deep-link to Settings → Billing. Caller gates on X402_ENABLED.
- * Connecting a wallet opts into paid billing; disconnect returns to Free/BYOK.
+ * Layout matches Venice / X rows: status left, secondary CTA top-right.
  */
 export function CreditsStrip({ onCloseConnections }: { onCloseConnections?: () => void }) {
   const {
@@ -88,41 +88,43 @@ export function CreditsStrip({ onCloseConnections }: { onCloseConnections?: () =
                 : `Free / your own keys until you connect. Then actions debit credits (× ${X402_MARGIN.toFixed(2)}).`}
           </p>
         </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {connected ? (
-          <>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {connected ? (
+            <>
+              <button
+                type="button"
+                className={modalSecondaryBtnClass}
+                disabled={busy}
+                onClick={openPurchase}
+              >
+                Purchase credits
+              </button>
+              <button
+                type="button"
+                className={`${modalGhostBtnClass} text-[12px] hover:text-red-300 px-0`}
+                disabled={busy}
+                onClick={() => void handleDisconnect()}
+              >
+                Disconnect
+              </button>
+            </>
+          ) : (
             <button
               type="button"
               className={modalSecondaryBtnClass}
-              disabled={busy}
-              onClick={openPurchase}
+              disabled={busy || !walletPresent}
+              onClick={() => void handleConnect()}
             >
-              Purchase credits
+              {busy ? '…' : 'Connect wallet'}
             </button>
-            <button
-              type="button"
-              className={`${modalGhostBtnClass} text-[12px] hover:text-red-300 px-0`}
-              disabled={busy}
-              onClick={() => void handleDisconnect()}
-            >
-              Disconnect
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className={modalSecondaryBtnClass}
-            disabled={busy || !walletPresent}
-            onClick={() => void handleConnect()}
-          >
-            {busy ? '…' : 'Connect wallet'}
-          </button>
-        )}
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
         <button
           type="button"
-          className="text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 ml-auto"
+          className="text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2"
           onClick={() => {
             onCloseConnections?.()
             openSettings('billing')
@@ -130,14 +132,13 @@ export function CreditsStrip({ onCloseConnections }: { onCloseConnections?: () =
         >
           Manage in Settings
         </button>
-      </div>
-
-      <div className="min-h-[1.25rem] mt-2" aria-live="polite">
-        {(localError || error) && (
-          <p role="alert" className="text-[12px] text-red-300 leading-snug">
-            {localError || error}
-          </p>
-        )}
+        <div className="min-h-[1.25rem] text-right" aria-live="polite">
+          {(localError || error) && (
+            <p role="alert" className="text-[12px] text-red-300 leading-snug">
+              {localError || error}
+            </p>
+          )}
+        </div>
       </div>
     </section>
   )
