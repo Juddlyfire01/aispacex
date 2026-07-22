@@ -231,7 +231,7 @@ export function useVideo() {
   const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: VideoQueueRequest, meta: VideoJobMeta) => {
-    assertPaidReady()
+    assertPaidReady({ rail: 'venice' })
     if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} videos. Wait for one to finish.`)
     }

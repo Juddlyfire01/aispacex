@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useX402 } from '../../hooks/use-x402'
 import { hasWallet } from '../../lib/x402/wallet'
-import { X402_ENABLED, X402_MARGIN } from '../../lib/x402/config'
+import { X402_ENABLED, X402_MARGIN, X402_DISABLE_FREE } from '../../lib/x402/config'
 import { CreditsBalanceCard } from '../x402/credits-balance-card'
 import { PaymentsLedger } from '../x402/payments-ledger'
 import { modalSecondaryBtnClass } from '../ui/modal'
@@ -36,6 +36,7 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
 
   const connected = status === 'connected' && Boolean(address)
   const walletPresent = hasWallet()
+  const displayBalance = connected ? balanceUsd : 0
 
   useEffect(() => {
     setTab(initialTab)
@@ -62,6 +63,14 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
       setBusy(false)
     }
   }
+
+  const walletHint = connected
+    ? X402_DISABLE_FREE
+      ? `Paying with credits (API cost × ${X402_MARGIN.toFixed(2)}). Free mode is off — disconnect blocks actions until you reconnect or use full BYOK (X + Venice key).`
+      : `Paying with credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
+    : X402_DISABLE_FREE
+      ? `Free mode is off. Connect a wallet to pay per action (× ${X402_MARGIN.toFixed(2)}), or use full BYOK (connect X + your Venice API key).`
+      : `Connect to pay per action (× ${X402_MARGIN.toFixed(2)}). Until then Free / your own keys still work.`
 
   return (
     <div className="space-y-5">
@@ -90,7 +99,7 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
 
       {tab === 'credits' ? (
         <>
-          <CreditsBalanceCard balanceUsd={balanceUsd} disabled={!connected} />
+          <CreditsBalanceCard balanceUsd={displayBalance} disabled={!connected} />
 
           <div className="rounded-lg border border-[var(--color-border-soft)] p-3.5">
             <div className="flex items-start justify-between gap-3">
@@ -107,9 +116,7 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
                       : 'No Base-compatible wallet detected'}
                 </p>
                 <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5 leading-snug">
-                  {connected
-                    ? `Paying with credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
-                    : `Connect to pay per action (× ${X402_MARGIN.toFixed(2)}). Until then Free / your own keys still work.`}
+                  {walletHint}
                 </p>
               </div>
               {connected ? (
@@ -141,7 +148,7 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
           )}
         </>
       ) : (
-        <PaymentsLedger rows={ledger} />
+        <PaymentsLedger rows={connected ? ledger : []} />
       )}
     </div>
   )

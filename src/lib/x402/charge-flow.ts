@@ -17,7 +17,10 @@
 
 import { useCostLedgerStore } from '../../stores/cost-ledger-store'
 import { useX402Store } from '../../stores/x402-store'
-import { X402_ENABLED } from './config'
+import { useAuthStore } from '../../stores/auth-store'
+import { useXSelfStore } from '../../stores/x-self-store'
+import { isUserVeniceKey } from '../venice-config'
+import { X402_DISABLE_FREE, X402_ENABLED } from './config'
 import { chargedPrice } from './pricing'
 import { notifyPaidNotReady } from './notify-paid-not-ready'
 import type { CostEntry } from '../cost/ledger'
@@ -64,6 +67,16 @@ export function getPaidReadiness(): PaidReadiness {
   return 'ready'
 }
 
+/** True when the user has a personal Venice key (BYOK). */
+function hasVeniceByok(): boolean {
+  return isUserVeniceKey(useAuthStore.getState().apiKey)
+}
+
+/** True when X OAuth is connected (user's own X credentials, not app bearer). */
+function hasXByok(): boolean {
+  return useXSelfStore.getState().connected === true
+}
+
 /**
  * True when a wallet is connected for credits UI (CostMeter, rail, etc.).
  * Broader than `isPaidModeActive` — does not require a SIWE session yet.
@@ -74,23 +87,40 @@ export function isCreditsWalletConnected(): boolean {
   return s.status === 'connected' && Boolean(s.address)
 }
 
+export type PaidGateRail = 'shared' | 'venice'
+
 /**
- * Gate billable work: when a credits wallet is connected, require a valid
- * SIWE session before any Free/server-key fetch. Throws PaidNotReadyError when
- * blocked (optionally toasts). No-ops when x402 is off or wallet disconnected.
+ * Gate billable work:
+ * - Connected wallet without SIWE → block (needs_session).
+ * - X402_DISABLE_FREE + not paid:
+ *     - rail `venice` (media): allow with Venice BYOK
+ *     - rail `shared` (Intel/X): allow only with Venice BYOK **and** X OAuth
+ *       (otherwise app bearer / fronted Free still runs)
+ * - Otherwise Free allowed.
  */
-export function assertPaidReady(opts?: { silent?: boolean }): void {
+export function assertPaidReady(opts?: { silent?: boolean; rail?: PaidGateRail }): void {
   const readiness = getPaidReadiness()
-  if (readiness === 'off' || readiness === 'ready') return
-  if (!opts?.silent) notifyPaidNotReady(readiness === 'needs_wallet' ? 'needs_wallet' : 'needs_session')
-  throw new PaidNotReadyError(readiness === 'needs_wallet' ? 'needs_wallet' : 'needs_session')
+  if (readiness === 'ready') return
+  if (readiness === 'needs_session') {
+    if (!opts?.silent) notifyPaidNotReady('needs_session')
+    throw new PaidNotReadyError('needs_session')
+  }
+  // readiness === 'off'
+  if (!X402_DISABLE_FREE) return
+
+  const rail = opts?.rail ?? 'shared'
+  if (rail === 'venice' && hasVeniceByok()) return
+  if (rail === 'shared' && hasVeniceByok() && hasXByok()) return
+
+  if (!opts?.silent) notifyPaidNotReady('needs_wallet')
+  throw new PaidNotReadyError('needs_wallet')
 }
 
 /**
  * Gate billable work without throwing. Returns false (and toasts unless silent)
- * when a connected wallet still needs SIWE; true when Free (no wallet) or ready.
+ * when blocked; true when Free (allowed), BYOK, or paid-ready.
  */
-export function ensurePaidReady(opts?: { silent?: boolean }): boolean {
+export function ensurePaidReady(opts?: { silent?: boolean; rail?: PaidGateRail }): boolean {
   try {
     assertPaidReady(opts)
     return true

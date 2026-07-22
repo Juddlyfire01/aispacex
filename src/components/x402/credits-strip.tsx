@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useX402 } from '../../hooks/use-x402'
 import { hasWallet } from '../../lib/x402/wallet'
-import { X402_MARGIN } from '../../lib/x402/config'
+import { X402_MARGIN, X402_DISABLE_FREE } from '../../lib/x402/config'
 import { usePurchaseCreditsUi } from '../../stores/purchase-credits-ui'
 import { useSettingsStore } from '../../stores/settings-store'
 import { modalGhostBtnClass, modalSecondaryBtnClass } from '../ui/modal'
@@ -80,8 +80,12 @@ export function CreditsStrip({ onCloseConnections }: { onCloseConnections?: () =
           </p>
           <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-snug">
             {connected
-              ? `Actions debit credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
-              : `Free / your own keys until you connect. Then actions debit credits (× ${X402_MARGIN.toFixed(2)}).`}
+              ? X402_DISABLE_FREE
+                ? `Actions debit credits (API cost × ${X402_MARGIN.toFixed(2)}). Free mode is off.`
+                : `Actions debit credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
+              : X402_DISABLE_FREE
+                ? `Free mode is off. Connect a wallet to pay (× ${X402_MARGIN.toFixed(2)}), or use full BYOK (X + Venice key).`
+                : `Free / your own keys until you connect. Then actions debit credits (× ${X402_MARGIN.toFixed(2)}).`}
           </p>
         </div>
       </div>

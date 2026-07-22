@@ -13,7 +13,7 @@ export function useTTS() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (req: TTSRequest) => {
-      assertPaidReady()
+      assertPaidReady({ rail: 'venice' })
       const sinceTs = markActionStart()
       const blob = await veniceBlob('/audio/speech', req)
       recordMediaCost(

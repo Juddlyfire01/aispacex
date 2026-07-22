@@ -9,7 +9,7 @@ export function useImageGenerate() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (req: ImageGenerateRequest) => {
-      assertPaidReady()
+      assertPaidReady({ rail: 'venice' })
       const sinceTs = markActionStart()
       const data = await venice<ImageGenerateResponse>('/image/generate', {
         method: 'POST',

@@ -279,7 +279,8 @@ function ensureDefaultTarget(): string | null {
 export function refreshDefaultTarget(): void {
   const key = ensureDefaultTarget()
   if (!key) return
-  runGather(key).catch(() => { /* surfaced in the target rail */ })
+  // Auto seed on boot — never toast the paid gate (manual Refresh still notifies).
+  runGather(key, { silentPaidGate: true }).catch(() => { /* surfaced in the target rail */ })
 }
 
 /** Add @AskVenice as the first target in the Others rail (and gather when X is connected). */

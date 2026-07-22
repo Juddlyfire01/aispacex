@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { VENICE_FRONTED_SENTINEL } from '../venice-config'
+
+const configFlags = vi.hoisted(() => ({
+  disableFree: false,
+}))
 
 vi.mock('./config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./config')>()
-  return { ...actual, X402_ENABLED: true }
+  return {
+    ...actual,
+    X402_ENABLED: true,
+    get X402_DISABLE_FREE() {
+      return configFlags.disableFree
+    },
+  }
 })
 
 vi.mock('./notify-paid-not-ready', () => ({
@@ -23,6 +34,8 @@ import {
 } from './charge-flow'
 import { useCostLedgerStore } from '../../stores/cost-ledger-store'
 import { useX402Store } from '../../stores/x402-store'
+import { useAuthStore } from '../../stores/auth-store'
+import { useXSelfStore } from '../../stores/x-self-store'
 import { X402_MARGIN } from './config'
 import { notifyPaidNotReady } from './notify-paid-not-ready'
 
@@ -50,6 +63,14 @@ function resetX402(partial: Partial<ReturnType<typeof useX402Store.getState>> = 
   })
 }
 
+function resetAuth(apiKey: string | null = VENICE_FRONTED_SENTINEL) {
+  useAuthStore.setState({ apiKey })
+}
+
+function resetXSelf(connected = false) {
+  useXSelfStore.setState({ connected })
+}
+
 describe('rawCostForAction', () => {
   beforeEach(() => {
     useCostLedgerStore.setState({ entries: [], session: { x: 0, venice: 0 }, lifetime: { x: 0, venice: 0 } })
@@ -72,7 +93,10 @@ describe('rawCostForAction', () => {
 
 describe('getPaidReadiness / ensurePaidReady', () => {
   beforeEach(() => {
+    configFlags.disableFree = false
     resetX402()
+    resetAuth()
+    resetXSelf(false)
     vi.mocked(notifyPaidNotReady).mockClear()
   })
 
@@ -100,12 +124,55 @@ describe('getPaidReadiness / ensurePaidReady', () => {
     expect(ensurePaidReady()).toBe(true)
     expect(isPaidModeActive()).toBe(true)
   })
+
+  it('DISABLE_FREE blocks Free when no wallet and no BYOK', () => {
+    configFlags.disableFree = true
+    expect(getPaidReadiness()).toBe('off')
+    expect(ensurePaidReady()).toBe(false)
+    expect(notifyPaidNotReady).toHaveBeenCalledWith('needs_wallet')
+    expect(() => assertPaidReady()).toThrow(PaidNotReadyError)
+  })
+
+  it('DISABLE_FREE blocks Intel when only Venice BYOK (app X bearer still Free)', () => {
+    configFlags.disableFree = true
+    resetAuth('vv_user_key_abc')
+    expect(ensurePaidReady()).toBe(false)
+    expect(() => assertPaidReady()).toThrow(PaidNotReadyError)
+  })
+
+  it('DISABLE_FREE allows Intel with Venice BYOK + X OAuth', () => {
+    configFlags.disableFree = true
+    resetAuth('vv_user_key_abc')
+    resetXSelf(true)
+    expect(ensurePaidReady()).toBe(true)
+    expect(notifyPaidNotReady).not.toHaveBeenCalled()
+  })
+
+  it('DISABLE_FREE allows venice rail with Venice BYOK only', () => {
+    configFlags.disableFree = true
+    resetAuth('vv_user_key_abc')
+    expect(ensurePaidReady({ rail: 'venice' })).toBe(true)
+  })
+
+  it('DISABLE_FREE allows paid-ready wallet session', () => {
+    configFlags.disableFree = true
+    resetX402({
+      address: '0xabc',
+      status: 'connected',
+      sessionToken: 'tok',
+      sessionExpiresAt: Date.now() + 60_000,
+    })
+    expect(ensurePaidReady()).toBe(true)
+  })
 })
 
 describe('runPaidAction', () => {
   beforeEach(() => {
+    configFlags.disableFree = false
     useCostLedgerStore.setState({ entries: [], session: { x: 0, venice: 0 }, lifetime: { x: 0, venice: 0 } })
     resetX402()
+    resetAuth()
+    resetXSelf(false)
     vi.mocked(notifyPaidNotReady).mockClear()
   })
 
@@ -138,8 +205,11 @@ describe('runPaidAction', () => {
 
 describe('chargeAction', () => {
   beforeEach(() => {
+    configFlags.disableFree = false
     useCostLedgerStore.setState({ entries: [], session: { x: 0, venice: 0 }, lifetime: { x: 0, venice: 0 } })
     resetX402()
+    resetAuth()
+    resetXSelf(false)
   })
 
   it('no-ops (charged:false) when no wallet (Free)', async () => {

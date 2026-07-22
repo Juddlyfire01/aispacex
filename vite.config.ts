@@ -1,13 +1,13 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { devApiPlugin } from './scripts/vite-api-plugin.mjs'
+import { loadEnvPreferringDotenv } from './scripts/load-env-prefer-dotenv'
 
 export default defineConfig(({ mode }) => {
-  // loadEnv with '' prefix reads ALL vars (incl. non-VITE_) from .env files so
-  // the dev proxy can inject the server-side Venice key without exposing it to
-  // the client bundle.
-  const env = loadEnv(mode, process.cwd(), '')
+  // Prefer local .env VITE_* over stale process.env / vercel pulls so client
+  // flags like VITE_X402_DISABLE_FREE match the file the developer edits.
+  const env = loadEnvPreferringDotenv(mode, process.cwd())
   const veniceKey = env.VENICE_API_KEY
 
   // Surface every .env var (incl. non-VITE_ secrets) to process.env so the
@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
   // over empty shell placeholders so local secrets always win when present.
   for (const [k, v] of Object.entries(env)) {
     if (!v) continue
-    if (!process.env[k]) process.env[k] = v
+    if (!process.env[k] || process.env[k] !== v) process.env[k] = v
   }
 
   // API mode for `npm run dev`:

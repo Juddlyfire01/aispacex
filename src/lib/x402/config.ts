@@ -31,13 +31,21 @@ export const X402_MARGIN = (() => {
  *
  * true  → show Credits UI; users may connect a wallet.
  *         Connecting a wallet opts into paid (debit credits).
- *         No wallet connected → Free / BYOK still works (not forced-paid).
+ *         No wallet connected → Free / BYOK still works (unless DISABLE_FREE).
  * false → feature hidden entirely; everyone stays on Free / BYOK.
  *
- * This does NOT force paid mode or disable Free. Disconnect = Free again.
- * There is no separate "paid mode" toggle and no env that kills Free fallback.
+ * Disconnect = Free again (unless VITE_X402_DISABLE_FREE is on).
  */
 export const X402_ENABLED = (import.meta.env.VITE_X402_ENABLED as string | undefined) === 'true'
+
+/**
+ * When true (and X402_ENABLED), block Free/shared-key usage unless the user
+ * is paid-ready, or has full BYOK (Venice key + X OAuth for Intel; Venice key
+ * alone for media). No-op when credits are disabled.
+ */
+export const X402_DISABLE_FREE =
+  X402_ENABLED &&
+  (import.meta.env.VITE_X402_DISABLE_FREE as string | undefined)?.trim() === 'true'
 
 /**
  * When true, X metering / x402 charges only bill resource IDs not yet seen

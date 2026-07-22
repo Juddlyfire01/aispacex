@@ -201,7 +201,7 @@ export function useMusic() {
   const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: MusicQueueRequest, meta: MusicJobMeta) => {
-    assertPaidReady()
+    assertPaidReady({ rail: 'venice' })
     if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} tracks. Wait for one to finish.`)
     }
