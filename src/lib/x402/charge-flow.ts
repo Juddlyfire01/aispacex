@@ -248,6 +248,15 @@ export async function chargeAction(
         error: 'insufficient_funds',
       }
     }
+    if (res.status === 401 || data.error === 'invalid_session') {
+      store.setSession(null, null)
+      return {
+        charged: false,
+        rawUsd,
+        chargedUsd: chargedPrice(rawUsd),
+        error: 'session_expired',
+      }
+    }
     if (!res.ok || !data.ok) {
       return {
         charged: false,

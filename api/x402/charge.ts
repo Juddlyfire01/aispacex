@@ -8,8 +8,9 @@
 // server is authoritative for the margin and the balance: it computes
 // charged = rawUsd * margin and debits the wallet's credit balance.
 //
-// Auth is the short-lived session token issued by /api/x402/balance after one
-// SIWE sign — no per-action wallet prompt. The token binds the address.
+// Auth is the session token issued by /api/x402/balance after one SIWE sign —
+// no per-action wallet prompt. The token binds the address; Redis tracks
+// whether the session is still active (revoked on Disconnect).
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   chargedUsd,
@@ -33,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     rawByProvider?: { venice?: number; x?: number }
   }
 
-  const address = verifySessionToken(body.sessionToken)
+  const address = await verifySessionToken(body.sessionToken)
   if (!address) return res.status(401).json({ error: 'invalid_session' })
 
   const rawUsd = Number(body.rawUsd)

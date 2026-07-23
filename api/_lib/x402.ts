@@ -19,15 +19,19 @@ import {
   type Hash,
 } from 'viem'
 import { base } from 'viem/chains'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto'
 
 const BAL_PREFIX = 'x402:bal:' // -> integer micro-USD (1e6 = $1.00)
 const LEDGER_PREFIX = 'x402:ledger:' // -> list of JSON rows
 const NONCE_PREFIX = 'x402:nonce:' // -> replay guard
 const TX_PREFIX = 'x402:tx:' // -> idempotency: credited tx hashes
+const SESS_PREFIX = 'x402:sess:' // -> sessionId -> wallet address
+const WALLET_SESS_PREFIX = 'x402:wsess:' // -> address -> current sessionId
 const LEDGER_CAP = 200
 const NONCE_TTL_SEC = 600
 const TX_TTL_SEC = 60 * 60 * 24 * 90 // 90 days
+/** Absolute Redis TTL for sessions (safety net). Revoke on disconnect is the real logout. */
+const SESSION_ABS_TTL_SEC = 60 * 60 * 24 * 365 // 1 year
 
 /** Redis balance scale: store USD as integer micros to avoid float drift in incrby. */
 export const BALANCE_MICRO_SCALE = 1e6
@@ -263,14 +267,10 @@ export async function creditRefund(
 
 // ——— Session tokens ———
 //
-// After one SIWE sign the client gets a short-lived HMAC token so paid actions
-// can debit without prompting a wallet signature per click. The token binds the
-// address + an expiry; the server re-derives + timing-safe compares. Secret is
-// X402_SESSION_SECRET (falls back to a per-boot random — tokens then reset on
-// redeploy, which is acceptable: the client re-signs).
-
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000 // 24 h — fewer re-signs; token still bound to address + HMAC secret
-
+// After one SIWE sign the client gets an HMAC token bound to a Redis session id.
+// Charges/top-ups require the token **and** an active Redis entry. Disconnect
+// deletes that entry (server revoke) so stolen tickets stop working immediately.
+// A long Redis TTL is only a safety net for abandoned sessions.
 
 let bootSecret: string | undefined
 function sessionSecret(): string {
@@ -284,24 +284,23 @@ function sign(payload: string): string {
   return createHmac('sha256', sessionSecret()).update(payload).digest('base64url')
 }
 
-/** Issue a session token for a verified address. */
-export function issueSessionToken(address: string): { token: string; expiresAt: number } {
-  const addr = normAddr(address)
-  const expiresAt = Date.now() + SESSION_TTL_MS
-  const payload = `${addr}.${expiresAt}`
-  const token = `${payload}.${sign(payload)}`
-  return { token, expiresAt }
+function randomSessionId(): string {
+  return randomBytes(18).toString('base64url')
 }
 
-/** Verify a session token; returns the address or null when invalid/expired. */
-export function verifySessionToken(token: string | undefined): string | null {
+/** HMAC-check only (no Redis). Returns addr + sessionId or null. */
+export function parseSessionTokenHmac(
+  token: string | undefined,
+): { addr: string; sid: string } | null {
   if (!token) return null
   const parts = token.split('.')
+  // v2: addr.sessionId.sig — sessionId is not a pure timestamp.
   if (parts.length !== 3) return null
-  const [addr, expStr, sig] = parts
-  const expiresAt = Number(expStr)
-  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return null
-  const expected = sign(`${addr}.${expStr}`)
+  const [addr, sid, sig] = parts
+  if (!addr || !sid || !sig) return null
+  // Reject legacy v1 tokens (addr.expiresAtMs.sig) — force re-SIWE once.
+  if (/^\d{10,}$/.test(sid)) return null
+  const expected = sign(`${addr}.${sid}`)
   try {
     const a = Buffer.from(sig)
     const b = Buffer.from(expected)
@@ -309,7 +308,52 @@ export function verifySessionToken(token: string | undefined): string | null {
   } catch {
     return null
   }
-  return addr
+  return { addr: normAddr(addr), sid }
+}
+
+/**
+ * Issue a session for a verified address. Revokes any prior session for that
+ * wallet (single active session). `expiresAt` is always null — logout is revoke.
+ */
+export async function issueSessionToken(
+  address: string,
+): Promise<{ token: string; expiresAt: null }> {
+  const redis = getRedis()
+  if (!redis) throw new Error('x402_kv_not_configured')
+  const addr = normAddr(address)
+  const sid = randomSessionId()
+
+  const prev = await redis.get<string>(WALLET_SESS_PREFIX + addr)
+  if (prev) await redis.del(SESS_PREFIX + prev)
+
+  await redis.set(SESS_PREFIX + sid, addr, { ex: SESSION_ABS_TTL_SEC })
+  await redis.set(WALLET_SESS_PREFIX + addr, sid, { ex: SESSION_ABS_TTL_SEC })
+
+  const payload = `${addr}.${sid}`
+  return { token: `${payload}.${sign(payload)}`, expiresAt: null }
+}
+
+/** Verify HMAC + active Redis session; returns the address or null. */
+export async function verifySessionToken(token: string | undefined): Promise<string | null> {
+  const parsed = parseSessionTokenHmac(token)
+  if (!parsed) return null
+  const redis = getRedis()
+  if (!redis) return null
+  const stored = await redis.get<string>(SESS_PREFIX + parsed.sid)
+  if (!stored || normAddr(String(stored)) !== parsed.addr) return null
+  return parsed.addr
+}
+
+/** Server-side logout: delete the Redis session so the token can no longer charge. */
+export async function revokeSessionToken(token: string | undefined): Promise<boolean> {
+  const parsed = parseSessionTokenHmac(token)
+  if (!parsed) return false
+  const redis = getRedis()
+  if (!redis) return false
+  await redis.del(SESS_PREFIX + parsed.sid)
+  const cur = await redis.get<string>(WALLET_SESS_PREFIX + parsed.addr)
+  if (cur === parsed.sid) await redis.del(WALLET_SESS_PREFIX + parsed.addr)
+  return true
 }
 
 // ——— On-chain USDC transfer verification (v1 top-up) ———

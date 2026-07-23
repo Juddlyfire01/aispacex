@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { buildPaymentRequired, minTopUpUsd, receiverWallet, balanceRawToUsd } from './x402'
+import { createHmac } from 'node:crypto'
+import {
+  buildPaymentRequired,
+  minTopUpUsd,
+  receiverWallet,
+  balanceRawToUsd,
+  parseSessionTokenHmac,
+} from './x402'
 
 describe('minTopUpUsd', () => {
   beforeEach(() => {
@@ -61,5 +68,32 @@ describe('buildPaymentRequired', () => {
   it('floors the amount at the minimum top-up', () => {
     const pr = buildPaymentRequired(1)
     expect(pr.accepts[0].amount).toBe('5000000') // min $5
+  })
+})
+
+describe('parseSessionTokenHmac', () => {
+  beforeEach(() => {
+    process.env.X402_SESSION_SECRET = 'test-session-secret'
+  })
+
+  function makeToken(addr: string, sid: string): string {
+    const payload = `${addr}.${sid}`
+    const sig = createHmac('sha256', 'test-session-secret').update(payload).digest('base64url')
+    return `${payload}.${sig}`
+  }
+
+  it('accepts addr.sessionId.sig tokens', () => {
+    const token = makeToken('0xABCDEF', 'sess_abc123')
+    const parsed = parseSessionTokenHmac(token)
+    expect(parsed).toEqual({ addr: '0xabcdef', sid: 'sess_abc123' })
+  })
+
+  it('rejects legacy timestamp-shaped session ids', () => {
+    const token = makeToken('0xabcdef', String(Date.now() + 86_400_000))
+    expect(parseSessionTokenHmac(token)).toBeNull()
+  })
+
+  it('rejects bad signatures', () => {
+    expect(parseSessionTokenHmac('0xabcdef.sess_x.notasignature')).toBeNull()
   })
 })

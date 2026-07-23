@@ -10,7 +10,7 @@ import {
   getProvider,
 } from '../lib/x402/wallet'
 import { X402_ENABLED } from '../lib/x402/config'
-import { fetchBalance } from '../lib/x402/balance-client'
+import { fetchBalance, revokeSession } from '../lib/x402/balance-client'
 
 /** A ledger row for the credits panel (mirrors Venice x402 TOP_UP/CHARGE/REFUND). */
 export interface X402LedgerRow {
@@ -54,9 +54,9 @@ interface X402State {
   chargedByTarget: Record<string, number>
   /** USD charged this page load (not persisted). */
   sessionChargedUsd: number
-  /** Short-lived server session token (issued after SIWE). Persisted until expiry (24h server TTL). */
+  /** Server session token (issued after SIWE). Persisted until Disconnect revoke. */
   sessionToken: string | null
-  /** Epoch ms when the session token expires. */
+  /** Legacy wall-clock expiry; null for revoke-based sessions. */
   sessionExpiresAt: number | null
 
   connect: (opts?: { forcePicker?: boolean }) => Promise<void>
@@ -80,7 +80,7 @@ interface X402State {
   setLedger: (rows: X402LedgerRow[]) => void
   /** Credits charged for a rail target (paid-mode display). */
   chargedForTarget: (username: string) => number
-  /** Store the session token from a balance read. */
+  /** Store the session token from a balance read (`expiresAt` null = until Disconnect). */
   setSession: (token: string | null, expiresAt: number | null) => void
   /** A valid (non-expired) session token, or null. */
   validSessionToken: () => string | null
@@ -118,9 +118,10 @@ function bindWalletEvents(): void {
     const accounts = (args[0] as string[] | undefined) ?? []
     const store = useX402Store.getState()
     if (!accounts.length) {
-      // Locked / disconnected in the extension — drop live session but keep the
-      // last address so a later unlock/bootstrap can resume without a full
-      // "Connect wallet" click.
+      // Locked / disconnected in the extension — revoke server session, keep
+      // last address for a later unlock/bootstrap without a full Connect click.
+      const token = store.sessionToken
+      if (token) void revokeSession(token)
       useX402Store.setState({
         status: 'idle',
         sessionToken: null,
@@ -131,7 +132,9 @@ function bindWalletEvents(): void {
     }
     const next = accounts[0]!.toLowerCase()
     if (next === store.address && store.status === 'connected') return
-    // Account switch: need a fresh SIWE for the new address.
+    // Account switch: revoke old session; need a fresh SIWE for the new address.
+    const token = store.sessionToken
+    if (token) void revokeSession(token)
     useX402Store.setState({
       address: next,
       status: 'connected',
@@ -193,9 +196,13 @@ export const useX402Store = create<X402State>()(
         if (!X402_ENABLED) return
         bindWalletEvents()
 
-        // Drop expired session so we don't look paid-ready with a dead token.
+        // Drop legacy wall-clock-expired sessions only (revoke-based have null expiry).
         const { sessionToken, sessionExpiresAt } = get()
-        if (sessionToken && sessionExpiresAt != null && Date.now() >= sessionExpiresAt) {
+        if (
+          sessionToken &&
+          sessionExpiresAt != null &&
+          Date.now() >= sessionExpiresAt
+        ) {
           set({ sessionToken: null, sessionExpiresAt: null })
         }
 
@@ -225,7 +232,7 @@ export const useX402Store = create<X402State>()(
 
         set({ address, status: 'connected', error: null })
 
-        // Refresh balance + session when missing/expired (may prompt one SIWE sign).
+        // Only prompt SIWE when we have no session token (may prompt once).
         if (!get().validSessionToken()) {
           try {
             const res = await fetchBalance(address)
@@ -255,6 +262,8 @@ export const useX402Store = create<X402State>()(
       },
 
       disconnect: async () => {
+        const token = get().sessionToken
+        if (token) await revokeSession(token)
         // Revoke the site's wallet permission so the wallet fully forgets this
         // connection — otherwise the next connect silently reuses the same
         // account instead of showing the picker. Best-effort: clear local state
@@ -342,16 +351,17 @@ export const useX402Store = create<X402State>()(
 
       validSessionToken: () => {
         const { sessionToken, sessionExpiresAt } = get()
-        if (!sessionToken || !sessionExpiresAt) return null
-        if (Date.now() >= sessionExpiresAt) return null
+        if (!sessionToken) return null
+        // Legacy TTL sessions only — revoke-based sessions have null expiresAt.
+        if (sessionExpiresAt != null && Date.now() >= sessionExpiresAt) return null
         return sessionToken
       },
     }),
     {
       name: 'x402-wallet',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => createEncryptedStorage()),
-      // Persist address, balance, ledger, charged totals, and SIWE session until expiry.
+      // Persist address, balance, ledger, charged totals, and SIWE session until Disconnect.
       // status stays ephemeral and is restored by bootstrap() from eth_accounts.
       partialize: (s) => ({
         address: s.address,
@@ -373,17 +383,13 @@ export const useX402Store = create<X402State>()(
           }
         }
         const { paidMode: _removed, ...rest } = s
-        const sessionExpiresAt = s.sessionExpiresAt ?? null
-        const sessionValid =
-          Boolean(s.sessionToken) &&
-          sessionExpiresAt != null &&
-          Date.now() < sessionExpiresAt
+        // v6: Redis revoke sessions — drop legacy TTL tokens (force one re-SIWE).
         return {
           ...rest,
           chargedByTarget,
           balanceUsd: coerceBalanceUsd(s.balanceUsd ?? 0),
-          sessionToken: sessionValid ? s.sessionToken! : null,
-          sessionExpiresAt: sessionValid ? sessionExpiresAt : null,
+          sessionToken: null,
+          sessionExpiresAt: null,
         }
       },
       onRehydrateStorage: () => (state) => {

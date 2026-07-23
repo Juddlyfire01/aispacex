@@ -10,7 +10,8 @@ export interface BalanceResponse {
   address: string
   balanceUsd: number
   sessionToken?: string
-  sessionExpiresAt?: number
+  /** Null when the session has no wall-clock expiry (revoked on Disconnect). */
+  sessionExpiresAt?: number | null
   ledger?: Array<{
     id: string
     type: 'TOP_UP' | 'CHARGE' | 'REFUND'
@@ -69,7 +70,7 @@ export async function fetchBalance(address: string): Promise<BalanceResponse | n
     balanceBaseUnits?: string
     balanceUsd?: number
     sessionToken?: string
-    sessionExpiresAt?: number
+    sessionExpiresAt?: number | null
     ledger?: BalanceResponse['ledger']
   }>(res)
   return {
@@ -79,8 +80,21 @@ export async function fetchBalance(address: string): Promise<BalanceResponse | n
         ? body.balanceUsd
         : usdcBaseUnitsToUsd(body.balanceBaseUnits ?? '0'),
     sessionToken: body.sessionToken,
-    sessionExpiresAt: body.sessionExpiresAt,
+    sessionExpiresAt: body.sessionExpiresAt ?? null,
     ledger: body.ledger,
+  }
+}
+
+/** Server-side session revoke (Credits Disconnect). Best-effort. */
+export async function revokeSession(sessionToken: string): Promise<void> {
+  try {
+    await fetch('/api/x402/logout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionToken }),
+    })
+  } catch {
+    // Local disconnect still proceeds if the network call fails.
   }
 }
 

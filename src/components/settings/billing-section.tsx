@@ -89,7 +89,7 @@ export function BillingSection({ initialTab = 'credits' }: { initialTab?: Billin
       ? `Paying with credits (API cost × ${X402_MARGIN.toFixed(2)}). Free mode is off — disconnect blocks actions until you reconnect or use full BYOK (X + Venice key).`
       : `Paying with credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
     : needsSession
-      ? 'Wallet linked but session expired — sign in once (valid 24h) to spend credits.'
+      ? 'Wallet linked — sign in once to unlock credits (stays until you Disconnect).'
       : X402_DISABLE_FREE
         ? `Free mode is off. Connect a wallet to pay per action (× ${X402_MARGIN.toFixed(2)}), or use full BYOK (connect X + your Venice API key).`
         : `Connect to pay per action (× ${X402_MARGIN.toFixed(2)}). Until then Free / your own keys still work.`

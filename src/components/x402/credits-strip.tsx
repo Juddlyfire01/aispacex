@@ -100,7 +100,7 @@ export function CreditsStrip({ onCloseConnections }: { onCloseConnections?: () =
       ? `Actions debit credits (API cost × ${X402_MARGIN.toFixed(2)}). Free mode is off.`
       : `Actions debit credits (API cost × ${X402_MARGIN.toFixed(2)}). Disconnect to use Free / your own keys.`
     : needsSession
-      ? 'Wallet linked but session expired — sign in once (valid 24h).'
+      ? 'Wallet linked — sign in once to unlock credits (stays until you Disconnect).'
       : X402_DISABLE_FREE
         ? `Free mode is off. Connect a wallet to pay (× ${X402_MARGIN.toFixed(2)}), or use full BYOK (X + Venice key).`
         : `Free / your own keys until you connect. Then actions debit credits (× ${X402_MARGIN.toFixed(2)}).`

@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (body.txHash) {
     if (!x402KvConfigured()) return res.status(503).json({ error: 'x402_kv_not_configured' })
 
-    const sessionAddr = verifySessionToken(body.sessionToken)
+    const sessionAddr = await verifySessionToken(body.sessionToken)
     if (!sessionAddr) return res.status(401).json({ error: 'invalid_session' })
 
     const address = (body.address ?? '').trim().toLowerCase()

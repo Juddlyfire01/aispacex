@@ -4,8 +4,8 @@ import { X402_ENABLED } from '../lib/x402/config'
 
 /**
  * On app load: rehydrate the persisted wallet address + SIWE session, then
- * silently resume via eth_accounts (no account picker). Within the SIWE
- * session TTL (24h) this restores Credits without another Connect / sign flow.
+ * silently resume via eth_accounts (no account picker). Session stays valid
+ * until Disconnect (server revoke).
  */
 export function useX402Bootstrap() {
   useEffect(() => {
