@@ -269,7 +269,8 @@ export async function creditRefund(
 // X402_SESSION_SECRET (falls back to a per-boot random — tokens then reset on
 // redeploy, which is acceptable: the client re-signs).
 
-const SESSION_TTL_MS = 30 * 60 * 1000 // 30 min
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000 // 24 h — fewer re-signs; token still bound to address + HMAC secret
+
 
 let bootSecret: string | undefined
 function sessionSecret(): string {

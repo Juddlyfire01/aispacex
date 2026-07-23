@@ -27,6 +27,7 @@ import {
   runPaidAction,
   markActionStart,
   getPaidReadiness,
+  getCreditsUiPhase,
   ensurePaidReady,
   isPaidModeActive,
   assertPaidReady,
@@ -200,6 +201,32 @@ describe('runPaidAction', () => {
 
   it('markActionStart returns a finite timestamp', () => {
     expect(Number.isFinite(markActionStart())).toBe(true)
+  })
+})
+
+describe('getCreditsUiPhase', () => {
+  beforeEach(() => {
+    configFlags.disableFree = false
+    resetX402()
+  })
+
+  it('disconnected when no wallet', () => {
+    expect(getCreditsUiPhase()).toBe('disconnected')
+  })
+
+  it('needs_session when wallet linked without SIWE', () => {
+    resetX402({ address: '0xabc', status: 'connected' })
+    expect(getCreditsUiPhase()).toBe('needs_session')
+  })
+
+  it('ready when wallet + valid SIWE', () => {
+    resetX402({
+      address: '0xabc',
+      status: 'connected',
+      sessionToken: 'tok',
+      sessionExpiresAt: Date.now() + 60_000,
+    })
+    expect(getCreditsUiPhase()).toBe('ready')
   })
 })
 

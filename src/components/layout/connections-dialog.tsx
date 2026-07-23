@@ -15,7 +15,7 @@ import { disconnectActiveAccount } from '../../lib/x-intel/self-orchestrate'
 import { useXAppCredentialsStore, syncXByokCookies } from '../../stores/x-app-credentials-store'
 import { useX402Store } from '../../stores/x402-store'
 import { X402_ENABLED, X402_DISABLE_FREE } from '../../lib/x402/config'
-import { isCreditsWalletConnected } from '../../lib/x402/charge-flow'
+import { isCreditsWalletConnected, isPaidModeActive } from '../../lib/x402/charge-flow'
 import { CreditsStrip } from '../x402/credits-strip'
 
 const MIN_PASSPHRASE = 8
@@ -23,22 +23,30 @@ const MIN_PASSPHRASE = 8
 function useVeniceStatus() {
   const apiKey = useAuthStore((s) => s.apiKey)
   const hasEncrypted = useAuthStore((s) => s.hasEncrypted)
-  // Re-render when credits wallet connects so Free-off status updates.
+  // Re-render when credits wallet / SIWE changes so Free-off status updates.
   useX402Store((s) => s.status)
   useX402Store((s) => s.address)
+  useX402Store((s) => s.sessionToken)
+  useX402Store((s) => s.sessionExpiresAt)
 
   if (isUserVeniceKey(apiKey)) {
     return { tone: 'ok' as const, text: 'Using your API key' }
   }
   if (VENICE_SERVER_FRONTED && apiKey) {
-    if (X402_DISABLE_FREE && !isCreditsWalletConnected()) {
+    if (X402_DISABLE_FREE && isPaidModeActive()) {
+      return { tone: 'ok' as const, text: 'App credentials via Credits' }
+    }
+    if (X402_DISABLE_FREE && isCreditsWalletConnected()) {
+      return {
+        tone: 'amber' as const,
+        text: 'Wallet linked — sign in to use app credentials via Credits',
+      }
+    }
+    if (X402_DISABLE_FREE) {
       return {
         tone: 'off' as const,
         text: 'Free mode is off — app credentials need Credits or your key',
       }
-    }
-    if (X402_DISABLE_FREE && isCreditsWalletConnected()) {
-      return { tone: 'ok' as const, text: 'App credentials via Credits' }
     }
     return { tone: 'ok' as const, text: 'Using app-provided credentials (alpha)' }
   }
@@ -51,7 +59,16 @@ function useVeniceStatus() {
     }
   }
   if (VENICE_SERVER_FRONTED) {
-    if (X402_DISABLE_FREE && !isCreditsWalletConnected()) {
+    if (X402_DISABLE_FREE && isPaidModeActive()) {
+      return { tone: 'ok' as const, text: 'App credentials via Credits' }
+    }
+    if (X402_DISABLE_FREE && isCreditsWalletConnected()) {
+      return {
+        tone: 'amber' as const,
+        text: 'Wallet linked — sign in to use app credentials via Credits',
+      }
+    }
+    if (X402_DISABLE_FREE) {
       return {
         tone: 'off' as const,
         text: 'Free mode is off — connect Credits or add your Venice key',
@@ -202,9 +219,11 @@ export function ConnectionsDialog({ open, onClose }: { open: boolean; onClose: (
             {VENICE_SERVER_FRONTED && !isUserVeniceKey(apiKey) && (
               <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-snug">
                 {X402_DISABLE_FREE
-                  ? isCreditsWalletConnected()
+                  ? isPaidModeActive()
                     ? 'Paid actions use app Venice credentials; add your own key to override (stays on this device).'
-                    : 'Connect a Credits wallet to use app Venice, or add your own key (BYOK, stays on this device).'
+                    : isCreditsWalletConnected()
+                      ? 'Sign in with your wallet to unlock app Venice via Credits, or add your own key.'
+                      : 'Connect a Credits wallet to use app Venice, or add your own key (BYOK, stays on this device).'
                   : 'Optional — add your own key to override app credentials (privacy-first, stays on this device).'}
               </p>
             )}

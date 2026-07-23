@@ -152,4 +152,12 @@ describe('toast.fromError / generation errors', () => {
     toast.generationError(err, 'Music failed')
     expect(useToastStore.getState().toasts[0].title).toBe('Music failed')
   })
+
+  it('fromError skips PaidNotReadyError (gate already toasted)', () => {
+    const err = new Error('Paid mode requires a wallet sign-in')
+    err.name = 'PaidNotReadyError'
+    const id = toast.fromError(err, 'Image failed')
+    expect(id).toBe(-1)
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+  })
 })

@@ -33,7 +33,7 @@ export function notifyPaidNotReady(reason: 'needs_wallet' | 'needs_session'): vo
   }
   toast.error(
     'Sign in required',
-    'Sign in with your wallet to use credits — actions are blocked until then.',
+    'Sign in with your wallet to use credits (session lasts 24 hours). Actions are blocked until then.',
     { label: 'Sign in', onClick: openBilling },
   )
 }

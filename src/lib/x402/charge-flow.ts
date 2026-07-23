@@ -87,6 +87,21 @@ export function isCreditsWalletConnected(): boolean {
   return s.status === 'connected' && Boolean(s.address)
 }
 
+/**
+ * Credits chrome phase — same truth as the action gate for the wallet rail.
+ * - ready: wallet + valid SIWE (can charge)
+ * - needs_session: wallet linked, must sign in
+ * - disconnected: no wallet
+ */
+export type CreditsUiPhase = 'ready' | 'needs_session' | 'disconnected'
+
+export function getCreditsUiPhase(): CreditsUiPhase {
+  const readiness = getPaidReadiness()
+  if (readiness === 'ready') return 'ready'
+  if (readiness === 'needs_session') return 'needs_session'
+  return 'disconnected'
+}
+
 export type PaidGateRail = 'shared' | 'venice'
 
 /**

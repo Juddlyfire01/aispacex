@@ -130,6 +130,8 @@ export const toast = {
    * code, issues, and stack for debugging.
    */
   fromError: (err: unknown, title = 'Something went wrong') => {
+    // Paid gate already toasts via notifyPaidNotReady — avoid a second raw error.
+    if (err instanceof Error && err.name === 'PaidNotReadyError') return -1
     return useToastStore.getState().push({
       variant: 'error',
       title,

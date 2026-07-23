@@ -54,7 +54,7 @@ interface X402State {
   chargedByTarget: Record<string, number>
   /** USD charged this page load (not persisted). */
   sessionChargedUsd: number
-  /** Short-lived server session token (issued after SIWE). Persisted until expiry. */
+  /** Short-lived server session token (issued after SIWE). Persisted until expiry (24h server TTL). */
   sessionToken: string | null
   /** Epoch ms when the session token expires. */
   sessionExpiresAt: number | null
