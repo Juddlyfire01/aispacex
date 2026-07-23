@@ -96,7 +96,11 @@ function topEdges(edges: Edge[], limit: number): Edge[] {
     .slice(0, limit)
 }
 
-function subjectHeading(sub: Pick<LibrarySubject, 'username' | 'kind' | 'refreshedAt'>): string {
+function subjectHeading(sub: {
+  username: string
+  kind: LibrarySubject['kind']
+  refreshedAt?: string | null
+}): string {
   return formatSubjectHeading(sub.username, sub.kind, sub.refreshedAt)
 }
 
