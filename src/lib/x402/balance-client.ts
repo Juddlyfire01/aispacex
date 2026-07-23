@@ -85,6 +85,34 @@ export async function fetchBalance(address: string): Promise<BalanceResponse | n
   }
 }
 
+/** Refresh balance + ledger using an existing session (no wallet popup). */
+export async function refreshBalance(sessionToken: string): Promise<BalanceResponse | null> {
+  const res = await fetch('/api/x402/balance', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionToken }),
+  })
+  if (res.status === 401 || res.status === 404) return null
+  const body = await parseJson<{
+    address: string
+    balanceUsd?: number
+    balanceBaseUnits?: string
+    sessionToken?: string
+    sessionExpiresAt?: number | null
+    ledger?: BalanceResponse['ledger']
+  }>(res)
+  return {
+    address: body.address,
+    balanceUsd:
+      body.balanceUsd != null
+        ? body.balanceUsd
+        : usdcBaseUnitsToUsd(body.balanceBaseUnits ?? '0'),
+    sessionToken: body.sessionToken ?? sessionToken,
+    sessionExpiresAt: body.sessionExpiresAt ?? null,
+    ledger: body.ledger,
+  }
+}
+
 /** Server-side session revoke (Credits Disconnect). Best-effort. */
 export async function revokeSession(sessionToken: string): Promise<void> {
   try {

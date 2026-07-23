@@ -10,7 +10,7 @@ import {
   getProvider,
 } from '../lib/x402/wallet'
 import { X402_ENABLED } from '../lib/x402/config'
-import { fetchBalance, revokeSession } from '../lib/x402/balance-client'
+import { fetchBalance, refreshBalance, revokeSession } from '../lib/x402/balance-client'
 
 /** A ledger row for the credits panel (mirrors Venice x402 TOP_UP/CHARGE/REFUND). */
 export interface X402LedgerRow {
@@ -89,13 +89,14 @@ interface X402State {
 const LEDGER_CAP = 100
 
 /**
- * Normalize a balance value. Values that look like raw micro-USD integers from
- * the brief getBalanceUsd bug (≥ 1e6 and integral) are converted to dollars.
+ * Normalize a balance value from the server. Coerces numeric strings; values
+ * that look like raw micro-USD integers (≥ 1e6 and integral) become dollars.
  */
-export function coerceBalanceUsd(usd: number): number {
-  if (!Number.isFinite(usd) || usd < 0) return 0
-  if (usd >= 1e6 && Number.isInteger(usd)) return usd / 1e6
-  return usd
+export function coerceBalanceUsd(usd: number | string | null | undefined): number {
+  const n = typeof usd === 'string' ? Number(usd) : usd
+  if (n == null || !Number.isFinite(n) || n < 0) return 0
+  if (n >= 1e6 && Number.isInteger(n)) return n / 1e6
+  return n
 }
 
 function newRowId(): string {
@@ -232,8 +233,25 @@ export const useX402Store = create<X402State>()(
 
         set({ address, status: 'connected', error: null })
 
-        // Only prompt SIWE when we have no session token (may prompt once).
-        if (!get().validSessionToken()) {
+        const token = get().validSessionToken()
+        if (token) {
+          // Keep local mirror aligned with Redis (no SIWE popup).
+          try {
+            const res = await refreshBalance(token)
+            if (res) {
+              set({
+                balanceUsd: coerceBalanceUsd(res.balanceUsd),
+                ...(res.ledger ? { ledger: res.ledger.slice(0, LEDGER_CAP) } : {}),
+              })
+            } else {
+              // Session revoked server-side — clear so UI asks to sign in.
+              set({ sessionToken: null, sessionExpiresAt: null })
+            }
+          } catch {
+            /* keep cached balance */
+          }
+        } else {
+          // Prompt SIWE when we have no session token.
           try {
             const res = await fetchBalance(address)
             if (res) {
@@ -286,14 +304,17 @@ export const useX402Store = create<X402State>()(
       applyTopUp: (amountUsd, balanceAfterUsd) => {
         if (!(amountUsd > 0) && balanceAfterUsd == null) return
         set((s) => {
-          const balanceAfter =
-            balanceAfterUsd != null && Number.isFinite(balanceAfterUsd)
-              ? Math.max(0, balanceAfterUsd)
-              : s.balanceUsd + Math.max(0, amountUsd)
+          // Prefer server total (leftover + credit). Never invent by adding to a
+          // possibly-stale local leftover — that desyncs from Redis and the next
+          // charge "snaps" down to top-up-only remainder.
+          const serverN = balanceAfterUsd == null ? NaN : Number(balanceAfterUsd)
+          const balanceAfter = Number.isFinite(serverN)
+            ? coerceBalanceUsd(serverN)
+            : coerceBalanceUsd(s.balanceUsd + Math.max(0, Number(amountUsd) || 0))
           const row: X402LedgerRow = {
             id: newRowId(),
             type: 'TOP_UP',
-            amountUsd: Math.max(0, amountUsd),
+            amountUsd: Math.max(0, Number(amountUsd) || 0),
             balanceAfterUsd: balanceAfter,
             createdAt: new Date().toISOString(),
           }
@@ -304,15 +325,16 @@ export const useX402Store = create<X402State>()(
       applyCharge: (amountUsd, action, balanceAfterUsd) => {
         if (!(amountUsd > 0)) return true
         const { balanceUsd } = get()
+        const serverN = balanceAfterUsd == null ? NaN : Number(balanceAfterUsd)
+        const hasServerTotal = Number.isFinite(serverN)
         // When the server already returned balanceAfter, trust it — do not gate
         // on the (possibly stale) local balance.
-        if (balanceAfterUsd == null && balanceUsd < amountUsd) return false
+        if (!hasServerTotal && balanceUsd < amountUsd) return false
         const targetKey = targetKeyFromAction(action)
         set((s) => {
-          const balanceAfter =
-            balanceAfterUsd != null && Number.isFinite(balanceAfterUsd)
-              ? coerceBalanceUsd(balanceAfterUsd)
-              : Math.max(0, s.balanceUsd - amountUsd)
+          const balanceAfter = hasServerTotal
+            ? coerceBalanceUsd(serverN)
+            : Math.max(0, s.balanceUsd - amountUsd)
           const row: X402LedgerRow = {
             id: newRowId(),
             type: 'CHARGE',

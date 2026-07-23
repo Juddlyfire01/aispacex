@@ -4,6 +4,7 @@ import { X402_MIN_TOPUP_USD, X402_RECEIVER_WALLET } from '../../lib/x402/config'
 import { transferUsdcToReceiver } from '../../lib/x402/usdc-transfer'
 import { settleTopUp } from '../../lib/x402/balance-client'
 import { usePurchaseCreditsUi } from '../../stores/purchase-credits-ui'
+import { useX402Store } from '../../stores/x402-store'
 import { toast } from '../../stores/toast-store'
 import {
   Modal,
@@ -80,6 +81,8 @@ export function PurchaseCreditsModal() {
         amountUsd: amount,
       })
       applyTopUp(settled.amountCredited, settled.newBalance)
+      // Belt-and-suspenders: mirror Redis total explicitly (leftover + credit).
+      useX402Store.getState().setBalance(settled.newBalance)
       toast.success(`Added $${settled.amountCredited.toFixed(2)} credits`)
       closePurchase()
     } catch (e) {
