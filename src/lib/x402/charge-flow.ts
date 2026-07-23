@@ -243,11 +243,10 @@ export async function chargeAction(
     }
 
     // Mirror the debit into the local balance + ledger for immediate UI.
+    // Pass server balanceAfter so applyCharge replaces — never setBalance then
+    // subtract again (that double-debits the footer Balance).
     const charged = data.chargedUsd ?? chargedPrice(rawUsd)
-    if (data.balanceAfterUsd != null) {
-      store.setBalance(data.balanceAfterUsd)
-    }
-    store.applyCharge(charged, action)
+    store.applyCharge(charged, action, data.balanceAfterUsd)
     return {
       charged: true,
       rawUsd,

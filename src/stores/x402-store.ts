@@ -63,8 +63,10 @@ interface X402State {
   /** Apply a top-up locally after a successful settlement.
    * Prefer passing `balanceAfterUsd` from the server so we replace rather than add. */
   applyTopUp: (amountUsd: number, balanceAfterUsd?: number) => void
-  /** Apply a charge locally after a debit; returns false if insufficient. */
-  applyCharge: (amountUsd: number, action?: string) => boolean
+  /** Apply a charge locally after a debit; returns false if insufficient.
+   * Prefer passing `balanceAfterUsd` from the server so we replace rather than
+   * subtract again after `setBalance(balanceAfterUsd)`. */
+  applyCharge: (amountUsd: number, action?: string, balanceAfterUsd?: number) => boolean
   /** Set the authoritative balance (e.g. from a server balance read). */
   setBalance: (usd: number) => void
   /** Replace the ledger with the server's rows. */
@@ -183,13 +185,18 @@ export const useX402Store = create<X402State>()(
         })
       },
 
-      applyCharge: (amountUsd, action) => {
+      applyCharge: (amountUsd, action, balanceAfterUsd) => {
         if (!(amountUsd > 0)) return true
         const { balanceUsd } = get()
-        if (balanceUsd < amountUsd) return false
+        // When the server already returned balanceAfter, trust it — do not gate
+        // on the (possibly stale) local balance.
+        if (balanceAfterUsd == null && balanceUsd < amountUsd) return false
         const targetKey = targetKeyFromAction(action)
         set((s) => {
-          const balanceAfter = s.balanceUsd - amountUsd
+          const balanceAfter =
+            balanceAfterUsd != null && Number.isFinite(balanceAfterUsd)
+              ? coerceBalanceUsd(balanceAfterUsd)
+              : Math.max(0, s.balanceUsd - amountUsd)
           const row: X402LedgerRow = {
             id: newRowId(),
             type: 'CHARGE',

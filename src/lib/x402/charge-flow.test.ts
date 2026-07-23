@@ -228,6 +228,33 @@ describe('chargeAction', () => {
     expect(result.error).toBe('needs_session')
   })
 
+  it('mirrors server balanceAfterUsd once (no double-debit)', async () => {
+    resetX402({
+      address: '0xabc',
+      status: 'connected',
+      balanceUsd: 10,
+      sessionToken: 'tok',
+      sessionExpiresAt: Date.now() + 60_000,
+    })
+    seedEntry('act', 0.1)
+    const chargedUsd = 0.1 * X402_MARGIN
+    const balanceAfterUsd = 9.785815
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ ok: true, chargedUsd, balanceAfterUsd }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    )
+    const result = await chargeAction('act')
+    expect(result.charged).toBe(true)
+    expect(useX402Store.getState().balanceUsd).toBeCloseTo(balanceAfterUsd)
+    expect(useX402Store.getState().sessionChargedUsd).toBeCloseTo(chargedUsd)
+    vi.unstubAllGlobals()
+  })
+
   it('previewChargedUsd is 0 when no wallet', () => {
     expect(previewChargedUsd(1)).toBe(0)
   })
