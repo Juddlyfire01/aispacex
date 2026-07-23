@@ -80,98 +80,69 @@ describe('getConnectionsStatus', () => {
   })
 
   describe('Free on', () => {
-    it('pill ok with app fronted key; compute ok (same job as Credits/BYOK)', () => {
+    it('ok with app fronted key', () => {
       resetAuth(VENICE_FRONTED_SENTINEL)
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
-      expect(s.x).toBe('amber')
+      expect(getConnectionsStatus('intel').tone).toBe('ok')
     })
 
-    it('compute ok when BYOK unlocked', () => {
+    it('ok with Venice BYOK', () => {
       resetAuth(BYOK_KEY)
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
+      expect(getConnectionsStatus('intel').tone).toBe('ok')
     })
 
-    it('compute amber when encrypted key locked and Free has no live key', () => {
+    it('amber when encrypted key locked and no live key', () => {
       resetAuth(null, true)
-      const s = getConnectionsStatus('intel')
-      expect(s.compute).toBe('amber')
-      expect(s.tone).toBe('amber')
+      expect(getConnectionsStatus('intel').tone).toBe('amber')
     })
   })
 
-  describe('Free off — nothing connected', () => {
-    it('pill off; compute off; X amber (never red)', () => {
+  describe('Free off', () => {
+    it('off when nothing connected', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       const s = getConnectionsStatus('intel')
       expect(s.tone).toBe('off')
-      expect(s.compute).toBe('off')
-      expect(s.x).toBe('amber')
-      expect(s.ariaLabel).toContain('not ready')
+      expect(s.ariaLabel).toBe('Connections: not ready')
     })
-  })
 
-  describe('Free off — Credits', () => {
-    it('wallet + SIWE → pill ok, compute ok (Credits covers Venice)', () => {
+    it('ok when wallet + SIWE', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       paidReady()
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
+      expect(getConnectionsStatus('intel').tone).toBe('ok')
     })
 
-    it('Credits + X connected → both dots ok (matches modal)', () => {
-      configFlags.disableFree = true
-      resetAuth(VENICE_FRONTED_SENTINEL)
-      paidReady()
-      resetXSelf({ connected: true })
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
-      expect(s.x).toBe('ok')
-    })
-
-    it('wallet without SIWE → pill amber, compute amber', () => {
+    it('amber when wallet needs SIWE', () => {
       configFlags.disableFree = true
       resetAuth(VENICE_FRONTED_SENTINEL)
       walletNeedsSiwe()
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('amber')
-      expect(s.compute).toBe('amber')
+      expect(getConnectionsStatus('intel').tone).toBe('amber')
     })
-  })
 
-  describe('Free off — BYOK', () => {
-    it('Venice + X BYOK, no wallet → pill ok; compute ok', () => {
+    it('ok with full BYOK on Intel', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
       resetXSelf({ connected: true })
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
-      expect(s.x).toBe('ok')
+      expect(getConnectionsStatus('intel').tone).toBe('ok')
     })
 
-    it('Venice only on Intel → pill amber; compute ok; X amber', () => {
+    it('amber with Venice-only on Intel', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
-      const s = getConnectionsStatus('intel')
-      expect(s.tone).toBe('amber')
-      expect(s.compute).toBe('ok')
-      expect(s.x).toBe('amber')
+      expect(getConnectionsStatus('intel').tone).toBe('amber')
     })
 
-    it('Venice only on media tab → pill ok', () => {
+    it('ok with Venice-only on media tab', () => {
       configFlags.disableFree = true
       resetAuth(BYOK_KEY)
-      const s = getConnectionsStatus('image')
-      expect(s.tone).toBe('ok')
-      expect(s.compute).toBe('ok')
+      expect(getConnectionsStatus('image').tone).toBe('ok')
+    })
+
+    it('amber with X-only on Intel', () => {
+      configFlags.disableFree = true
+      resetAuth(VENICE_FRONTED_SENTINEL)
+      resetXSelf({ connected: true })
+      expect(getConnectionsStatus('intel').tone).toBe('amber')
     })
   })
 })

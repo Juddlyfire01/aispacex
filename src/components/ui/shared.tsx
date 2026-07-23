@@ -276,22 +276,17 @@ export function ConnectionPill({ connected, connecting, connectedLabel, disconne
 }
 
 export type ConnectionsStatusPillTone = 'ok' | 'amber' | 'off'
-export type ConnectionsXDotTone = 'ok' | 'amber'
 
 /**
- * Header Connections control: readiness-colored label + two micro-dots
- * (compute = Credits|BYOK, X OAuth = amber|ok). Opens the Connections dialog.
+ * Header Connections control: one readiness dot (ok / amber / off) + label.
+ * Opens the Connections dialog for rail inventory.
  */
 export function ConnectionsStatusPill({
   tone,
-  compute,
-  x,
   ariaLabel,
   onClick,
 }: {
   tone: ConnectionsStatusPillTone
-  compute: ConnectionsStatusPillTone
-  x: ConnectionsXDotTone
   ariaLabel: string
   onClick: () => void
 }) {
@@ -308,10 +303,7 @@ export function ConnectionsStatusPill({
       title={ariaLabel}
       className="flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-md border border-[var(--color-border-soft)] hover:border-[var(--color-border-strong)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2"
     >
-      <span className="flex items-center gap-1" aria-hidden>
-        <StatusDot tone={compute} pulsing={compute === 'off'} />
-        <StatusDot tone={x} pulsing={x === 'amber'} />
-      </span>
+      <StatusDot tone={tone} pulsing={tone !== 'ok'} />
       <span className={labelClass}>Connections</span>
     </button>
   )
