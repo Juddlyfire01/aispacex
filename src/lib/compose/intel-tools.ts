@@ -19,7 +19,7 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     function: {
       name: 'intel_list_subjects',
       description:
-        'List subjects in the current compose scope with summary counts (posts, reports, profile). Use to discover available handles before fetching details.',
+        'List subjects in the current compose scope with summary counts (posts, reports, profile) and refreshedAt gather stamps. Stored library only — may lag live X. Use to discover available handles before fetching details. For last/latest/current when live X search is on, prefer live X search.',
       parameters: {
         type: 'object',
         properties: {},
@@ -32,7 +32,7 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     function: {
       name: 'intel_glob',
       description:
-        'List virtual intel paths matching a glob pattern (e.g. "intel/**/posts/*", "intel/target/@AskVenice/**"). Paths look like intel/{self|target}/@handle/{profile|posts|reports|edges|bookmarks|likes}.',
+        'List virtual intel paths matching a glob pattern (e.g. "intel/**/posts/*", "intel/target/@AskVenice/**"). Paths look like intel/{self|target}/@handle/{profile|posts|reports|edges|bookmarks|likes}. Stored library snapshot only.',
       parameters: {
         type: 'object',
         properties: {
@@ -51,7 +51,7 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     function: {
       name: 'intel_grep',
       description:
-        'Full-text search across posts, reports, profiles, and edges in scope. Returns snippet hits with ids you can pass to intel_get_posts / intel_get_report.',
+        'Full-text search across posts, reports, profiles, and edges in the stored library (may lag live X). Returns snippet hits with ids you can pass to intel_get_posts / intel_get_report.',
       parameters: {
         type: 'object',
         properties: {
@@ -93,7 +93,8 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'intel_get_profile',
-      description: 'Fetch the stored profile for a handle in scope.',
+      description:
+        'Fetch the stored library profile for a handle in scope (may lag live X).',
       parameters: {
         type: 'object',
         properties: {
@@ -112,7 +113,7 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     function: {
       name: 'intel_get_posts',
       description:
-        'Fetch posts (or bookmarks/likes for self) for a handle. Prefer since/until or ids from grep rather than dumping the whole timeline.',
+        'Fetch stored library posts (or bookmarks/likes for self) for a handle — not a live X timeline; may lag. Prefer since/until or ids from grep rather than dumping the whole collection. For last/latest/current when live X search is on, use live X search instead of this tool.',
       parameters: {
         type: 'object',
         properties: {
@@ -153,7 +154,7 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     function: {
       name: 'intel_get_report',
       description:
-        'Fetch an intel report for a handle. Omitting reportId returns the newest report.',
+        'Fetch a stored intel report for a handle. Omitting reportId returns the newest report.',
       parameters: {
         type: 'object',
         properties: {
@@ -175,7 +176,8 @@ export const COMPOSE_INTEL_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'intel_get_edges',
-      description: 'Fetch network edges (mentions/quotes/replies) for a handle, highest weight first.',
+      description:
+        'Fetch stored network edges (mentions/quotes/replies) for a handle, highest weight first.',
       parameters: {
         type: 'object',
         properties: {

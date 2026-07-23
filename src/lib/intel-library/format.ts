@@ -10,6 +10,21 @@ function collapseWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
+/** Human label for when a library subject was last gathered/refreshed. */
+export function formatGatherAge(refreshedAt: string | null | undefined): string {
+  if (!refreshedAt?.trim()) return 'gather unknown'
+  return `gathered ${shortDate(refreshedAt)}`
+}
+
+/** Hot-window subject heading with optional gather stamp. */
+export function formatSubjectHeading(
+  username: string,
+  kind: string,
+  refreshedAt?: string | null,
+): string {
+  return `### @${username} (${kind}) · ${formatGatherAge(refreshedAt)}`
+}
+
 export function formatProfileLine(p: Profile): string {
   const verified = p.verified?.type ? ` · ${p.verified.type}✓` : ''
   const head = `@${p.username} (${p.displayName}) · ${p.metrics.followers} followers${verified}`

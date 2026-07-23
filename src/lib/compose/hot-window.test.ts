@@ -59,6 +59,34 @@ describe('packHotWindow', () => {
     expect(result.text).toMatch(/private inference|AskVenice/i)
   })
 
+  it('stamps library snapshot banner, gather age, and live-X footer', () => {
+    const result = packHotWindow({
+      snapshot: snap,
+      scope: { type: 'target', username: 'AskVenice' },
+      mode: 'auto',
+      dayWindowDays: 7,
+      tokenBudget: 5000,
+      now,
+    })
+    expect(result.text).toMatch(/library snapshot; post dates are createdAt, not live/)
+    expect(result.text).toMatch(/### @AskVenice \(target\) · gathered 2026-07-08/)
+    expect(result.text).toMatch(/prefer live X over this snapshot/)
+  })
+
+  it('uses gather unknown when subject has no refreshedAt', () => {
+    const bare = sampleSnapshot()
+    bare.subjects = bare.subjects.map((s) => ({ ...s, refreshedAt: undefined }))
+    const result = packHotWindow({
+      snapshot: bare,
+      scope: { type: 'target', username: 'AskVenice' },
+      mode: 'auto',
+      dayWindowDays: 7,
+      tokenBudget: 5000,
+      now,
+    })
+    expect(result.text).toMatch(/### @AskVenice \(target\) · gather unknown/)
+  })
+
   it('empty snapshot yields empty or header-only pack with zero counts', () => {
     const result = packHotWindow({
       snapshot: { subjects: [] },

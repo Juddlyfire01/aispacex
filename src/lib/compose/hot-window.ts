@@ -3,6 +3,7 @@ import {
   formatPostLine,
   formatProfileLine,
   formatReportBrief,
+  formatSubjectHeading,
 } from '../intel-library/format'
 import { subjectsInScope } from '../intel-library/library'
 import type { ComposeScope, IntelSnapshot, LibrarySubject } from '../intel-library/types'
@@ -33,6 +34,7 @@ interface PackBlock {
   subjectKey: string
   username: string
   kind: LibrarySubject['kind']
+  refreshedAt?: string | null
   blockKind: BlockKind
   text: string
   /** Global fill priority: lower number = higher rank (filled first). */
@@ -94,8 +96,8 @@ function topEdges(edges: Edge[], limit: number): Edge[] {
     .slice(0, limit)
 }
 
-function subjectHeading(sub: LibrarySubject): string {
-  return `### @${sub.username} (${sub.kind})`
+function subjectHeading(sub: Pick<LibrarySubject, 'username' | 'kind' | 'refreshedAt'>): string {
+  return formatSubjectHeading(sub.username, sub.kind, sub.refreshedAt)
 }
 
 /**
@@ -118,6 +120,7 @@ function collectBlocks(
 
   for (const sub of subjects) {
     const subjectKey = `${sub.kind}:${sub.username.toLowerCase()}`
+    const refreshedAt = sub.refreshedAt ?? null
 
     if (sub.kind === 'self' && sub.bookmarks.length > 0) {
       const sorted = sortPostsNewestFirst(sub.bookmarks)
@@ -126,6 +129,7 @@ function collectBlocks(
           subjectKey,
           username: sub.username,
           kind: sub.kind,
+          refreshedAt,
           blockKind: 'bookmark',
           text: `Bookmarked:\n${formatPostLine(p)}`,
           rank: 1,
@@ -140,6 +144,7 @@ function collectBlocks(
         subjectKey,
         username: sub.username,
         kind: sub.kind,
+        refreshedAt,
         blockKind: 'report',
         text: formatReportBrief(latest),
         rank: 2,
@@ -152,6 +157,7 @@ function collectBlocks(
         subjectKey,
         username: sub.username,
         kind: sub.kind,
+        refreshedAt,
         blockKind: 'profile',
         text: formatProfileLine(sub.profile),
         rank: 3,
@@ -165,6 +171,7 @@ function collectBlocks(
         subjectKey,
         username: sub.username,
         kind: sub.kind,
+        refreshedAt,
         blockKind: 'post',
         text: formatPostLine(p),
         rank: 4,
@@ -179,6 +186,7 @@ function collectBlocks(
           subjectKey,
           username: sub.username,
           kind: sub.kind,
+          refreshedAt,
           blockKind: 'post',
           text: formatPostLine(p),
           rank: 5,
@@ -190,6 +198,7 @@ function collectBlocks(
           subjectKey,
           username: sub.username,
           kind: sub.kind,
+          refreshedAt,
           blockKind: 'report',
           text: formatReportBrief(r),
           rank: 5,
@@ -203,6 +212,7 @@ function collectBlocks(
         subjectKey,
         username: sub.username,
         kind: sub.kind,
+        refreshedAt,
         blockKind: 'edge',
         text: formatEdgeLine(e),
         rank: 6,
@@ -228,7 +238,11 @@ function assembleText(scope: ComposeScope, selected: PackBlock[]): string {
     if (!bySubject.has(b.subjectKey)) {
       order.push(b.subjectKey)
       bySubject.set(b.subjectKey, {
-        heading: subjectHeading({ kind: b.kind, username: b.username } as LibrarySubject),
+        heading: subjectHeading({
+          kind: b.kind,
+          username: b.username,
+          refreshedAt: b.refreshedAt,
+        }),
         lines: [],
       })
     }
@@ -243,9 +257,9 @@ function assembleText(scope: ComposeScope, selected: PackBlock[]): string {
     .join('\n\n')
 
   return [
-    `===== LOCAL INTEL (scope: ${scopeLabel(scope)}) =====`,
+    `===== LOCAL INTEL (scope: ${scopeLabel(scope)}) — library snapshot; post dates are createdAt, not live =====`,
     body,
-    '===== END · use tools for anything not above =====',
+    '===== END · use tools for anything not above; for last/latest when live X search is on, prefer live X over this snapshot =====',
   ].join('\n')
 }
 

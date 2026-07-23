@@ -52,7 +52,7 @@ const DRAFT_TOOLS_EXTRA = `Drafting tool:
 const TOOLS_SPEC = `Tools — pick the right one; do not invent others:
 
 Research / intel (library):
-- intel_* — list subjects, glob, grep, get profile/posts/report/edges from the local X intel library. Prefer the HOT WINDOW on the latest user message first; use tools for deeper/older/cross-subject lookup. Surgical queries only — never dump the corpus. Never invent post ids or handles.
+- intel_* — list subjects, glob, grep, get profile/posts/report/edges from the local X intel library (stored snapshot; may lag live X). For analysis of the gathered corpus, prefer the HOT WINDOW on the latest user message first; use tools for deeper/older/cross-subject lookup. Surgical queries only — never dump the corpus. Never invent post ids or handles. For last/latest/current recency claims when live X search is enabled, use live X first — do not treat HOT WINDOW or intel_* as authoritative for "current."
 
 Compose history:
 - compose_history_* — list/glob/grep/get prior compose threads (paths like history/{me|all|target/@user}/{threadId}). Never invent thread ids.
@@ -73,11 +73,17 @@ VeniceStats (live protocol + pulse):
 - Do not speculate on price direction or give financial advice. If a tool errors, say so — never invent metrics.
 
 Search (when enabled in settings):
-- Live web search and/or X search — fresher public context than the local library.
+- Live web search and/or X search — fresher public context than the local library. For recency intents, live X beats the library.
 
 Rules:
 - If a tool returns empty, say so; do not fabricate.
 - Analysis and "find a post to reply to" stay in chat.`
+
+const X_SEARCH_FRESHNESS = `FRESHNESS (live X search is ON):
+- Intents like last / latest / most recent / today / just posted / current / "what did @x post" → MUST use live X search before answering. Do not treat HOT WINDOW, LOCAL INTEL, or intel_* as authoritative for "current."
+- If you answer from the library only (search unavailable, failed, or user asked about the snapshot), label it as a library snapshot (include gather age when known) and say it may lag live X. Never present library-only results as the live last/latest post.
+- Prefer the library for historical analysis, reply targeting from known post ids, and corpus comparison — not for recency claims.
+- Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`
 
 const X_NEWS_TOOLS_SPEC = `X News (live stories clustered from posts on X):
 - x_news_search / x_news_get — search or fetch AI-generated X News stories (summary, hook, clustered post ids). Use for breaking topics on X; recency follows compose settings.
@@ -113,7 +119,7 @@ Style:
 
   if (opts.xSearchOn) {
     parts.push(
-      `Live X/Twitter search is available. Use it when the user needs fresher or broader X context than the local library — recent posts, current framing, ongoing threads. Prefer real, current context over assumptions. Search is for grounding analysis (and drafts only when drafting was requested), not an excuse to pitch a post.`,
+      `Live X/Twitter search is available.\n\n${X_SEARCH_FRESHNESS}`,
     )
   }
 

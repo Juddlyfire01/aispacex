@@ -72,11 +72,18 @@ describe('buildComposeSystem', () => {
     expect(on).toMatch(/x_news_get/)
   })
 
-  it('xSearchOn adds live X search capability blurb', () => {
-    const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: false })
-    const on = buildComposeSystem({ modelId: 'm', xSearchOn: true, toolsEnabled: false })
+  it('xSearchOn adds FRESHNESS rules for live X; off has no mandate', () => {
+    const off = buildComposeSystem({ modelId: 'm', xSearchOn: false, toolsEnabled: true })
+    const on = buildComposeSystem({ modelId: 'm', xSearchOn: true, toolsEnabled: true })
     expect(off).not.toMatch(/Live X\/Twitter search is available/i)
+    expect(off).not.toMatch(/FRESHNESS \(live X search is ON\)/)
+    expect(off).not.toMatch(/MUST use live X search/)
     expect(on).toMatch(/Live X\/Twitter search is available/i)
+    expect(on).toMatch(/FRESHNESS \(live X search is ON\)/)
+    expect(on).toMatch(/MUST use live X search/)
+    expect(on).toMatch(/library snapshot/i)
+    expect(on).toMatch(/may lag live X/i)
+    expect(on).toMatch(/for last\/latest\/current recency claims/i)
   })
 
   it('webSearchOn adds live web search capability blurb', () => {

@@ -24,7 +24,7 @@ export interface StagePromptConfig {
 /** Full Compose tool surface — always available every stage. */
 export function fullToolsReminder(): string {
   return `TOOLS (all always available — never invent others):
-- intel_* — local X intel library (subjects, posts, reports, edges, profile)
+- intel_* — local X intel library snapshot (subjects, posts, reports, edges, profile); may lag live X
 - compose_history_* — prior compose threads
 - stats_* — VeniceStats live protocol/market/social/wallet
 - alpha_* — Alpha Radar archive (prefer HOT WINDOW Alpha slice first)
@@ -33,7 +33,7 @@ export function fullToolsReminder(): string {
 - Live web / X search — when enabled in settings
 - compose_write_draft — streams publishable copy into the Draft drawer
 
-Prefer the HOT WINDOW on the latest user message first; use tools to extend. Never invent post ids, handles, metrics, or thread ids.`
+For gathered-corpus analysis, prefer the HOT WINDOW first; use tools to extend. For last/latest/current recency when live X search is on, use live X first — do not treat library as authoritative for "current." Never invent post ids, handles, metrics, or thread ids.`
 }
 
 /** Trust the injected SPENT pack; tools only to extend it. */

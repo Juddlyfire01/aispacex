@@ -25,6 +25,16 @@ describe('COMPOSE_INTEL_TOOLS', () => {
       expect(t.function.parameters).toBeTruthy()
     }
   })
+
+  it('marks posts/list tools as stored library that may lag live X', () => {
+    const byName = Object.fromEntries(
+      COMPOSE_INTEL_TOOLS.map((t) => [t.function.name, t.function.description]),
+    )
+    expect(byName.intel_get_posts).toMatch(/stored library/i)
+    expect(byName.intel_get_posts).toMatch(/may lag/i)
+    expect(byName.intel_get_posts).toMatch(/live X search/i)
+    expect(byName.intel_list_subjects).toMatch(/Stored library only/i)
+  })
 })
 
 describe('executeIntelTool', () => {
