@@ -12,6 +12,7 @@ import { ConfirmDialogHost } from './components/ui/confirm-dialog'
 import { PromptDialogHost } from './components/ui/prompt-dialog'
 import { useApplyAppearance } from './hooks/use-apply-appearance'
 import { useXOAuthBootstrap } from './hooks/use-x-oauth-bootstrap'
+import { useX402Bootstrap } from './hooks/use-x402-bootstrap'
 import { primeXOAuthReturnShell } from './lib/x-intel/self-orchestrate'
 import { isXOAuthReturnPending } from './lib/x-intel/self-client'
 import { useXSelfStore } from './stores/x-self-store'
@@ -134,6 +135,7 @@ export function App() {
 
   useApplyAppearance()
   useXOAuthBootstrap()
+  useX402Bootstrap()
 
   return (
     <>

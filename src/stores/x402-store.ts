@@ -7,8 +7,10 @@ import {
   ensureBaseChain,
   hasWallet,
   revokeWalletPermissions,
+  getProvider,
 } from '../lib/x402/wallet'
 import { X402_ENABLED } from '../lib/x402/config'
+import { fetchBalance } from '../lib/x402/balance-client'
 
 /** A ledger row for the credits panel (mirrors Venice x402 TOP_UP/CHARGE/REFUND). */
 export interface X402LedgerRow {
@@ -52,12 +54,17 @@ interface X402State {
   chargedByTarget: Record<string, number>
   /** USD charged this page load (not persisted). */
   sessionChargedUsd: number
-  /** Short-lived server session token (issued after SIWE). Not persisted. */
+  /** Short-lived server session token (issued after SIWE). Persisted until expiry. */
   sessionToken: string | null
   /** Epoch ms when the session token expires. */
   sessionExpiresAt: number | null
 
   connect: (opts?: { forcePicker?: boolean }) => Promise<void>
+  /**
+   * Silent resume after refresh: eth_accounts → connected, refresh SIWE if needed.
+   * `skipConnect` is used after accountsChanged when we already have a live address.
+   */
+  bootstrap: (opts?: { skipConnect?: boolean }) => Promise<void>
   refreshConnection: () => Promise<void>
   disconnect: () => Promise<void>
   /** Apply a top-up locally after a successful settlement.
@@ -99,6 +106,51 @@ function newRowId(): string {
   }
 }
 
+let walletEventsBound = false
+
+function bindWalletEvents(): void {
+  if (walletEventsBound || typeof window === 'undefined') return
+  const provider = getProvider()
+  if (!provider?.on) return
+  walletEventsBound = true
+
+  provider.on('accountsChanged', (...args: unknown[]) => {
+    const accounts = (args[0] as string[] | undefined) ?? []
+    const store = useX402Store.getState()
+    if (!accounts.length) {
+      // Locked / disconnected in the extension — drop live session but keep the
+      // last address so a later unlock/bootstrap can resume without a full
+      // "Connect wallet" click.
+      useX402Store.setState({
+        status: 'idle',
+        sessionToken: null,
+        sessionExpiresAt: null,
+        error: null,
+      })
+      return
+    }
+    const next = accounts[0]!.toLowerCase()
+    if (next === store.address && store.status === 'connected') return
+    // Account switch: need a fresh SIWE for the new address.
+    useX402Store.setState({
+      address: next,
+      status: 'connected',
+      sessionToken: null,
+      sessionExpiresAt: null,
+      balanceUsd: 0,
+      ledger: [],
+      error: null,
+    })
+    void useX402Store.getState().bootstrap({ skipConnect: true })
+  })
+
+  provider.on('chainChanged', () => {
+    void ensureBaseChain().catch(() => {
+      /* user may reject switch — charge flow will surface it */
+    })
+  })
+}
+
 export const useX402Store = create<X402State>()(
   persist(
     (set, get) => ({
@@ -127,12 +179,67 @@ export const useX402Store = create<X402State>()(
           // wallet/account to connect (and switch away from a prior one).
           const address = await connectWallet({ forcePicker: opts?.forcePicker ?? true })
           await ensureBaseChain()
+          bindWalletEvents()
           set({ address, status: 'connected', error: null })
         } catch (err) {
           set({
             status: 'error',
             error: err instanceof Error ? err.message : 'Wallet connection failed',
           })
+        }
+      },
+
+      bootstrap: async (opts) => {
+        if (!X402_ENABLED) return
+        bindWalletEvents()
+
+        // Drop expired session so we don't look paid-ready with a dead token.
+        const { sessionToken, sessionExpiresAt } = get()
+        if (sessionToken && sessionExpiresAt != null && Date.now() >= sessionExpiresAt) {
+          set({ sessionToken: null, sessionExpiresAt: null })
+        }
+
+        let address = await getConnectedAddress()
+        if (!address && !opts?.skipConnect && get().address) {
+          // Site was authorized before refresh — eth_requestAccounts without
+          // forcePicker usually returns silently (no account picker).
+          try {
+            set({ status: 'connecting', error: null })
+            address = await connectWallet({ forcePicker: false })
+          } catch {
+            set({ status: 'idle', error: null })
+            return
+          }
+        }
+
+        if (!address) {
+          if (get().status === 'connecting') set({ status: 'idle' })
+          return
+        }
+
+        try {
+          await ensureBaseChain()
+        } catch {
+          // Stay connected; user can switch chain when they act.
+        }
+
+        set({ address, status: 'connected', error: null })
+
+        // Refresh balance + session when missing/expired (may prompt one SIWE sign).
+        if (!get().validSessionToken()) {
+          try {
+            const res = await fetchBalance(address)
+            if (res) {
+              set({
+                balanceUsd: coerceBalanceUsd(res.balanceUsd),
+                sessionToken: res.sessionToken ?? null,
+                sessionExpiresAt: res.sessionExpiresAt ?? null,
+                ...(res.ledger ? { ledger: res.ledger.slice(0, LEDGER_CAP) } : {}),
+              })
+            }
+          } catch {
+            // User rejected sign — wallet stays connected; charges will ask again.
+          }
         }
       },
 
@@ -242,15 +349,17 @@ export const useX402Store = create<X402State>()(
     }),
     {
       name: 'x402-wallet',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => createEncryptedStorage()),
-      // Persist last address, balance, ledger, and per-target charged totals.
-      // Status / error / session / paidMode are ephemeral (paid = wallet connected).
+      // Persist address, balance, ledger, charged totals, and SIWE session until expiry.
+      // status stays ephemeral and is restored by bootstrap() from eth_accounts.
       partialize: (s) => ({
         address: s.address,
         balanceUsd: s.balanceUsd,
         ledger: s.ledger,
         chargedByTarget: s.chargedByTarget,
+        sessionToken: s.sessionToken,
+        sessionExpiresAt: s.sessionExpiresAt,
       }),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<X402State> & { paidMode?: boolean }
@@ -264,12 +373,41 @@ export const useX402Store = create<X402State>()(
           }
         }
         const { paidMode: _removed, ...rest } = s
+        const sessionExpiresAt = s.sessionExpiresAt ?? null
+        const sessionValid =
+          Boolean(s.sessionToken) &&
+          sessionExpiresAt != null &&
+          Date.now() < sessionExpiresAt
         return {
           ...rest,
           chargedByTarget,
           balanceUsd: coerceBalanceUsd(s.balanceUsd ?? 0),
+          sessionToken: sessionValid ? s.sessionToken! : null,
+          sessionExpiresAt: sessionValid ? sessionExpiresAt : null,
+        }
+      },
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        if (
+          state.sessionToken &&
+          state.sessionExpiresAt != null &&
+          Date.now() >= state.sessionExpiresAt
+        ) {
+          state.sessionToken = null
+          state.sessionExpiresAt = null
         }
       },
     },
   ),
 )
+
+/** Wait until the encrypted x402 store has rehydrated from IndexedDB. */
+export function waitX402Hydrated(): Promise<void> {
+  if (useX402Store.persist.hasHydrated()) return Promise.resolve()
+  return new Promise((resolve) => {
+    const unsub = useX402Store.persist.onFinishHydration(() => {
+      unsub()
+      resolve()
+    })
+  })
+}
