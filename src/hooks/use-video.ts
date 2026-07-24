@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
+import { persistGeneratedMedia } from '../lib/media-gallery-persist'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import { recordMediaCost } from '../lib/venice/media-cost'
 import { chargeAction, assertPaidReady, markActionStart } from '../lib/x402/charge-flow'
 import { notifyInsufficientFunds } from '../lib/x402/notify-insufficient'
+import { finishMediaInflight, startMediaInflight, useMediaInflightStore } from '../stores/media-inflight-store'
 import { toast } from '../stores/toast-store'
 import type { VideoQueueRequest, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
 
@@ -97,6 +99,28 @@ export function useVideo() {
     })
   }, [queryClient])
 
+  /**
+   * Persist to gallery then charge. Order matters: navigate-away must not
+   * debit without a gallery write.
+   */
+  const completeVideoJob = useCallback(async (job: VideoJob, blob: Blob) => {
+    try {
+      await persistGeneratedMedia({
+        kind: 'video',
+        blob,
+        mimeType: blob.type || 'video/mp4',
+        prompt: job.meta.prompt,
+        negativePrompt: job.meta.negativePrompt,
+        model: job.meta.model,
+        extras: job.meta.extras,
+      })
+      recordVideoCost(job)
+      void finalize(job)
+    } finally {
+      finishMediaInflight(job.id)
+    }
+  }, [recordVideoCost])
+
   const syncJobs = useCallback((updater: (prev: VideoJob[]) => VideoJob[]) => {
     setJobs((prev) => {
       const next = updater(prev)
@@ -126,13 +150,13 @@ export function useVideo() {
   /** Toast via the global toaster, then drop the job (no inline error UI). */
   const failJob = useCallback((id: string, err: unknown) => {
     removeRuntime(id)
+    finishMediaInflight(id)
     toast.fromError(err, 'Video failed')
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
-  useEffect(() => () => {
-    for (const id of [...runtimesRef.current.keys()]) removeRuntime(id)
-  }, [removeRuntime])
+  // Intentionally no unmount cleanup: timers keep polling so navigate-away
+  // still downloads, persists to gallery, and charges. Explicit cancelJob stops work.
 
   const startPolling = useCallback((jobId: string) => {
     const rt = runtimesRef.current.get(jobId)
@@ -177,8 +201,8 @@ export function useVideo() {
           if (runtime.cancelled) return
           stopJobTimers(jobId)
           patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
-          recordVideoCost(job)
-          void finalize(job)
+          await completeVideoJob(job, blob)
+          removeRuntime(jobId)
           return
         }
 
@@ -198,14 +222,15 @@ export function useVideo() {
           try {
             const blob = await blobFromVeniceUrl(url)
             if (runtime.cancelled) return
+            const finalBlob = blob.type ? blob : new Blob([blob], { type: 'video/mp4' })
             stopJobTimers(jobId)
             patchJob(jobId, {
               status: 'completed',
-              blob: blob.type ? blob : new Blob([blob], { type: 'video/mp4' }),
+              blob: finalBlob,
               elapsedMs: Date.now() - job.startedAt,
             })
-            recordVideoCost(job)
-            void finalize(job)
+            await completeVideoJob(job, finalBlob)
+            removeRuntime(jobId)
           } catch (fetchErr) {
             failJob(jobId, fetchErr instanceof Error ? fetchErr : new Error('Failed to download completed video'))
           }
@@ -225,14 +250,19 @@ export function useVideo() {
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [failJob, patchJob, stopJobTimers, recordVideoCost])
+  }, [failJob, patchJob, stopJobTimers, completeVideoJob, removeRuntime])
 
   const activeCount = jobs.filter((j) => isActive(j.status)).length
-  const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
+  const inflightCount = useMediaInflightStore((s) => s.jobs.filter((j) => j.kind === 'video').length)
+  const atCapacity = Math.max(activeCount, inflightCount) >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: VideoQueueRequest, meta: VideoJobMeta) => {
     assertPaidReady({ rail: 'venice' })
-    if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
+    const running = Math.max(
+      jobsRef.current.filter((j) => isActive(j.status)).length,
+      useMediaInflightStore.getState().pendingJobs('video'),
+    )
+    if (running >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} videos. Wait for one to finish.`)
     }
 
@@ -247,6 +277,7 @@ export function useVideo() {
       elapsedMs: 0,
     }
     runtimesRef.current.set(id, { cancelled: false, attempts: 0 })
+    startMediaInflight('video', 1, meta.prompt, id)
     syncJobs((prev) => [job, ...prev])
 
     try {
@@ -255,7 +286,10 @@ export function useVideo() {
         body: JSON.stringify(req),
       })
       const rt = runtimesRef.current.get(id)
-      if (!rt || rt.cancelled) return id
+      if (!rt || rt.cancelled) {
+        finishMediaInflight(id)
+        return id
+      }
 
       patchJob(id, {
         status: 'queued',
@@ -273,6 +307,7 @@ export function useVideo() {
 
   const dismissJob = useCallback((id: string) => {
     removeRuntime(id)
+    finishMediaInflight(id)
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
@@ -280,6 +315,7 @@ export function useVideo() {
     const rt = runtimesRef.current.get(id)
     if (rt) rt.cancelled = true
     removeRuntime(id)
+    finishMediaInflight(id)
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
@@ -289,6 +325,7 @@ export function useVideo() {
       const rt = runtimesRef.current.get(id)
       if (rt) rt.cancelled = true
       removeRuntime(id)
+      finishMediaInflight(id)
     }
     syncJobs((prev) => prev.filter((j) => !isActive(j.status)))
   }, [removeRuntime, syncJobs])

@@ -11,6 +11,7 @@ import { SegmentedControl } from '../ui/sub-tabs'
 import { MediaGallery } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
 import { attachVideoReferenceImage } from '../../lib/video-request'
+import { useMediaInflightStore } from '../../stores/media-inflight-store'
 import { toast } from '../../stores/toast-store'
 import type { VideoQueueRequest, VideoConstraints } from '../../types/venice'
 
@@ -37,6 +38,8 @@ export function VideoView() {
     queue, jobs, activeCount, atCapacity, maxConcurrent,
     cancelAll, takeCompleted,
   } = useVideo()
+  const inflightPending = useMediaInflightStore((s) => s.pendingSlots('video'))
+  const pendingCount = Math.max(activeCount, inflightPending)
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -62,23 +65,13 @@ export function VideoView() {
     else if (hasTextMode && !hasImageMode && mode !== 'text') setMode('text')
   }, [hasImageMode, hasTextMode, mode])
 
-  // Persist completed videos into the gallery
+  // Dismiss completed jobs from the in-page queue (gallery already persisted in the hook).
   useEffect(() => {
     const ids = jobs.filter((j) => j.status === 'completed' && j.blob).map((j) => j.id)
     for (const id of ids) {
-      const taken = takeCompleted(id)
-      if (!taken?.blob) continue
-      void gallery.add({
-        kind: 'video',
-        blob: taken.blob,
-        mimeType: taken.blob.type || 'video/mp4',
-        prompt: taken.meta.prompt,
-        negativePrompt: taken.meta.negativePrompt,
-        model: taken.meta.model,
-        extras: taken.meta.extras,
-      })
+      takeCompleted(id)
     }
-  }, [jobs, takeCompleted, gallery.add])
+  }, [jobs, takeCompleted])
 
   // Build option lists from constraints
   const durationOpts = useMemo(() =>
@@ -295,9 +288,9 @@ export function VideoView() {
         <PrimaryButton
           onClick={handleGenerate}
           disabled={!prompt.trim() || promptTooShort || !apiKey || !activeModel || atCapacity || (mode === 'image' && !imageUrl)}
-          loading={activeCount > 0}
+          loading={pendingCount > 0}
         >
-          {activeCount > 0 ? `Generate another (${activeCount}/${maxConcurrent})` : 'Generate Video'}
+          {pendingCount > 0 ? `Generate another (${pendingCount}/${maxConcurrent})` : 'Generate Video'}
         </PrimaryButton>
       {activeCount > 0 && (
         <button
@@ -315,7 +308,7 @@ export function VideoView() {
     <MediaGallery
       kind="video"
       items={gallery.items}
-      pendingCount={activeCount}
+      pendingCount={pendingCount}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
       onUsePrompt={(p, neg) => {
@@ -324,19 +317,21 @@ export function VideoView() {
       }}
       empty={
         <div className="flex items-center justify-center flex-1 h-full text-[var(--color-text-quaternary)] text-[15px]">
-          {activeCount > 0 ? (
+          {pendingCount > 0 ? (
             <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
               <Spinner size="lg" />
               <span className="text-[var(--color-text-secondary)] text-center">
-                Generating {activeCount} video{activeCount === 1 ? '' : 's'}…
+                Generating {pendingCount} video{pendingCount === 1 ? '' : 's'}…
                 <span className="block text-[12px] text-[var(--color-text-quaternary)] mt-1">typically 30s–2min each</span>
               </span>
+              {activeCount > 0 && (
               <button
                 onClick={cancelAll}
                 className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors"
               >
                 Cancel all
               </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">

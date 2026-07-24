@@ -105,13 +105,15 @@ export function getCreditsUiPhase(): CreditsUiPhase {
 export type PaidGateRail = 'shared' | 'venice'
 
 /**
- * Gate billable work:
- * - Connected wallet without SIWE → block (needs_session).
+ * Gate billable work before it runs:
+ * - Wallet linked without a valid SIWE session → always block (needs_session).
  * - X402_DISABLE_FREE + not paid:
- *     - rail `venice` (media): allow with Venice BYOK
- *     - rail `shared` (Intel/X): allow only with Venice BYOK **and** X OAuth
- *       (otherwise app bearer / fronted Free still runs)
+ *     - rail `venice` (media / Venice API): allow with Venice BYOK
+ *     - rail `shared` (Compose / Intel / X): allow only with Venice BYOK **and** X OAuth
  * - Otherwise Free allowed.
+ *
+ * Call this at every cost-bearing entry. Venice requests also gate inside
+ * veniceFetch so feature hooks cannot forget.
  */
 export function assertPaidReady(opts?: { silent?: boolean; rail?: PaidGateRail }): void {
   const readiness = getPaidReadiness()

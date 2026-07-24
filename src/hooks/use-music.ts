@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { blobFromVeniceUrl } from '../lib/media-blob'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../lib/media-concurrency'
+import { persistGeneratedMedia } from '../lib/media-gallery-persist'
 import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import { recordMediaCost } from '../lib/venice/media-cost'
 import { chargeAction, assertPaidReady, markActionStart } from '../lib/x402/charge-flow'
 import { notifyInsufficientFunds } from '../lib/x402/notify-insufficient'
+import { finishMediaInflight, startMediaInflight, useMediaInflightStore } from '../stores/media-inflight-store'
 import { toast } from '../stores/toast-store'
 import type { MusicQueueRequest, MusicQueueResponse, MusicRetrieveResponse } from '../types/venice'
 
@@ -78,6 +80,29 @@ export function useMusic() {
     })
   }, [queryClient])
 
+  /**
+   * Persist to gallery then charge. Order matters: navigate-away must not
+   * debit without a gallery write.
+   */
+  const completeMusicJob = useCallback(async (job: MusicJob, blob: Blob) => {
+    try {
+      await persistGeneratedMedia({
+        kind: 'music',
+        blob,
+        mimeType: blob.type || 'audio/mpeg',
+        prompt: job.meta.prompt,
+        model: job.meta.model,
+        extras: {
+          ...job.meta.extras,
+          ...(job.meta.lyrics ? { lyrics: job.meta.lyrics } : {}),
+        },
+      })
+      recordMusicCost(job)
+    } finally {
+      finishMediaInflight(job.id)
+    }
+  }, [recordMusicCost])
+
   const syncJobs = useCallback((updater: (prev: MusicJob[]) => MusicJob[]) => {
     setJobs((prev) => {
       const next = updater(prev)
@@ -107,13 +132,13 @@ export function useMusic() {
   /** Toast via the global toaster, then drop the job (no inline error UI). */
   const failJob = useCallback((id: string, err: unknown) => {
     removeRuntime(id)
+    finishMediaInflight(id)
     toast.fromError(err, 'Music failed')
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
-  useEffect(() => () => {
-    for (const id of [...runtimesRef.current.keys()]) removeRuntime(id)
-  }, [removeRuntime])
+  // Intentionally no unmount cleanup: timers keep polling so navigate-away
+  // still downloads, persists to gallery, and charges. Explicit cancelJob stops work.
 
   const startPolling = useCallback((jobId: string) => {
     const rt = runtimesRef.current.get(jobId)
@@ -156,7 +181,8 @@ export function useMusic() {
           if (runtime.cancelled) return
           stopJobTimers(jobId)
           patchJob(jobId, { status: 'completed', blob, elapsedMs: Date.now() - job.startedAt })
-          recordMusicCost(job)
+          await completeMusicJob(job, blob)
+          removeRuntime(jobId)
           return
         }
 
@@ -170,13 +196,15 @@ export function useMusic() {
           try {
             const blob = await blobFromVeniceUrl(result.audio_url)
             if (runtime.cancelled) return
+            const finalBlob = blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' })
             stopJobTimers(jobId)
             patchJob(jobId, {
               status: 'completed',
-              blob: blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' }),
+              blob: finalBlob,
               elapsedMs: Date.now() - job.startedAt,
             })
-            recordMusicCost(job)
+            await completeMusicJob(job, finalBlob)
+            removeRuntime(jobId)
           } catch (fetchErr) {
             failJob(jobId, fetchErr instanceof Error ? fetchErr : new Error('Failed to download completed audio'))
           }
@@ -195,14 +223,19 @@ export function useMusic() {
         }
       }
     }, POLL_INTERVAL_MS)
-  }, [failJob, patchJob, stopJobTimers, recordMusicCost])
+  }, [failJob, patchJob, stopJobTimers, completeMusicJob, removeRuntime])
 
   const activeCount = jobs.filter((j) => isActive(j.status)).length
-  const atCapacity = activeCount >= MAX_CONCURRENT_MEDIA_JOBS
+  const inflightCount = useMediaInflightStore((s) => s.jobs.filter((j) => j.kind === 'music').length)
+  const atCapacity = Math.max(activeCount, inflightCount) >= MAX_CONCURRENT_MEDIA_JOBS
 
   const queue = useCallback(async (req: MusicQueueRequest, meta: MusicJobMeta) => {
     assertPaidReady({ rail: 'venice' })
-    if (jobsRef.current.filter((j) => isActive(j.status)).length >= MAX_CONCURRENT_MEDIA_JOBS) {
+    const running = Math.max(
+      jobsRef.current.filter((j) => isActive(j.status)).length,
+      useMediaInflightStore.getState().pendingJobs('music'),
+    )
+    if (running >= MAX_CONCURRENT_MEDIA_JOBS) {
       throw new Error(`Already running ${MAX_CONCURRENT_MEDIA_JOBS} tracks. Wait for one to finish.`)
     }
 
@@ -217,6 +250,7 @@ export function useMusic() {
       elapsedMs: 0,
     }
     runtimesRef.current.set(id, { cancelled: false, attempts: 0 })
+    startMediaInflight('music', 1, meta.prompt, id)
     syncJobs((prev) => [job, ...prev])
 
     try {
@@ -225,7 +259,10 @@ export function useMusic() {
         body: JSON.stringify(req),
       })
       const rt = runtimesRef.current.get(id)
-      if (!rt || rt.cancelled) return id
+      if (!rt || rt.cancelled) {
+        finishMediaInflight(id)
+        return id
+      }
 
       patchJob(id, {
         status: 'queued',
@@ -242,6 +279,7 @@ export function useMusic() {
 
   const dismissJob = useCallback((id: string) => {
     removeRuntime(id)
+    finishMediaInflight(id)
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
@@ -249,6 +287,7 @@ export function useMusic() {
     const rt = runtimesRef.current.get(id)
     if (rt) rt.cancelled = true
     removeRuntime(id)
+    finishMediaInflight(id)
     syncJobs((prev) => prev.filter((j) => j.id !== id))
   }, [removeRuntime, syncJobs])
 
@@ -258,6 +297,7 @@ export function useMusic() {
       const rt = runtimesRef.current.get(id)
       if (rt) rt.cancelled = true
       removeRuntime(id)
+      finishMediaInflight(id)
     }
     syncJobs((prev) => prev.filter((j) => !isActive(j.status)))
   }, [removeRuntime, syncJobs])

@@ -11,7 +11,7 @@ import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
 import { MediaGallery, type ImageToolAction } from '../media/media-gallery'
 import { cn } from '../../lib/utils'
-import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
+import { useMediaInflightStore } from '../../stores/media-inflight-store'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
 import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
@@ -68,8 +68,8 @@ export function ImageView({
   const [variants, setVariants] = useState(1)
   const [hideWatermark] = useState(true)
   const [safeMode, setSafeMode] = useState(false)
-  const [pendingJobs, setPendingJobs] = useState(0)
-  const [pendingSlots, setPendingSlots] = useState(0)
+  const pendingJobs = useMediaInflightStore((s) => s.pendingJobs('image'))
+  const pendingSlots = useMediaInflightStore((s) => s.pendingSlots('image'))
 
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
@@ -138,42 +138,12 @@ export function ImageView({
       req.resolution = resolution
     }
 
-    const trimmedPrompt = prompt.trim()
-    const trimmedNegative = negativePrompt.trim() || undefined
-    const extras: Record<string, string | number | boolean> = { steps, variants, safeMode }
-    if (style) extras.style = style
-    if (hasAspectRatios && aspectRatio) extras.aspectRatio = aspectRatio
-    if (hasResolutions && resolution) extras.resolution = resolution
-
-    setPendingJobs((n) => n + 1)
-    const jobVariants = variants
-    setPendingSlots((n) => n + jobVariants)
     mutation.mutate(
       req as unknown as Parameters<typeof mutation.mutate>[0],
       {
-        onSuccess: (data) => {
-          const payloads = data.images.map((img) => typeof img === 'string' ? img : img.b64_json)
-          void (async () => {
-            for (const b64 of payloads) {
-              const blob = blobFromBase64(b64)
-              await gallery.add({
-                kind: 'image',
-                blob,
-                mimeType: blob.type || mimeFromBase64(b64),
-                prompt: trimmedPrompt,
-                negativePrompt: trimmedNegative,
-                model,
-                extras,
-              })
-            }
-          })()
-        },
+        // Inflight placeholders + gallery persist live in useImageGenerate.
         onError: (err) => {
           toast.fromError(err, 'Image failed')
-        },
-        onSettled: () => {
-          setPendingJobs((n) => Math.max(0, n - 1))
-          setPendingSlots((n) => Math.max(0, n - jobVariants))
         },
       },
     )

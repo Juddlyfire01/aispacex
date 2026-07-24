@@ -67,6 +67,7 @@ import { modelSupportsXSearch, filterComposeToolModels } from '../lib/compose/mo
 import type { ModelsQueryResult } from '../lib/venice-model-utils'
 import type { ChatMessage } from '../types/venice'
 import { yieldForPaint } from '../lib/yield-for-paint'
+import { assertPaidReady, PaidNotReadyError } from '../lib/x402/charge-flow'
 
 // Compose chat via streaming intel agent: packs a hot-window of local library
 // data, may call intel_* / compose_history_* / compose_write_draft tools (tool
@@ -183,6 +184,14 @@ export function useCompose() {
       const threadId = store.ensureActiveThread()
       const thread = useComposeStore.getState().threads[threadId]
       if (!thread) return
+
+      // Credits must be fully signed in (or Free/BYOK allowed) before any work.
+      try {
+        assertPaidReady()
+      } catch (err) {
+        if (err instanceof PaidNotReadyError) return
+        throw err
+      }
 
       // Skip encrypt+IDB so early store writes don't kick off a disk write.
       // Stagger paints: busy chrome now → user bubble @20ms → Thinking @40ms.
@@ -1044,6 +1053,8 @@ export function useCompose() {
       } catch (err) {
         flushPendingDelta(threadId)
         if (err instanceof DOMException && err.name === 'AbortError') return
+        // Toast already shown by assertPaidReady — don't dump into the transcript.
+        if (err instanceof PaidNotReadyError) return
         const message = err instanceof Error ? err.message : 'Unknown error'
         const hint = isContextOverflowError(err)
           ? ' Context was still too large after compress — try a shorter message or lower the hot-window budget.'

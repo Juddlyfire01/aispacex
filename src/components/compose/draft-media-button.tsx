@@ -3,8 +3,7 @@ import { useComposeStore } from '../../stores/compose-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useImageGenerate } from '../../hooks/use-image'
 import { mediaGallery } from '../../lib/media-gallery'
-import { blobToDataUrl } from '../../lib/media-blob'
-import { blobFromBase64, mimeFromBase64 } from '../../lib/media-blob'
+import { blobToDataUrl, blobFromBase64 } from '../../lib/media-blob'
 import { venice } from '../../lib/venice-client'
 import { toast } from '../../stores/toast-store'
 import type { MediaItem, PostSegment } from '../../lib/compose/types'
@@ -196,14 +195,7 @@ export function DraftMediaButton({ threadId, segment, className }: DraftMediaBut
         dataUrl,
         altText: '',
       })
-      // Also keep in the image gallery
-      void mediaGallery.add({
-        kind: 'image',
-        blob,
-        mimeType: blob.type || mimeFromBase64(b64),
-        prompt,
-        model,
-      })
+      // Gallery persist already ran inside useImageGenerate (survives navigate-away).
       setPanel(null)
       setGenPrompt('')
     } catch (err) {

@@ -5,6 +5,7 @@ import {
   byokVeniceBaseUrl,
   isUserVeniceKey,
 } from './venice-config'
+import { assertPaidReady } from './x402/charge-flow'
 
 /**
  * Resolve Venice base URL for the current auth mode.
@@ -120,6 +121,10 @@ interface VeniceFetchOptions extends RequestInit {
 
 export async function veniceFetch(path: string, options: VeniceFetchOptions): Promise<Response> {
   const { stream, noAuth, retries = MAX_RETRIES, ...fetchOptions } = options
+  // Catalog (models/styles) uses noAuth and stays browseable. Every other Venice
+  // call is billable — block when Credits wallet is linked but SIWE isn't ready,
+  // or when Free is off without BYOK.
+  if (!noAuth) assertPaidReady({ rail: 'venice' })
   const headers = new Headers(fetchOptions.headers)
   // App proxy injects the shared key — browser must not send one. BYOK sends the user key.
   if (!noAuth && !usesServerFrontedProxy()) headers.set('Authorization', `Bearer ${getApiKey()}`)

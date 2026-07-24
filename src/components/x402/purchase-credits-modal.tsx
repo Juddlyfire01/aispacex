@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useX402 } from '../../hooks/use-x402'
 import { X402_MIN_TOPUP_USD, X402_RECEIVER_WALLET } from '../../lib/x402/config'
 import { transferUsdcToReceiver } from '../../lib/x402/usdc-transfer'
-import { settleTopUp } from '../../lib/x402/balance-client'
+import { settleTopUp, refreshBalance } from '../../lib/x402/balance-client'
 import { usePurchaseCreditsUi } from '../../stores/purchase-credits-ui'
 import { useX402Store } from '../../stores/x402-store'
 import { toast } from '../../stores/toast-store'
@@ -80,9 +80,20 @@ export function PurchaseCreditsModal() {
         txHash,
         amountUsd: amount,
       })
-      applyTopUp(settled.amountCredited, settled.newBalance)
+      applyTopUp(settled.amountCredited, settled.newBalance, {
+        paymentId: settled.paymentId ?? txHash,
+        chainId: 8453,
+        asset: 'USDC',
+      })
       // Belt-and-suspenders: mirror Redis total explicitly (leftover + credit).
       useX402Store.getState().setBalance(settled.newBalance)
+      // Prefer server ledger (row keyed by tx hash) when session can refresh.
+      try {
+        const res = await refreshBalance(token)
+        if (res?.ledger) useX402Store.getState().setLedger(res.ledger)
+      } catch {
+        /* local applyTopUp row already has paymentId */
+      }
       toast.success(`Added $${settled.amountCredited.toFixed(2)} credits`)
       closePurchase()
     } catch (e) {

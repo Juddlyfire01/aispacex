@@ -42,4 +42,16 @@ describe('applyTopUp', () => {
     useX402Store.getState().applyTopUp(5, '8.75' as unknown as number)
     expect(useX402Store.getState().balanceUsd).toBeCloseTo(8.75)
   })
+
+  it('keys TOP_UP row by payment tx hash', () => {
+    const tx =
+      '0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
+    useX402Store.getState().applyTopUp(5, 8, { paymentId: tx })
+    const row = useX402Store.getState().ledger[0]
+    expect(row.type).toBe('TOP_UP')
+    expect(row.id).toBe(tx.toLowerCase())
+    expect(row.paymentId).toBe(tx.toLowerCase())
+    expect(row.asset).toBe('USDC')
+    expect(row.chainId).toBe(8453)
+  })
 })

@@ -11,6 +11,7 @@ import { Spinner } from '../ui/spinner'
 import { MediaGallery } from '../media/media-gallery'
 import { getMusicCapabilities } from '../../lib/music-capabilities'
 import { cn } from '../../lib/utils'
+import { useMediaInflightStore } from '../../stores/media-inflight-store'
 import { toast } from '../../stores/toast-store'
 import type { MusicQueueRequest } from '../../types/venice'
 
@@ -47,6 +48,8 @@ export function MusicView() {
     queue, jobs, activeCount, atCapacity, maxConcurrent,
     cancelAll, takeCompleted,
   } = useMusic()
+  const inflightPending = useMediaInflightStore((s) => s.pendingSlots('music'))
+  const pendingCount = Math.max(activeCount, inflightPending)
 
   const minPromptLength = caps.minPromptLength
   const promptLen = prompt.trim().length
@@ -55,24 +58,13 @@ export function MusicView() {
   const optimizerActive = caps.supportsLyricsOptimizer && lyricsOptimizer
   const lyricsMissing = caps.lyricsRequired && !optimizerActive && !lyrics.trim()
 
+  // Dismiss completed jobs from the in-page queue (gallery already persisted in the hook).
   useEffect(() => {
     const ids = jobs.filter((j) => j.status === 'completed' && j.blob).map((j) => j.id)
     for (const id of ids) {
-      const taken = takeCompleted(id)
-      if (!taken?.blob) continue
-      void gallery.add({
-        kind: 'music',
-        blob: taken.blob,
-        mimeType: taken.blob.type || 'audio/mpeg',
-        prompt: taken.meta.prompt,
-        model: taken.meta.model,
-        extras: {
-          ...taken.meta.extras,
-          ...(taken.meta.lyrics ? { lyrics: taken.meta.lyrics } : {}),
-        },
-      })
+      takeCompleted(id)
     }
-  }, [jobs, takeCompleted, gallery.add])
+  }, [jobs, takeCompleted])
 
   const handleGenerate = () => {
     if (!prompt.trim()) return
@@ -214,10 +206,10 @@ export function MusicView() {
       <PrimaryButton
         onClick={handleGenerate}
         disabled={!prompt.trim() || promptTooShort || lyricsMissing || !apiKey || atCapacity}
-        loading={activeCount > 0}
+        loading={pendingCount > 0}
         size="lg"
       >
-        {activeCount > 0 ? `Generate another (${activeCount}/${maxConcurrent})` : 'Generate Music'}
+        {pendingCount > 0 ? `Generate another (${pendingCount}/${maxConcurrent})` : 'Generate Music'}
       </PrimaryButton>
       {activeCount > 0 && (
         <button
@@ -235,25 +227,27 @@ export function MusicView() {
     <MediaGallery
       kind="music"
       items={gallery.items}
-      pendingCount={activeCount}
+      pendingCount={pendingCount}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
       onUsePrompt={(p) => setPrompt(p)}
       empty={
         <div className="flex items-center justify-center flex-1 h-full text-[var(--color-text-quaternary)] text-[15px]">
-          {activeCount > 0 ? (
+          {pendingCount > 0 ? (
             <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
               <Spinner size="lg" />
               <span className="text-[var(--color-text-secondary)] text-center">
-                Composing {activeCount} track{activeCount === 1 ? '' : 's'}…
+                Composing {pendingCount} track{pendingCount === 1 ? '' : 's'}…
                 <span className="block text-[12px] text-[var(--color-text-quaternary)] mt-1">typically 20s–90s each</span>
               </span>
+              {activeCount > 0 && (
               <button
                 onClick={cancelAll}
                 className="text-[13px] text-[var(--color-text-quaternary)] hover:text-[var(--color-text-secondary)] underline underline-offset-2 transition-colors"
               >
                 Cancel all
               </button>
+              )}
             </div>
           ) : !prompt ? (
             <div className="max-w-md w-full flex flex-col gap-2">

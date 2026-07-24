@@ -13,6 +13,8 @@ describe('settings-store', () => {
       surfaceEmphasis: 'quiet',
       profileName: '',
       lastNonSettingsTab: 'intel',
+      settingsCategory: 'display',
+      settingsFocus: null,
     })
   })
 
@@ -67,6 +69,15 @@ describe('settings-store', () => {
     useSettingsStore.getState().openSettings('data')
     expect(useSettingsStore.getState().activeTab).toBe('settings')
     expect(useSettingsStore.getState().settingsFocus).toBe('data')
+  })
+
+  it('persists last settings sidebar category', () => {
+    useSettingsStore.getState().setSettingsCategory('billing')
+    expect(useSettingsStore.getState().settingsCategory).toBe('billing')
+    useSettingsStore.getState().setSettingsCategory('usage')
+    expect(useSettingsStore.getState().settingsCategory).toBe('usage')
+    useSettingsStore.getState().setSettingsCategory('not-a-category' as never)
+    expect(useSettingsStore.getState().settingsCategory).toBe('display')
   })
 
   it('defaults to intel, not deprecated chat', () => {

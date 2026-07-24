@@ -10,6 +10,7 @@ import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
 import { SegmentedControl } from '../ui/sub-tabs'
 import { MediaGallery } from '../media/media-gallery'
+import { useMediaInflightStore } from '../../stores/media-inflight-store'
 import { MAX_CONCURRENT_MEDIA_JOBS } from '../../lib/media-concurrency'
 import { toast } from '../../stores/toast-store'
 
@@ -68,7 +69,7 @@ export function AudioView() {
   const [format, setFormat] = useState<string>('mp3')
   const [file, setFile] = useState<File | null>(null)
   const [transcript, setTranscript] = useState('')
-  const [pendingTts, setPendingTts] = useState(0)
+  const pendingTts = useMediaInflightStore((s) => s.pendingJobs('tts'))
   const fileRef = useRef<HTMLInputElement>(null)
 
   const gallery = useMediaGallery('tts')
@@ -108,22 +109,11 @@ export function AudioView() {
     }
     const trimmed = text.trim()
     const responseFormat = format as typeof FORMATS[number]
-    setPendingTts((n) => n + 1)
     tts.mutate(
       { model, input: trimmed, voice, speed, response_format: responseFormat },
       {
-        onSuccess: (blob) => {
-          void gallery.add({
-            kind: 'tts',
-            blob,
-            mimeType: blob.type || `audio/${responseFormat === 'mp3' ? 'mpeg' : responseFormat}`,
-            prompt: trimmed,
-            model,
-            extras: { voice, speed, format: responseFormat },
-          })
-        },
+        // Inflight placeholders + gallery persist live in useTTS.
         onError: (err) => toast.fromError(err, 'TTS failed'),
-        onSettled: () => setPendingTts((n) => Math.max(0, n - 1)),
       },
     )
   }

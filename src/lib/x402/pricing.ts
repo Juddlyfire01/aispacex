@@ -23,7 +23,7 @@ export interface PricePreview {
   margin: number
 }
 
-const KIND_LABELS: Record<string, string> = {
+export const KIND_LABELS: Record<string, string> = {
   posts: 'Post reads',
   users: 'User lookups',
   likes: 'Like reads',
@@ -40,8 +40,17 @@ const KIND_LABELS: Record<string, string> = {
   tts: 'Speech synthesis',
 }
 
-function labelFor(kind: CostKind): string {
+/** Ordered kind options for Usage chart filters (All is UI-only). */
+export const USAGE_KIND_FILTERS: Array<{ kind: string; label: string }> = Object.entries(
+  KIND_LABELS,
+).map(([kind, label]) => ({ kind, label }))
+
+export function kindLabel(kind: CostKind | string): string {
   return KIND_LABELS[kind as string] ?? String(kind)
+}
+
+function labelFor(kind: CostKind): string {
+  return kindLabel(kind)
 }
 
 /** Charged price for a single raw USD cost. */

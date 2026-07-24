@@ -6,6 +6,7 @@ import {
   type MediaGalleryRecord,
   type MediaKind,
 } from '../lib/media-gallery'
+import { notifyMediaGalleryChange, onMediaGalleryChange } from '../lib/media-gallery-persist'
 import { toast } from '../stores/toast-store'
 
 export interface GalleryItemView extends MediaGalleryRecord {
@@ -32,6 +33,15 @@ export function useMediaGallery(kind: MediaKind) {
     setItems(views)
   }, [revokeAll])
 
+  const reload = useCallback(async () => {
+    try {
+      const records = await mediaGallery.list(kind)
+      track(records.map(toView))
+    } catch (err) {
+      console.error('Failed to load media gallery', err)
+    }
+  }, [kind, track])
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -52,9 +62,18 @@ export function useMediaGallery(kind: MediaKind) {
     }
   }, [kind, revokeAll, track])
 
+  // Background generations (hooks that outlive this view) write IDB then notify.
+  useEffect(() => {
+    return onMediaGalleryChange((changedKind) => {
+      if (changedKind !== kind) return
+      void reload()
+    })
+  }, [kind, reload])
+
   const add = useCallback(async (input: MediaGalleryItemInput) => {
     try {
       const record = await mediaGallery.add(input)
+      notifyMediaGalleryChange(input.kind)
       const view = toView(record)
       urlsRef.current.set(view.id, view.objectUrl)
       setItems((prev) => {
@@ -99,22 +118,24 @@ export function useMediaGallery(kind: MediaKind) {
     setItems((prev) => prev.filter((i) => i.id !== id))
     try {
       await mediaGallery.remove(id)
+      notifyMediaGalleryChange(kind)
     } catch (err) {
       console.error('Failed to delete media', err)
       toast.error('Delete failed', 'Removed from view but may still be on disk.')
     }
-  }, [])
+  }, [kind])
 
   const clearAll = useCallback(async () => {
     revokeAll()
     setItems([])
     try {
       await mediaGallery.clearAll(kind)
+      notifyMediaGalleryChange(kind)
     } catch (err) {
       console.error('Failed to clear media gallery', err)
       toast.error('Clear failed', 'Gallery may still have items on disk.')
     }
   }, [kind, revokeAll])
 
-  return { items, ready, add, remove, clearAll }
+  return { items, ready, add, remove, clearAll, reload }
 }

@@ -9,6 +9,7 @@ import { GenerationView } from '../ui/generation-view'
 import { LoadingState } from '../ui/spinner'
 import { MediaGallery, type ImageToolAction } from '../media/media-gallery'
 import { rawBase64, blobToDataUrl } from '../../lib/media-blob'
+import { useMediaInflightStore } from '../../stores/media-inflight-store'
 import { toast } from '../../stores/toast-store'
 import type { GalleryItemView } from '../../hooks/use-media-gallery'
 
@@ -90,21 +91,6 @@ export function ImageTools({
     })()
   }
 
-  const persistResult = (blob: Blob, meta: {
-    prompt: string
-    model: string
-    extras: Record<string, string | number | boolean>
-  }) => {
-    void gallery.add({
-      kind: 'image',
-      blob,
-      mimeType: blob.type || 'image/png',
-      prompt: meta.prompt,
-      model: meta.model,
-      extras: meta.extras,
-    })
-  }
-
   const handleProcess = () => {
     if (!imageData) return
     // FileReader produces a data URL for preview; Venice image endpoints want
@@ -117,40 +103,21 @@ export function ImageTools({
       const prompt = editPrompt.trim()
       editMutation.mutate(
         { image, prompt, modelId: editModel },
-        {
-          ...opts,
-          onSuccess: (blob) => persistResult(blob, {
-            prompt,
-            model: editModel,
-            extras: { tool: 'edit', sourceName: imageName || 'upload' },
-          }),
-        },
+        opts,
       )
     } else if (tool === 'upscale') {
       upscaleMutation.mutate(
         { image, scale, creativity: creativity * 0.0002 },
-        {
-          ...opts,
-          onSuccess: (blob) => persistResult(blob, {
-            prompt: `Upscale ${scale}×`,
-            model: 'upscale',
-            extras: { tool: 'upscale', scale, creativity, sourceName: imageName || 'upload' },
-          }),
-        },
+        opts,
       )
     } else {
-      bgRemoveMutation.mutate(image, {
-        ...opts,
-        onSuccess: (blob) => persistResult(blob, {
-          prompt: 'Remove background',
-          model: 'background-remove',
-          extras: { tool: 'remove-bg', sourceName: imageName || 'upload' },
-        }),
-      })
+      bgRemoveMutation.mutate(image, opts)
     }
   }
 
   const isLoading = editMutation.isPending || upscaleMutation.isPending || bgRemoveMutation.isPending
+  const pendingSlots = useMediaInflightStore((s) => s.pendingSlots('image'))
+  const pendingCount = Math.max(isLoading ? 1 : 0, pendingSlots)
 
   const controls = (
     <>
@@ -236,7 +203,7 @@ export function ImageTools({
     <MediaGallery
       kind="image"
       items={gallery.items}
-      pendingCount={isLoading ? 1 : 0}
+      pendingCount={pendingCount}
       onRemove={gallery.remove}
       onClearAll={gallery.clearAll}
       onOpenInTools={handleOpenInTools}
@@ -246,7 +213,7 @@ export function ImageTools({
       }}
       empty={
         <div className="flex items-center justify-center h-full">
-          {isLoading ? (
+          {pendingCount > 0 ? (
             <LoadingState label="Processing…" size="lg" />
           ) : (
             <EmptyState>

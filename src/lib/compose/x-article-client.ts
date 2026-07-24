@@ -9,6 +9,7 @@ import { uploadImageDataUrl, XMediaError } from './x-media-client'
 import type { PostResult } from './x-post-client'
 import { COST_PER_POST_CREATE_URL } from '../x-intel/fields'
 import { recordCost } from '../../stores/cost-ledger-store'
+import { assertPaidReady, chargeAction, markActionStart } from '../x402/charge-flow'
 
 export class XArticleError extends Error {
   status: number
@@ -57,6 +58,8 @@ async function resolveUploadedMedia(item: MediaItem): Promise<{ mediaId: string;
 }
 
 export async function publishArticleDraft(draft: PostDraft): Promise<PostResult> {
+  assertPaidReady()
+  const sinceTs = markActionStart()
   const article = draft.article
   if (!article) throw new XArticleError('Draft has no article payload.', 400, false)
 
@@ -130,5 +133,6 @@ export async function publishArticleDraft(draft: PostDraft): Promise<PostResult>
     /* metering must never break publishing */
   }
 
+  await chargeAction('x-post', { sinceTs })
   return { id: postId, ids: [postId], url }
 }

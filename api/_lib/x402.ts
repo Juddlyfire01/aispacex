@@ -56,6 +56,16 @@ export interface LedgerRow {
   createdAt: string
   action?: string
   requestId?: string
+  /** On-chain / facilitator payment id (USDC tx hash for v1 top-ups). */
+  paymentId?: string
+  chainId?: number
+  asset?: string
+}
+
+const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/
+
+function isTxHash(id: string | undefined | null): id is string {
+  return typeof id === 'string' && TX_HASH_RE.test(id)
 }
 
 let cached: Redis | null | undefined
@@ -190,8 +200,19 @@ async function pushRow(address: string, row: LedgerRow): Promise<void> {
   await redis.ltrim(key, 0, LEDGER_CAP - 1)
 }
 
+export interface CreditTopUpOpts {
+  /** Verified payment id — USDC tx hash for v1. Used as row id when valid. */
+  paymentId?: string | null
+  chainId?: number
+  asset?: string
+}
+
 /** Credit a top-up and append a TOP_UP row. Returns the new balance. */
-export async function creditTopUp(address: string, amountUsd: number): Promise<number> {
+export async function creditTopUp(
+  address: string,
+  amountUsd: number,
+  opts: CreditTopUpOpts = {},
+): Promise<number> {
   const redis = getRedis()
   if (!redis) throw new Error('x402_kv_not_configured')
   if (!(amountUsd > 0)) throw new Error('invalid_amount')
@@ -199,12 +220,17 @@ export async function creditTopUp(address: string, amountUsd: number): Promise<n
   // Store USD scaled to integer micros (6dp) to avoid float drift in incrby.
   const micro = Math.round(amountUsd * BALANCE_MICRO_SCALE)
   const after = (await redis.incrby(key, micro)) / BALANCE_MICRO_SCALE
+  const paymentId = opts.paymentId?.trim() || undefined
+  const id = isTxHash(paymentId) ? paymentId.toLowerCase() : newRowId('topup')
   await pushRow(address, {
-    id: newRowId('topup'),
+    id,
     type: 'TOP_UP',
     amountUsd,
     balanceAfterUsd: after,
     createdAt: new Date().toISOString(),
+    ...(paymentId ? { paymentId: isTxHash(paymentId) ? paymentId.toLowerCase() : paymentId } : {}),
+    chainId: opts.chainId ?? 8453,
+    asset: opts.asset ?? 'USDC',
   })
   return after
 }

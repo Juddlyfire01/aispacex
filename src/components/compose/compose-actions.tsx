@@ -16,6 +16,7 @@ import { postDraft, XPostError } from '../../lib/compose/x-post-client'
 import { beginSelfLogin } from '../../lib/x-intel/self-client'
 import { useComposeVerified } from '../../hooks/use-compose-verified'
 import { yieldForPaint } from '../../lib/yield-for-paint'
+import { PaidNotReadyError } from '../../lib/x402/charge-flow'
 
 // Images/GIFs post natively; videos still route to copy (see classifyPostability).
 const CAPS = { mediaNativeSupported: true }
@@ -133,7 +134,9 @@ export function ComposeActions({ threadId, copied, setCopied }: ComposeActionsPr
       setPostedUrl(result.url)
       resetDraft(threadId)
     } catch (e) {
-      if (e instanceof XPostError || e instanceof XArticleError || e instanceof XMediaError) {
+      if (e instanceof PaidNotReadyError) {
+        // Toast already shown by assertPaidReady.
+      } else if (e instanceof XPostError || e instanceof XArticleError || e instanceof XMediaError) {
         setError(e.message)
         setNeedsReconnect(e.needsReconnect)
       } else {

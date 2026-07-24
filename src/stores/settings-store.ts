@@ -13,7 +13,7 @@ import {
 } from '../lib/appearance'
 
 export type Tab = 'chat' | 'image' | 'audio' | 'music' | 'video' | 'embeddings' | 'workflows' | 'playground' | 'intel' | 'signal' | 'stats' | 'news' | 'settings'
-export type SettingsCategory = 'profile' | 'display' | 'data' | 'billing'
+export type SettingsCategory = 'profile' | 'display' | 'data' | 'billing' | 'usage'
 export type Theme = 'dark' | 'venice' | 'grey' | 'light'
 export type Scale = 90 | 100 | 110 | 125
 export type FontScale = 'sm' | 'md' | 'lg'
@@ -64,6 +64,9 @@ interface SettingsState {
   setProfileName: (name: string) => void
 
   lastNonSettingsTab: Tab
+  /** Last Settings sidebar category (persisted). */
+  settingsCategory: SettingsCategory
+  setSettingsCategory: (cat: SettingsCategory) => void
   /** One-shot category focus when opening Settings (e.g. from Intel connect disclosure). */
   settingsFocus: SettingsCategory | null
   openSettings: (focus?: SettingsCategory) => void
@@ -71,6 +74,20 @@ interface SettingsState {
 }
 
 const NON_SETTINGS_DEFAULT: Tab = 'intel'
+const DEFAULT_SETTINGS_CATEGORY: SettingsCategory = 'display'
+
+const SETTINGS_CATEGORIES: ReadonlySet<string> = new Set([
+  'profile',
+  'display',
+  'data',
+  'billing',
+  'usage',
+])
+
+function remapSettingsCategory(cat: string | undefined | null): SettingsCategory {
+  if (cat && SETTINGS_CATEGORIES.has(cat)) return cat as SettingsCategory
+  return DEFAULT_SETTINGS_CATEGORY
+}
 
 function remapDeprecatedTab(tab: Tab | undefined): Tab {
   if (!tab || isShelvedTab(tab)) return NON_SETTINGS_DEFAULT
@@ -109,6 +126,8 @@ export const useSettingsStore = create<SettingsState>()(
       setProfileName: (name) => set({ profileName: name }),
 
       lastNonSettingsTab: NON_SETTINGS_DEFAULT,
+      settingsCategory: DEFAULT_SETTINGS_CATEGORY,
+      setSettingsCategory: (cat) => set({ settingsCategory: remapSettingsCategory(cat) }),
       settingsFocus: null,
       openSettings: (focus) =>
         set((s) => ({
@@ -121,7 +140,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'venice-settings',
-      version: 8,
+      version: 9,
       storage: createJSONStorage(() => createEncryptedStorage()),
       migrate: (persisted) => {
         const s = (persisted ?? {}) as Partial<SettingsState> & { zoom?: Scale }
@@ -138,6 +157,7 @@ export const useSettingsStore = create<SettingsState>()(
           profileName: s.profileName ?? '',
           activeTab: remapDeprecatedTab(s.activeTab),
           lastNonSettingsTab: remapDeprecatedTab(s.lastNonSettingsTab),
+          settingsCategory: remapSettingsCategory(s.settingsCategory),
         }
       },
       // After encrypted settings rehydrate (or fail open to defaults), mirror

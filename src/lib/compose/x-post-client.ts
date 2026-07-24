@@ -3,6 +3,7 @@ import { setMediaAltText, uploadImageDataUrl, XMediaError } from './x-media-clie
 import type { SegmentInput } from './x-post-payload'
 import { COST_PER_POST_CREATE, COST_PER_POST_CREATE_URL } from '../x-intel/fields'
 import { recordCost } from '../../stores/cost-ledger-store'
+import { assertPaidReady, chargeAction, markActionStart } from '../x402/charge-flow'
 
 /** Crude URL presence check — X bills Post: Create (with URL) at a 40x rate. */
 function segmentHasUrl(text: string): boolean {
@@ -118,6 +119,8 @@ export async function draftToPostBody(draft: PostDraft): Promise<{
 }
 
 export async function postDraft(draft: PostDraft): Promise<PostResult> {
+  assertPaidReady()
+  const sinceTs = markActionStart()
   const body = await draftToPostBody(draft)
 
   const res = await fetch('/api/x/post', {
@@ -142,5 +145,6 @@ export async function postDraft(draft: PostDraft): Promise<PostResult> {
 
   const result = json as PostResult
   recordPostWriteCost(draft, result.ids?.length ?? 1)
+  await chargeAction('x-post', { sinceTs })
   return result
 }

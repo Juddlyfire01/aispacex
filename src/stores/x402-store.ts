@@ -20,6 +20,16 @@ export interface X402LedgerRow {
   balanceAfterUsd: number
   createdAt: string
   action?: string
+  /** On-chain / facilitator payment id (USDC tx hash for v1 top-ups). */
+  paymentId?: string
+  chainId?: number
+  asset?: string
+}
+
+const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/
+
+export function isPaymentTxHash(id: string | undefined | null): id is string {
+  return typeof id === 'string' && TX_HASH_RE.test(id)
 }
 
 /** Normalize a charge action to a rail target key (lowercase handle), or null. */
@@ -68,8 +78,13 @@ interface X402State {
   refreshConnection: () => Promise<void>
   disconnect: () => Promise<void>
   /** Apply a top-up locally after a successful settlement.
-   * Prefer passing `balanceAfterUsd` from the server so we replace rather than add. */
-  applyTopUp: (amountUsd: number, balanceAfterUsd?: number) => void
+   * Prefer passing `balanceAfterUsd` from the server so we replace rather than add.
+   * Pass `paymentId` (tx hash) so Payments shows the real transaction. */
+  applyTopUp: (
+    amountUsd: number,
+    balanceAfterUsd?: number,
+    opts?: { paymentId?: string | null; chainId?: number; asset?: string },
+  ) => void
   /** Apply a charge locally after a debit; returns false if insufficient.
    * Prefer passing `balanceAfterUsd` from the server so we replace rather than
    * subtract again after `setBalance(balanceAfterUsd)`. */
@@ -301,7 +316,7 @@ export const useX402Store = create<X402State>()(
         })
       },
 
-      applyTopUp: (amountUsd, balanceAfterUsd) => {
+      applyTopUp: (amountUsd, balanceAfterUsd, opts) => {
         if (!(amountUsd > 0) && balanceAfterUsd == null) return
         set((s) => {
           // Prefer server total (leftover + credit). Never invent by adding to a
@@ -311,14 +326,29 @@ export const useX402Store = create<X402State>()(
           const balanceAfter = Number.isFinite(serverN)
             ? coerceBalanceUsd(serverN)
             : coerceBalanceUsd(s.balanceUsd + Math.max(0, Number(amountUsd) || 0))
+          const paymentId = opts?.paymentId?.trim() || undefined
+          const id = isPaymentTxHash(paymentId)
+            ? paymentId.toLowerCase()
+            : newRowId()
           const row: X402LedgerRow = {
-            id: newRowId(),
+            id,
             type: 'TOP_UP',
             amountUsd: Math.max(0, Number(amountUsd) || 0),
             balanceAfterUsd: balanceAfter,
             createdAt: new Date().toISOString(),
+            ...(paymentId
+              ? {
+                  paymentId: isPaymentTxHash(paymentId)
+                    ? paymentId.toLowerCase()
+                    : paymentId,
+                }
+              : {}),
+            chainId: opts?.chainId ?? 8453,
+            asset: opts?.asset ?? 'USDC',
           }
-          return { balanceUsd: balanceAfter, ledger: [row, ...s.ledger].slice(0, LEDGER_CAP) }
+          // Dedupe if server already has this tx row after refresh.
+          const rest = s.ledger.filter((r) => r.id !== row.id && r.paymentId !== row.paymentId)
+          return { balanceUsd: balanceAfter, ledger: [row, ...rest].slice(0, LEDGER_CAP) }
         })
       },
 

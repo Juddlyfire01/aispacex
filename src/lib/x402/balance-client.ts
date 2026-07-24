@@ -19,6 +19,9 @@ export interface BalanceResponse {
     balanceAfterUsd: number
     createdAt: string
     action?: string
+    paymentId?: string
+    chainId?: number
+    asset?: string
   }>
 }
 

@@ -55,4 +55,30 @@ describe('useCostLedgerStore', () => {
     expect(actions).toHaveLength(1)
     expect(actions[0].totalUsd).toBeCloseTo(0.15)
   })
+
+  it('prunes entries older than 30 days when recording', () => {
+    const oldTs = Date.now() - 40 * 24 * 60 * 60 * 1000
+    useCostLedgerStore.setState({
+      entries: [
+        {
+          id: 'old',
+          provider: 'x',
+          kind: 'posts',
+          units: 1,
+          unitPriceUsd: 0.005,
+          rawUsd: 0.005,
+          ts: oldTs,
+        },
+      ],
+    })
+    useCostLedgerStore.getState().recordCost({
+      provider: 'x',
+      kind: 'posts',
+      units: 10,
+      unitPriceUsd: 0.005,
+    })
+    const entries = useCostLedgerStore.getState().entries
+    expect(entries.every((e) => e.id !== 'old')).toBe(true)
+    expect(entries).toHaveLength(1)
+  })
 })

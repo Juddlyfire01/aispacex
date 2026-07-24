@@ -9,13 +9,13 @@ import {
   makeEntry,
   groupByAction,
 } from '../lib/cost/ledger'
+import { trimEntries, USAGE_WINDOW_DAYS, windowStartMs } from '../lib/cost/usage-analytics'
 
 /**
- * Cap on retained entries. The ledger is a rolling window for the meter + x402
- * reconciliation, not an audit log — session/lifetime totals are kept exactly
- * regardless of trimming. Oldest entries are dropped past this cap.
+ * Soft cap on retained entries. Primary retention is the 30-day time window;
+ * this caps extreme volume within the window.
  */
-const MAX_ENTRIES = 2000
+const MAX_ENTRIES = 5000
 
 interface ProviderTotals {
   x: number
@@ -23,7 +23,7 @@ interface ProviderTotals {
 }
 
 interface CostLedgerState {
-  /** Rolling window of recent entries (newest last). Not fully persisted. */
+  /** Rolling window of recent entries (newest last). Persisted for 30 days. */
   entries: CostEntry[]
   /** USD spend this page load, split by provider (not persisted). */
   session: ProviderTotals
@@ -42,6 +42,13 @@ interface CostLedgerState {
   clearEntries: () => void
 }
 
+function prune(entries: CostEntry[]): CostEntry[] {
+  return trimEntries(entries, {
+    sinceMs: windowStartMs(USAGE_WINDOW_DAYS),
+    maxEntries: MAX_ENTRIES,
+  })
+}
+
 export const useCostLedgerStore = create<CostLedgerState>()(
   persist(
     (set, get) => ({
@@ -57,8 +64,7 @@ export const useCostLedgerStore = create<CostLedgerState>()(
           return entry
         }
         set((s) => {
-          const entries = [...s.entries, entry]
-          if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES)
+          const entries = prune([...s.entries, entry])
           return {
             entries,
             session: {
@@ -90,11 +96,27 @@ export const useCostLedgerStore = create<CostLedgerState>()(
     }),
     {
       name: 'cost-ledger',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => createEncryptedStorage()),
-      // Persist lifetime totals only. The rolling entry window and session
-      // totals are ephemeral (session resets each load; entries are a cache).
-      partialize: (s) => ({ lifetime: s.lifetime }),
+      // Persist lifetime + entries (30d). Session totals reset each load.
+      partialize: (s) => ({ lifetime: s.lifetime, entries: s.entries }),
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as {
+          lifetime?: ProviderTotals
+          entries?: CostEntry[]
+        }
+        const lifetime = p.lifetime ?? { x: 0, venice: 0 }
+        const entries =
+          version >= 2 && Array.isArray(p.entries) ? prune(p.entries) : []
+        return { lifetime, entries, session: { x: 0, venice: 0 } }
+      },
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        const pruned = prune(state.entries)
+        if (pruned.length !== state.entries.length) {
+          useCostLedgerStore.setState({ entries: pruned })
+        }
+      },
     },
   ),
 )

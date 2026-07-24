@@ -100,14 +100,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       // Credit the requested amount (not more than verified — user asked for N).
       const creditAmount = Math.min(verified.amountUsd, amountUsd)
-      const newBalance = await creditTopUp(address, creditAmount)
+      const paymentId = txHash.toLowerCase()
+      const newBalance = await creditTopUp(address, creditAmount, {
+        paymentId,
+        chainId: 8453,
+        asset: 'USDC',
+      })
       return res.status(200).json({
         success: true,
         data: {
           walletAddress: address,
           amountCredited: creditAmount,
           newBalance,
-          paymentId: txHash,
+          paymentId,
         },
       })
     } catch (err) {
@@ -141,14 +146,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const newBalance = await creditTopUp(address, settled.amountUsd)
+    const paymentId = settled.paymentId?.trim() || null
+    const newBalance = await creditTopUp(address, settled.amountUsd, {
+      paymentId,
+      chainId: 8453,
+      asset: 'USDC',
+    })
     return res.status(200).json({
       success: true,
       data: {
         walletAddress: address,
         amountCredited: settled.amountUsd,
         newBalance,
-        paymentId: settled.paymentId ?? null,
+        paymentId,
       },
     })
   } catch (err) {

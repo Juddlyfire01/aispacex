@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import { useSettingsStore, type SettingsCategory } from '../../stores/settings-store'
 import { X402_ENABLED } from '../../lib/x402/config'
@@ -6,6 +6,7 @@ import { ProfileSection } from './profile-section'
 import { DisplaySection } from './display-section'
 import { DataPrivacySection } from './data-privacy-section'
 import { BillingSection } from './billing-section'
+import { UsageSection } from './usage-section'
 
 type Category = SettingsCategory
 
@@ -21,25 +22,53 @@ const BILLING_CATEGORY = {
   desc: 'Credits and payments',
 }
 
+const USAGE_CATEGORY = {
+  id: 'usage' as const,
+  label: 'Usage',
+  desc: 'Analytics and breakdown',
+}
+
+function resolveCategory(
+  cat: Category,
+  available: ReadonlyArray<{ id: Category }>,
+): Category {
+  if (available.some((c) => c.id === cat)) return cat
+  return 'display'
+}
+
 export function SettingsView() {
   const settingsFocus = useSettingsStore((s) => s.settingsFocus)
-  const [cat, setCat] = useState<Category>('display')
+  const settingsCategory = useSettingsStore((s) => s.settingsCategory)
+  const setSettingsCategory = useSettingsStore((s) => s.setSettingsCategory)
+  const closeSettings = useSettingsStore((s) => s.closeSettings)
 
-  const categories = X402_ENABLED
-    ? [...BASE_CATEGORIES, BILLING_CATEGORY]
-    : BASE_CATEGORIES
+  const categories = useMemo(
+    () =>
+      X402_ENABLED
+        ? [...BASE_CATEGORIES, BILLING_CATEGORY, USAGE_CATEGORY]
+        : BASE_CATEGORIES,
+    [],
+  )
+
+  const cat = resolveCategory(settingsCategory, categories)
+
+  useEffect(() => {
+    // If persisted category is unavailable (e.g. billing with x402 off), snap back.
+    if (cat !== settingsCategory) setSettingsCategory(cat)
+  }, [cat, settingsCategory, setSettingsCategory])
 
   useEffect(() => {
     if (!settingsFocus) return
-    if (settingsFocus === 'billing' && !X402_ENABLED) {
+    if (
+      (settingsFocus === 'billing' || settingsFocus === 'usage') &&
+      !X402_ENABLED
+    ) {
       useSettingsStore.setState({ settingsFocus: null })
       return
     }
-    setCat(settingsFocus)
+    setSettingsCategory(settingsFocus)
     useSettingsStore.setState({ settingsFocus: null })
-  }, [settingsFocus])
-
-  const closeSettings = useSettingsStore((s) => s.closeSettings)
+  }, [settingsFocus, setSettingsCategory])
 
   return (
     <div className="flex h-full">
@@ -62,7 +91,7 @@ export function SettingsView() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setCat(c.id)}
+                onClick={() => setSettingsCategory(c.id)}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'relative flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-2',
@@ -83,7 +112,12 @@ export function SettingsView() {
       </aside>
 
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="px-8 py-8 max-w-2xl">
+        <div
+          className={cn(
+            'px-8 py-8',
+            cat === 'usage' ? 'max-w-4xl' : 'max-w-2xl',
+          )}
+        >
           <h2 className="text-[18px] font-semibold text-[var(--color-text-primary)] mb-6">
             {categories.find((c) => c.id === cat)?.label}
           </h2>
@@ -93,6 +127,8 @@ export function SettingsView() {
             <DataPrivacySection />
           ) : cat === 'billing' ? (
             <BillingSection />
+          ) : cat === 'usage' ? (
+            <UsageSection />
           ) : (
             <DisplaySection />
           )}
