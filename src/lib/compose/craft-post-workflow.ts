@@ -13,7 +13,7 @@ export const CRAFT_POST_STARTER: ComposeTemplateStarter = {
       label: 'Craft post',
       jobBody: `JOB — Craft a single publishable post:
 
-MUST call compose_write_draft with format:"post" and optional one-line intent (e.g. lever/end). Do not pass a dense knowledge brief — research stays in this thread for the draft stage. Never paste the full post into chat.
+MUST call compose_write_draft with format:"post" and optional one-line intent (content or format directive only, e.g. "≤280", "quote Erik's ARR line"). Do not pass a dense knowledge brief — research stays in this thread for the draft stage. Never paste the full post into chat.
 
 Respect SPENT — new opener/slogan/spine or FAILED draft.
 

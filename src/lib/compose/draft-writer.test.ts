@@ -214,8 +214,8 @@ describe('buildDraftStageWriteNow / buildWriterUser', () => {
   })
 
   it('includes optional intent', () => {
-    const u = buildWriterUser({ intent: 'reply lever', preferredFormat: 'post' })
-    expect(u).toMatch(/Intent: reply lever/)
+    const u = buildWriterUser({ intent: '≤280', preferredFormat: 'post' })
+    expect(u).toMatch(/Intent: ≤280/)
   })
 })
 
@@ -225,17 +225,21 @@ describe('buildDraftStageSystem / buildWriterSystem', () => {
     expect(sys).toMatch(/REGISTER — HARD STYLE CONSTRAINT/)
     expect(sys).toMatch(/scale length and paragraphing/)
     expect(sys).toMatch(/NO tools/)
-    expect(sys).toMatch(/## CRAFT/)
+    expect(sys).toMatch(/STYLE POLICY/)
     expect(sys).toMatch(/SPENT \/ PRIOR ART/)
+    expect(sys).not.toMatch(/## CRAFT/)
     expect(buildWriterSystem(null)).toMatch(/draft stage/)
   })
 
-  it('always injects CRAFT craft guidance', () => {
+  it('injects STYLE POLICY and never CRAFT', () => {
     const sys = buildDraftStageSystem(null)
-    expect(sys).toMatch(/## CRAFT/)
-    expect(sys).toMatch(/Specificity beats cleverness/)
-    expect(sys).toMatch(/HOOK PATTERNS/)
-    expect(sys).toMatch(/ANTI-PATTERNS/)
+    expect(sys).toMatch(/STYLE POLICY/)
+    expect(sys).toMatch(/Register is the only style authority/)
+    expect(sys).toMatch(/No theatre/)
+    expect(sys).not.toMatch(/## CRAFT/)
+    expect(sys).not.toMatch(/HOOK PATTERNS/)
+    expect(sys).not.toMatch(/ANTI-PATTERNS/)
+    expect(sys).not.toMatch(/Specificity beats cleverness/)
   })
 })
 

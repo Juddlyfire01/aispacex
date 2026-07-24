@@ -49,7 +49,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
         intent: {
           type: 'string',
           description:
-            'Optional one-line directive only (e.g. "reply lever on the end", "≤280"). Facts stay in the conversation — do not re-tell research.',
+            'Optional one-line directive only (e.g. "≤280", "quote Erik\'s ARR line"). Facts stay in the conversation — do not re-tell research.',
         },
         brief: {
           type: 'string',

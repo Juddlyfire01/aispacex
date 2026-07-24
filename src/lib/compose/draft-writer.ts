@@ -7,7 +7,6 @@ import { parseSSEStream } from '../stream'
 import { useVeniceCostStore } from '../../stores/venice-cost-store'
 import type { ChatMessage, VeniceModel } from '../../types/venice'
 import type { DraftWriteBrief } from './draft-writer-tool'
-import { buildCraftInject } from './skills'
 import { ensureToolResultPairs } from './tool-message-pairs'
 
 export { ensureToolResultPairs, repairToolMessagePairs, toolPairsAreComplete } from './tool-message-pairs'
@@ -28,12 +27,17 @@ const SPENT_DRAFT_RULES = `SPENT / PRIOR ART — HARD FAIL:
 - Write the current delta only.`
 
 const DRAFT_FORMAT_SPEC = `Output formats:
-- Post: single block, ≤280 characters, no --- separators. One punchy take.
+- Post: single block, ≤280 characters, no --- separators.
 - Thread: 2+ posts separated by a line containing only ---. Each beat ≤280 unless long-form.
 - Long-form: single continuous block; may exceed 280 (Premium tweet). Deep essay as ONE tweet — NOT an X Article.
 - Article: first line \`# Title\`, blank line, markdown body ONLY. Never include image prompts or \`---IMAGE_PROMPT---\`. Articles ≠ Premium long-form tweets.
 - For post/thread/long-form: no Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).`
+
+const STYLE_POLICY = `STYLE POLICY:
+- Register is the only style authority. If a REGISTER block is present, match it; if not, write plainly — do not invent a viral or finance-Twitter persona.
+- No theatre: do not engineer hooks, forced binaries, reply-bait endings, or denser jargon for engagement. Structure follows the claim and the requested format only.
+- Live user instructions override Register posture; Register never overrides facts or format.`
 
 export interface RunDraftWriterOpts {
   modelId: string
@@ -86,7 +90,7 @@ Rules:
 - When a REGISTER block is present: match voice identity (diction/stance/rhetoric), but ALWAYS scale length and paragraphing to the requested format.`,
     DRAFT_FORMAT_SPEC,
     SPENT_DRAFT_RULES,
-    buildCraftInject(),
+    STYLE_POLICY,
   ]
   if (registerInject?.trim()) {
     parts.push(registerInject.trim())

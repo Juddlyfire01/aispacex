@@ -89,6 +89,7 @@ describe('formatRegisterInject', () => {
     const text = formatRegisterInject(samplePack)
     expect(text).toMatch(/NOT content/)
     expect(text).toMatch(/PRECEDENCE/)
+    expect(text).toMatch(/not engagement tactics/)
   })
 })
 

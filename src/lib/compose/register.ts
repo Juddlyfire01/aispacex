@@ -151,6 +151,7 @@ export function formatRegisterInject(pack: RegisterPack, opts?: { customPrompt?:
     '- FORMAT WINS LENGTH: post → compact; thread → short beats that still cohere across posts; article/long-form → full paragraphs, transitions, and article structure. Keep the SAME voice (diction/stance/rhetoric) while scaling sentence length and paragraphing to the format.',
     '- Metric density is a style trait, not a mandate: use quantitative texture only when the current material supports it.',
     '- Topical nouns in the sheet (products, causes, slogans) are NOT required content — reuse only the move (contrast, certainty, list), never the exhibit.',
+    '- Register describes voice (diction/stance/rhetoric), not engagement tactics — do not add hooks, forced binaries, or reply-bait endings unless the sheet itself does that.',
     'PRECEDENCE: a live instruction in this turn (e.g. "be totally casual", "make it novel", "no metrics tables") OVERRIDES the register\'s default posture. Honor the current ask first, then apply the register within that ask.',
   ]
   if (pack.summary.trim()) {
