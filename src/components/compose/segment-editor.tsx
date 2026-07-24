@@ -28,49 +28,70 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
   const setSegmentText = useComposeStore((s) => s.setSegmentText)
   const removeSegment = useComposeStore((s) => s.removeSegment)
   const moveSegment = useComposeStore((s) => s.moveSegment)
+  const streaming = useComposeStore((s) => s.draftWriterStreaming)
 
   const limit = longform ? LONGFORM_LIMIT : TWEET_LIMIT
   const used = tweetLength(text)
+  const showWriting = streaming && index === 0
 
   return (
     <div className="space-y-1.5">
       {/* Draft bubble — text + media thumbs only (no poll / action chrome) */}
-      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2">
+      <div className="border border-[var(--color-border-faint)] rounded-lg p-3 bg-[var(--color-bg-surface)] space-y-2 relative">
         {total > 1 && (
           <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-quaternary)]">
             <span className="font-mono">{index + 1}/{total}</span>
             <div className="flex-1" />
             <button
               onClick={() => moveSegment(threadId, segment.id, -1)}
-              disabled={index === 0}
+              disabled={index === 0 || streaming}
               className="hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-20"
             >
               ↑
             </button>
             <button
               onClick={() => moveSegment(threadId, segment.id, 1)}
-              disabled={index === total - 1}
+              disabled={index === total - 1 || streaming}
               className="hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-20"
             >
               ↓
             </button>
-            <button onClick={() => removeSegment(threadId, segment.id)} className="hover:text-red-400/70 transition-colors">
+            <button
+              onClick={() => removeSegment(threadId, segment.id)}
+              disabled={streaming}
+              className="hover:text-red-400/70 transition-colors disabled:opacity-20"
+            >
               Remove
             </button>
           </div>
         )}
 
-        <FormatToolbar
-          value={text}
-          onChange={(next) => setSegmentText(threadId, segment.id, next)}
-          textareaRef={textareaRef}
-        />
+        {!streaming && (
+          <FormatToolbar
+            value={text}
+            onChange={(next) => setSegmentText(threadId, segment.id, next)}
+            textareaRef={textareaRef}
+          />
+        )}
+
+        {showWriting && (
+          <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-quaternary)]">
+            <span className="inline-block size-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
+            Writing…
+          </div>
+        )}
 
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setSegmentText(threadId, segment.id, e.target.value)}
+          readOnly={streaming}
+          aria-readonly={streaming || undefined}
+          onChange={(e) => {
+            if (streaming) return
+            setSegmentText(threadId, segment.id, e.target.value)
+          }}
           onKeyDown={(e) => {
+            if (streaming) return
             if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault()
               const el = e.currentTarget
@@ -83,8 +104,14 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
             }
           }}
           rows={Math.max(6, Math.ceil((text.length || 1) / 60))}
-          placeholder={index === 0 ? 'What do you want to post?' : 'Continue the thread…'}
-          className="w-full bg-transparent text-[13px] text-[var(--color-text-primary)] font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] min-h-[7.5rem]"
+          placeholder={
+            showWriting && !text
+              ? ''
+              : index === 0
+                ? 'What do you want to post?'
+                : 'Continue the thread…'
+          }
+          className="w-full bg-transparent text-[13px] text-[var(--color-text-primary)] font-with-emoji outline-none resize-none placeholder:text-[var(--color-text-placeholder)] min-h-[7.5rem] read-only:cursor-default"
         />
 
         <MediaAttachments threadId={threadId} segment={liveSegment} />
@@ -95,11 +122,13 @@ export function SegmentEditor({ threadId, segment, index, total, longform }: Seg
       </div>
 
       {/* Toolbar under every bubble — same language as + Add thread */}
-      <DraftSegmentToolbar
-        threadId={threadId}
-        segment={liveSegment}
-        showClear={index === total - 1}
-      />
+      {!streaming && (
+        <DraftSegmentToolbar
+          threadId={threadId}
+          segment={liveSegment}
+          showClear={index === total - 1}
+        />
+      )}
 
       {/* Poll form only when enabled — sits under the toolbar, not in the bubble */}
       {liveSegment.poll && (

@@ -78,6 +78,38 @@ export function resolvePostAuthor(postId: string): string {
   return ''
 }
 
+/** Fill missing quote/reply handles from local intel. */
+export function completeDraftTarget(target: PostTarget): PostTarget {
+  if (target.kind === 'original') return target
+  if (target.kind === 'quote') {
+    if (target.username.trim()) return target
+    return { ...target, username: resolvePostAuthor(target.postId) }
+  }
+  if (target.toUsername.trim()) return target
+  return { ...target, toUsername: resolvePostAuthor(target.toPostId) }
+}
+
+const SNOWFLAKE_RE = /\b(\d{15,20})\b/g
+
+/**
+ * Infer quote/reply target from user/assistant text when the tool omitted
+ * `target` (e.g. "draft a quote" + a cited post id).
+ */
+export function inferDraftTargetFromText(text: string): PostTarget | undefined {
+  const ids = [...text.matchAll(SNOWFLAKE_RE)].map((m) => m[1]!)
+  if (ids.length === 0) return undefined
+  const postId = ids[ids.length - 1]!
+  const lower = text.toLowerCase()
+  const username = resolvePostAuthor(postId)
+  if (/\bquot(?:e|es|ed|ing)\b/.test(lower) || /\bdraft a quote\b/.test(lower)) {
+    return completeDraftTarget({ kind: 'quote', postId, username })
+  }
+  if (/\breply\b/.test(lower) || /\breplies\b/.test(lower)) {
+    return completeDraftTarget({ kind: 'reply', toPostId: postId, toUsername: username })
+  }
+  return undefined
+}
+
 /** When entering the Post tab, pre-select the active intel target for the next new chat only. */
 export function syncComposeContextFromActiveTarget() {
   const target = useXIntelStore.getState().activeTarget

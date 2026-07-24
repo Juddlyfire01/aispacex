@@ -48,6 +48,42 @@ describe('parseDraftWriteBrief', () => {
     expect(b.target).toEqual({ kind: 'reply', toPostId: '1', toUsername: 'bob' })
   })
 
+  it('parses quote target', () => {
+    expect(
+      parseDraftWriteBrief({
+        target: { kind: 'quote', postId: '2080451660992630981', username: 'Austin' },
+      }).target,
+    ).toEqual({
+      kind: 'quote',
+      postId: '2080451660992630981',
+      username: 'Austin',
+    })
+  })
+
+  it('accepts reply-shaped field names on quote targets', () => {
+    expect(
+      parseDraftWriteBrief({
+        target: {
+          kind: 'quote',
+          toPostId: '2080451660992630981',
+          toUsername: 'Austin',
+        },
+      }).target,
+    ).toEqual({
+      kind: 'quote',
+      postId: '2080451660992630981',
+      username: 'Austin',
+    })
+  })
+
+  it('keeps quote target when username is missing (caller may backfill)', () => {
+    expect(
+      parseDraftWriteBrief({
+        target: { kind: 'quote', postId: '2080451660992630981' },
+      }).target,
+    ).toEqual({ kind: 'quote', postId: '2080451660992630981', username: '' })
+  })
+
   it('maps legacy brief/notes to intent', () => {
     expect(parseDraftWriteBrief({ brief: 'Write about VVV' }).intent).toBe('Write about VVV')
     expect(parseDraftWriteBrief({ notes: 'under 280' }).intent).toBe('under 280')

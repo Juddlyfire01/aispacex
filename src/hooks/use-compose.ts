@@ -16,6 +16,10 @@ import { buildSpentContentPack } from '../lib/compose/spent-content'
 import { looksLikeDraftIntent } from '../lib/compose/article-handoff'
 import { syncDraftForVerification } from '../lib/compose/verified-features'
 import {
+  completeDraftTarget,
+  inferDraftTargetFromText,
+} from '../lib/compose/open-compose'
+import {
   isRegisterPackEmpty,
   packFromReportRegister,
   resolveRegisterPack,
@@ -25,6 +29,7 @@ import {
   COMPOSE_WRITE_DRAFT_TOOL_NAME,
   DRAFT_WRITE_FORMATS,
   describeDraftWriteLabels,
+  parseDraftWriteBrief,
   resolveDraftWriteFormat,
   resolveDraftWriterModelId,
   type DraftWriteBrief,
@@ -548,10 +553,23 @@ export function useCompose() {
           const s0 = useComposeStore.getState()
           useComposePrefsStore.getState().setDraftDrawerOpen(true)
           s0.setDraftWriterStreaming(true)
+
+          let resolvedTarget = writerBrief.target
+            ? completeDraftTarget(writerBrief.target)
+            : undefined
+          if (!resolvedTarget && !sendWantsArticle) {
+            const recent = (s0.threads[threadId]?.messages ?? [])
+              .slice(-10)
+              .map((m) => (typeof m.content === 'string' ? m.content : ''))
+              .join('\n')
+            const hint = [writerBrief.intent ?? '', recent].join('\n')
+            resolvedTarget = inferDraftTargetFromText(hint)
+          }
+
           const seg = emptySegment()
           s0.applyDraftPatch(threadId, {
             segments: [seg],
-            ...(writerBrief.target && !sendWantsArticle ? { target: writerBrief.target } : {}),
+            ...(resolvedTarget && !sendWantsArticle ? { target: resolvedTarget } : {}),
             ...(sendWantsArticle
               ? { article: emptyArticleDraft(), longform: false, target: { kind: 'original' } }
               : {
@@ -986,6 +1004,14 @@ export function useCompose() {
                       target: { kind: 'original' },
                     })
                   }
+                } else {
+                  // Clear post body so the Writing… state is visible in the gap
+                  // before the draft stage streams the first token.
+                  const draft = s.threads[threadId]?.draft
+                  const hasBody = draft?.segments.some((seg) => seg.text.trim())
+                  if (hasBody) {
+                    s.applyDraftPatch(threadId, { segments: [emptySegment()] })
+                  }
                 }
               }
             },
@@ -995,6 +1021,16 @@ export function useCompose() {
               pendingEventIds.set(`${name}:${JSON.stringify(args)}`, id)
               useComposeStore.getState().setAgentPhase(null)
               clearedToolActivity = false
+              // Apply quote/reply target as soon as tool args arrive (before the
+              // draft-stage request), so TargetPicker isn't stuck on Original.
+              if (name === COMPOSE_WRITE_DRAFT_TOOL_NAME) {
+                const brief = parseDraftWriteBrief(args)
+                if (brief.target && brief.format !== 'article') {
+                  useComposeStore.getState().applyDraftPatch(threadId, {
+                    target: completeDraftTarget(brief.target),
+                  })
+                }
+              }
             },
             onToolResult: async ({ name, args, result }) => {
               const s = useComposeStore.getState()

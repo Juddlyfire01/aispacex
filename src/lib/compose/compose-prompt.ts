@@ -34,12 +34,13 @@ Call compose_write_draft ONLY when the user asks for publishable copy (post, rep
 Do NOT call compose_write_draft for research, analysis, finding posts, suggesting reply targets, outlining ideas, or answering questions. Answer those in chat with intel_*/compose_history_*/search as needed.
 
 When you do call it:
-1. Pass metadata only: format (when Preferred format is Auto), optional target, optional one-line intent. Do NOT pass a dense knowledge brief — facts stay in this thread for the draft stage.
-2. Never set longform:true for Articles — use format:"article".
-3. NEVER paste the draft/article/thread copy into chat — the Draft drawer owns the copy.
-4. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff".
-5. Image/cover prompts belong in chat (after the draft is ready), not in the tool call.
-6. Do not offer to draft unless the user asked for writing/copy.`
+1. Pass metadata only: format (when Preferred format is Auto), target (REQUIRED for quote/reply), optional one-line intent. Do NOT pass a dense knowledge brief — facts stay in this thread for the draft stage.
+2. Quote request → target: { kind:"quote", postId, username }. Reply request → target: { kind:"reply", toPostId, toUsername }. Standalone post → omit target or kind:"original". Quote/reply are targets, not formats.
+3. Never set longform:true for Articles — use format:"article".
+4. NEVER paste the draft/article/thread copy into chat — the Draft drawer owns the copy.
+5. Chat after the tool stays SHORT: status + light options only. Do not announce a "handoff".
+6. Image/cover prompts belong in chat (after the draft is ready), not in the tool call.
+7. Do not offer to draft unless the user asked for writing/copy.`
 
 const ARTICLE_HANDOFF_LOCK = `ARTICLE MODE (Preferred format = Article):
 - Drafting/revising an article → call compose_write_draft (not chat paste).

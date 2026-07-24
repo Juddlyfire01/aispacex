@@ -42,7 +42,7 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
   function: {
     name: COMPOSE_WRITE_DRAFT_TOOL_NAME,
     description:
-      'Start the draft stage: publishable X copy streams into the Draft drawer. The draft stage continues this conversation transcript automatically — pass metadata only (format, target, optional one-line intent). Do NOT pass a dense knowledge brief or the manuscript. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Never paste the draft copy into chat yourself. When Preferred format is Auto, pass format (post|thread|longform|article). For Articles use format:"article"; do not set longform true.',
+      'Start the draft stage: publishable X copy streams into the Draft drawer. The draft stage continues this conversation transcript automatically — pass metadata only (format, target, optional one-line intent). Do NOT pass a dense knowledge brief or the manuscript. Call ONLY when the user asks to draft/write/revise a post, reply, quote, thread, long-form tweet, or Article. Do NOT call for research, analysis, finding posts, or reply-target suggestions — answer those in chat. Never paste the draft copy into chat yourself. When Preferred format is Auto, pass format (post|thread|longform|article). For Articles use format:"article"; do not set longform true. When the user asks to quote or reply to a post, target is REQUIRED (quote: {kind:"quote", postId, username}; reply: {kind:"reply", toPostId, toUsername}).',
     parameters: {
       type: 'object',
       properties: {
@@ -60,17 +60,18 @@ export const COMPOSE_WRITE_DRAFT_TOOL: ToolDefinition = {
           type: 'string',
           enum: ['post', 'thread', 'longform', 'article'],
           description:
-            'Draft shape. Required when Preferred format is Auto. Use article for X Articles; longform only for a Premium long-form tweet.',
+            'Draft shape. Required when Preferred format is Auto. Use article for X Articles; longform only for a Premium long-form tweet. Quote/reply are targets, not formats.',
         },
         target: {
           type: 'object',
-          description: 'Post target. Default original. Ignored for Articles.',
+          description:
+            'REQUIRED for quote/reply requests. Quote uses postId+username; reply uses toPostId+toUsername. Default original only when the user wants a standalone post.',
           properties: {
             kind: { type: 'string', enum: ['original', 'reply', 'quote'] },
-            toPostId: { type: 'string' },
-            toUsername: { type: 'string' },
-            postId: { type: 'string' },
-            username: { type: 'string' },
+            toPostId: { type: 'string', description: 'Reply: id of the post being replied to.' },
+            toUsername: { type: 'string', description: 'Reply: author handle (no @).' },
+            postId: { type: 'string', description: 'Quote: id of the post being quoted.' },
+            username: { type: 'string', description: 'Quote: author handle (no @).' },
           },
         },
         longform: {
@@ -95,6 +96,34 @@ function parseDraftWriteFormat(raw: unknown): DraftWriteFormat | undefined {
     : undefined
 }
 
+function asNonEmptyString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim().replace(/^@/, '') : undefined
+}
+
+/**
+ * Normalize tool `target` args. Accepts reply/quote field-name aliases so a
+ * model that mixes toPostId with kind:"quote" still lands in TargetPicker.
+ */
+export function parseDraftWriteTarget(raw: unknown): PostTarget | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const t = raw as Record<string, unknown>
+  const kind = t.kind
+  if (kind === 'original') return { kind: 'original' }
+
+  const postId = asNonEmptyString(t.postId) ?? asNonEmptyString(t.toPostId)
+  const username = asNonEmptyString(t.username) ?? asNonEmptyString(t.toUsername)
+
+  if (kind === 'quote') {
+    if (!postId) return undefined
+    return { kind: 'quote', postId, username: username ?? '' }
+  }
+  if (kind === 'reply') {
+    if (!postId) return undefined
+    return { kind: 'reply', toPostId: postId, toUsername: username ?? '' }
+  }
+  return undefined
+}
+
 export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteBrief {
   const intentRaw =
     (typeof args.intent === 'string' && args.intent.trim()) ||
@@ -105,18 +134,7 @@ export function parseDraftWriteBrief(args: Record<string, unknown>): DraftWriteB
   const intent = intentRaw.length > 280 ? `${intentRaw.slice(0, 277)}…` : intentRaw || undefined
   const longform = typeof args.longform === 'boolean' ? args.longform : undefined
   const format = parseDraftWriteFormat(args.format)
-  let target: PostTarget | undefined
-  const raw = args.target
-  if (raw && typeof raw === 'object') {
-    const t = raw as Record<string, unknown>
-    if (t.kind === 'reply' && typeof t.toPostId === 'string' && typeof t.toUsername === 'string') {
-      target = { kind: 'reply', toPostId: t.toPostId, toUsername: t.toUsername }
-    } else if (t.kind === 'quote' && typeof t.postId === 'string' && typeof t.username === 'string') {
-      target = { kind: 'quote', postId: t.postId, username: t.username }
-    } else if (t.kind === 'original') {
-      target = { kind: 'original' }
-    }
-  }
+  const target = parseDraftWriteTarget(args.target)
   return { ...(intent ? { intent } : {}), target, longform, ...(format ? { format } : {}) }
 }
 
