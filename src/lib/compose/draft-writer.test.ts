@@ -236,6 +236,8 @@ describe('buildDraftStageSystem / buildWriterSystem', () => {
     expect(sys).toMatch(/STYLE POLICY/)
     expect(sys).toMatch(/Register is the only style authority/)
     expect(sys).toMatch(/No theatre/)
+    expect(sys).toMatch(/Ban en dashes/)
+    expect(sys).toMatch(/em dashes/)
     expect(sys).not.toMatch(/## CRAFT/)
     expect(sys).not.toMatch(/HOOK PATTERNS/)
     expect(sys).not.toMatch(/ANTI-PATTERNS/)

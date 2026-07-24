@@ -20,7 +20,7 @@ export const WRITER_CONVERSATION_MAX_CHARS = 96_000
 /** Below this, treat the stream as truncated / non-draft. */
 export const MIN_DRAFT_CHARS = 10
 
-const SPENT_DRAFT_RULES = `SPENT / PRIOR ART — HARD FAIL:
+const SPENT_DRAFT_RULES = `SPENT / PRIOR ART - HARD FAIL:
 - If a ## SPENT / PRIOR ART section appears in the conversation, its openers, slogans, exhibit spines, status ids, and heavy $/@ stacks are forbidden to reuse.
 - Reusing spent opener/slogan/spine (including light paraphrase) = FAILED draft.
 - Thin novelty → shorter output; never pad with restated prior art.
@@ -29,15 +29,16 @@ const SPENT_DRAFT_RULES = `SPENT / PRIOR ART — HARD FAIL:
 const DRAFT_FORMAT_SPEC = `Output formats:
 - Post: single block, ≤280 characters, no --- separators.
 - Thread: 2+ posts separated by a line containing only ---. Each beat ≤280 unless long-form.
-- Long-form: single continuous block; may exceed 280 (Premium tweet). Deep essay as ONE tweet — NOT an X Article.
+- Long-form: single continuous block; may exceed 280 (Premium tweet). Deep essay as ONE tweet - NOT an X Article.
 - Article: first line \`# Title\`, blank line, markdown body ONLY. Never include image prompts or \`---IMAGE_PROMPT---\`. Articles ≠ Premium long-form tweets.
 - For post/thread/long-form: no Markdown (**bold**, _italic_). @mentions, #hashtags, $cashtags, https:// URLs, emojis, and line breaks are fine.
 - Cite external posts with https://x.com/i/status/{id} permalinks (not bare [1] footnotes).`
 
 const STYLE_POLICY = `STYLE POLICY:
-- Register is the only style authority. If a REGISTER block is present, match it; if not, write plainly — do not invent a viral or finance-Twitter persona.
+- Register is the only style authority. If a REGISTER block is present, match it; if not, write plainly - do not invent a viral or finance-Twitter persona.
 - No theatre: do not engineer hooks, forced binaries, reply-bait endings, or denser jargon for engagement. Structure follows the claim and the requested format only.
-- Live user instructions override Register posture; Register never overrides facts or format.`
+- Live user instructions override Register posture; Register never overrides facts or format.
+- Ban en dashes (–) and em dashes (—) in output. Use ASCII hyphen-minus (-), commas, colons, parentheses, or a sentence break instead. Thread separators stay as a line with only ---.`
 
 export interface RunDraftWriterOpts {
   modelId: string
@@ -80,7 +81,7 @@ export function buildDraftStageSystem(registerInject?: string | null): string {
     `You are the Xintel draft stage. Your only job is to write publishable X post / article copy.
 
 You inherit the research conversation below as ground truth (facts, tool results, decisions).
-Output ONLY the publishable text — plain UTF-8 (or Markdown for articles).
+Output ONLY the publishable text - plain UTF-8 (or Markdown for articles).
 
 Rules:
 - You have NO tools. Never emit function calls, tool JSON, compose_write_draft(...), or a structured brief object.
@@ -112,7 +113,7 @@ export function buildDraftStageWriteNow(brief: DraftWriteBrief): string {
     ? brief.preferredFormat
     : brief.format ?? (brief.longform ? 'longform' : 'post')
   const lines: string[] = [
-    'DRAFT STAGE — write publishable copy now.',
+    'DRAFT STAGE - write publishable copy now.',
     `Format: ${format}.`,
   ]
   if (format === 'post') {

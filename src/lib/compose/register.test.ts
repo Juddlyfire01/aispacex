@@ -72,7 +72,7 @@ describe('parseRegisterUpload', () => {
 describe('formatRegisterInject', () => {
   it('includes summary sections devices and custom — no few-shots', () => {
     const text = formatRegisterInject(samplePack, { customPrompt: 'keep under 280' })
-    expect(text).toMatch(/REGISTER — VOICE CONSTRAINT/)
+    expect(text).toMatch(/REGISTER - VOICE CONSTRAINT/)
     expect(text).toMatch(/Terse metric voice/)
     expect(text).toMatch(/Cadence: Short punches/)
     expect(text).toMatch(/Rhetoric: Rankings/)
